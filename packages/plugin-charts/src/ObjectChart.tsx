@@ -3,7 +3,7 @@ import React, { useState, useEffect, useContext, useCallback, useMemo } from 're
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
 import { normalizeChartSchema } from './normalizeChartSchema';
-import { ComponentRegistry, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, elementDataSourceBlock, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
+import { ComponentRegistry, chartMeasureKey, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, elementDataSourceBlock, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton, DataEmptyState } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight, Inbox } from 'lucide-react';
 import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -35,7 +35,17 @@ export { humanizeLabel };
  * agrees on one key instead of each re-deriving it.
  */
 export function aggregateValueKey(aggregate: { field?: string; function?: string }): string {
-  return aggregate.field || aggregate.function || 'count';
+  // The contract's own derivation answers every aggregate `ChartAggregateSchema`
+  // ADMITS; the tail is this renderer's floor for shapes it REJECTS (a
+  // non-count aggregate that names no field, or an empty bag), which reach this
+  // function only from unvalidated metadata and must still key a column rather
+  // than the string "undefined". Byte-identical to the three-rung `field ||
+  // function || 'count'` it replaces — the two extra rungs are unreachable for
+  // any aggregate the spec answers for. Delegated rather than restated so this
+  // cannot drift from the SERIES binding the dashboard relays compose, which is
+  // exactly how a fieldless count came to project `'count'` and be plotted as
+  // `'value'` (objectui#8266).
+  return chartMeasureKey(aggregate, aggregate.function || 'count');
 }
 
 /**

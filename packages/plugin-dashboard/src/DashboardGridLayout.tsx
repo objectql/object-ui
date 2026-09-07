@@ -6,6 +6,7 @@ import { Edit, GripVertical, Save, X, RefreshCw } from 'lucide-react';
 import { SchemaRenderer, useHasDndProvider, useDnd } from '@object-ui/react';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { BaseSchema, DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
+import { chartMeasureKey } from '@object-ui/core';
 import { isObjectProvider, deriveStaticTableColumns } from './utils';
 import { classifyWidgetType } from './widgetDispatch';
 import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
@@ -236,7 +237,14 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
           function: providerAgg.function,
           groupBy: providerAgg.groupBy,
         } : undefined;
-        const effectiveYField = effectiveAggregate?.field || yField;
+        // Which column carries the measure is the CONTRACT's question, not this
+        // relay's: a fieldless `count` projects its value under the literal
+        // `'count'` (the engine's `COUNT(*)` alias), so `aggregate?.field ||
+        // yField` bound `'value'` against rows that carry `'count'` and the
+        // chart plotted nothing, silently (objectui#8266). `yField` survives as
+        // the floor for a provider with NO aggregate, whose rows are raw
+        // records — there the author's `yField` really is the key.
+        const effectiveYField = chartMeasureKey(effectiveAggregate, yField);
         return {
           type: 'object-chart',
           chartType: dispatch.chartType,
