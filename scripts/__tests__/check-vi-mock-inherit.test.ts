@@ -163,6 +163,45 @@ describe('the eleven — spellings the `importOriginal` grep mis-counted as brok
       ).verdict,
     ).toBe('inherits');
   });
+
+  // -- objectui#8183: what the OPERAND grammar has to keep accepting ---------
+  // The tightening in `the failing shape` below refuses a spread whose operand
+  // merely MENTIONS the obtained module. These are its accept-side
+  // counterweight: a false refusal reds correct code, and that is how a gate
+  // gets deleted rather than fixed.
+
+  it('a parenthesised binding — `...(actual)`', () => {
+    expect(
+      verdictOf(`async (importOriginal) => { const actual = await importOriginal(); return { ...(actual), X: Stub }; }`)
+        .verdict,
+    ).toBe('inherits');
+  });
+
+  it('nested parentheses around an asserted call — ObjectTree.rowCeiling-7210.test.tsx', () => {
+    // The one site in this tree that writes this shape, byte-for-byte.
+    expect(
+      verdictOf(
+        `async (importOriginal) => ({ ...((await importOriginal<any>()) as Record<string, unknown>), X: Stub })`,
+      ).verdict,
+    ).toBe('inherits');
+  });
+
+  it('a non-null assertion is transparent — `...actual!`', () => {
+    expect(
+      verdictOf(`async (importOriginal) => { const actual = await importOriginal(); return { ...actual!, X: Stub }; }`)
+        .verdict,
+    ).toBe('inherits');
+  });
+
+  it('a property read off the module still inherits — the interop shape', () => {
+    // `(await importOriginal()).default` freezes nothing: the key set is still
+    // one the real module OWNS, so it grows when the module grows. No site in
+    // this tree writes it today; refusing it would be a false refusal waiting
+    // for the first file that does.
+    const site = verdictOf(`async (importOriginal) => ({ ...(await importOriginal()).default, X: Stub })`);
+    expect(site.verdict).toBe('inherits');
+    expect(site.reason).toBe('...(await importOriginal()).default');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -215,6 +254,84 @@ describe('the failing shape — a factory that hand-lists the export surface', (
     const sites = findCallSites(mockCall(COVERED, `() => ({ X: Stub })`, 'doMock'), { covered: [COVERED] });
     expect(sites[0].fn).toBe('doMock');
     expect(sites[0].verdict).toBe('frozen');
+  });
+
+  // -- objectui#8183: an operand that merely MENTIONS the module -------------
+
+  /**
+   * Rows C and D of the recogniser table. Both obtain the real module, both
+   * spread, and both read `inherits` until objectui#8183 — the gate quoted the
+   * evasion back in its own reason line. The returned object carries exactly
+   * ONE inherited key (`_`), so the next export any module in the import graph
+   * reads at module scope still resolves to `undefined`: the #6849 failure,
+   * wearing the accepted spelling's clothes.
+   *
+   * NON-VACUITY. Each case is paired with the SAME fixture minus the object
+   * literal, and that twin must read `inherits`. The two differ by the wrapper
+   * alone, so a `frozen` verdict here cannot come from the gate bailing out
+   * early (`indirect`, `unreadable`, "never obtains the real module") — it can
+   * only come from the gate having READ the operand. The reason string is
+   * pinned for the same purpose: it is the one the gate emits after collecting
+   * spreads, not the one it emits before looking.
+   */
+  it('C — spreading an object literal that merely HOLDS the obtained module is frozen', () => {
+    const site = verdictOf(`async (importOriginal) => ({ ...({ _: await importOriginal() }), X: Stub })`);
+    expect(site.verdict).toBe('frozen');
+    expect(site.reason).toBe('the factory spreads something, but not the real module');
+
+    const twin = verdictOf(`async (importOriginal) => ({ ...(await importOriginal()), X: Stub })`);
+    expect(twin.verdict, 'the same fixture without the wrapper must still inherit').toBe('inherits');
+  });
+
+  it('D — the same evasion with the obtained value bound to a const first', () => {
+    const site = verdictOf(
+      `async (importOriginal) => { const actual = await importOriginal(); return { ...({ _: actual }), X: Stub }; }`,
+    );
+    expect(site.verdict).toBe('frozen');
+    expect(site.reason).toBe('the factory spreads something, but not the real module');
+
+    const twin = verdictOf(
+      `async (importOriginal) => { const actual = await importOriginal(); return { ...actual, X: Stub }; }`,
+    );
+    expect(twin.verdict, 'the same fixture without the wrapper must still inherit').toBe('inherits');
+  });
+
+  it('the nesting is refused one level up too — a BINDING that merely holds it', () => {
+    // `const wrapper = { _: await importOriginal() }` must not enter the
+    // inherited set, or C walks back in through the binding-propagation loop.
+    const site = verdictOf(
+      `async (importOriginal) => { const wrapper = { _: await importOriginal() }; return { ...wrapper, X: Stub }; }`,
+    );
+    expect(site.verdict).toBe('frozen');
+    expect(site.reason).toBe('the factory spreads something, but not the real module');
+
+    const twin = verdictOf(
+      `async (importOriginal) => { const wrapper = await importOriginal(); return { ...wrapper, X: Stub }; }`,
+    );
+    expect(twin.verdict, 'the same fixture without the wrapper must still inherit').toBe('inherits');
+  });
+
+  it('an ARRAY around the obtained module is refused for the same reason', () => {
+    const site = verdictOf(`async (importOriginal) => ({ ...[await importOriginal()], X: Stub })`);
+    expect(site.verdict).toBe('frozen');
+    expect(site.reason).toBe('the factory spreads something, but not the real module');
+  });
+
+  it('an object literal is refused even when its OWN contents would inherit', () => {
+    // Deliberate, and documented in the header rather than left to be read as
+    // an oversight: the nesting IS the evasion shape, and the one nesting that
+    // would be correct spells the same thing as `...actual`. No call site in
+    // this tree writes either.
+    expect(
+      verdictOf(`async (importOriginal) => { const actual = await importOriginal(); return { ...{ ...actual }, X: Stub }; }`)
+        .verdict,
+    ).toBe('frozen');
+  });
+
+  it('the callback spread without a CALL stays frozen under the operand grammar', () => {
+    // `...(importOriginal)` is a FUNCTION wearing parentheses. The grammar
+    // reaches the bare token and stops at the obtainer, which is not the module.
+    expect(verdictOf(`async (importOriginal) => ({ ...(importOriginal), X: Stub })`).verdict).toBe('frozen');
   });
 });
 
