@@ -12,8 +12,14 @@ import { ObjectManager } from '../ObjectManager';
 import type { ObjectDefinition } from '@object-ui/types';
 
 // Mock standard components — tested separately in their own packages
-vi.mock('@object-ui/plugin-grid', () => import('./__mocks__/plugin-grid'));
-vi.mock('@object-ui/plugin-form', () => import('./__mocks__/plugin-form'));
+vi.mock('@object-ui/plugin-grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ...(await import('./__mocks__/plugin-grid')),
+}));
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ...(await import('./__mocks__/plugin-form')),
+}));
 
 const MOCK_OBJECTS: ObjectDefinition[] = [
   {

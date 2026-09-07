@@ -1839,6 +1839,224 @@ export interface WriteWarningEvent {
 /** Event listener type for write-warning (dropped-fields) events. */
 export type WriteWarningListener = (event: WriteWarningEvent) => void;
 
+/**
+ * Codes that mean THE DOOR IS NOT THERE — the deployment never mounted the
+ * `/meta` route this read goes through, so no answer about the `mapping` kind
+ * exists to be had (objectui#7741).
+ *
+ * Both are the runtime dispatcher's own words, and both are already read this
+ * way one face over by {@link classifyAnalyticsFailure} for the same question:
+ * `ROUTE_NOT_FOUND` (framework#4019 stops mounting a route at all) and
+ * `NOT_IMPLEMENTED` (the route is mounted with nothing behind it).
+ */
+const IMPORT_MAPPINGS_ROUTE_ABSENT_CODES = ['ROUTE_NOT_FOUND', 'NOT_IMPLEMENTED'] as const;
+
+/**
+ * The code the metadata LIST door answers with when `:type` names a kind this
+ * deployment cannot serve (framework#9488 `refuseUnknownMetaListType`, in
+ * `packages/rest/src/rest-server.ts`), paired with the status it ships it on.
+ *
+ * `mapping` became a declared kind only when the ADR-0088 admission test
+ * accepted it (framework#2611; `metadata-plugin.zod.ts` lists it today), so a
+ * server older than that promotion has it in neither the static contract nor
+ * its live type set, and this is the refusal such a server writes. It is the
+ * modern spelling of exactly the condition this method's docblock has always
+ * promised to keep quiet — an older server without the `mapping` kind. (An
+ * even older one, predating framework#9488, answered `200 {"items":[]}` and so
+ * never reaches a `catch` at all; older still, with no `/meta` route, answers
+ * on {@link IMPORT_MAPPINGS_ROUTE_ABSENT_CODES}.)
+ *
+ * Matched on the code AND the status together, deliberately narrower than the
+ * code alone. `INVALID_REQUEST` is a general-purpose catalog code; what makes
+ * it readable as "this kind is not served" HERE is that this request carries
+ * nothing else to be invalid — `GET /meta/mapping`, no body, no query, one
+ * path segment we chose. Requiring the 400 keeps the quiet arm keyed to the
+ * one shape the framework documents rather than to a code that could arrive on
+ * some other door's terms.
+ */
+const IMPORT_MAPPINGS_UNKNOWN_KIND_CODE = 'INVALID_REQUEST';
+const IMPORT_MAPPINGS_UNKNOWN_KIND_STATUS = 400;
+
+/**
+ * Statuses that identify absence ON THEIR OWN when the answer carried no
+ * ADR-0112 `code` at all — a bare transport 404/501 from a proxy, a gateway,
+ * or a host that never mounted the API, none of which any ObjectStack route
+ * wrote.
+ *
+ * NOT a re-entry for status-mapping: consulted only AFTER every code branch
+ * has declined, i.e. only when there is no contract field to read. Same
+ * residual, same reason, as {@link ANALYTICS_ABSENT_STATUSES} — this door's own
+ * 404s all ship a `code`, so a code-less 404 cannot be a refusal it wrote.
+ */
+const IMPORT_MAPPINGS_ABSENT_STATUSES: readonly number[] = [404, 501];
+
+/** Codes that mean the server ANSWERED and declined this caller. */
+const IMPORT_MAPPINGS_REFUSAL_CODES = ['UNAUTHENTICATED', 'PERMISSION_DENIED'] as const;
+
+/** Statuses that are a refusal on their own terms, whatever code rides them. */
+const IMPORT_MAPPINGS_REFUSAL_STATUSES: readonly number[] = [401, 403, 405];
+
+/**
+ * What a FAILED `listImportMappings` read actually was (objectui#7741).
+ *
+ *  - `not-served` — this deployment does not serve the `mapping` kind, or has
+ *    no `/meta` door at all. QUIET: a real, supported deployment shape, and the
+ *    empty list plus a hidden selector is the correct rendering of it.
+ *  - `refused` — the server answered and declined THIS caller: anonymous,
+ *    lapsed token, missing permission, method withheld. LOUD, and the remedy
+ *    names a person: sign in again, or ask for the grant.
+ *  - `unreadable` — the read could not be completed for any other reason: a
+ *    5xx, a network failure, a code this consumer cannot name. LOUD, and the
+ *    remedy is to retry or report.
+ *
+ * The last two are the same verdict for the user — *we could not find out* —
+ * and they are separated because the sentence that helps differs. What they
+ * share is what matters: neither is evidence that no mapping is registered.
+ */
+export type ImportMappingsFailureKind = 'not-served' | 'refused' | 'unreadable';
+
+/**
+ * Classify a FAILED `meta.getItems('mapping')` call so the caller knows whether
+ * to stay quiet or to say something (objectui#7741).
+ *
+ * ## Why this function exists
+ *
+ * `listImportMappings` degrades every failure to `[]`, and the wizard hides its
+ * saved-mapping selector on an empty list. So "the server served zero mappings"
+ * and "the server never answered" rendered identically — the same UI, on every
+ * deployment, with a `console.warn` as the only discriminator. That silence did
+ * not merely hide a fault: it produced a confident WRONG diagnosis in a careful
+ * reporter (objectstack#14026 was filed, routed and worked by two seats against
+ * a repo whose wizard had been correct since `@object-ui/data-objectstack`
+ * 17.1.0), and the misdiagnosis travelled further than the fault would have.
+ *
+ * This is the discrimination framework #13906 decision 1 option A already
+ * adopted at the tenancy-posture seam — *a thing that could not be READ is not
+ * a thing that is ABSENT* — applied here. It is not a new principle.
+ *
+ * ## It reads the ERROR, never the result
+ *
+ * The one thing this must never do is decide from "is the result an empty
+ * array". An empty array is what BOTH conditions produce, so a test on it can
+ * never fail and can never separate *served zero* from *did not serve* — a
+ * reading that cannot fail is indistinguishable from a reading that passed.
+ * Every branch below reads `err` itself: the ADR-0112 `code` first (the
+ * contract), the status only where no code was declared (a transport fact many
+ * conditions share). Same rule, same order, and for the same reasons as
+ * {@link classifyAnalyticsFailure} (objectui#5663 / objectui#5721).
+ *
+ * `@objectstack/client`'s fetch wrapper hands both envelope families here
+ * already flattened — `errorBody?.code ?? errorBody?.error?.code` onto
+ * `error.code`, plus `error.httpStatus = res.status` — so no envelope reading
+ * belongs in this function. Comparisons go through `errorCodeIs`/
+ * `errorCodeIsAnyOf` so the pre- and post-ADR-0112 spellings both match.
+ */
+export function classifyImportMappingsFailure(error: unknown): {
+  kind: ImportMappingsFailureKind;
+  code?: string;
+  status?: number;
+  message?: string;
+} {
+  const err = (error ?? {}) as Record<string, unknown>;
+  // An empty-string `code` is "the producer declared nothing", not a code —
+  // otherwise it would block the code-less residual while matching no branch.
+  const code = typeof err.code === 'string' && err.code.length > 0 ? err.code : undefined;
+  const message = typeof err.message === 'string' ? err.message : undefined;
+  const status =
+    typeof err.httpStatus === 'number' ? err.httpStatus
+    : typeof err.status === 'number' ? err.status
+    : typeof err.statusCode === 'number' ? err.statusCode
+    : undefined;
+  const found = { code, status, message };
+
+  // ① The `/meta` door itself is absent — nothing here can be asked at all.
+  if (errorCodeIsAnyOf({ code }, IMPORT_MAPPINGS_ROUTE_ABSENT_CODES)) {
+    return { kind: 'not-served', ...found };
+  }
+
+  // ② The door is there and says this deployment carries no such kind.
+  if (
+    errorCodeIs({ code }, IMPORT_MAPPINGS_UNKNOWN_KIND_CODE) &&
+    status === IMPORT_MAPPINGS_UNKNOWN_KIND_STATUS
+  ) {
+    return { kind: 'not-served', ...found };
+  }
+
+  // ③ The server answered and declined this caller.
+  if (errorCodeIsAnyOf({ code }, IMPORT_MAPPINGS_REFUSAL_CODES)) {
+    return { kind: 'refused', ...found };
+  }
+  if (status !== undefined && IMPORT_MAPPINGS_REFUSAL_STATUSES.includes(status)) {
+    return { kind: 'refused', ...found };
+  }
+
+  // ④ Residual — the answer declared NO ADR-0112 code, so no ObjectStack route
+  //   wrote it (a proxy, a gateway, a host with no API mounted). Only here is
+  //   the bare status the best signal available, and only because every code
+  //   branch has already declined.
+  if (
+    code === undefined &&
+    status !== undefined &&
+    IMPORT_MAPPINGS_ABSENT_STATUSES.includes(status)
+  ) {
+    return { kind: 'not-served', ...found };
+  }
+
+  // ⑤ Everything else could not be read, and an unreadable answer is not an
+  //   empty one. Deliberately NOT a silent bucket: this is where a 500, a
+  //   dropped connection and a code this consumer cannot name all land, and
+  //   none of them is evidence that no mapping is registered.
+  return { kind: 'unreadable', ...found };
+}
+
+/**
+ * Emitted when a metadata READ was answered by the server with a failure that
+ * is NOT the supported "this deployment does not serve that kind" shape, and
+ * the adapter degraded it to an empty result anyway (objectui#7741).
+ *
+ * The degrade is deliberate and unchanged — the caller still receives `[]`, and
+ * `listImportMappings`' published return type has not moved. This event is the
+ * channel ALONGSIDE it: the fact that the empty result is an artefact of a
+ * failed read, carried in a form a consumer can act on, instead of a
+ * `console.warn` nothing in the UI points at.
+ *
+ * Subscribe via {@link ObjectStackAdapter.onMetadataReadWarning}. A sibling of
+ * {@link WriteWarningEvent} and `MetadataSaveAdvisoryEvent` in SHAPE — one
+ * long-lived instance, `subscribe → unsubscribe`, `AdapterProvider` wires it
+ * once — and deliberately not a payload pushed down either of those: both of
+ * them describe a write that SUCCEEDED, so carrying a failed read on one would
+ * make the event lie about what happened.
+ *
+ * `operation` and `kind` are single-member unions on purpose. Exactly one
+ * emitter exists today, and a closed union states that honestly; a second
+ * emitter is an additive, reviewed widening rather than something a consumer's
+ * exhaustive switch discovers at runtime. (The same trade `WriteWarningEvent`'s
+ * required `operation` documents, taken deliberately here.)
+ */
+export interface MetadataReadWarningEvent {
+  /** The adapter method whose read failed. */
+  operation: 'listImportMappings';
+  /** The metadata kind it asked for. */
+  kind: 'mapping';
+  /** The object the read was scoped to. */
+  objectName: string;
+  /**
+   * Which loud verdict this is — see {@link ImportMappingsFailureKind}. Never
+   * `'not-served'`: that arm is the supported deployment shape and is not
+   * emitted at all, so a subscriber never has to filter it out.
+   */
+  reason: Exclude<ImportMappingsFailureKind, 'not-served'>;
+  /** The server's own ADR-0112 code, when it declared one. */
+  code?: string;
+  /** The HTTP status, when the failure carried one. */
+  status?: number;
+  /** The server's own message, when it sent one. Rendered verbatim, not translated. */
+  message?: string;
+}
+
+/** Event listener type for metadata read-warning events. */
+export type MetadataReadWarningListener = (event: MetadataReadWarningEvent) => void;
+
 // Re-export FileUploadResult from types for consumers
 export type { FileUploadResult } from '@object-ui/types';
 
@@ -2348,6 +2566,14 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   // above in every respect except which door produced the event: that one is
   // record CRUD, this one is the metadata save door.
   private saveAdvisoryListeners = new Set<MetadataSaveAdvisoryListener>();
+
+  // Subscribers registered via onMetadataReadWarning(). Emitted when a metadata
+  // READ failed in a way that is NOT the supported "this deployment does not
+  // serve that kind" shape, and was degraded to an empty result anyway
+  // (objectui#7741). Third sibling of the two sets above: same seam shape, and
+  // the opposite direction — those two describe a write that succeeded, this
+  // one a read that did not happen.
+  private metadataReadWarningListeners = new Set<MetadataReadWarningListener>();
 
   // [ADR-0066] The session's REPORTED system capabilities, pushed in by the
   // host (see `setSystemCapabilities`). `undefined` means NO answer was ever
@@ -2984,6 +3210,47 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         listener(event);
       } catch (err) {
         console.warn('ObjectStackAdapter: save-advisory listener error', err);
+      }
+    }
+  }
+
+  /**
+   * Subscribe to metadata read-warning events — a metadata READ that could not
+   * be answered and was degraded to an empty result anyway (objectui#7741).
+   * Returns an unsubscribe function. The app shell uses this to toast the user;
+   * the caller has already been handed the empty result.
+   *
+   * Deliberately the same seam as {@link onWriteWarning} and
+   * {@link onSaveAdvisory}, and a SIBLING of them rather than a payload pushed
+   * down either: both of those announce a write that SUCCEEDED, and an event
+   * saying "this read did not happen" carried on one of them would make it lie
+   * about what occurred. What is reused is the seam's SHAPE — one long-lived
+   * instance with a `subscribe -> unsubscribe` registration that
+   * `AdapterProvider` wires once — not its event type.
+   *
+   * ⛔ Nothing here changes what a caller RECEIVES. `listImportMappings` still
+   * answers `[]` on every failure, including the loud ones; this channel is
+   * added ALONGSIDE that return, which is why it is not a change to a surface
+   * published since `@object-ui/data-objectstack@17.1.0`.
+   */
+  onMetadataReadWarning(callback: MetadataReadWarningListener): () => void {
+    this.metadataReadWarningListeners.add(callback);
+    return () => {
+      this.metadataReadWarningListeners.delete(callback);
+    };
+  }
+
+  /**
+   * Notify all metadata read-warning subscribers. Isolated exactly like
+   * {@link emitWriteWarning}: a throwing listener must neither break the caller
+   * nor starve the others.
+   */
+  private emitMetadataReadWarning(event: MetadataReadWarningEvent): void {
+    for (const listener of this.metadataReadWarningListeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        console.warn('ObjectStackAdapter: metadata read-warning listener error', err);
       }
     }
   }
@@ -4647,9 +4914,34 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * List registered import `mapping` artifacts targeting a given object
    * (framework #2611). Reads the `mapping` metadata kind via the overlay API
    * and filters by `targetObject` client-side (the metadata index is
-   * name-only). Feeds the import wizard's "saved mapping" selector; a failure
-   * (older server without the `mapping` kind) degrades to an empty list, so
-   * the selector simply doesn't appear.
+   * name-only). Feeds the import wizard's "saved mapping" selector.
+   *
+   * ## Every failure still degrades to an empty list — and now says which kind
+   * ## of failure it was (objectui#7741)
+   *
+   * The degrade is unchanged and deliberate: an older server without the
+   * `mapping` kind must not break the wizard, so it keeps answering `[]` and
+   * the selector simply doesn't appear. That is a real, supported deployment
+   * shape and it stays quiet.
+   *
+   * What changed is that the OTHER failures no longer render as that one. A
+   * refused door and a broken one used to be indistinguishable, in the UI, from
+   * "no mapping is registered" — both were an empty list behind a
+   * `console.warn` nothing pointed at — and that silence produced a confident
+   * wrong diagnosis in a careful reporter (objectstack#14026 was filed, routed
+   * and worked by two seats against a wizard that had been correct since
+   * 17.1.0). So the `catch` now asks {@link classifyImportMappingsFailure} what
+   * the failure WAS, reading the error's own ADR-0112 `code` and status —
+   * never "is the result empty", which is what both conditions produce and so
+   * can never tell them apart — and anything that is not the supported
+   * kind-absent shape is announced on {@link onMetadataReadWarning}.
+   *
+   * ⛔ The RETURN is untouched. This method has answered `Promise<any[]>`, never
+   * throwing, since `@object-ui/data-objectstack@17.1.0`; a consumer that reads
+   * nothing new sees exactly what it saw before, including on the loud arms.
+   * Applying framework #13906 decision 1 option A — *a thing that could not be
+   * READ is not a thing that is ABSENT* — is done by ADDING a channel, not by
+   * moving that contract.
    */
   async listImportMappings(objectName: string): Promise<any[]> {
     await this.connect();
@@ -4660,7 +4952,22 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         : Array.isArray(result) ? result : [];
       return items.filter((m: any) => m && m.targetObject === objectName);
     } catch (err) {
+      // Kept verbatim, on both arms. The console breadcrumb was never the
+      // problem — being the ONLY discriminator was — so it is not moved, not
+      // re-levelled, and not made conditional.
       console.warn('[OBJECTSTACKDataSource] listImportMappings failed:', err);
+      const failure = classifyImportMappingsFailure(err);
+      if (failure.kind !== 'not-served') {
+        this.emitMetadataReadWarning({
+          operation: 'listImportMappings',
+          kind: 'mapping',
+          objectName,
+          reason: failure.kind,
+          ...(failure.code !== undefined ? { code: failure.code } : {}),
+          ...(failure.status !== undefined ? { status: failure.status } : {}),
+          ...(failure.message !== undefined ? { message: failure.message } : {}),
+        });
+      }
       return [];
     }
   }

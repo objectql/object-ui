@@ -278,6 +278,12 @@ const ko = {
       refusedFormat:
         "저장되지 않았습니다: 위도, 경도 쌍으로 입력하세요(예: 30.2741, 120.1551).",
       refusedRange: "저장되지 않았습니다: {{detail}}",
+      latitude: "위도",
+      longitude: "경도",
+      refusedResidueOne:
+        "저장되지 않았습니다: {{name}} “{{text}}”은(는) 숫자가 아닙니다. 일반 소수로 입력하세요(예: 30.2741, 120.1551).",
+      refusedResidue:
+        "저장되지 않았습니다: {{name}} “{{text}}”과(와) {{otherName}} “{{otherText}}”은(는) 숫자가 아닙니다. 일반 소수로 입력하세요(예: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "입력 후 Enter 키로 추가…",
@@ -1448,6 +1454,9 @@ const ko = {
   console: {
     saveAdvisoryTitle: "저장되었습니다 — 작성 검사에서 {{count}}건의 권장 사항이 발견되었습니다",
     publishAdvisoryTitle: "게시되었습니다 — 작성 검사에서 {{count}}건의 권장 사항이 발견되었습니다",
+    importMappingsUnavailable: "{{object}}의 저장된 가져오기 매핑을 불러오지 못했습니다",
+    importMappingsRefused: "서버가 이 요청을 거부했습니다. 따라서 이 목록이 비어 있는 것은 읽지 못했기 때문이며, 등록된 항목이 없어서가 아닙니다. 다시 로그인하거나 관리자에게 접근 권한을 요청하세요.",
+    importMappingsUnreadable: "이 목록이 비어 있는 것은 읽지 못했기 때문이며, 등록된 항목이 없어서가 아닙니다. 다시 시도하고, 계속 발생하면 문제를 보고하세요.",
     settingsHub: {
       title: "설정",
       subtitle: "워크스페이스, 연동, 기능 플래그를 구성합니다.",

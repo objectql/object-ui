@@ -121,6 +121,60 @@ jobs:
     name: Close issues referenced in other repositories
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+
+    # ── The job ceiling, DERIVED FOR THIS JOB (objectui#7956) ────────────
+    # Before this line the only backstop was GitHub's 360-minute default.
+    #
+    # ⚠️ The stakes here are NOT objectui#7270's. That card's argument leaned on
+    # two of its three jobs producing a REQUIRED context on a shared serial
+    # queue. Re-measured on `GET /repos/objectstack-ai/objectui/rules/branches/
+    # main` at 2026-09-06T17:20Z, the required checks are `Lint`, `Type Check`,
+    # `Build & E2E`, `Test (shard 1/4)` through `(4/4)`, `Build Docs` and
+    # `Changeset Declaration` — this job produces none of them, and it runs on
+    # `pull_request_target: closed` where it blocks nothing. What is left is the
+    # generic exposure: a wedged job holds a runner for six hours and then
+    # reports `cancelled`.
+    #
+    # ⛔ NOT inherited from `ci.yml`'s 10/15/20/30/40, nor from the ceilings
+    # objectui#7270 derived — objectui#7048 fences exactly that. The arithmetic
+    # below is this job's own.
+    #
+    #   - Population: the last 300 successful runs of this workflow, window
+    #     2026-09-03T07:35Z .. 2026-09-06T17:19Z, n=300
+    #     `Close issues referenced in other repositories` jobs. Per-job wall
+    #     clock from the Actions jobs endpoint (`completed_at` minus
+    #     `started_at`), never the run's total.
+    #   - min 2s / median 4s / p95 5s / max 12s.
+    #   - Single event (`pull_request_target`, n=300), so there is no by-event
+    #     split to report.
+    #   - max/p95 = 2.4 — a mild tail at the high end, and one run in 300 at 12s
+    #     against a 4s median. Recorded rather than smoothed, because the max is
+    #     what the ceiling has to clear.
+    #   - ⚠️ One term is DECLARED and does not appear in the sample: the
+    #     github-script step below sets `retries: 3`, so a target answering
+    #     transiently is asked up to four times with octokit's backoff between
+    #     attempts, and the sample contains no run that spent that budget. The
+    #     additive 15 minutes below is where it is absorbed — the same reasoning
+    #     `changeset-release.yml::release` applies to its declared wait cap,
+    #     except that there the declared bound exceeded the multiplier and had
+    #     to be added explicitly, and here it does not come close.
+    #
+    # Ceiling = the smallest round number that is both >= 3x max (0.6min) and
+    # >= max + 15min (15.2min) => 20. That is ~100x the slowest run ever observed
+    # here, so it cannot fire on a healthy-but-slow runner; a wedge dies in 20
+    # minutes instead of 6 hours.
+    #
+    # ⚠️ Four of the six jobs objectui#7956 bounded land on 20 by this same
+    # arithmetic. That is NOT one number copied across them, which precondition
+    # ② of that card's triage forbids: for any job whose slowest run is under
+    # 7.5 minutes the additive term dominates the multiplicative one, so the
+    # rule puts every sub-minute job on the same rung. Each of the four carries
+    # its own sample and its own derivation beside its own key.
+    #
+    # ⛔ Raising this toward 360 is the ruled-out non-fix (objectui#6577,
+    # objectui#7048): the hang just runs longer and the gate still reports
+    # `cancelled`.
+    timeout-minutes: 20
     steps:
       - name: Close (or report) cross-repo closing keywords
         uses: actions/github-script@v9

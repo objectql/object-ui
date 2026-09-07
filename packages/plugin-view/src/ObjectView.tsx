@@ -1355,11 +1355,28 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         const kanbanConditionalFormatting =
           kanbanCfg.conditionalFormatting ??
           activeView?.conditionalFormatting;
+        // `groupBy` is the lane key and the ONLY one written here. This node
+        // used to carry `groupField: groupBy` alongside it — a duplicate the
+        // `object-kanban` renderer never read (zero `groupField` sites under
+        // `packages/plugin-kanban/`, against thirteen `schema.groupBy` reads in
+        // `ObjectKanban.tsx`). objectui#7322 retired the key on that node on
+        // both faces — `groupField?: never` on the TS interface and a
+        // `retirementTombstone()` in the zod mirror — so the write made this
+        // adapter emit a node the published contract refuses BY NAME. It was
+        // inert only because the generated node never reaches
+        // `safeValidateSchema` (SchemaRenderer runs the structural
+        // `validateSchema`); the CLI's `os check` / `os validate` do run the
+        // mirror, so the same node authored by hand was already rejected.
+        // ⛔ Do not restore it: the tombstone is the contract.
+        //
+        // ⚠️ NODE-LOCAL, and the distinction is the whole card: the VIEW-LEVEL
+        // `kanbanCfg.groupField` alias read above is LIVE (a legacy spelling of
+        // the spec's `groupByField`, mapped by `normalize-list-view.ts`) and is
+        // untouched. Only the write onto the generated node is dead.
         return {
           type: 'object-kanban',
           ...baseProps,
           groupBy,
-          groupField: groupBy,
           titleField: kanbanCfg.titleField || 'name',
           cardFields,
           ...restKanban,

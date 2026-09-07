@@ -45,16 +45,19 @@ import type { DesignerFieldDefinition } from '@object-ui/types';
  * The object document as it lives in the database — `owner_id` carries the
  * key an older console wrote, `indexes` carries the object-level surface that
  * actually builds indexes. A save must drop the first and keep the second.
+ *
+ * `owner_id` also carries a `reference`, which this file makes no claim about:
+ * it is a `lookup`, and objectui#7714 refuses a relationship field with no
+ * target BEFORE the PUT, so without one every save here would be refused by a
+ * guard that is not this file's subject. Supplying it is a declaration the
+ * fixture always owed — `{ type: 'lookup' }` with no target has never been a
+ * document `@objectstack/spec` 17.3.0 would accept.
  */
 const OBJECT_BODY = {
   name: 'probe_widget',
   label: 'Widget',
   fields: {
     name: { type: 'text', label: 'Name', required: true },
-    // `reference` is not this file's subject: it is here because a `lookup`
-    // without a target is un-storable at `@objectstack/spec` 17.3.0 and the
-    // designer now refuses one before the PUT (objectui#7122). Without it every
-    // save below would raise on the target instead of exercising `indexed`.
     owner_id: { type: 'lookup', label: 'Owner', reference: 'account', indexed: true, helpText: 'Record owner.' },
     code: { type: 'text', label: 'Code', indexed: false },
   },

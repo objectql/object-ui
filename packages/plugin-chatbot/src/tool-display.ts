@@ -217,6 +217,22 @@ export interface AiQuotaError {
    * (cloud#1238) and that POSITION is measured, but an absent or
    * otherwise-typed value stays `undefined` rather than being coerced to a
    * `false` no producer declared.
+   *
+   * ⚠️ objectui#7587 — measured on this tree: NOTHING reads this field once the
+   * parse fills it in. `useAiQuotaCopy` (ChatbotEnhanced), the only consumer of
+   * the parsed shape's fields, builds the banner from `message` / `messageEn` /
+   * `topUp`; the other two `parseAiQuotaError` call sites use the parse as a
+   * yes/no predicate. So cloud PR #1852's free-plan inversion (`true` ->
+   * `false`, the rolling 7-day window) changes nothing on screen, and the ISO
+   * `resetsAt` that producer now sends beside this flag is deliberately NOT
+   * read here: with no renderer for it, a read would pin a wire position this
+   * repo cannot measure (`objectstack-ai/cloud` is out of scope) and would add
+   * a second unread field rather than answer anyone's question. Both halves are
+   * pinned — the flag's inertness by
+   * `__tests__/ChatbotEnhanced.quotaResetPromise-7587.test.tsx`, the parse's
+   * silence about the instant by `tool-display.test.ts`. Wiring reset copy to
+   * this BOOLEAN is the one move to avoid: it is `false` for exactly the plan
+   * that needs the answer.
    */
   resetsTonight?: boolean;
 }

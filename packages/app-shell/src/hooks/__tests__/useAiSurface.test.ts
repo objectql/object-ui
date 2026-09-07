@@ -5,7 +5,10 @@ import { useAiSurfaceEnabled } from '../useAiSurface';
 
 // The surface is gated on the live agent catalog, so we mock useAgents and
 // assert the catalog → enabled/loading mapping (incl. the not-yet-fetched latch).
-vi.mock('@object-ui/plugin-chatbot', () => ({ useAgents: vi.fn() }));
+vi.mock('@object-ui/plugin-chatbot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-chatbot')>()),
+  useAgents: vi.fn(),
+}));
 const mockAgents = vi.mocked(useAgents);
 
 function agentsResult(names: string[], isLoading: boolean) {

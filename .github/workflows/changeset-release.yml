@@ -261,6 +261,58 @@ jobs:
   lane:
     name: Decide lane
     runs-on: ubuntu-latest
+
+    # ── The job ceiling, DERIVED FOR THIS JOB (objectui#7956) ────────────
+    # Before this line the only backstop was GitHub's 360-minute default — on
+    # the job that gates every landing on `main`, sitting directly above
+    # `release`, which objectui#7270 bounded at 40. Two jobs in one file with
+    # two answers is what objectui#7956 was filed to close.
+    #
+    # ⚠️ The stakes here are NOT objectui#7270's. That card's argument leaned on
+    # two of its three jobs producing a REQUIRED context on a shared serial
+    # queue. Re-measured for this one on `GET /repos/objectstack-ai/objectui/
+    # rules/branches/main` at 2026-09-06T17:20Z, the required checks are `Lint`,
+    # `Type Check`, `Build & E2E`, `Test (shard 1/4)` through `(4/4)`,
+    # `Build Docs` and `Changeset Declaration` — this workflow produces none of
+    # them. What is left is the generic exposure: a wedged job holds a runner
+    # for six hours and then reports `cancelled`, a verdict the merge queue
+    # cannot tell from `failure`.
+    #
+    # ⛔ NOT inherited from `release`'s 40 directly below, and not from
+    # `ci.yml`'s 10/15/20/30/40 — objectui#7048 fences exactly that. The
+    # arithmetic below is this job's own.
+    #
+    #   - Population: the last 300 successful runs of this workflow, window
+    #     2026-09-02T14:14Z .. 2026-09-06T17:19Z, n=300 `Decide lane` jobs.
+    #     Per-job wall clock from the Actions jobs endpoint (`completed_at`
+    #     minus `started_at`), never the run's total. This job carries no `if:`,
+    #     so it runs on every run of the workflow and its sample is not thinned
+    #     the way `release`'s is by the skip-on-push branch.
+    #   - min 4s / median 6s / p95 8s / max 43s.
+    #   - By event: push n=297 (median 6s, max 43s), schedule n=3 (median 7s,
+    #     max 7s). No material difference, so one ceiling covers both.
+    #   - max/p95 = 5.3 — a fat tail, unlike `Lint`'s 1.25, and worth naming
+    #     because it is not WORK: on the three slowest runs the steps sum to 3
+    #     seconds while the job's wall clock is 41-43s, so the tail is runner
+    #     overhead that no step reports. It is still wall clock the ceiling has
+    #     to cover, which is why the max above is the job's and not the steps'.
+    #
+    # Ceiling = the smallest round number that is both >= 3x max (2.2min) and
+    # >= max + 15min (15.7min) => 20. That is ~28x the slowest run ever observed
+    # here, so it cannot fire on a healthy-but-slow runner; a wedge dies in 20
+    # minutes instead of 6 hours.
+    #
+    # ⚠️ Four of the six jobs objectui#7956 bounded land on 20 by this same
+    # arithmetic. That is NOT one number copied across them, which precondition
+    # ② of that card's triage forbids: for any job whose slowest run is under
+    # 7.5 minutes the additive term dominates the multiplicative one, so the
+    # rule puts every sub-minute job on the same rung. Each of the four carries
+    # its own sample and its own derivation beside its own key.
+    #
+    # ⛔ Raising this toward 360 is the ruled-out non-fix (objectui#6577,
+    # objectui#7048): the hang just runs longer and the gate still reports
+    # `cancelled`.
+    timeout-minutes: 20
     # Narrower than the workflow-level block deliberately: this job reads files
     # and writes nothing. Declaring any `permissions:` sets every unlisted scope
     # to `none`, which is the point — a new job on a workflow that can publish

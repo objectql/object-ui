@@ -66,8 +66,14 @@ vi.mock('@object-ui/react', async (importOriginal) => {
     notifyDataChanged: () => {},
   };
 });
-vi.mock('@object-ui/plugin-grid', () => ({ ObjectGrid: () => <div data-testid="object-grid" /> }));
-vi.mock('@object-ui/plugin-form', () => ({ ObjectForm: () => <div data-testid="object-form" /> }));
+vi.mock('@object-ui/plugin-grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ObjectGrid: () => <div data-testid="object-grid" />,
+}));
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ObjectForm: () => <div data-testid="object-form" />,
+}));
 
 const dataSource = (): any => ({
   find: vi.fn().mockResolvedValue({ data: [], total: 0 }),
@@ -162,7 +168,15 @@ describe('the kanban branch reads `conditionalFormatting` only where it is decla
       view: { kanban: { groupByField: 'stage', columns: ['name', 'amount'], titleField: 'name' } },
     });
     expect(node.groupBy).toBe('stage');
-    expect(node.groupField).toBe('stage');
+    // TURNED, not deleted (objectui#7773). This line read
+    // `expect(node.groupField).toBe('stage')` and pinned a duplicate write the
+    // `object-kanban` renderer never read — the key objectui#7322 retired on
+    // that node (`groupField?: never` / `retirementTombstone()`). Kept in place
+    // and inverted so the history stays legible and so re-adding the write
+    // reddens here, rather than being silently re-blessed by a missing
+    // assertion. ⚠️ Node-local: the VIEW-LEVEL `kanban.groupField` alias this
+    // very view could have been authored with is still live and still read.
+    expect(node.groupField).toBeUndefined();
     expect(node.titleField).toBe('name');
     expect(node.cardFields).toEqual(['name', 'amount']);
   });

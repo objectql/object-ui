@@ -28,6 +28,7 @@ The Combobox component combines a text input with a dropdown list, allowing user
 interface ComboboxOption {
   value: string;
   label: string;
+  disabled?: boolean;             // Option renders dimmed and cannot be selected
 }
 
 interface ComboboxSchema {

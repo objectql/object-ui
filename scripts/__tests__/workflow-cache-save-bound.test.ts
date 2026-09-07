@@ -43,9 +43,32 @@ import { parse as parseYaml } from 'yaml';
  * ejects the next green pull request. Until objectui#7270 three of these jobs
  * declared no `timeout-minutes` at all, so the same stall held a required
  * context open against GitHub's 360-minute default instead; those three now
- * carry ceilings derived from their own run distributions, and the last pin in
- * this file is what keeps them. That is this repository's recurring "looks like
+ * carry ceilings derived from their own run distributions, and the last pins in
+ * this file are what keep them. That is this repository's recurring "looks like
  * enforcement, isn't" class (objectui#3009, #3181, #3494).
+ *
+ * ## The ceilings outgrew the cache (objectui#7956)
+ *
+ * objectui#7270 bounded the CACHED half of that exposure; objectui#7956 measured
+ * the other six jobs, which cache nothing at all, and closed them the same way.
+ * So the last three pins in this file are no longer about caching — they are
+ * about job ceilings, which is why they live beside the cache rules rather than
+ * in a new file: both are "a key whose deletion is invisible in every run", and
+ * splitting them would give a future reader two places to look for one rule.
+ *
+ * Those six divided in two, and BOTH halves are pinned, because both are
+ * decisions someone made:
+ *
+ *   - Four had a distribution to derive from, and carry a ceiling with the
+ *     derivation written beside the key.
+ *   - Two did not, and carry NO ceiling ON PURPOSE, with the reason written
+ *     beside the job. `changelog.yml::changelog` has never run at all;
+ *     `stale.yml::stale` has never succeeded, and every run it has fails in
+ *     `Set up job` before the marketplace action starts, so its seconds measure
+ *     a setup failure rather than the job's work. Pinning an ABSENCE reads
+ *     oddly until you notice the failure mode it catches: someone tidying up
+ *     the inconsistency by copying `20` onto them, which is precisely the
+ *     inherited number objectui#7048 fences and objectui#7956's triage forbade.
  *
  * ## Deliberately NOT asserted
  *
@@ -345,6 +368,148 @@ describe('every workflow cache save is bounded and non-fatal (objectui#7048)', (
         'reports `cancelled` (objectui#6577, objectui#7048). If a job genuinely got slower, ' +
         're-derive it from a fresh distribution, rewrite the comment beside the key, and move ' +
         'this pin in the same commit.',
+    ).toEqual([]);
+  });
+
+  it('bounds the four jobs objectui#7956 derived a ceiling for', () => {
+    // The uncached half of the same exposure. objectui#7270 scoped itself to
+    // jobs that cache; these six cache nothing, so the cache-save hazard above
+    // is absent and what they carried was the generic one: GitHub's 360-minute
+    // default and a `cancelled` verdict at the end of it.
+    //
+    // ⚠️ NONE of these four produces a required status check — re-measured on
+    // the `main` ruleset (`Lint`, `Type Check`, `Build & E2E`, the four `Test
+    // (shard n/4)`, `Build Docs`, `Changeset Declaration`). So objectui#7270's
+    // shared-serial-queue stakes do not carry over, and the numbers below are
+    // not carried over either.
+    //
+    // ⚠️ All four are 20 and that is NOT a shared constant, which is the exact
+    // thing objectui#7048 fences and objectui#7956's triage forbade in writing.
+    // Each was derived from its own sample by objectui#7270's rule — the
+    // smallest round number that is both >= 3x that job's max and >= that job's
+    // max + 15min — and the additive term dominates for every job whose slowest
+    // run is under 7.5 minutes, so the rule lands every sub-minute job on the
+    // same rung. Their measured maxima differ (43s, 31s, 13s, 12s); their
+    // ceilings coincide. The derivation beside each key is what makes that
+    // checkable, and moving any one of these numbers means rewriting the
+    // derivation beside it in the same commit.
+    const derived: Record<string, number> = {
+      'changeset-release.yml::lane': 20,
+      'check-links.yml::check-links': 20,
+      'cross-repo-issue-closer.yml::close-foreign-issues': 20,
+      'labeler.yml::label': 20,
+    };
+
+    const missing: string[] = [];
+    const raised: string[] = [];
+
+    for (const [key, ceiling] of Object.entries(derived)) {
+      const [file, jobKey] = key.split('::');
+      const entry = allJobs.find((e) => e.file === file && e.jobKey === jobKey);
+      expect(entry, `${file} must still define a \`${jobKey}:\` job`).toBeDefined();
+
+      const declared = entry!.job['timeout-minutes'];
+      if (typeof declared !== 'number') {
+        missing.push(`${file} :: job \`${jobKey}\``);
+      } else if (declared > ceiling) {
+        raised.push(`${file} :: job \`${jobKey}\` declares ${declared}, derived ${ceiling}`);
+      }
+    }
+
+    expect(
+      missing,
+      'these jobs declare no job-level `timeout-minutes`, so their only backstop is GitHub\'s ' +
+        '360-minute default again:\n' +
+        missing.map((o) => `  - ${o}`).join('\n') +
+        '\n\nNone of them blocks a pull request, so nothing goes red when this key disappears — ' +
+        'the only symptom is the next wedged run holding a runner for six hours. Restore the key ' +
+        'TOGETHER WITH the derivation comment beside it; a ceiling with no recorded provenance is ' +
+        "the next reader's excuse to guess at it (objectui#7270, objectui#7956).",
+    ).toEqual([]);
+
+    expect(
+      raised,
+      'these job ceilings are above the value derived for them:\n' +
+        raised.map((o) => `  - ${o}`).join('\n') +
+        '\n\nRaising a ceiling does not fix a hang — it buys a longer one and the gate still ' +
+        'reports `cancelled` (objectui#6577, objectui#7048). If a job genuinely got slower, ' +
+        're-derive it from a fresh distribution, rewrite the comment beside the key, and move ' +
+        'this pin in the same commit.',
+    ).toEqual([]);
+  });
+
+  it('keeps the two jobs objectui#7956 could not measure UNBOUNDED, with their reason recorded', () => {
+    // The other half of objectui#7956, and the half that is easy to undo by
+    // being helpful. Four of its six jobs got a ceiling; these two did not,
+    // because neither has a distribution that measures the job doing its work:
+    //
+    //   - `changelog.yml::changelog` — `total_count: 0` runs, ever. It is
+    //     dispatch-only and has never been dispatched. (Control on the same
+    //     endpoint: `changeset-release.yml` answers with thousands, so the zero
+    //     is a reading and not a broken query.)
+    //   - `stale.yml::stale` — 234 completed runs, 0 successful, over eight
+    //     months. Ten sampled evenly across that window all fail in `Set up
+    //     job`, before `actions/stale` starts, so their 1-4 seconds measure how
+    //     fast the job fails to begin. Its real cost has never been observed,
+    //     and it is the kind that grows with the repository.
+    //
+    // A number invented for either one would look derived and be a guess, and a
+    // ceiling under a job's honest slowest run converts a working job into a
+    // permanently red one — objectui#7048's fence, and objectstack#16173 is the
+    // live counter-example (a distribution mis-estimated by ~2.6x killed a test
+    // shard while the rollup read green).
+    //
+    // So this pin asserts an ABSENCE plus a RECORD, and the record is the point:
+    // the failure it catches is a future tidy-up that copies `20` off the four
+    // jobs above onto these two. Adding a real ceiling here is welcome — derive
+    // it from runs that did the work, write the derivation beside the key, and
+    // move the entry up into the `derived` table above in the same commit.
+    const accepted = ['changelog.yml::changelog', 'stale.yml::stale'];
+
+    const bounded: string[] = [];
+    const undocumented: string[] = [];
+
+    for (const key of accepted) {
+      const [file, jobKey] = key.split('::');
+      const entry = allJobs.find((e) => e.file === file && e.jobKey === jobKey);
+      expect(entry, `${file} must still define a \`${jobKey}:\` job`).toBeDefined();
+
+      if (typeof entry!.job['timeout-minutes'] === 'number') {
+        bounded.push(`${file} :: job \`${jobKey}\` now declares ${entry!.job['timeout-minutes']}`);
+      }
+
+      // The decision has to be READABLE at the job, not only in a merged pull
+      // request. Two stable tokens rather than a wording: the default being
+      // accepted, and the card that accepted it.
+      const prose = fs
+        .readFileSync(path.join(WORKFLOW_DIR, file), 'utf8')
+        .split('\n')
+        .filter((line) => /^\s*#/.test(line))
+        .join('\n');
+      if (!prose.includes('360') || !prose.includes('objectui#7956')) {
+        undocumented.push(`${file} (looked for \`360\` and \`objectui#7956\` in its comments)`);
+      }
+    }
+
+    expect(
+      bounded,
+      'these jobs were deliberately left at the 360-minute default and now declare a ceiling:\n' +
+        bounded.map((o) => `  - ${o}`).join('\n') +
+        '\n\nIf that number was DERIVED from runs in which the job actually did its work, this is ' +
+        'good news: write the derivation beside the key, move the entry into the `derived` table ' +
+        'above, and delete it from here — in this same commit. If it was copied from the four jobs ' +
+        'in that table, it is the inherited ceiling objectui#7048 fences: a number that looks ' +
+        "derived, sits over a cost nobody has measured, and reds a working job the first time it " +
+        'runs long (objectui#7956).',
+    ).toEqual([]);
+
+    expect(
+      undocumented,
+      'these jobs run under the 360-minute default with nothing beside them saying so on purpose:\n' +
+        undocumented.map((o) => `  - ${o}`).join('\n') +
+        '\n\nAn unbounded job that records WHY is a decision; one that records nothing is an ' +
+        'oversight, and the two are indistinguishable to the next reader — which is how ' +
+        'objectui#7956 came to be filed in the first place.',
     ).toEqual([]);
   });
 });

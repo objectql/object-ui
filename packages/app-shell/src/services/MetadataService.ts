@@ -188,96 +188,150 @@ function toObjectPayload(obj: ObjectDefinition, fields?: FieldMetadataPayload[])
 }
 
 /**
- * Field types whose `reference` (the target object a relationship links to)
+ * Field types whose `reference` — the target object a relationship links to —
  * `@objectstack/spec` requires to be present and non-empty.
  *
- * Measured against the installed 17.3.0 by parsing `{ type, label: 'L' }` for
- * every one of `FieldSchema`'s 49 declared types: exactly two are refused for a
- * missing target — `lookup` and `master_detail` — and no other type is refused
- * at all on that minimal document. Kept as a named list rather than derived by
- * probing at runtime, and pinned against the spec by
- * `MetadataService.specKeyReference.test.ts` so it cannot go stale in either
- * direction (a third type gaining the requirement, or one of these losing it).
+ * Re-measured for objectui#7714 against the 17.3.0 artifact by parsing
+ * `{ type, label: 'L' }` for every one of `FieldType`'s 49 declared members:
+ * exactly two are refused at path `reference`, both with code `custom`, and
+ * the other 47 are not refused at all on that minimal document.
  *
  * ⛔ Deliberately NOT "parse every field through `FieldSchema` before the PUT".
- * That would refuse plugin-registered keys the SERVER accepts — measured on
- * 17.2.0, `x_plugin_thing` is `unrecognized_keys` to the installed spec while
+ * That would refuse plugin-registered keys the SERVER accepts — measured on the
+ * installed 17.2.0, `x_plugin_thing` is `unrecognized_keys` to the schema while
  * the server that sent it takes it back — which is the same reason
- * {@link RETIRED_FIELD_KEYS} is a named list instead of a schema filter. This
- * guard states one invariant, not a client-side revalidation of the document.
+ * {@link RETIRED_FIELD_KEYS} is a named list rather than a schema filter. This
+ * guard states one invariant; it is not a client-side revalidation of the
+ * document.
  */
 const RELATIONSHIP_TYPES_REQUIRING_REFERENCE = ['lookup', 'master_detail'];
 
 /**
- * Refuse a relationship field whose target is missing — BEFORE the PUT.
+ * Why THIS value cannot be a target, and what the contract does about it —
+ * both halves, because the four states differ on both.
  *
- * ## Why this raises instead of letting the server answer
+ * Measured for objectui#7714 on `@objectstack/spec` 17.3.0, at field level and
+ * again through `ObjectSchema`, which agree on every row:
+ *
+ * | `reference`     | the spec's verdict                                 |
+ * |-----------------|----------------------------------------------------|
+ * | absent          | refused — `custom` at `reference`                  |
+ * | `''`            | refused — `custom` at `reference`                  |
+ * | non-string      | refused — **`invalid_type`**, not a missing target |
+ * | whitespace-only | ⚠️ **accepted** — refused only by this writer      |
+ *
+ * A single "…and this one has none" would be wrong for two of the four. A
+ * non-string is not a field that HAS no target; it is a field whose value is
+ * the wrong KIND, and "pick the target object" is not the repair for
+ * `reference: 42`. And the 422 the other three branches promise is one this
+ * writer cannot deliver for the whitespace case — the spec would let that
+ * through — so that branch says what actually happens instead.
+ */
+function describeUnusableTarget(reference: unknown): string {
+  if (reference === undefined) {
+    return (
+      'and this one has none. `@objectstack/spec` requires it (17.3.0), so the server refuses ' +
+      'the whole object document with 422 `INVALID_METADATA` — which then blocks EVERY later ' +
+      'save of this object, not just this field.'
+    );
+  }
+  if (typeof reference !== 'string') {
+    return (
+      `and this one holds ${reference === null ? 'null' : `a ${typeof reference}`} instead of ` +
+      'an object name. `@objectstack/spec` refuses that (17.3.0) as `invalid_type` at path ' +
+      '`reference` — not as a missing target — so the server refuses the whole object document ' +
+      'with 422 `INVALID_METADATA`, which then blocks EVERY later save of this object.'
+    );
+  }
+  if (reference === '') {
+    return (
+      'and this one is empty. `@objectstack/spec` requires a non-empty value (17.3.0), so the ' +
+      'server refuses the whole object document with 422 `INVALID_METADATA` — which then blocks ' +
+      'EVERY later save of this object, not just this field.'
+    );
+  }
+  return (
+    'and this one is blank — whitespace names no object, so nothing could ever resolve it. ' +
+    '`@objectstack/spec` 17.3.0 ACCEPTS this value (measured, at field level and through ' +
+    '`ObjectSchema`), so the PUT would succeed and the failure would surface later and further ' +
+    'away — the record picker with no object to query, `$expand` with nothing to resolve. This ' +
+    'writer refuses it deliberately and says so (objectui#7714; upstream objectstack#16126).'
+  );
+}
+
+/**
+ * Refuse a relationship field whose target is unusable — BEFORE the PUT.
+ *
+ * ## The failure this closes, measured in a running designer
  *
  * `@objectstack/spec` 17.3.0 made `reference` a hard requirement on `lookup`
  * and `master_detail` (a `custom` refinement at path `reference`, not an
- * `unrecognized_keys` name refusal). Against a matched backend the PUT of a
- * half-filled relationship draft comes back `422 INVALID_METADATA` — and this
- * is the expensive part, the same trap `RETIRED_FIELD_KEYS` exists for: the
- * refused document is the WHOLE object, so the failure is not confined to the
- * incomplete field. Every later save of that object fails the same way until
- * the draft is completed or removed.
+ * `unrecognized_keys` name refusal). At 17.2.0 the requirement was prose only —
+ * `{ type: 'lookup', label: 'L' }` parsed green at field level AND through
+ * `ObjectSchema` — so the designer was free to persist a target-less draft and
+ * did.
  *
- * At 17.2.0 the requirement was prose only — `{ type: 'lookup', label: 'L' }`
- * parsed green — so the designer was free to persist a target-less draft and
- * did. 17.3.0 closes a declared-but-unenforced gap (ADR-0049's direction), and
- * the reconciliation the maintainer ruled for it (objectui#7122, 2026-09-05,
- * ruled item 4) is this one: the incomplete draft stays in the client and is
- * never PUT. ⛔ The alternative — flipping the pin green and leaving the
- * product PUTting it — was refused on the ground that it pins a known-broken
- * save path.
+ * objectui#7714 drove that against a real 17.3.0 backend rather than inferring
+ * it. Creating a `lookup` and leaving its target empty PUT the whole object and
+ * got `422 INVALID_METADATA` at `fields.<name>.reference`; the next edit — to a
+ * DIFFERENT, already-saved field — was refused identically, because the
+ * half-filled draft rides along in the same document. The author sees the later
+ * edit rendered as applied while the server has none of it, and the only escape
+ * that does not require noticing the lookup is a reload, which discards it.
+ * That is the cost of letting the draft leave the client: not one failed save,
+ * but every subsequent save of that object for the rest of the session.
+ *
+ * ## Why this raises instead of letting the server answer
+ *
+ * The maintainer's reconciliation (objectui#7122 ruled item 4, 2026-09-05) is
+ * that the incomplete draft stays in the client and is never PUT: an editing
+ * session's half-finished work belongs to the client, not to the metadata
+ * store. ⛔ Not the alternative of stripping the incomplete field out of the
+ * body while still reporting a successful save — that shows the author a field
+ * the server never received, the silent-drop shape objectstack#4001 closed.
  *
  * ## Why an exception, and why HERE
  *
  * Same mechanism, same reason and the same call site as the nameless-field and
  * duplicate-name refusals below: it raises before the request, so a refused
- * list issues no PUT at all, and the designer page runs its save inside a
- * `try` whose `catch` already renders the message in the page's existing error
- * surface (`data-testid="metadata-fields-page-error"`). No new UI affordance is
- * introduced by this guard — the author sees the same banner they already see
- * for a nameless or duplicated field.
+ * list issues NO PUT AT ALL, and the designer page runs its save inside a `try`
+ * whose `catch` already renders the message in the page's existing error
+ * surface. No new UI affordance is introduced — the author sees the same banner
+ * a nameless or duplicated field already produces.
+ *
+ * `MetadataFieldsPage` carries the sibling copy for the same reason it carries
+ * the sibling `toFieldsMap` and `carryOver`: the two writers convert different
+ * input types on different paths and neither owns the other's. Both are pinned,
+ * and each pin asserts the same four states so the copies cannot drift.
  *
  * ## The `.trim()` is a DECLARED DIVERGENCE, not an accident
  *
- * The predicate below is `typeof reference === 'string' && reference.trim() !==
- * ''`, which is STRICTER than the contract. Measured on the installed 17.3.0,
- * at field level and again through the whole document:
+ * The predicate is `typeof reference === 'string' && reference.trim() !== ''`,
+ * which is STRICTER than the contract. Measured on 17.3.0, at field level and
+ * again through the whole document:
  *
  *   FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' })
  *     => success = true
  *   ObjectSchema.safeParse({ …, fields: { rel: { …, reference: '   ' } } })
  *     => success = true
  *
- * — the spec ACCEPTS a whitespace-only target at both levels, and this writer
- * refuses it. objectui being stricter than the platform is a divergence, not a
- * neutral choice, so it is STATED here rather than left to be inferred from a
- * predicate (objectui#7122 contract review): an undeclared divergence is
- * indistinguishable from a bug, and the next reader would "fix" it.
+ * — the spec ACCEPTS a whitespace-only target and this writer refuses it.
+ * objectui being stricter than the platform is a divergence, not a neutral
+ * choice, so it is STATED here rather than left to be inferred from a
+ * predicate: undeclared, it is indistinguishable from a bug and the next reader
+ * "fixes" it.
  *
- * ⭐ Kept, deliberately. A whitespace-only `reference` names no object — there
- * is no `   ` object for the record picker to query, for `$expand` to resolve,
- * or for a relationship index to be built against — so admitting it buys the
- * author nothing. It only moves the same failure to a LATER and WORSE place:
- * past the guard, past the PUT, into a stored document, where it surfaces with
- * no field named and no save to attach the message to. This guard exists
- * precisely to stop a target-less lookup being saved, and a blank target is a
- * target-less lookup that happens to parse.
+ * ⭐ Kept, deliberately. A whitespace-only `reference` names no object — the
+ * spec's own `ObjectSchema.fields` key grammar (`/^[a-z_][a-z0-9_]*$/`) admits
+ * no whitespace-bearing name for it to resolve to — so admitting it buys the
+ * author nothing and only moves the identical failure past the guard, past the
+ * PUT and into a STORED document, where it surfaces with no field named and no
+ * save to attach the message to.
  *
- * ⚠️ The spec accepting `'   '` while refusing `''` reads as an upstream gap
- * rather than deliberate latitude — its own refusal prose says "non-empty …
- * naming the target object", and `ObjectSchema.fields`' key grammar
- * (`/^[a-z_][a-z0-9_]*$/`) cannot produce a whitespace-bearing name for it to
- * resolve to. Filed as objectstack#16126; this guard is compensating for it,
- * and when it lands upstream this section retires while the behaviour stays.
- *
- * `MetadataFieldsPage` carries the sibling copy of this check for the same
- * reason it carries the sibling `toFieldsMap` and `carryOver`: the two writers
- * convert different input types on different paths, and neither owns the
- * other's. Both are pinned.
+ * ⚠️ Filed upstream as objectstack#16126 (open, `domain:spec`). If the spec
+ * trims, this writer's behaviour is unchanged and only the declaration retires
+ * — which is why the pins assert the writer's refusal separately from the
+ * spec's verdict.
  */
 function assertRelationshipTargetPresent(
   field: { type?: string; reference?: unknown },
@@ -291,58 +345,6 @@ function assertRelationshipTargetPresent(
     `${writer} cannot save the field \`${fieldName}\`: a \`${field?.type}\` field needs a ` +
       `\`reference\` naming the object it links to, ${describeUnusableTarget(reference)} ` +
       'Pick the target object, or change the field to a non-relationship type.',
-  );
-}
-
-/**
- * Why THIS value is not a usable target, and what the contract does about it —
- * both halves, because the four states differ on both.
- *
- * ⚠️ Split out because the one sentence this used to carry ("…and this one has
- * none") was inaccurate for two of the four (objectui#7122 contract review):
- *
- * | `reference`     | the spec's verdict, measured on 17.3.0        |
- * |-----------------|-----------------------------------------------|
- * | absent          | refused — `custom` at `reference`             |
- * | `''`            | refused — `custom` at `reference`             |
- * | non-string      | refused — **`invalid_type`**, not a missing target |
- * | whitespace-only | ⚠️ **accepted** — refused only by this writer  |
- *
- * A non-string is not a field that "has none"; it is a field whose value is the
- * wrong KIND, and the message now says so, because "supply a target" is not the
- * repair for `reference: 42`. And the 422 the other three branches promise is a
- * promise this writer cannot keep for the whitespace case — the spec would let
- * it through — so that branch says what actually happens instead.
- */
-function describeUnusableTarget(reference: unknown): string {
-  if (reference === undefined) {
-    return (
-      'and this one has none. `@objectstack/spec` requires it (17.3.0), so the server refuses ' +
-      'the whole object document with 422 `INVALID_METADATA` — which would then block EVERY ' +
-      'later save of this object, not just this field.'
-    );
-  }
-  if (typeof reference !== 'string') {
-    return (
-      `and this one holds ${reference === null ? 'null' : `a ${typeof reference}`} instead of ` +
-      'an object name. `@objectstack/spec` refuses that (17.3.0) as `invalid_type` at path ' +
-      '`reference` — not as a missing target — so the server refuses the whole object document ' +
-      'with 422 `INVALID_METADATA`, which would then block EVERY later save of this object.'
-    );
-  }
-  if (reference === '') {
-    return (
-      'and this one is empty. `@objectstack/spec` requires a non-empty value (17.3.0), so the ' +
-      'server refuses the whole object document with 422 `INVALID_METADATA` — which would then ' +
-      'block EVERY later save of this object, not just this field.'
-    );
-  }
-  return (
-    'and this one is blank — whitespace names no object, so nothing could ever resolve it. ' +
-    '`@objectstack/spec` 17.3.0 ACCEPTS this value (measured, both at field level and through ' +
-    '`ObjectSchema`), so the PUT would succeed and the failure would surface later and further ' +
-    'away — the record picker with no object to query, `$expand` with nothing to resolve. This ' +
-    'writer refuses it deliberately and says so (objectui#7122; upstream objectstack#16126).'
   );
 }
 
@@ -410,6 +412,12 @@ function toFieldsMap(fields: FieldMetadataPayload[]): Record<string, FieldMetada
       );
     }
     seen.add(name);
+    // Third refusal at this door, and the reason it lives here rather than in
+    // `saveFields`: this is the ONE conversion every PUT of an object's fields
+    // passes through — `saveFields` for a field save, `toObjectPayload` for an
+    // object save that carries `existingFields` — so one guard covers both
+    // writers on this path. It raises before the request, so a refused list
+    // issues no PUT and the half-filled draft stays in the client.
     assertRelationshipTargetPresent(field, name, '[MetadataService]');
     entries.push([name, field]);
   });

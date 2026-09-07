@@ -871,6 +871,30 @@ with a reason, so a new page is gated from the day it lands and opting one out i
 The ledger is debt with names: those documents are **not** compiled and **not** counted, which the
 script's header states plainly rather than letting a green run imply otherwise.
 
+**It also censuses the code this repository's generators EMIT — report-only.** A second step in the
+same job runs `node scripts/check-doc-snippet-types.mjs --emit-census`, against the same built
+closure. Code a generator writes out of a template literal under `packages/*/src/**` is compiled by
+nothing: `tsc` sees a **string**, `tsup` copies it through, and every doc gate's scan surface — this
+one's included — stops at `content/docs`, the per-app docs trees and the package READMEs
+([#7864](https://github.com/objectstack-ai/objectui/issues/7864)). The class already had two members
+when the census was written: `packages/vscode-extension/src/extension.ts` emitted a phantom
+`registerDefaultRenderers` import into every file its *Export to React* command ever wrote for a user
+(fixed by [#7863](https://github.com/objectstack-ai/objectui/issues/7863)), and
+`packages/cli/src/utils/app-generator.ts` is
+[#7472](https://github.com/objectstack-ai/objectui/issues/7472), still open. A template is recognised
+when its text carries an `import … from '…'` statement, or when it is opted in by a
+`/* doc-snippet: emits tsx */` comment — one vocabulary with the fragment marker above; each `${…}`
+hole is substituted by an identifier placeholder before the snippet is handed to the same
+`compileSnippets()` a documentation block goes through. It prints a census — files walked, templates
+recognised, what the recogniser cannot see, diagnostics, and the per-package split — and **exits 0
+regardless of what it finds**, so it can block no merge; it exits non-zero only when the instrument
+itself is broken, a walk that collapsed or a failed harness control, because a check that runs, goes
+green and looked at nothing is worse than none. Report-only is a ruling, not an oversight: #7472's
+site is an open card, and a blocking gate on this landing would go red on somebody else's work. The
+population is the deliverable — whether the corpus gets cleaned or gets a declared ledger is decided
+from those numbers on a follow-up card. The step is placed before the blocking one so the number is
+re-read on every run instead of being skipped exactly when the corpus moved.
+
 **If it fails:** each line is `file:line TS<code>: <message>`, addressed at the document rather than
 at the harness. Either fix what the snippet teaches, or — if the block is genuinely partial — declare
 it with a reason. Run it locally with `pnpm check:doc-snippets` (after building the packages it
@@ -1471,8 +1495,10 @@ below for the half of that mechanism which is still live.
 workflow; manual. **It carries no `pull_request` trigger, on purpose.**
 
 No published package's build output may contain tooling material — `__tests__/`, `__mocks__/`,
-`__benchmarks__/`, `*.test.*`, `*.spec.*`, `*.bench.*`, `*.stories.*`. The gate is
-`scripts/check-published-dist-tooling.mjs` (`pnpm check:published-dist`); it builds every
+`__benchmarks__/`, `*.test.*`, `*.spec.*`, `*.bench.*`, `*.stories.*`, or a `*.tsbuildinfo` build
+record ([#7003](https://github.com/objectstack-ai/objectui/issues/7003): a record has no tooling
+source to be traced back to, and it names every input path on the machine that produced it). The
+gate is `scripts/check-published-dist-tooling.mjs` (`pnpm check:published-dist`); it builds every
 published package itself, then reads each one's tarball file list from `npm pack --dry-run`.
 
 Three things about it are easy to get wrong and are written down in the script's own header

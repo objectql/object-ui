@@ -54,9 +54,13 @@ let permissionsState: {
   can: (objectName: string, action: string) => boolean;
   hasCapabilities: (caps: string[]) => boolean;
 };
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => permissionsState,
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => permissionsState,
+  };
+});
 
 let metadataState: { apps: unknown[]; objects: unknown[] };
 vi.mock('../../providers/MetadataProvider', () => ({

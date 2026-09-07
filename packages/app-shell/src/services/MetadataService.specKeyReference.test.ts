@@ -44,6 +44,28 @@
  * `undefined` is a key that zod's strict object COUNTS but that
  * `JSON.stringify` DROPS, so an in-memory assertion and a wire assertion
  * disagree exactly on the half-filled draft this card had to measure.
+ *
+ * ## objectui#7714 — a half-filled lookup is HELD CLIENT-SIDE and never PUT
+ *
+ * The half-filled case below used to pin the opposite ("still saves, exactly as
+ * before"). That was accurate for objectui#6041's question and is no longer the
+ * truth: `@objectstack/spec` 17.3.0 made `reference` a hard requirement on
+ * `lookup` / `master_detail`, and objectui#7714 drove the consequence in a
+ * running designer against a 17.3.0 backend — the target-less draft PUT the
+ * whole object, got `422 INVALID_METADATA` at `fields.<name>.reference`, and
+ * then blocked the NEXT edit too, to an entirely different field, because the
+ * draft rides along in the same document.
+ *
+ * So the fix is a client behaviour, and this file states it: the writer refuses
+ * the list and issues **no PUT at all**. That claim is about THE PUT BODY, not
+ * about the spec's verdict, which is exactly why it is pinnable at this repo's
+ * installed **17.2.0** — where the spec still accepts the draft — and does not
+ * wait on the pin bump (objectui#7122).
+ *
+ * ⛔ The refusal is not "strip the incomplete field and save the rest": that
+ * would show the author a field the server never received, the silent-drop
+ * shape objectstack#4001 closed and the ruling excluded by name. `puts` being
+ * EMPTY is the assertion that tells the two apart.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -141,159 +163,237 @@ describe('objectui#6041 · saveFields PUTs the relationship target as `reference
     expect(def.reference).toBe('account');
   });
 
-  it('a HALF-FILLED draft — type `lookup`, target left empty — is REFUSED before any PUT', async () => {
-    // ⭐ This assertion is INVERTED from what it said at 17.2.0, and the
-    // inversion is the point of objectui#7122's ruled item 4.
+  it('a HALF-FILLED draft — type `lookup`, target left empty — is REFUSED, and issues NO PUT', async () => {
+    // objectui#7714. This case used to assert the opposite ("still saves,
+    // exactly as before"), and that assertion is not respelled here — it is
+    // REPLACED, because the branch it pinned is the branch this card removes.
     //
-    // It used to read "still saves, exactly as before". The spec's prose called
-    // `reference` "Required for relationship types" while the zod parse did not
-    // enforce it — `{ type: 'lookup', label: 'L' }` parsed green at field level
-    // AND through `ObjectSchema` — so the designer was free to persist a
-    // target-less draft, and did.
-    //
-    // `@objectstack/spec` 17.3.0 closes that declared-but-unenforced gap: the
-    // same document is now refused by a `custom` refinement at path
-    // `reference`. Against a matched backend the PUT comes back 422
-    // `INVALID_METADATA` for the WHOLE object document, which blocks every
-    // later save of that object — so flipping this pin green on its own would
-    // have pinned a known-broken save path. The product half was fixed first
-    // (`assertRelationshipTargetPresent` in `MetadataService.ts`), and this
-    // asserts THAT: the incomplete draft never reaches the wire.
+    // Two assertions, and the second is the card: the save is refused, AND the
+    // client made no request at all. "Refused" alone would also describe option
+    // B — strip the incomplete field, PUT the rest, report success — which is
+    // the silent-drop shape objectstack#4001 closed and which the ruling
+    // excluded by name. `puts` being empty is what distinguishes them.
     const { adapter, puts } = makeCapturingAdapter();
 
     await expect(
       new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: undefined }]),
-    ).rejects.toThrow(/needs a `reference`/);
+    ).rejects.toThrow(/needs a `reference` naming the object it links to/);
 
-    // The load-bearing half: refusing is only an improvement if it happens
-    // BEFORE the request. A guard that threw after the PUT would leave the
-    // object in exactly the state this change exists to prevent.
-    expect(puts).toHaveLength(0);
+    expect(puts).toEqual([]);
   });
 
-  it('and it is the MISSING TARGET that is refused, not the type — the control', async () => {
-    // Without this, the assertion above is satisfied by a guard that refuses
-    // every `lookup`, which would break the feature rather than fix it.
+  it('the refusal names the field, the type and the consequence', async () => {
+    // The author reads this string in the designer's error banner, so its
+    // content is the deliverable rather than incidental. Asserted by content,
+    // not by exact bytes: the docblocks are free to change and the four
+    // load-bearing facts are not.
+    const { adapter } = makeCapturingAdapter();
+
+    await expect(
+      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: undefined }]),
+    ).rejects.toThrow(/`owner_id`/);
+    await expect(
+      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: undefined }]),
+    ).rejects.toThrow(/`lookup` field/);
+    await expect(
+      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: undefined }]),
+    ).rejects.toThrow(/blocks EVERY later save of this object/);
+  });
+
+  it('a COMPLETE lookup still saves — the guard refuses drafts, not relationships', async () => {
+    // Falsification for the whole block above. A guard that refused every
+    // `lookup` would make every assertion in it pass while deleting the
+    // feature, so the accepting half is asserted in the same file.
     const { adapter, puts } = makeCapturingAdapter();
 
     await new MetadataService(adapter).saveFields('account', [LOOKUP]);
 
-    const [def] = savedFields(puts);
-    expect(def.reference).toBe('account');
-    expect(FieldSchema.safeParse(def).success).toBe(true);
+    expect(puts).toHaveLength(1);
+    expect(savedFields(puts)[0].reference).toBe('account');
   });
 
-  it('an empty-string target is refused too — `reference: ""` is not a target', async () => {
-    // The spec refuses it (`.min(1)`-shaped: measured, `reference: ''` fails the
-    // same `custom` issue at path `reference`), and a designer whose picker was
-    // opened and cleared emits exactly this.
+  it('a NON-relationship field with no `reference` is untouched by the guard', async () => {
+    // The guard is keyed to the two relationship types, not to the absence of a
+    // key: 47 of the spec's 49 field types carry no `reference` at all and must
+    // keep saving. Measured on the 17.3.0 artifact for objectui#7714 — exactly
+    // `lookup` and `master_detail` are refused at `reference` on
+    // `{ type, label }`, and no other type is refused at all.
+    const { adapter, puts } = makeCapturingAdapter();
+
+    await new MetadataService(adapter).saveFields('account', [
+      { id: 'note', name: 'note', label: 'Note', type: 'text' },
+    ]);
+
+    expect(puts).toHaveLength(1);
+    expect(savedFields(puts)[0].type).toBe('text');
+  });
+
+  it('`master_detail` is guarded too, through `saveObject` — the invariant is relationship targets, not one key', async () => {
+    // Driven through `saveObject`'s `existingFields` rather than `saveFields`,
+    // and that is the accurate reachability rather than a convenience:
+    // `DesignerFieldDefinition['type']` does NOT include `master_detail`, so
+    // the designer cannot author one, while `FieldMetadataPayload['type']` is
+    // an unconstrained `string` and this path is where a stored master-detail
+    // field actually arrives. It also exercises the second writer sharing this
+    // door — `toObjectPayload` converts through the same `toFieldsMap`, so one
+    // guard covers both, and nothing else in this file asserts that.
     const { adapter, puts } = makeCapturingAdapter();
 
     await expect(
-      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: '' }]),
-    ).rejects.toThrow(/needs a `reference`/);
-    expect(puts).toHaveLength(0);
+      new MetadataService(adapter).saveObject({ id: 'account', name: 'account', label: 'Account' }, [
+        { name: 'parent_id', label: 'Parent', type: 'master_detail' },
+      ]),
+    ).rejects.toThrow(/`master_detail` field/);
+
+    expect(puts).toEqual([]);
   });
+
+  it('`saveObject` still saves when the master-detail target IS present', async () => {
+    // Falsification for the case above: it must be the missing target that was
+    // refused, not the `saveObject` path or the type.
+    const { adapter, puts } = makeCapturingAdapter();
+
+    await new MetadataService(adapter).saveObject({ id: 'account', name: 'account', label: 'Account' }, [
+      { name: 'parent_id', label: 'Parent', type: 'master_detail', reference: 'invoice' },
+    ]);
+
+    expect(puts).toHaveLength(1);
+    expect(savedFields(puts)[0].reference).toBe('invoice');
+  });
+
 });
 
-describe('objectui#7122 · the guarded type list is the spec’s, not a hand-kept guess', () => {
-  // `RELATIONSHIP_TYPES_REQUIRING_REFERENCE` is a named list in
-  // `MetadataService.ts` (a full `FieldSchema` parse before the PUT is refused
-  // on purpose — it would reject plugin-registered keys the server accepts).
-  // A named list can go stale in both directions, so it is DERIVED here and
-  // compared, which turns any upstream movement into a red test rather than a
-  // silent hole in the guard.
-  const REQUIRE_REFERENCE = ['lookup', 'master_detail'];
+/**
+ * objectui#7714 — the four states of an unusable target, and the one where this
+ * writer is deliberately stricter than the contract.
+ *
+ * ⚠️ Read the instrument note before adding a spec assertion here. This repo's
+ * pin is `@objectstack/spec` **17.2.0**, where `reference` is prose-only: it
+ * accepts absent, `''` AND `'   '` alike. So an assertion of the shape "the
+ * spec accepts `'   '`" is TRUE here and measures nothing — it is true of every
+ * value at this pin. The divergence is therefore asserted where it is real:
+ * against THIS WRITER, whose refusal does not depend on the installed spec at
+ * all, plus the one discriminating spec reading 17.2.0 does carry (a non-string
+ * IS refused, so a value-level check exists; blankness is simply not part of
+ * it, at either version).
+ *
+ * The 17.3.0 half was measured on the built artifact and recorded in
+ * `MetadataService.ts`'s docblock rather than asserted here, because it is not
+ * observable from this repo's installed spec. When objectui's pin reaches
+ * 17.3.0 (objectui#7122) it becomes assertable; when objectstack#16126 lands
+ * upstream the whitespace row moves to "refused" and only the guard's
+ * declaration retires, never its behaviour.
+ */
+describe('objectui#7714 · the target states, and the declared divergence', () => {
+  const puttable = async (reference: unknown) => {
+    const { adapter, puts } = makeCapturingAdapter();
+    const field = { ...LOOKUP, referenceTo: reference } as DesignerFieldDefinition;
+    try {
+      await new MetadataService(adapter).saveFields('account', [field]);
+      return { refused: false, puts };
+    } catch {
+      return { refused: true, puts };
+    }
+  };
 
-  it('every spec field type that needs a target is guarded, and no other type is', () => {
-    const typeSchema = FieldSchema.shape.type as unknown as {
-      options?: string[];
-      def?: { entries?: Record<string, unknown> };
-    };
-    const allTypes: string[] =
-      typeSchema.options ?? Object.keys(typeSchema.def?.entries ?? {});
-
-    // Non-vacuity: a shape read that answered `[]` would make the derivation
-    // agree with an empty list and assert nothing at all.
-    expect(allTypes.length).toBeGreaterThan(20);
-
-    const derived = allTypes.filter((type) => {
-      const parsed = FieldSchema.safeParse({ type, label: 'L' });
-      return !parsed.success && parsed.error.issues.some((i) => i.path.join('.') === 'reference');
-    });
-
-    expect([...derived].sort()).toEqual([...REQUIRE_REFERENCE].sort());
-  });
-
-  it('a guarded type parses green once the target is supplied — the requirement is the VALUE, not the type', () => {
-    for (const type of REQUIRE_REFERENCE) {
-      expect(FieldSchema.safeParse({ type, label: 'L', reference: 'account' }).success).toBe(true);
-      expect(FieldSchema.safeParse({ type, label: 'L', reference: '' }).success).toBe(false);
+  it('refuses all four unusable states, and PUTs none of them', async () => {
+    for (const reference of [undefined, '', '   ', 42, null]) {
+      const { refused, puts } = await puttable(reference);
+      expect(refused, `reference=${JSON.stringify(reference)} should be refused`).toBe(true);
+      expect(puts, `reference=${JSON.stringify(reference)} must issue no PUT`).toEqual([]);
     }
   });
+
+  it('accepts a real target, and one that merely needs no trimming', async () => {
+    // Falsification for the row above: a guard that refused everything would
+    // satisfy it. `'account'` is the ordinary case; the guard trims only to
+    // TEST, never to rewrite, so the value on the wire is what the author gave.
+    const { refused, puts } = await puttable('account');
+    expect(refused).toBe(false);
+    expect(savedFields(puts)[0].reference).toBe('account');
+  });
+
+  it('does not rewrite a target that has surrounding whitespace but a real name', async () => {
+    // `' account '` trims to a non-empty name, so the guard passes it — and
+    // passes it THROUGH, unchanged. This writer's job is to refuse a draft, not
+    // to normalise author input; silently trimming would be a second, undeclared
+    // divergence hiding inside the first.
+    const { refused, puts } = await puttable(' account ');
+    expect(refused).toBe(false);
+    expect(savedFields(puts)[0].reference).toBe(' account ');
+  });
+
+  it('the divergence is real at THIS pin: the spec accepts `\'   \'`, this writer refuses it', async () => {
+    // The writer half — true regardless of which spec is installed.
+    const { refused } = await puttable('   ');
+    expect(refused).toBe(true);
+
+    // The spec half, stated honestly for 17.2.0. `'   '` parses green — but so
+    // does an absent target here, so this line alone is NOT evidence of a
+    // blankness gap. The discriminating reading is the next one.
+    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' }).success).toBe(true);
+
+    // Discriminating control: a value-level check on `reference` DOES exist at
+    // 17.2.0 — a non-string is refused, and refused as `invalid_type`. So the
+    // schema is being consulted and is not a passthrough; blankness is simply
+    // not among the things it tests, at either version. That is the shape
+    // objectstack#16126 reports upstream.
+    const nonString = FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: 42 });
+    expect(nonString.success).toBe(false);
+    expect(nonString.error!.issues.map((i) => i.code)).toContain('invalid_type');
+  });
 });
 
-describe('objectui#7122 · the whitespace-only divergence is DECLARED, and pinned in both directions', () => {
-  // This writer is STRICTER than the contract on exactly one value. A
-  // divergence that lives only in a `.trim()` is indistinguishable from a bug,
-  // so both halves are asserted here: what the SPEC does with the value, and
-  // what THIS WRITER does with it. The reasoning is in
-  // `assertRelationshipTargetPresent`'s docblock; this is the machine-checked
-  // half of it.
-  //
-  // ⚠️ Designed to go red when objectstack#16126 lands upstream. That red means
-  // "retire the declaration", NOT "weaken the guard" — the guard's behaviour is
-  // the same either way, and only the divergence note goes away.
-
-  it('the spec ACCEPTS `reference: "   "` — the fact objectui is diverging FROM', () => {
-    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' }).success).toBe(
-      true,
-    );
-    // Control, so "accepts" is not an artefact of a schema that accepts
-    // anything at this path: the empty string next door is refused, and that is
-    // the boundary the divergence sits on.
-    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '' }).success).toBe(false);
-  });
-
-  it('and this writer refuses it anyway, before any PUT', async () => {
-    const { adapter, puts } = makeCapturingAdapter();
-
-    await expect(
-      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: '   ' }]),
-    ).rejects.toThrow(/needs a `reference`/);
-    expect(puts).toHaveLength(0);
-  });
-
-  it('and the refusal SAYS the spec accepts it, so the divergence is visible where it bites', async () => {
-    // The author is the person surprised by a stricter-than-the-contract
-    // refusal, so the message is where the declaration has to be readable — a
-    // docblock they never open is not a declaration to them.
+/**
+ * objectui#7714 — the refusal DIAGNOSES the state it found.
+ *
+ * Split out because the single sentence this message used to carry ("…and this
+ * one has none") is wrong for two of the four states, and a message that
+ * prescribes the wrong repair is worse than a terse one: "pick the target
+ * object" is not what fixes `reference: 42`, and the 422 the message promises
+ * is one this writer cannot deliver for `'   '`, which the spec accepts.
+ */
+describe('objectui#7714 · the refusal message distinguishes the four states', () => {
+  const refusalFor = async (reference: unknown): Promise<string> => {
     const { adapter } = makeCapturingAdapter();
+    try {
+      await new MetadataService(adapter).saveFields('account', [
+        { ...LOOKUP, referenceTo: reference } as DesignerFieldDefinition,
+      ]);
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+    throw new Error(`expected a refusal for reference=${JSON.stringify(reference)}`);
+  };
 
-    await expect(
-      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: '   ' }]),
-    ).rejects.toThrow(/ACCEPTS this value/);
+  it('absent → "has none", and names the 422 consequence', async () => {
+    const m = await refusalFor(undefined);
+    expect(m).toMatch(/has none/);
+    expect(m).toMatch(/blocks EVERY later save of this object/);
   });
-});
 
-describe('objectui#7122 · the refusal names the right defect for a NON-STRING target', () => {
-  it('does not claim the field "has none" when it holds the wrong KIND of value', async () => {
-    // Measured on 17.3.0: `reference: 42` is `invalid_type` at that path, not
-    // the missing-target `custom` issue — so "supply a target" is the wrong
-    // repair to prescribe, and the old single sentence prescribed it anyway.
-    expect(
-      FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: 42 }).error?.issues[0].code,
-    ).toBe('invalid_type');
+  it('empty string → "is empty", not "has none"', async () => {
+    const m = await refusalFor('');
+    expect(m).toMatch(/is empty/);
+    expect(m).not.toMatch(/has none/);
+  });
 
-    const { adapter, puts } = makeCapturingAdapter();
-    const wrongKind = { ...LOOKUP, referenceTo: 42 as unknown as string };
+  it('non-string → names the KIND and `invalid_type`, and does not prescribe "supply a target"', async () => {
+    const m = await refusalFor(42);
+    expect(m).toMatch(/holds a number instead of an object name/);
+    expect(m).toMatch(/invalid_type/);
+    expect(m).not.toMatch(/has none/);
+    // `null` is typeof 'object'; spelling it as "null" is the accurate word.
+    expect(await refusalFor(null)).toMatch(/holds null instead of an object name/);
+  });
 
-    await expect(new MetadataService(adapter).saveFields('account', [wrongKind])).rejects.toThrow(
-      /instead of an object name/,
-    );
-    await expect(new MetadataService(adapter).saveFields('account', [wrongKind])).rejects.toThrow(
-      /invalid_type/,
-    );
-    expect(puts).toHaveLength(0);
+  it('whitespace-only → says the spec ACCEPTS it, and does not promise a 422 it cannot deliver', async () => {
+    const m = await refusalFor('   ');
+    expect(m).toMatch(/is blank/);
+    expect(m).toMatch(/ACCEPTS this value/);
+    expect(m).toMatch(/objectstack#16126/);
+    // The falsifying half: this is the ONE state where promising the server
+    // would refuse the document would be a lie.
+    expect(m).not.toMatch(/422/);
   });
 });

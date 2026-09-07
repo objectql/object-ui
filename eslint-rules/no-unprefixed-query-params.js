@@ -11,8 +11,13 @@
  * `$search`, `$searchFields`, `$count` — and `convertQueryParams` in
  * `@object-ui/data-objectstack` builds its outgoing options by copying exactly
  * those. An unprefixed key reaches no branch and is dropped: no throw, no
- * warning. `QueryParams` also carries `[key: string]: any`, so the type system
- * accepts both spellings equally and nothing rejects the dead one.
+ * warning. Until objectui#7497 `QueryParams` also carried `[key: string]: any`,
+ * so the type system accepted both spellings equally and nothing rejected the
+ * dead one; the index signature is gone, so a TYPED literal is now refused by
+ * `tsc` as well. This rule keeps its place for the sites `tsc` cannot judge —
+ * an `as any` / untyped data source, a JS file, and an `as QueryParams`
+ * assertion, which skips excess-property checking — and because it fires at
+ * write time with the canonical spelling in the message.
  *
  * The consequence for a dropped cap is an UNBOUNDED read, not a truncated one.
  * The platform's GET list route has no default page size — the pinned
@@ -49,11 +54,14 @@
  *
  * Two independent narrowings, both load-bearing:
  *
- *  1. **Only a KNOWN query-option name.** Not "any unprefixed key". The index
- *     signature exists because adapters legitimately take adapter-specific
- *     params, so flagging every unprefixed key would report the shape the type
- *     was written to allow — and a rule that cries wolf gets switched off. The
- *     list below is closed and every entry maps to a real `QueryParams` key.
+ *  1. **Only a KNOWN query-option name.** Not "any unprefixed key". When this
+ *     rule landed the index signature was read as room for adapter-specific
+ *     params, so flagging every unprefixed key would have reported the shape
+ *     the type was written to allow — and a rule that cries wolf gets switched
+ *     off. objectui#7497's census then found NO such params anywhere and closed
+ *     the type, so on a typed site every unprefixed key is now a `tsc` error;
+ *     the closed list still keeps this rule's report meaningful on the untyped
+ *     sites only it can see. Every entry maps to a real `QueryParams` key.
  *  2. **Only the second argument of a `find`/`findOne` CALL.** Unlike its
  *     sibling — whose `options`-holding-a-`$`-key signature is unmistakable
  *     anywhere — every name on the list (`top`, `limit`, `filter`, `sort`,
@@ -164,9 +172,10 @@ function calleeMethodName(callee) {
 /**
  * Look through the TypeScript wrappers that do not change the value, so a
  * params literal written `{ limit: 1 } as QueryParams` is still read as the
- * object literal it is. The index signature makes that cast compile, which is
- * exactly the population this rule exists for — an evasion by `as` would be
- * silent and would look deliberate.
+ * object literal it is. A type assertion skips excess-property checking, so
+ * that cast compiles even now that `QueryParams` has no index signature
+ * (objectui#7497) — exactly the population this rule exists for; an evasion by
+ * `as` would be silent and would look deliberate.
  */
 function unwrapExpression(node) {
   let current = node;
@@ -200,7 +209,7 @@ export default {
     schema: [],
     messages: {
       unprefixedQueryOption:
-        '`{{key}}` is not a `QueryParams` key — write `{{canonical}}`. `QueryParams` (@object-ui/types) declares every query option with a leading `$`, and `convertQueryParams` (@object-ui/data-objectstack) copies exactly those keys, so `{{key}}` reaches no branch and is dropped: no throw, no warning. Its `[key: string]: any` index signature exists for adapter-specific params, which is why the dead spelling type-checks. When the dropped key is a cap the read becomes UNBOUNDED rather than truncated — the platform GET list route has no default page size, so the query returns the whole match set and stays invisible until the object is large. See objectui#5458.',
+        '`{{key}}` is not a `QueryParams` key — write `{{canonical}}`. `QueryParams` (@object-ui/types) declares every query option with a leading `$`, and `convertQueryParams` (@object-ui/data-objectstack) copies exactly those keys, so `{{key}}` reaches no branch and is dropped: no throw, no warning. `QueryParams` has no index signature since objectui#7497, so a typed literal is refused by `tsc` too; this rule reaches the sites `tsc` cannot — untyped sources, JS, and `as QueryParams` assertions, which skip excess-property checks. When the dropped key is a cap the read becomes UNBOUNDED rather than truncated — the platform GET list route has no default page size, so the query returns the whole match set and stays invisible until the object is large. See objectui#5458.',
     },
   },
   create(context) {

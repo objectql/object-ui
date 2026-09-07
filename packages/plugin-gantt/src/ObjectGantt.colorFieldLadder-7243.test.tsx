@@ -104,7 +104,8 @@ import { ObjectGantt } from './ObjectGantt';
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 
-vi.mock('@object-ui/plugin-detail', () => ({
+vi.mock('@object-ui/plugin-detail', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-detail')>()),
   RecordDetailDrawer: () => null,
   deriveRecordPageHref: () => null,
 }));

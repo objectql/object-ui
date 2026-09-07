@@ -1146,15 +1146,54 @@ function coarseKindOf(value: unknown): string {
  *  - anything else at the node (`too_small`, `invalid_format`, a custom
  *    refinement) is a VALUE refusal, and the coarse-kind ceiling
  *    (`ComponentInput.type`, maintainer 2026-08-17) puts it outside what an arm
- *    claims.
+ *    claims — UNLESS an `invalid_type` sits beside it, which is the next
+ *    paragraph.
+ *
+ * ## WHY `invalid_type` IS DECISIVE AND NOT JUST ANOTHER `every` MEMBER
+ *
+ * The two rules are not the same statement, and objectui#8204 is the difference.
+ * A node can carry a kind refusal AND a content complaint at once, because Zod
+ * keeps running a schema's checks after its type check has already failed: for
+ * `z.string().min(1)` the probe `[]` comes back as BOTH `invalid_type`
+ * (expected string) AND `too_small` (`[].length` is 0), at the same node, in
+ * that order. Read by `every` alone that pair is a CONTENT refusal — one member
+ * of the pair is not a kind code — and the value it describes is an array that
+ * the contract refused for being an array.
+ *
+ * `some(invalid_type)` first is the fix, and it is a statement about the
+ * contract rather than about Zod: `invalid_type` at a node says the value is not
+ * of that node's type, and a value cannot be simultaneously the right kind and
+ * the wrong one. Whatever else the node says about a value it has already
+ * refused for its kind is downstream of that refusal, not a second opinion
+ * competing with it. (`too_small` on a non-string is exactly such an artefact:
+ * "too short" is not a claim anyone would make about `[]` against a string
+ * contract.)
+ *
+ * MEASURED on the installed `@objectstack/spec` 17.3.0 artifact, on the union
+ * this card was filed for — `record:activity.types`,
+ * `z.array(z.union([FeedItemType, z.string().min(1)]))`. Two array probes, one
+ * key, opposite readings under the old rule, and the ONLY difference between
+ * them is the artefact issue:
+ *
+ *     probe `[]`          branch 2 issues -> [invalid_type, too_small] -> every() false
+ *     probe `['Account']` branch 2 issues -> [invalid_type]            -> every() true
+ *
+ * so `[]` alone put `array` into the accepted kind set of a key whose array
+ * members the contract measurably refuses, and the derivation gate read
+ * `contract accepts {string,array}`. The union recursion below was NEVER the
+ * missing piece — it runs, and it is what carries the branch verdicts up — the
+ * per-branch reading underneath it was wrong.
  */
 function refusesKind(issues: readonly SpecIssue[], probed: unknown): boolean {
   const here = issues.filter((issue) => (issue.path ?? []).length === 0);
   if (issues.length > here.length) return false;
   if (here.length === 0) return false;
+  // Decisive, and therefore ahead of the `every` — see the paragraph above. It
+  // also makes an `invalid_type` arm of that `every` unreachable, which is why
+  // there no longer is one.
+  if (here.some((issue) => issue.code === 'invalid_type')) return true;
   return here.every(
     (issue) =>
-      issue.code === 'invalid_type' ||
       (issue.code === 'invalid_value' &&
         Array.isArray(issue.values) &&
         issue.values.length > 0 &&
@@ -2706,6 +2745,27 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // second is what keeps this change from advertising member shapes only a
     // per-block pin can vouch for.
     const KINDS = ['string', 'number', 'boolean', 'array', 'object'] as const;
+    // `refuses-content` COUNTS, and objectui#8204 asked whether that is intended
+    // rather than the same defect one level up. It is intended, it is the same
+    // fold `judgeMembers` and the arm direction already make, and it is
+    // load-bearing in a way that is measurable: `refuses-content` means the
+    // contract took the value's KIND and then refused its VALUE, which is
+    // exactly what "the contract admits members of this kind" means at the
+    // coarse-kind ceiling this file judges by.
+    //
+    // Dropping the fold would not have fixed objectui#8204 — it would have
+    // broken the case the ceiling exists for. MEASURED on `@objectstack/spec`
+    // 17.2.0, where `record:activity.types` is a bare `z.enum([...])` of
+    // strings: every string probe is refused, `'Account'` among them, as
+    // `invalid_value` — so an `accepts`-only reading answers `{}` for a key
+    // whose `of: 'string'` was derived from that very enum, and this block's
+    // one-kind assertion reds on a declaration that is right.
+    //
+    // The fold was never the leak; it was the amplifier. It only ever admitted
+    // a kind the contract refuses while `refusesKind` was MIS-REPORTING a kind
+    // refusal as a content one (the union-branch reading fixed on this card),
+    // and with that reading corrected `refuses-content` again means what it
+    // says.
     const acceptedMemberKinds = (type: string, key: string): string[] =>
       KINDS.filter((kind) =>
         (COARSE_ARM_PROBES[kind] ?? []).some((probe) => {

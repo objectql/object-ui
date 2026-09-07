@@ -266,13 +266,14 @@ const sysUserView: ObjectViewSchema = {
 
 ```typescript
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import type { ObjectGridSchema } from '@object-ui/types';
 
 const dataSource = new ObjectStackAdapter({
   baseUrl: 'http://localhost:3000/api'
 });
 
 // ObjectQL queries are automatically handled
-const schema = {
+const schema: ObjectGridSchema = {
   type: 'object-grid',
   objectName: 'contact',
   dataSource,

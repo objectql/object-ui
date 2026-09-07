@@ -138,7 +138,10 @@ const RECORD_B = {
 const PROBE_OBJECT_SCHEMA = {
   name: PROBE_OBJECT,
   label: 'Probe Object',
-  primaryField: 'name',
+  // `nameField`, not `primaryField`: the latter is a `DetailViewSchema` key
+  // that `@objectstack/spec`'s `strictObject` object schema refuses on an
+  // object def, and no renderer reads it off one any more (objectui#7586).
+  nameField: 'name',
   fields: [
     { name: 'id', label: 'ID', type: 'text' },
     { name: 'name', label: 'Name', type: 'text' },

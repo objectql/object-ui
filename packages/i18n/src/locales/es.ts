@@ -282,6 +282,12 @@ const es = {
       refusedFormat:
         "No guardado: introduce un par latitud, longitud (ejemplo: 30.2741, 120.1551).",
       refusedRange: "No guardado: {{detail}}",
+      latitude: "latitud",
+      longitude: "longitud",
+      refusedResidueOne:
+        "No guardado: {{name}} «{{text}}» no es un número. Introduce decimales simples (ejemplo: 30.2741, 120.1551).",
+      refusedResidue:
+        "No guardado: {{name}} «{{text}}» y {{otherName}} «{{otherText}}» no son números. Introduce decimales simples (ejemplo: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Escriba y pulse Intro para añadir…",
@@ -1452,6 +1458,9 @@ const es = {
   console: {
     saveAdvisoryTitle: "Guardado: la comprobación de creación generó {{count}} recomendación(es)",
     publishAdvisoryTitle: "Publicado: la comprobación de creación generó {{count}} recomendación(es)",
+    importMappingsUnavailable: "No se pudieron cargar las asignaciones de importación guardadas de {{object}}",
+    importMappingsRefused: "El servidor rechazó esta solicitud, por lo que la lista está vacía porque no se pudo leer, no porque no haya nada registrado. Vuelve a iniciar sesión o pide acceso a un administrador.",
+    importMappingsUnreadable: "Esta lista está vacía porque no se pudo leer, no porque no haya nada registrado. Inténtalo de nuevo e informa del problema si continúa.",
     settingsHub: {
       title: "Configuración",
       subtitle: "Configure su espacio de trabajo, las integraciones y los indicadores de funciones.",

@@ -73,25 +73,25 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   pickLocalized: (value: unknown) => (typeof value === 'string' ? value : ''),
 }));
 
-// The components barrel stays doubled (its full graph is what the light `dom`
-// project deliberately does not load), but `hasDeclaredVisibilityGate` is pulled
-// from its real source module — the ONE definition objectui#3492 established and
-// PR #3816 / #3825 / #3836 spread across the other four member-action gates. A
-// re-spelled `v != null && v !== ''` here would be a fifth copy of it living in
-// a test double, and would keep this suite green no matter what the shipped
-// predicate does (objectui#3142 is what copies of one answer cost). The module
-// is a dependency-free pure function, so importing it directly costs nothing.
-vi.mock('@object-ui/components', async () => {
-  const { hasDeclaredVisibilityGate } = await import(
-    '../../../../components/src/renderers/action/visibility-gate'
-  );
+// The components barrel is INHERITED (objectui#6892 slice 6) and only the two
+// primitives this suite drives are overridden, so `hasDeclaredVisibilityGate`
+// now arrives as the real barrel's re-export — the ONE definition objectui#3492
+// established and PR #3816 / #3825 / #3836 spread across the other four
+// member-action gates. It used to be pulled from its source module by a deep
+// relative path, which the doubled barrel made necessary; the reason that
+// mattered has not changed. A re-spelled `v != null && v !== ''` here would be a
+// fifth copy of it living in a test double, and would keep this suite green no
+// matter what the shipped predicate does (objectui#3142 is what copies of one
+// answer cost).
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
+    ...actual,
     Button: ({ children, onClick, ...props }: any) => (
       <button onClick={onClick} {...props}>{children}</button>
     ),
     Separator: () => <hr />,
     cn: (...args: any[]) => args.filter(Boolean).join(' '),
-    hasDeclaredVisibilityGate,
   };
 });
 

@@ -370,7 +370,9 @@
  * be read off the collector:
  *
  *     every `.mdx` and `.md` page under `content/docs`, every
- *     `packages/<name>/README.md`, and the root `README.md`.
+ *     `packages/<name>/README.md`, every `.md` / `.mdx` page at the TOP LEVEL of
+ *     the repository-root `docs/` tree (objectui#7856 card 1 — not its
+ *     subdirectories), and the root `README.md`.
  *
  * Stating it here is objectui#5174's finding, and the finding was not the missing
  * extension — it was that a reader had to open `listDocuments` to learn that
@@ -400,6 +402,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { isEntrypoint } from './invoked-as.mjs';
+import { TOOLING_FILE } from './check-phantom-dependencies.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -483,6 +486,62 @@ export const ROOT_PAGES = ['README.md'];
  *  sidecars) holds no prose and is not a page. */
 const DOC_EXTENSIONS = ['.mdx', '.md'];
 
+/**
+ * The repository-root `docs/` tree, at its TOP LEVEL only (objectui#7856, card 1).
+ *
+ * objectui#7856 measured the hole the same way objectui#7115 measured the root
+ * `README.md`'s: `docs/` is an authored-documentation directory that NO doc gate
+ * read — not this one, not `check-doc-fence-languages`, not
+ * `check-doc-component-types`, and not `lint:root`, whose script literally passes
+ * `--ignore-pattern 'docs/**'`. Three phantom-teaching sites (objectui#7838,
+ * objectui#7854) were found in it by hand, which is the only instrument that was
+ * ever pointed at it.
+ *
+ * `recursive: false` is the whole design of this leg, and it is a boundary rather
+ * than an optimisation. The tree's SUBDIRECTORIES are a different review route:
+ * `docs/adr/**` is a GOVERNED surface (`GOVERNED_SURFACES` id `adr` in
+ * `check-governed-queue-guard.mjs`, so a pull request touching it stops in draft
+ * for a human to merge) and `docs/audits/**` travels with it as objectui#7856's
+ * card 2. A `**`-shaped walk here would pull 29 more diagnostics from those two
+ * trees into a gate whose failures a non-governed pull request is expected to
+ * fix (26 + 3, as objectui#7856 measured them on `8507a2283`) — which is how a
+ * widening turns into a change nobody can land. The same
+ * reasoning, in the same words, as `APP_DOCS`' "one level of app directory and no
+ * deeper": a scan surface says where it stops.
+ *
+ * So the enumeration below is by DIRECTORY ENTRY and filtered to FILES. Adding
+ * `docs/adr/**` later is then an edit to this file that a reviewer sees, never a
+ * side effect of a page being moved into a subdirectory.
+ *
+ * Exported — the constant and the enumerator both — so a sibling census can ask
+ * this gate what its leg contains instead of re-spelling it. That is what
+ * `check-doc-fence-languages.test.ts` does: `check-doc-fence-languages` does NOT
+ * carry this leg (its walk is `check:doc-fences`' own surface, and moving it is
+ * not objectui#7856 card 1), and that pin subtracts exactly this set rather than
+ * a hand-written list of the two filenames.
+ */
+export const ROOT_DOCS = { dir: 'docs', recursive: false };
+
+/**
+ * Every page at the top level of `ROOT_DOCS.dir`, in a stable order.
+ *
+ * An absent directory yields `[]` here so a throwaway fixture tree stays
+ * listable, exactly as `ROOT_PAGES` does; `main` refuses to publish a verdict
+ * when the directory is missing from a REAL run, because a leg that silently
+ * collects nothing is objectui#7115's defect one level up.
+ */
+export function rootDocsPages(root) {
+  const dir = join(root, ROOT_DOCS.dir);
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) return [];
+  return readdirSync(dir)
+    .sort()
+    .filter(
+      (entry) =>
+        DOC_EXTENSIONS.some((ext) => entry.endsWith(ext)) && statSync(join(dir, entry)).isFile(),
+    )
+    .map((entry) => `${ROOT_DOCS.dir}/${entry}`);
+}
+
 /** Fence languages treated as compilable TypeScript. `js` / `jsx` are NOT in the
  *  set: they are not type-annotated, so a strict program judges them on rules
  *  their authors never opted into. */
@@ -501,6 +560,17 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  *   apps/<app>/docs/**              ✓        ✓       ✓     objectui#6600
  *   README.md                       ✓        ✓       ✓     objectui#7115
  *   packages/<name>/README.md       ✓        ✓       ✗     ships inside `files`
+ *   docs/*.md (top level only)      ✗        ✓       ✗     objectui#7856 card 1
+ *
+ * The `docs/*.md` row is the one leg THIS gate carries alone, and the asymmetry
+ * is deliberate rather than an oversight to be tidied up later: objectui#7856
+ * card 1 moves this gate's population only, so `check-doc-fence-languages` and
+ * `check-doc-component-types` keep the surface they had. `check-doc-fence-
+ * languages.test.ts` therefore no longer compares the two walks for equality
+ * flat — it subtracts exactly `rootDocsPages()` and compares the rest, so the
+ * divergence is named and bounded instead of being a list that silently drifted.
+ * ⛔ The subdirectories are NOT this row: `docs/adr/**` is governed and
+ * `docs/audits/**` travels with it (objectui#7856 card 2).
  *
  * `check-doc-component-types` does not read the package READMEs — it asks
  * whether a documented `type` literal is a registered component key, and a
@@ -511,7 +581,9 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * ⚠️ EVERYTHING ELSE authored in markdown is read by no doc gate at all. That is
  * a statement of what the roots are today, ⛔ not a plan and not a promise. In
  * descending order of size, the unscanned population is: non-README `.md` under
- * `packages/**` (by far the largest); `docs/**` (ADRs and audits); the PUBLISHED
+ * `packages/**` (by far the largest); `docs/adr/**` and `docs/audits/**` — the
+ * root `docs/` tree BELOW its top level, which objectui#7856 card 2 holds and
+ * card 1 deliberately left where it was; the PUBLISHED
  * `skills/objectui/**`; the root pages that are not `README.md` (`AGENTS.md`,
  * `CONTRIBUTING.md`, `ROADMAP.md` and the rest); `examples/**`; the `apps/**`
  * pages that are not under an `apps/<app>/docs/` tree; `.claude/**`;
@@ -531,7 +603,7 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * "which":
  *
  *     git ls-files '*.md' '*.mdx' \
- *       | grep -vE '^(content/docs/|apps/[^/]+/docs/|packages/[^/]+/README\.md$|README\.md$|\.changeset/)'
+ *       | grep -vE '^(content/docs/|apps/[^/]+/docs/|packages/[^/]+/README\.md$|README\.md$|docs/[^/]+\.mdx?$|\.changeset/)'
  *
  * ⛔ `skills/objectui/**` is NOT claimed by any gate here, and this line is the
  * opposite of a claim on it: it is a governed, published surface with its own
@@ -703,29 +775,13 @@ const UNGATED_DOCS = {
     'diagnostic(s) (TS2420, TS2355) — a `DataSource` implementation written as `// ... other ' +
     'methods`. This entry read 9 until objectui#7417 paid down the three TS2305s it carried; ' +
     'what is left is fragment shape, and no gate reads this page\'s import names.',
-  'packages/auth/README.md':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
-  'packages/core/README.md':
-    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; plus TS2339x1 — TRIAGED, and NOT a defect: the remaining one is ' +
-    '`userListView.columns.push(...) // ❌ TypeError (strict mode)`, the System-View immutability ' +
-    'demonstration, so a readonly rejection there is the documentation working as written. ' +
-    'This entry read TS2339x2 until objectui#5257: the second one, on the `cloneAsOverride` draft ' +
-    'one block below, was a real signature defect — `cloneAsOverride` returned its input type, so ' +
-    'the documented override flow did not compile. It now returns `DeepMutable<T>` and that ' +
-    'diagnostic is gone. Covering this page still needs the 5 undefined-name blocks made ' +
-    'self-contained or declared, plus a way to declare a block whose rejection IS the point.',
   'packages/fields/README.md':
     '2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
-  'packages/plugin-ai/README.md':
-    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2322x3 — candidate real defects, un-triaged',
   'packages/plugin-charts/README.md':
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-chatbot/README.md':
     '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s); plus TS17000x1 TS2322x1 — candidate real defects, un-triaged',
   'packages/plugin-editor/README.md':
-    '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/plugin-kanban/README.md':
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-map/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2322x1 — candidate real defects, un-triaged',
@@ -733,8 +789,6 @@ const UNGATED_DOCS = {
     '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-tree/README.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/providers/README.md':
-    '7 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
 };
 
 // ── Fence scanning ───────────────────────────────────────────────────────────
@@ -935,6 +989,10 @@ export function listDocuments(root = repoRoot) {
       if (existsSync(readme)) out.push(relative(root, readme).split(sep).join('/'));
     }
   }
+  // The root `docs/` tree, TOP LEVEL only (objectui#7856 card 1). Enumerated by
+  // directory entry and filtered to files by `rootDocsPages`, so `docs/adr/**`
+  // (governed) and `docs/audits/**` (card 2) cannot arrive here by accident.
+  out.push(...rootDocsPages(root));
   // Root pages last, by name. An absent one is dropped here so a throwaway
   // fixture tree stays listable; `main` refuses to publish a verdict when one is
   // missing from a real run, which is the only place that can bite.
@@ -1563,6 +1621,395 @@ export function compileSnippets({ root = repoRoot, compiled, paths, declaredSpec
   };
 }
 
+// ── Emitted-code census: what a generator WRITES into someone else's file ────
+
+/**
+ * A generator that emits `import` statements is a documentation surface, and
+ * nothing compiles it (objectui#7864).
+ *
+ * Code a generator emits from a template literal under `packages/NAME/src/**` is
+ * read by nothing: `tsc` sees a STRING, `tsup` copies it through, and every doc
+ * gate's scan surface — this one's `listDocuments()` included — stops at
+ * `content/docs`, the per-app docs trees and the package READMEs. The class has
+ * two known members. `packages/vscode-extension/src/extension.ts`'s
+ * `generateReactComponent()` emitted a phantom `registerDefaultRenderers`
+ * import into every file the *Export to React* command ever wrote for a user
+ * (fixed by PR objectui#7863, measured there as `tsc` exit 2 / TS2305 on the
+ * emitted file); `packages/cli/src/utils/app-generator.ts` is objectui#7472,
+ * still open and still unfixed.
+ *
+ * ⭐ REPORT-ONLY, and the CENSUS is the deliverable. The card's binding
+ * constraint, and the same posture `check-doc-expression-carriage.mjs` landed
+ * under: objectui#7472's site is a KNOWN UNFIXED member, so a blocking gate on
+ * first landing would go red on somebody else's card and turn one card into
+ * two. What the population is — how many code-emitting templates exist, how
+ * many diagnostics they produce, and how they split by package — is what
+ * decides clean-the-corpus versus build-a-ledger, and ⛔ this file does not
+ * make that decision.
+ *
+ * Report-only means it declines to fail on its FINDINGS, never that it passes
+ * without looking (objectstack#4928, objectui#4690). A failed harness control,
+ * an unbuilt closure or a walk that collapsed is the gate's own
+ * `EXIT_CODES.couldNotRun`, loudly — a check that runs, goes green and looked
+ * at nothing is the counterfeit this whole file is built against.
+ *
+ * ## The recogniser: the static heuristic, with the marker kept as its escape
+ *
+ * Ruling: compile a template only when something says it is code. Three routes
+ * were priced.
+ *
+ *   HEURISTIC  a template whose text contains an `import … from '…'` statement.
+ *              Sees the whole class without anybody opting in; can MISFIRE, and
+ *              on this corpus it does — `packages/create-plugin/src/templates.ts`
+ *              emits a README whose ```tsx fence carries an import, and emits
+ *              vite configs importing `vite` and `@vitejs/plugin-react`, which
+ *              no documented package declares. Under report-only a misfire
+ *              costs a reported line, never a red build.
+ *   MARKER     an opt-in comment on the template. Cannot see an unmarked
+ *              emitter — and that is disqualifying HERE, not merely weaker:
+ *              this card may not touch `app-generator.ts` (objectui#7472 is on
+ *              hold), so under a marker route the one site the ruling requires
+ *              the census to show RED could not be marked at all, and the
+ *              census would report one site and zero diagnostics. A census that
+ *              cannot see the member it was filed for measures nothing.
+ *   PATH LIST  a hand-kept list of emitting files. Rots silently in the
+ *              direction that produces a green over a file nobody added.
+ *
+ * ⇒ The heuristic is the recogniser. The marker is kept and HONOURED as its
+ * escape hatch — a template the heuristic cannot see (it emits a module that
+ * imports nothing, or builds its import line out of holes) is opted in by one
+ * comment, and the census reports how many templates arrive that way. Kept, and
+ * honoured, rather than merely counted: a marker the gate reads and does not
+ * act on is a declaration the runtime does not cash, which is the shape
+ * AGENTS.md commandment #0.1 refuses. It carries ONE vocabulary with the
+ * fragment marker above — `doc-snippet:` — because a second spelling of the
+ * same idea is the thing readers stop being able to keep straight.
+ *
+ * The blind side is reported rather than assumed, every run, because a census
+ * that cannot see what it excludes is not a census: the marker population (what
+ * the opt-in route alone would have reached) and the count of unrecognised
+ * templates that open a top-level `export` (what NEITHER route sees today) are
+ * both printed beside the recognised count.
+ *
+ * ## `${…}` holes, and the one transformation this makes
+ *
+ * A template's holes are substituted by the placeholder identifier
+ * `EMITTED_HOLE_PLACEHOLDER`, and a body that had any gets ONE appended line
+ * declaring it. Both halves are load-bearing and both are stated because the
+ * snippet compiled is then not byte-identical to what the generator writes:
+ *
+ *   - The placeholder is an IDENTIFIER because the corpus interpolates in
+ *     identifier position as often as in expression position — this repository's
+ *     generators write `${vars.pascalName}Plugin` and `const schema =
+ *     ${schemaJson};` in the same breath. An expression-shaped placeholder
+ *     (`null`, `0 as any`) is a syntax error in the first; an identifier is
+ *     legal in both.
+ *   - The declaration is APPENDED, never prepended, so every diagnostic's line
+ *     number still points at the real source line. `var`, not `const`: a
+ *     block-scoped declaration read above its own line is TS2448, which would
+ *     be a diagnostic this instrument invented.
+ *
+ * What the substitution therefore cannot judge, said out loud: whether the
+ * VALUE a hole interpolates type-checks where it lands. This census answers
+ * only whether the code AROUND the holes does.
+ *
+ * ## Where it walks
+ *
+ * `packages/NAME/src/**` — `.ts` and `.tsx` — minus `TOOLING_FILE`, imported from
+ * `check-phantom-dependencies.mjs` rather than copied, so tests, mocks,
+ * benchmarks and stories drop out by the same rule that file already enforces.
+ * The excluded population is COUNTED and printed: a member hiding in a test
+ * fixture is a different fact from no member at all.
+ *
+ * Each recognised template is then compiled through `compileSnippets()` — the
+ * same call, the same built `.d.ts` closure, the same root bound, the same
+ * controls — so an emitted snippet is judged EXACTLY the way a documentation
+ * block is. That is the whole argument for putting this here instead of in a
+ * per-package test: the harness already exists, and route B would have bought
+ * one template at the cost of real `devDependencies` in a package that builds
+ * in 23 ms (objectui#7864's own table).
+ */
+
+/** The tree the census walks: every workspace package's `src/`. */
+export const EMITTED_SOURCE_SUBDIR = 'src';
+
+/** Source extensions the walk collects. */
+const EMITTED_SOURCE_EXTENSION = /\.tsx?$/;
+
+/**
+ * THE RECOGNISER. A template literal whose text carries an `import` statement —
+ * either `import … from '…'` (single- or multi-line specifier list) or a bare
+ * side-effect `import '…'`.
+ *
+ * The `from` search is bounded to 300 characters and stops at a `;` on purpose:
+ * unbounded, a lazy `[\s\S]*?` would happily reach a `from` hundreds of lines
+ * further down a template that has no import at all, and every long template in
+ * the corpus would recognise.
+ */
+export const EMITTED_IMPORT = new RegExp(
+  [
+    String.raw`(?:^|\n)[ \t]*import[ \t\n][^;]{0,300}?\bfrom[ \t\n]*['"][^'"\n]+['"]`,
+    String.raw`(?:^|\n)[ \t]*import[ \t]+['"][^'"\n]+['"]`,
+  ].join('|'),
+);
+
+/**
+ * The opt-in escape, in the fragment marker's own `doc-snippet:` vocabulary.
+ * Written on the nearest non-blank line above the template, in either comment
+ * form a `.ts` file can carry. Honoured, not merely counted: a template it
+ * marks joins the census whether or not the heuristic saw it.
+ */
+export const EMITTED_MARKER =
+  /^[ \t]*(?:\/\/|\/\*)[ \t]*doc-snippet:[ \t]*emits[ \t]+(?:ts|tsx|typescript)\b/;
+
+/** The marker, spelled out — quoted as a string for the reason
+ *  `FRAGMENT_MARKER_EXAMPLES` gives: a block comment cannot quote one. */
+export const EMITTED_MARKER_EXAMPLE = '/* doc-snippet: emits tsx */';
+
+/**
+ * What an unrecognised template has to show for the census to report it as a
+ * thing NEITHER route sees: a top-level `export` on its own line. Deliberately
+ * narrow — this is a gauge printed beside the recognised count, never a
+ * recogniser, and a wide one would report the corpus's SQL, CSS and prose
+ * templates as missed code.
+ */
+const EMITTED_MODULE_SHAPED = /(?:^|\n)[ \t]*export[ \t]+(?:default|const|let|var|function|class|type|interface|async)\b/;
+
+/** The placeholder each `${…}` hole is substituted by. An identifier, because
+ *  the corpus interpolates inside identifiers as well as in expression
+ *  position. */
+export const EMITTED_HOLE_PLACEHOLDER = '__hole__';
+
+/** The one line appended to a body that had holes. `var`, and appended rather
+ *  than prepended — see this section's header. */
+export const EMITTED_HOLE_DECLARATION = `declare var ${EMITTED_HOLE_PLACEHOLDER}: any;`;
+
+/**
+ * Whether a substituted body already DECLARES the placeholder as a name of its
+ * own — `export const ${vars.pascalName}` becomes `export const __hole__`, and
+ * appending the declaration beside it is TS2395 ("individual declarations in a
+ * merged declaration must be all exported or all local"): a diagnostic this
+ * instrument would have invented, on a template that is fine.
+ *
+ * Read from the AST, and only when the body parses: a body that does not parse
+ * never reaches the semantic phase, so it needs no declaration either.
+ *
+ * @param {string} body a hole-substituted template body
+ */
+export function declaresHolePlaceholder(body) {
+  const sf = ts.createSourceFile('hole-probe.tsx', body, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
+  if (sf.parseDiagnostics && sf.parseDiagnostics.length > 0) return true;
+  let found = false;
+  const visit = (node) => {
+    if (found) return;
+    const name = /** @type {{ name?: ts.Node }} */ (node).name;
+    if (name && ts.isIdentifier(name) && name.text === EMITTED_HOLE_PLACEHOLDER) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sf, visit);
+  return found;
+}
+
+/**
+ * Every `.ts`/`.tsx` file under a workspace package's `src/`, split by the rule
+ * `check-phantom-dependencies.mjs` already owns.
+ *
+ * @param {string} root
+ * @returns {{ files: string[], excludedAsTooling: string[] }}
+ */
+export function listEmittedSources(root = repoRoot) {
+  const files = [];
+  const excludedAsTooling = [];
+  const pkgDir = join(root, PACKAGES_DIR);
+  if (!existsSync(pkgDir)) return { files, excludedAsTooling };
+  for (const entry of readdirSync(pkgDir).sort()) {
+    const src = join(pkgDir, entry, EMITTED_SOURCE_SUBDIR);
+    if (!existsSync(src) || !statSync(src).isDirectory()) continue;
+    const walk = (dir) => {
+      for (const name of readdirSync(dir).sort()) {
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) {
+          walk(p);
+          continue;
+        }
+        if (!EMITTED_SOURCE_EXTENSION.test(name)) continue;
+        const rel = relative(root, p).split(sep).join('/');
+        (TOOLING_FILE.test(rel) ? excludedAsTooling : files).push(rel);
+      }
+    };
+    walk(src);
+  }
+  return { files, excludedAsTooling };
+}
+
+/**
+ * Every template literal in one source file, with its `${…}` holes already
+ * substituted — read from the AST, never from a regex over the text, for the
+ * same reason `moduleSpecifiersOf` is (objectui#7555): a backtick inside a
+ * string, a comment or another template is not a template.
+ *
+ * A hole's own EXPRESSION is descended into, so a code-emitting template nested
+ * inside another template's hole is censused in its own right rather than
+ * disappearing into its parent's placeholder.
+ *
+ * @param {string} source
+ * @param {string} fileName
+ * @returns {{ line: number, text: string, holes: number }[]}
+ */
+export function scanEmittedTemplates(source, fileName = 'source.tsx') {
+  const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
+  const templates = [];
+  const at = (node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+  const visit = (node) => {
+    if (ts.isNoSubstitutionTemplateLiteral(node)) {
+      templates.push({ line: at(node), text: node.text, holes: 0 });
+      return;
+    }
+    if (ts.isTemplateExpression(node)) {
+      let text = node.head.text;
+      for (const span of node.templateSpans) {
+        text += EMITTED_HOLE_PLACEHOLDER + span.literal.text;
+      }
+      templates.push({ line: at(node), text, holes: node.templateSpans.length });
+      // The literal parts are already consumed; the holes' expressions are not.
+      for (const span of node.templateSpans) visit(span.expression);
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sf, visit);
+  return templates;
+}
+
+/**
+ * The census: walk, recognise, substitute, and hand the result to the same
+ * `compileSnippets()` a documentation block goes through.
+ *
+ * Returns counts and blocks; it prints nothing and it decides nothing. The
+ * caller reports.
+ *
+ * @param {{ root?: string }} options
+ */
+export function emittedCensus({ root = repoRoot } = {}) {
+  const { files, excludedAsTooling } = listEmittedSources(root);
+  const recognised = [];
+  const markerOnly = [];
+  const moduleShapedMisses = [];
+  let templatesSeen = 0;
+  let markerSeen = 0;
+
+  for (const file of files) {
+    const source = readFileSync(join(root, file), 'utf8');
+    const lines = source.split('\n');
+    for (const template of scanEmittedTemplates(source, file)) {
+      templatesSeen++;
+      // The marker is the nearest non-blank line above the template's own line,
+      // read the way `scanFences` reads a fragment declaration.
+      let k = template.line - 2;
+      while (k >= 0 && lines[k].trim() === '') k--;
+      const marked = k >= 0 && EMITTED_MARKER.test(lines[k]);
+      if (marked) markerSeen++;
+      const byHeuristic = EMITTED_IMPORT.test(template.text);
+      if (byHeuristic || marked) {
+        const entry = { file, ...template, byHeuristic, marked };
+        recognised.push(entry);
+        if (marked && !byHeuristic) markerOnly.push(entry);
+        continue;
+      }
+      if (EMITTED_MODULE_SHAPED.test(template.text)) {
+        moduleShapedMisses.push(`${file}:${template.line}`);
+      }
+    }
+  }
+
+  const blocks = recognised.map((entry) => {
+    const substituted = entry.text;
+    const needsDeclaration = entry.holes > 0 && !declaresHolePlaceholder(substituted);
+    return {
+      doc: entry.file,
+      // `formatDiagnostic` prints `fenceLine + 1 + line`, because a FENCED
+      // block's body starts on the line after its fence. A template literal's
+      // body starts ON its backtick's line, so the anchor sits one line earlier
+      // and the printed number is the real source line.
+      fenceLine: entry.line - 1,
+      language: 'tsx',
+      quoteDepth: 0,
+      fragmentReason: null,
+      body: needsDeclaration ? `${substituted}\n${EMITTED_HOLE_DECLARATION}\n` : substituted,
+    };
+  });
+
+  return {
+    files,
+    excludedAsTooling,
+    templatesSeen,
+    markerSeen,
+    markerOnly,
+    moduleShapedMisses,
+    recognised,
+    blocks,
+  };
+}
+
+/**
+ * `packages/<dir>/…` -> `packages/<dir> (<manifest name>)`.
+ *
+ * Both halves, because on this corpus neither is enough on its own: the
+ * directory is what the walk collected and what a reader greps for, and the
+ * manifest name is what the rest of this gate's output is keyed by — and they
+ * disagree. `packages/vscode-extension` publishes under the name `object-ui`,
+ * so a split keyed on the name alone prints a row nobody can find on disk.
+ *
+ * @param {string} file
+ * @param {Record<string, string>} packageDirOf
+ */
+export function emittingPackageOf(file, packageDirOf = {}) {
+  const dir = file.split('/').slice(0, 2).join('/');
+  for (const [name, packageDir] of Object.entries(packageDirOf)) {
+    if (packageDir === dir) return `${dir} (${name})`;
+  }
+  return dir;
+}
+
+/**
+ * Which of three things a census diagnostic is. The split exists because a
+ * census whose headline number is dominated by artefacts of its own METHOD
+ * decides nothing, and deciding is the only reason this card exists.
+ *
+ *   `interpolated`  a module-not-found whose specifier still contains the hole
+ *                   placeholder: the emitted import TARGET is itself
+ *                   interpolated, so there is no specifier for any compiler to
+ *                   resolve. An artefact of the substitution, by construction.
+ *   `sibling`       a module-not-found on a RELATIVE specifier. The generators
+ *                   in this corpus write whole projects — `./App`,
+ *                   `./index.css`, `./theme-provider`, `./Layout` are files the
+ *                   same generator emits beside the one being judged, and no
+ *                   per-snippet compile can resolve a sibling that exists only
+ *                   after the generator has run. An artefact of the METHOD
+ *                   (isolation), which this gate inherits deliberately from the
+ *                   documentation rule "in isolation, as its own module".
+ *   `code`          everything else — the diagnostics that say something about
+ *                   the emitted code itself.
+ *
+ * ⚠️ It reads the diagnostic's MESSAGE for the quoted specifier, the only place
+ * a specifier survives into a `Diagnostic`. A TypeScript wording change moves
+ * these counts; it moves no verdict, because this gate publishes none.
+ *
+ * @param {{ code: number, messageText: string | ts.DiagnosticMessageChain }} diagnostic
+ * @returns {'interpolated' | 'sibling' | 'code'}
+ */
+export function classifyEmittedDiagnostic(diagnostic) {
+  if (diagnostic.code !== 2307 && diagnostic.code !== 2882) return 'code';
+  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ');
+  const quoted = /'([^']+)'/.exec(message);
+  if (!quoted) return 'code';
+  if (quoted[1].includes(EMITTED_HOLE_PLACEHOLDER)) return 'interpolated';
+  return quoted[1].startsWith('.') ? 'sibling' : 'code';
+}
+
 // ── Reporting ────────────────────────────────────────────────────────────────
 
 function formatDiagnostic(diagnostic, block) {
@@ -1576,6 +2023,73 @@ function formatDiagnostic(diagnostic, block) {
     where = `${block.doc}:${block.fenceLine}`;
   }
   return `${where}  TS${diagnostic.code}: ${message}`;
+}
+
+/**
+ * The census summary, in this gate's own verdict style: what was walked, what
+ * was recognised, what the recogniser CANNOT see, what was judged, and the
+ * per-package split. Returned as lines rather than printed, so the shape is
+ * pinnable without spawning the gate.
+ *
+ * Every line is a count this run took. ⛔ None of them is a threshold: this
+ * census has no pass mark, and adding one is the decision objectui#7864's
+ * binding constraint reserves for the follow-up card.
+ *
+ * Typed structurally rather than as `ReturnType<typeof emittedCensus>`: the
+ * annotation then states exactly which fields the report READS, which is the
+ * half a reader needs, and a caller holding a narrower view of the census (a
+ * test) is not forced to restate fields nothing here touches.
+ *
+ * @param {{ files: string[], excludedAsTooling: string[], templatesSeen: number, markerSeen: number, markerOnly: unknown[], moduleShapedMisses: unknown[], recognised: { file: string, line: number, byHeuristic: boolean }[], blocks: unknown[] }} census
+ * @param {{ semanticFailures: { block: { doc: string } }[], parseFailures: { block: { doc: string } }[], boundFailures: { block: { doc: string } }[], semanticallyJudged: number }} run
+ * @param {Record<string, string>} packageDirOf
+ * @returns {string[]}
+ */
+export function emittedCensusSummary(census, run, packageDirOf = {}) {
+  const diagnosticsBySite = new Map();
+  const byClass = { interpolated: 0, sibling: 0, code: 0 };
+  for (const { block, diagnostics } of run.semanticFailures) {
+    diagnosticsBySite.set(`${block.doc}:${block.fenceLine + 1}`, diagnostics.length);
+    for (const d of diagnostics) byClass[classifyEmittedDiagnostic(d)] += 1;
+  }
+  const perPackage = new Map();
+  for (const entry of census.recognised) {
+    const name = emittingPackageOf(entry.file, packageDirOf);
+    const row = perPackage.get(name) ?? { sites: 0, diagnostics: 0, failed: 0 };
+    row.sites += 1;
+    const found = diagnosticsBySite.get(`${entry.file}:${entry.line}`) ?? 0;
+    row.diagnostics += found;
+    if (found > 0) row.failed += 1;
+    perPackage.set(name, row);
+  }
+  const totalDiagnostics = [...diagnosticsBySite.values()].reduce((n, d) => n + d, 0);
+
+  const lines = [
+    'Emitted-code census (report-only, objectui#7864) — a generator that emits `import`',
+    'statements is a documentation surface, and until now nothing compiled one.',
+    `  Walked        ${census.files.length} source file(s) under ${PACKAGES_DIR}/NAME/${EMITTED_SOURCE_SUBDIR}; ` +
+      `${census.excludedAsTooling.length} excluded as TOOLING_FILE (tests, mocks, benchmarks, stories).`,
+    `  Recognised    ${census.recognised.length} of ${census.templatesSeen} template literal(s): ` +
+      `${census.recognised.filter((e) => e.byHeuristic).length} by the import heuristic, ` +
+      `${census.markerOnly.length} by the \`doc-snippet: emits\` marker alone.`,
+    `  Blind side    ${census.markerSeen} template(s) carry the marker at all — the population an opt-in-only ` +
+      `route would have reached. ${census.moduleShapedMisses.length} unrecognised template(s) open a top-level ` +
+      '`export` and are seen by NEITHER route.',
+    `  Judged        ${run.semanticallyJudged} of ${census.blocks.length} recognised template(s) reached the ` +
+      `semantic phase; ${run.parseFailures.length} failed to parse, ${run.boundFailures.length} were refused by ` +
+      'the root bound. Neither of those is a pass.',
+    `  Diagnostics   ${totalDiagnostics} across ${diagnosticsBySite.size} site(s).`,
+    `  Of which      ${byClass.sibling} module-not-found on a sibling the same generator writes (an artefact of ` +
+      `judging one emitted file in isolation) and ${byClass.interpolated} on a specifier that is itself ` +
+      `interpolated (an artefact of the hole substitution). ${byClass.code} remain, and those are the only ` +
+      'ones that say anything about the emitted code.',
+  ];
+  for (const [name, row] of [...perPackage].sort()) {
+    lines.push(
+      `  ${name.padEnd(42)} ${row.sites} site(s), ${row.failed} with diagnostic(s), ${row.diagnostics} diagnostic(s).`,
+    );
+  }
+  return lines;
 }
 
 /**
@@ -1693,6 +2207,19 @@ function main() {
     }
   }
 
+  // The same check for the other root leg, for the same reason (objectui#7856
+  // card 1): `rootDocsPages` returns [] for a directory that is not there, which
+  // keeps a fixture tree listable but would let a rename shrink the real surface
+  // back to what objectui#7856 found, with every count below still healthy.
+  if (!existsSync(join(repoRoot, ROOT_DOCS.dir))) {
+    console.error(
+      `ROOT_DOCS names \`${ROOT_DOCS.dir}/\`, which does not exist under ${repoRoot}. That directory is ` +
+        "part of this gate's stated scan surface (objectui#7856), so its absence silently narrows the " +
+        'surface. Re-point it at the tree\'s new path, or remove the leg deliberately.',
+    );
+    return EXIT_CODES.couldNotRun;
+  }
+
   const state = analyze({});
 
   if (argv.includes('--build-filter')) {
@@ -1730,6 +2257,92 @@ function main() {
       `\n${scopedBuildNotice(state.neededPackages.size, Object.keys(state.packageDirOf).length)}`,
     );
     return EXIT_CODES.couldNotRun;
+  }
+
+  // ── the emitted-code census (objectui#7864) ───────────────────────────────
+  // REPORT-ONLY, and behind a flag: an existing caller's verdict and exit code
+  // do not move by one byte. It runs AFTER the precondition gate above on
+  // purpose — it compiles against the same built closure, so an unbuilt tree is
+  // "I could not run" here for exactly the reason it is there.
+  if (argv.includes('--emit-census')) {
+    const census = emittedCensus({ root: repoRoot });
+    if (census.files.length === 0) {
+      console.error(
+        `The emitted-code walk collected 0 file(s) under ${PACKAGES_DIR}/NAME/${EMITTED_SOURCE_SUBDIR}, so ` +
+          'every count below would be a zero that means nothing. A walk that collapsed is a verdict ' +
+          'about this instrument, never about the corpus.',
+      );
+      return EXIT_CODES.couldNotRun;
+    }
+
+    const censusRun = compileSnippets({
+      root: repoRoot,
+      compiled: census.blocks,
+      paths: state.paths,
+      declaredSpecifiers: state.declaredSpecifiers,
+    });
+
+    // The same controls the documentation verdict is gated on, for the same
+    // reason: a program resolving everything to `any` reports a clean census
+    // forever, and a clean census is precisely what this card must not
+    // manufacture.
+    const censusControls = [];
+    if (!censusRun.resolvedFileName || !/[\\/]dist[\\/].*\.d\.ts$/.test(censusRun.resolvedFileName)) {
+      censusControls.push(
+        `resolution did not land on a built artifact (${censusRun.resolvedFileName ?? 'unresolved'})`,
+      );
+    }
+    if (censusRun.srcLeaks.length > 0) {
+      censusControls.push(
+        `${censusRun.srcLeaks.length} source file(s) under a package's src/ entered the program, e.g. ${censusRun.srcLeaks[0]}`,
+      );
+    }
+    if (!censusRun.sentinelDiagnostics.map((d) => d.code).includes(2305)) {
+      censusControls.push("the planted sentinel produced no TS2305 — the program is resolving everything to 'any'");
+    }
+    if (censusRun.positiveDiagnostics.length > 0) {
+      censusControls.push(
+        `the positive control failed (${ts.flattenDiagnosticMessageText(censusRun.positiveDiagnostics[0].messageText, ' ')})`,
+      );
+    }
+    if (censusControls.length > 0) {
+      console.error('CENSUS HARNESS CONTROL FAILED — no count below is a fact about any emitter:');
+      for (const c of censusControls) console.error(`  - ${c}`);
+      console.error(
+        `\nThe census COULD NOT RUN (exit ${EXIT_CODES.couldNotRun}). Report-only means it declines to ` +
+          'fail on its FINDINGS, never that it passes without looking.',
+      );
+      return EXIT_CODES.couldNotRun;
+    }
+
+    for (const line of emittedCensusSummary(census, censusRun, state.packageDirOf)) console.log(line);
+    console.log('');
+
+    // The findings themselves. Printed on stdout, deliberately: they are a
+    // census, not a verdict, and nothing here fails the build.
+    for (const { block, diagnostics } of censusRun.parseFailures) {
+      for (const d of diagnostics) console.log(`  [syntax]    ${formatDiagnostic(d, block)}`);
+    }
+    for (const { block, diagnostics } of censusRun.semanticFailures) {
+      for (const d of diagnostics) console.log(`  [semantic]  ${formatDiagnostic(d, block)}`);
+    }
+    for (const { block, specifiers } of censusRun.boundFailures) {
+      console.log(
+        `  [bound]     ${block.doc}:${block.fenceLine + 1}  emits an import of ${specifiers
+          .map((s) => `'${s}'`)
+          .join(', ')}, which resolve only through this repository's ROOT package.json — not through ` +
+          'anything the emitted file\'s reader installs.',
+      );
+    }
+
+    console.log(
+      `\nREPORT-ONLY (exit ${EXIT_CODES.verified}) — objectui#7864 rules that the census IS the ` +
+        'deliverable and that no finding here may fail a build on this landing: one known member ' +
+        '(objectui#7472) is open and unfixed, so a blocking gate would go red on somebody else\'s ' +
+        'card. Whether this corpus gets cleaned or gets a declared ledger is decided from the ' +
+        'numbers above, on a follow-up card, and ⛔ not here.',
+    );
+    return EXIT_CODES.verified;
   }
 
   const run = compileSnippets({

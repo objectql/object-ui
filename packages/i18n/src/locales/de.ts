@@ -278,6 +278,12 @@ const de = {
       refusedFormat:
         "Nicht gespeichert: Geben Sie ein Paar aus Breitengrad, Längengrad ein (Beispiel: 30.2741, 120.1551).",
       refusedRange: "Nicht gespeichert: {{detail}}",
+      latitude: "Breitengrad",
+      longitude: "Längengrad",
+      refusedResidueOne:
+        "Nicht gespeichert: {{name}} „{{text}}“ ist keine Zahl. Geben Sie einfache Dezimalzahlen ein (Beispiel: 30.2741, 120.1551).",
+      refusedResidue:
+        "Nicht gespeichert: {{name}} „{{text}}“ und {{otherName}} „{{otherText}}“ sind keine Zahlen. Geben Sie einfache Dezimalzahlen ein (Beispiel: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Tippen und mit der Eingabetaste hinzufügen…",
@@ -1448,6 +1454,9 @@ const de = {
   console: {
     saveAdvisoryTitle: "Gespeichert — die Autorenprüfung ergab {{count}} Hinweis(e)",
     publishAdvisoryTitle: "Veröffentlicht — die Autorenprüfung ergab {{count}} Hinweis(e)",
+    importMappingsUnavailable: "Gespeicherte Importzuordnungen für {{object}} konnten nicht geladen werden",
+    importMappingsRefused: "Der Server hat diese Anfrage abgelehnt. Die Liste ist also leer, weil sie nicht gelesen werden konnte — nicht, weil nichts registriert ist. Melden Sie sich erneut an oder bitten Sie eine Administratorin oder einen Administrator um Zugriff.",
+    importMappingsUnreadable: "Diese Liste ist leer, weil sie nicht gelesen werden konnte, nicht weil nichts registriert ist. Versuchen Sie es erneut und melden Sie das Problem, wenn es weiterhin auftritt.",
     settingsHub: {
       title: "Einstellungen",
       subtitle: "Konfigurieren Sie Ihren Workspace, Integrationen und Feature-Flags.",

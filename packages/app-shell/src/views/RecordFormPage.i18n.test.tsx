@@ -80,7 +80,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
 // Stand-in for the real form: records the schema the page builds (so the
 // `submitText` / `cancelText` it translates are observable) and exposes a
 // button that fires `onSuccess`, which is what raises the toast under test.
-vi.mock('@object-ui/plugin-form', () => ({
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectForm: ({ schema }: any) => {
     formSchemas.push(schema);
     return h(

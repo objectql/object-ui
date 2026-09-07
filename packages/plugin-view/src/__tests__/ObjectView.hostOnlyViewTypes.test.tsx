@@ -70,8 +70,14 @@ vi.mock('@object-ui/react', async (importOriginal) => {
     notifyDataChanged: () => {},
   };
 });
-vi.mock('@object-ui/plugin-grid', () => ({ ObjectGrid: () => <div data-testid="object-grid" /> }));
-vi.mock('@object-ui/plugin-form', () => ({ ObjectForm: () => <div data-testid="object-form" /> }));
+vi.mock('@object-ui/plugin-grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ObjectGrid: () => <div data-testid="object-grid" />,
+}));
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ObjectForm: () => <div data-testid="object-form" />,
+}));
 // The switcher is captured rather than rendered: the claim is about the icon
 // NAME this component computes, and reading it off the props is the only way to
 // see it without going through lucide's rendering.

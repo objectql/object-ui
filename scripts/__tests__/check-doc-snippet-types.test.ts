@@ -26,7 +26,9 @@ import {
   moduleSpecifiersOf,
   moduleSpecifiersOfBlock,
   resolvesOnlyThroughRootManifest,
+  ROOT_DOCS,
   rootDeclaredSpecifiers,
+  rootDocsPages,
   scanFences,
   scopedBuildNotice,
   specifierRoot,
@@ -619,6 +621,87 @@ describe('objectui#7115 — the root README is in the scan set', () => {
     const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-doc-snippet-types.mjs'), 'utf8');
     expect(source).toContain('ROOT_PAGES');
     expect(source).toMatch(/for \(const name of ROOT_PAGES\) \{\n\s*if \(!existsSync\(join\(repoRoot, name\)\)\)/);
+  });
+});
+
+/**
+ * objectui#7856 card 1 — the repository-root `docs/` tree was in NO doc gate's
+ * scan set, and `lint:root` ignores it by name (`--ignore-pattern 'docs/**'`).
+ * The card measured what that bought: three phantom-teaching sites found in it by
+ * hand (objectui#7838, objectui#7854) and 11 diagnostics under `docs/*.md` that
+ * nothing reported.
+ *
+ * The rule this file's sibling states — "Widening a scan surface is the change
+ * that can be GREEN ABOUT NOTHING… Anything added here later is owed the same
+ * proof" — is why membership is pinned by name below, and why the leg's
+ * BOUNDARY is pinned too. `recursive: false` is not a performance note: the
+ * subtree it excludes is `docs/adr/**`, a governed surface whose pull requests
+ * stop in draft for a human, plus `docs/audits/**`, and both are card 2. A leg
+ * that grew into them by accident would put a governed-surface failure in front
+ * of a pull request that cannot land it.
+ */
+describe('objectui#7856 — the root docs/*.md pages are in the scan set, and only those', () => {
+  it('listDocuments reaches them', () => {
+    const documents = listDocuments(repoRoot);
+    for (const doc of rootDocsPages(repoRoot)) expect(documents).toContain(doc);
+    // Non-vacuous: the leg reaches a real page, not an empty directory.
+    expect(rootDocsPages(repoRoot)).toContain('docs/ARCHITECTURE.md');
+  });
+
+  it('the widening judges something — the leg contributes blocks to the compiled tier', () => {
+    // Being IN the walk is one fact; being compiled is the other, and this card
+    // delivered both (no `UNGATED_DOCS` entry was needed — the blocks were
+    // repaired). A leg whose pages all sat on the ledger would be visible to the
+    // accounting and judged by nothing, which is a weaker claim than this test
+    // makes.
+    const state = analyze({});
+    const leg = new Set(rootDocsPages(repoRoot));
+    expect((state.covered as string[]).filter((d) => leg.has(d)).sort()).toEqual([...leg].sort());
+    expect((state.compiled as { doc: string }[]).some((b) => leg.has(b.doc))).toBe(true);
+  });
+
+  it('stops at the top level: a page in a subdirectory is NOT collected', () => {
+    const root = tempTree({
+      'docs/PAGE.md': '# top level\n',
+      'docs/adr/0001-decision.md': '# governed, card 2\n',
+      'docs/audits/2026-07-audit.md': '# card 2\n',
+    });
+    try {
+      expect(rootDocsPages(root)).toEqual(['docs/PAGE.md']);
+      expect(listDocuments(root)).toEqual(['docs/PAGE.md']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('collects files only, and only page extensions', () => {
+    const root = tempTree({
+      'docs/b.mdx': '# b\n',
+      'docs/a.md': '# a\n',
+      'docs/notes.txt': 'not a page\n',
+      'docs/screenshots/shot.png': 'not a page\n',
+    });
+    try {
+      expect(rootDocsPages(root)).toEqual(['docs/a.md', 'docs/b.mdx']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('an absent docs/ tree yields nothing here, and a verdict is refused in main', () => {
+    const root = tempTree({ 'README.md': '# root\n' });
+    try {
+      // A throwaway fixture tree stays listable…
+      expect(rootDocsPages(root)).toEqual([]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+    // …while a REAL run refuses, the same way a dangling ROOT_PAGES name does.
+    // `main()` takes no `--root`, so this is pinned against the source for the
+    // same reason the ROOT_PAGES guard above is.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-doc-snippet-types.mjs'), 'utf8');
+    expect(source).toMatch(/if \(!existsSync\(join\(repoRoot, ROOT_DOCS\.dir\)\)\) \{/);
+    expect(ROOT_DOCS).toEqual({ dir: 'docs', recursive: false });
   });
 });
 

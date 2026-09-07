@@ -103,12 +103,26 @@ const schema: KanbanSchema = {
 ## Schema API
 
 ```typescript
-{
+import type { KanbanSchema } from '@object-ui/plugin-kanban';
+
+declare const columns: KanbanColumn[];
+
+// The board document. `type` is the only required member — `columns`,
+// `onCardMove` and `className` are all optional. The annotation is the type
+// this package ships, so each member below is compiled against it rather than
+// read as prose: a `columns` array of the wrong shape, or an `onCardMove`
+// whose parameters drift from the shipped signature, fails here. An unknown
+// key does not — `KanbanSchema` extends `BaseSchema`, whose index signature
+// deliberately accepts type-specific extensions, so the compiler is not what
+// catches a misspelt board key.
+const board: KanbanSchema = {
   type: 'kanban',
-  columns?: KanbanColumn[],           // Array of columns
-  onCardMove?: (cardId, fromColumnId, toColumnId, newIndex) => void,
-  className?: string                  // Tailwind classes
-}
+  columns,                            // Array of columns
+  onCardMove: (cardId, fromColumnId, toColumnId, newIndex) => {
+    // see "Example with Callbacks" below
+  },
+  className: 'h-full',                // Tailwind classes
+};
 
 // Column structure
 interface KanbanColumn {
@@ -129,6 +143,8 @@ interface KanbanCard {
   badges?: Array<{
     label: string;
     variant?: 'default' | 'secondary' | 'destructive' | 'outline';
+    colorClass?: string;
+    colorStyle?: React.CSSProperties; // Required whenever colorClass came from getBadgeHexAppearance(color) in @object-ui/fields — the class reads CSS custom properties only this style declares (objectui#5183)
   }>;
   cardSubtitle?: string;              // Synthesized subtitle, rendered in preference to description
   cardFieldCells?: Array<{            // Structured per-field cells; wins over cardSubtitle/description
@@ -181,9 +197,13 @@ pnpm build
 ## Example with Callbacks
 
 ```typescript
-const schema = {
+import type { KanbanColumn, KanbanSchema } from '@object-ui/plugin-kanban';
+
+declare const columns: KanbanColumn[];
+
+const schema: KanbanSchema = {
   type: 'kanban',
-  columns: [...],
+  columns,
   onCardMove: (cardId, fromColumnId, toColumnId, newIndex) => {
     console.log(`Card ${cardId} moved from ${fromColumnId} to ${toColumnId} at index ${newIndex}`);
     // Update your backend or state here

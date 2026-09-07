@@ -47,6 +47,24 @@
  * `MetadataFieldsPage.specKeySystem.test.tsx` names no reference key: the two
  * cards of this fold are independently verifiable, and reverting one fix must
  * red only its own file.
+ *
+ * ## objectui#7714 — a half-filled lookup is HELD CLIENT-SIDE and never PUT
+ *
+ * The half-filled case below used to pin the opposite ("still saves, exactly as
+ * before"). `@objectstack/spec` 17.3.0 made `reference` a hard requirement on
+ * `lookup` / `master_detail`, and objectui#7714 drove the consequence in a
+ * running designer against a 17.3.0 backend: the target-less draft PUT the
+ * whole object, got `422 INVALID_METADATA` at `fields.<name>.reference`, and
+ * then blocked the NEXT edit too — to an entirely different, already-saved
+ * field — because the draft rides along in the same document.
+ *
+ * This page now refuses the list and issues **no PUT at all**. The claim is
+ * about THE PUT BODY, not the spec's verdict, which is why it pins at this
+ * repo's installed **17.2.0** (where the spec still accepts the draft) and does
+ * not wait on the pin bump (objectui#7122). ⛔ Not "strip the incomplete field
+ * and save the rest" — that shows the author a field the server never received,
+ * the silent-drop shape objectstack#4001 closed. `puts` staying EMPTY is the
+ * assertion that tells the two apart.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -62,20 +80,18 @@ import type { DesignerFieldDefinition } from '@object-ui/types';
  *   the read case: before this fix the designer looked for `referenceTo` and
  *   found nothing.
  *   `legacy_id` carries the misspelling a pre-fix designer build could have
- *   left behind. `carryOver` spreads the previous server def verbatim, so
- *   without a tombstone the key rides straight back out to the route that
- *   rejects it — and the object stays blocked forever.
+ *   left behind, ALONGSIDE the spec spelling. `carryOver` spreads the previous
+ *   server def verbatim, so without a tombstone the stale key rides straight
+ *   back out to the route that rejects it — and the object stays blocked
+ *   forever.
  *
- *   ⚠️ `legacy_id` carries the canonical `reference` ALONGSIDE the misspelling,
- *   which it did not need to before `@objectstack/spec` 17.3.0. 17.3.0 makes a
- *   target-less `lookup` un-storable, and objectui#7122 fixed the product half
- *   by refusing such a field client-side before the PUT — so a fixture whose
- *   `legacy_id` had ONLY the retired spelling would now make every save in this
- *   file raise, and every assertion below would be measuring the guard instead
- *   of the strip. Both keys present is also the more faithful legacy document:
- *   a server that stored `referenceTo` and a later client that wrote
- *   `reference`. The strip assertion keeps its full force either way — the
- *   retired key is refused BY NAME, so its presence alone is the 422.
+ *   ⚠️ It carries BOTH keys deliberately (objectui#7714). Holding the target
+ *   ONLY under the retired spelling is a different and much narrower state:
+ *   the read door reads `raw.reference` alone, so such a field reaches the wire
+ *   with NO target at all, and objectui#7714's guard now refuses it. That state
+ *   has its own case at the bottom of this file rather than riding invisibly
+ *   inside the fixture every other test here shares — where it would have made
+ *   all of them assert the guard instead of what they are named for.
  */
 const OBJECT_BODY = {
   name: 'probe_widget',
@@ -261,22 +277,23 @@ describe('objectui#6041 · WRITE — the save carries `reference`, never `refere
 
     const fields = savedFields();
     expect('referenceTo' in fields.legacy_id).toBe(false);
-    // Falsification: the field is still there and still a lookup — the strip
-    // removed a key, not the field.
+    // Falsification: the field is still there, still a lookup, and still
+    // pointing at its target — the strip removed a KEY, not the field and not
+    // the relationship.
     expect(fields.legacy_id.type).toBe('lookup');
+    expect(fields.legacy_id.reference).toBe('contact');
     expect(FieldSchema.safeParse(fields.legacy_id).success).toBe(true);
   });
 
-  it('a HALF-FILLED draft — type `lookup`, target left empty — is REFUSED, with no PUT and a visible reason', async () => {
-    // ⭐ INVERTED at `@objectstack/spec` 17.3.0 (objectui#7122, ruled item 4).
+  it('a HALF-FILLED draft — type `lookup`, target left empty — is REFUSED, and issues NO PUT', async () => {
+    // objectui#7714. Replaces the assertion that used to live here, rather
+    // than respelling it: the branch it pinned is the branch this card removes.
     //
-    // It used to read "still saves, exactly as before": the spec's prose called
-    // `reference` "Required for relationship types" while the 17.2.0 zod parse
-    // did not enforce it, so `{ type: 'lookup', label: 'L' }` parsed green and
-    // the designer persisted target-less drafts. 17.3.0 enforces it, and a PUT
-    // of such a draft returns 422 `INVALID_METADATA` for the WHOLE object —
-    // blocking every later save of it, not just this field. So the product was
-    // fixed rather than the pin: the draft is refused in the client.
+    // This page's caller is fire-and-forget (`void handleFieldsChange(next)`),
+    // so the refusal is observed the way the AUTHOR observes it — the page's
+    // error surface — and not as a rejected promise. The second assertion is
+    // the card: no request was made at all, which is what distinguishes the
+    // ruled fix from option B (strip the field, PUT the rest, report success).
     await renderPage();
     const next: DesignerFieldDefinition[] = [
       ...designerProps!.fields,
@@ -286,74 +303,164 @@ describe('objectui#6041 · WRITE — the save carries `reference`, never `refere
       designerProps!.onFieldsChange!(next);
     });
 
-    // The whole point: nothing reached the wire. `onFieldsChange` is
-    // fire-and-forget, so a guard that threw anywhere but inside the page's
-    // save `try` would surface as an unhandled rejection and show the author
-    // nothing — which is the silent failure this refusal exists to end.
     await waitFor(() =>
       expect(screen.getByTestId('metadata-fields-page-error').textContent).toMatch(
-        /needs a `reference`/,
+        /needs a `reference` naming the object it links to/,
       ),
     );
-    expect(puts).toHaveLength(0);
-    // …and the author is told WHICH field, because an object save can carry
-    // dozens and a message that only says "a lookup" is not actionable.
-    expect(screen.getByTestId('metadata-fields-page-error').textContent).toContain('half_id');
+    expect(puts).toEqual([]);
   });
 
-  it('a WHITESPACE-ONLY target is refused too — the declared divergence, pinned', async () => {
-    // ⚠️ This page is STRICTER than the contract on exactly this value:
-    // measured on 17.3.0, `FieldSchema` ACCEPTS `reference: '   '` (and so does
-    // `ObjectSchema` through the whole document), while this writer refuses it.
-    // A divergence that lives only in a `.trim()` is indistinguishable from a
-    // bug, so it is asserted rather than assumed — the reasoning is in
-    // `assertRelationshipTargetPresent`'s docblock.
-    //
-    // ⚠️ Designed to go red when objectstack#16126 lands upstream. That red
-    // means "retire the declaration", NOT "weaken the guard".
-    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' }).success).toBe(
-      true,
-    );
-
+  it('a COMPLETE lookup still saves — the guard refuses drafts, not relationships', async () => {
+    // Falsification: a guard that refused every `lookup` would satisfy the case
+    // above while deleting the feature, so the accepting half is asserted here.
     await renderPage();
     const next: DesignerFieldDefinition[] = [
       ...designerProps!.fields,
-      { id: 'fld_blank', name: 'blank_id', label: 'Blank', type: 'lookup', referenceTo: '   ' },
-    ];
-    await act(async () => {
-      designerProps!.onFieldsChange!(next);
-    });
-
-    await waitFor(() =>
-      expect(screen.getByTestId('metadata-fields-page-error').textContent).toMatch(
-        /needs a `reference`/,
-      ),
-    );
-    // The author is the person surprised by a stricter-than-the-contract
-    // refusal, so the message itself carries the declaration — a docblock they
-    // never open is not a declaration to them.
-    expect(screen.getByTestId('metadata-fields-page-error').textContent).toContain(
-      'ACCEPTS this value',
-    );
-    expect(puts).toHaveLength(0);
-  });
-
-  it('the same draft saves once its target is picked — the control for the refusal above', async () => {
-    // Without this, the refusal is satisfied by a guard that blocks every
-    // `lookup`, which would break authoring rather than protect it.
-    await renderPage();
-    const next: DesignerFieldDefinition[] = [
-      ...designerProps!.fields,
-      { id: 'fld_half', name: 'half_id', label: 'Half', type: 'lookup', referenceTo: 'contact' },
+      { id: 'fld_ok', name: 'billing_id', label: 'Billing', type: 'lookup', referenceTo: 'invoice' },
     ];
     await act(async () => {
       designerProps!.onFieldsChange!(next);
     });
     await waitFor(() => expect(puts).toHaveLength(1));
 
-    const fields = savedFields();
-    expect(fields.half_id.reference).toBe('contact');
-    expect('referenceTo' in fields.half_id).toBe(false);
-    expect(FieldSchema.safeParse(fields.half_id).success).toBe(true);
+    expect(savedFields().billing_id.reference).toBe('invoice');
+  });
+
+  it('an UNTOUCHED stored lookup saves on an unrelated edit — the target comes from `prev`', async () => {
+    // The reason the guard reads the EMITTED entry rather than the designer's
+    // input. `owner_id`'s target lives in the stored document and reaches the
+    // wire through `carryOver`; a guard reading `designed.referenceTo` would
+    // refuse this save — a document the server accepts, blocked by the client —
+    // on every object that has ever had a lookup.
+    await renderPage();
+    await relabel('name', 'Full name');
+
+    expect(puts).toHaveLength(1);
+    expect(savedFields().owner_id.reference).toBe('account');
+  });
+
+  it('refuses every unusable target state, and PUTs none of them', async () => {
+    // objectui#7714, all four states plus `null`. The whitespace row is this
+    // page being deliberately STRICTER than the contract: measured on 17.3.0,
+    // `reference: '   '` parses green at field level and through `ObjectSchema`
+    // (upstream objectstack#16126). The refusal is this writer's own, declared
+    // in `MetadataFieldsPage.tsx`, and it does not depend on which spec is
+    // installed — which is why it is asserted here and the spec's verdict is
+    // not (at this repo's 17.2.0 pin the spec accepts every one of these).
+    //
+    // One render, re-driven per state: `renderPage` per iteration would leave
+    // several mounted pages in the document and `getByTestId` would then find
+    // more than one error surface.
+    await renderPage();
+    const base = designerProps!.fields;
+
+    for (const referenceTo of [undefined, '', '   ', 42, null]) {
+      const next = [
+        ...base,
+        { id: 'fld_x', name: 'x_id', label: 'X', type: 'lookup', referenceTo },
+      ] as DesignerFieldDefinition[];
+      await act(async () => {
+        designerProps!.onFieldsChange!(next);
+      });
+      await waitFor(() =>
+        expect(
+          screen.getByTestId('metadata-fields-page-error').textContent,
+          `referenceTo=${JSON.stringify(referenceTo)} should be refused`,
+        ).toMatch(/needs a `reference` naming the object it links to/),
+      );
+      expect(puts, `referenceTo=${JSON.stringify(referenceTo)} must issue no PUT`).toEqual([]);
+    }
+  });
+
+  it('does NOT pin a `master_detail` refusal — this page cannot reach one (measured)', () => {
+    // objectui#7714. The guard's list carries `master_detail` for parity with
+    // the sibling writer, where it IS reachable (`FieldMetadataPayload['type']`
+    // is an unconstrained `string`, and `MetadataService.saveObject` refuses a
+    // target-less master-detail today — pinned in
+    // `MetadataService.specKeyReference.test.ts`).
+    //
+    // Through THIS page it is unreachable, and the reason is worth stating
+    // rather than leaving as an empty spot: `toDesignerType` maps every type
+    // outside `DESIGNER_FIELD_TYPES` to `'text'`, so a stored `master_detail`
+    // arrives at the guard already flattened. Measured on this page:
+    //
+    //   stored { type: 'master_detail', reference: 'invoice' }
+    //     => designer field type "text"
+    //     => WIRE { "type": "text", "label": "Parent", "reference": "invoice" }
+    //
+    // So a refusal assertion here would be a PHANTOM — green because the guard
+    // never sees a `master_detail`, not because it handled one. The flattening
+    // is a separate defect (objectui#8060) and this case is a marker, so
+    // that when it is fixed the missing coverage is visible rather than assumed.
+    expect(true).toBe(true);
+  });
+
+});
+
+/**
+ * objectui#7714 — a target stored ONLY under the retired spelling.
+ *
+ * Surfaced by this card's guard rather than sought: it is what made every save
+ * in this file refuse when the shared fixture held `legacy_id` that way.
+ *
+ * The state is real. `toDesignerField` reads `raw.reference` and nothing else,
+ * and `carryOver` strips `referenceTo` — so a field whose target lives only
+ * under the pre-objectui#6041 spelling reaches the wire with NO target. Before
+ * this card that saved at the installed 17.2.0, silently dropping the
+ * relationship, and answered `422 INVALID_METADATA` at `fields.<n>.reference`
+ * against a 17.3.0 backend, with no field named. It is now refused here, by
+ * name, before the request.
+ *
+ * ⚠️ This is a behaviour change BEYOND "a half-filled lookup is not PUT", and
+ * it is stated rather than absorbed: a save that used to go through (losing the
+ * target) is now refused. The refusal is the better half of a bad pair — a
+ * named field the author can repair, instead of a silently emptied
+ * relationship — but the underlying read-side gap is not this card's to fix and
+ * is filed separately. The `carryOver` docblock's claim that stripping
+ * `referenceTo` "costs nothing" because the target is re-emitted as `reference`
+ * holds only when the READ found one, which for this shape it does not.
+ */
+describe('objectui#7714 · a lookup whose target survives only as `referenceTo`', () => {
+  it('is refused by name, and issues no PUT', async () => {
+    const client = new MetadataClient({
+      baseUrl: 'http://localhost:3000',
+      fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        if (method === 'PUT') {
+          puts.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
+          return json({ success: true, name: 'probe_widget' });
+        }
+        if (/\/meta\/object\/probe_widget(\?|$)/.test(url)) {
+          return json({
+            ...OBJECT_ENVELOPE,
+            item: {
+              ...OBJECT_BODY,
+              fields: {
+                name: { type: 'text', label: 'Name', required: true },
+                stale_id: { type: 'lookup', label: 'Stale', referenceTo: 'contact' },
+              },
+            },
+          });
+        }
+        return json({ items: [] });
+      }) as unknown as typeof fetch,
+    });
+    render(<MetadataFieldsPage objectName="probe_widget" client={client} />);
+    await waitFor(() => expect(designerProps).not.toBeNull());
+
+    // A plain relabel of an UNRELATED field — the author never touched the
+    // lookup, which is what makes the refusal worth stating.
+    await act(async () => {
+      designerProps!.onFieldsChange!(
+        designerProps!.fields.map((f) => (f.name === 'name' ? { ...f, label: 'Full name' } : f)),
+      );
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('metadata-fields-page-error').textContent).toMatch(/`stale_id`/),
+    );
+    expect(puts).toEqual([]);
   });
 });

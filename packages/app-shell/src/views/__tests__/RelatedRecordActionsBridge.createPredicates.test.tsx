@@ -32,12 +32,16 @@ import React from 'react';
 // default to allowed, matching `can()`'s permissive fallback.
 let principal: Record<string, boolean> = {};
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({
-    getObjectApiOperations: () => undefined,
-    can: (_name: string, action: string) => principal[action] ?? true,
-  }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({
+      getObjectApiOperations: () => undefined,
+      can: (_name: string, action: string) => principal[action] ?? true,
+    }),
+  };
+});
 
 import { RelatedRecordActionsBridge } from '../RelatedRecordActionsBridge';
 import { useRelatedRecordActions } from '@object-ui/react';

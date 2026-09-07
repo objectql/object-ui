@@ -1583,6 +1583,9 @@ importers:
       '@object-ui/data-objectstack':
         specifier: workspace:*
         version: link:../data-objectstack
+      '@object-ui/sdui-parser':
+        specifier: workspace:*
+        version: link:../sdui-parser
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -2265,6 +2268,9 @@ importers:
       '@object-ui/data-objectstack':
         specifier: workspace:*
         version: link:../data-objectstack
+      '@object-ui/sdui-parser':
+        specifier: workspace:*
+        version: link:../sdui-parser
       '@object-ui/test-support':
         specifier: workspace:*
         version: link:../test-support

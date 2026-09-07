@@ -68,7 +68,8 @@ vi.mock('@object-ui/react', async (importOriginal) => {
   };
 });
 
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Alert: ({ children, className, role, ...rest }: any) => (
     <div data-testid="alert" role={role} className={className} {...rest}>
       {children}

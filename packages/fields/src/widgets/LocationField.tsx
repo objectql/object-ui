@@ -191,8 +191,17 @@ const WHOLE_NUMBER_TEXT = /^[+-]?(?:Infinity|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?
 /** The two coordinates, in the order they are typed, named for the diagnostic. */
 const COORDINATE_LABELS = ['latitude', 'longitude'] as const;
 
-/** One half of the typed pair that carried non-numeric residue. */
-type ResidueHalf = { label: string; text: string };
+/** Which coordinate a half is — the key half of `COORDINATE_LABELS`. */
+type CoordinateLabel = (typeof COORDINATE_LABELS)[number];
+
+/**
+ * One half of the typed pair that carried non-numeric residue.
+ *
+ * `label` is the COORDINATE_LABELS member, not free text: since objectui#6888
+ * it selects a locale key, so widening it to `string` would make
+ * {@link coordinateName}'s branch fall through to `longitude` silently.
+ */
+type ResidueHalf = { label: CoordinateLabel; text: string };
 
 /**
  * What the typed text means to this widget, as ONE reading (objectui#6716).
@@ -314,16 +323,62 @@ function refusedRangeMessage(t: TranslateFn, candidate: LocationValue): string {
  * ruling declines that parse, so pointing at it would advertise a route this
  * widget refuses.
  *
- * ⚠️ Still a LITERAL, alone among the three arms, and deliberately so:
- * objectui#6755's ruling locks its scope to the three sentences that existed
- * when it was written, and this arm landed after. objectui#6888 carries the
- * gap — including the one question the other two did not have to answer, which
- * is how `verb` (English grammar, not data) should be keyed.
+ * objectui#6888 — keyed, closing the gap objectui#6755's scope lock left open:
+ * that ruling was written before this arm existed, so it named three sentences
+ * and this is the fourth. All three arms share ONE `<p>` and one
+ * `refusalError`, so leaving this one a literal made a single line speak the
+ * reader's language on two arms and English on the third.
+ *
+ * ⭐ ARITY — the one question the other two arms did not have to answer.
+ * `verb` was English GRAMMAR (`is not a number` / `are not numbers`), and a
+ * pack whose plural rules differ cannot inflect around an English verb form
+ * handed to it through a hole. So the verb is not a hole: it lives inside two
+ * SIBLING KEYS picked here, at the call site.
+ *
+ * ⛔ Deliberately NOT i18next's `_one`/`_other` suffixes. This repo's own
+ * plural convention is a `X` / `XOne` pair branched at the call site —
+ * `lookup.recordCount`/`recordCountOne` in this very defaults map
+ * (`RecordPickerDialog`), `list.recordCount`/`recordCountOne`,
+ * `detail.reactionCount`/`reactionCountOne` — because zh/ja/ko have no separate
+ * singular form and would legitimately omit a `_one` half, which
+ * `all-locales-key-parity` reads as a missing key (objectstack#5430). The
+ * suffix form also needs a base key to cover the categories no pack enumerates
+ * (`ru` few/many, `ar` two/zero — objectui#3863); the sibling pair needs none.
+ *
+ * The arity here is exactly binary and always will be: `residue` is
+ * `COORDINATE_LABELS` filtered, and a draft that is not two comma-separated
+ * parts never reaches this arm. So `ar` can use its DUAL in the two-half value,
+ * which is precisely what an English `verb` hole made impossible.
+ *
+ * `named`'s two components are split the same way rather than pre-joined:
+ * `' and '` was an English conjunction and `latitude`/`longitude` are
+ * translatable nouns (every pack already spells them inside its own
+ * `refusedFormat`). The nouns are keyed ONCE each and interpolated into both
+ * values, so no locale has to keep two spellings of the same word in step. The
+ * only holes carrying untranslated data are `{{text}}`/`{{otherText}}` — the
+ * characters the person actually typed, which no pack should touch.
  */
-function refusedResidueMessage(residue: readonly ResidueHalf[]): string {
-  const named = residue.map(half => `${half.label} "${half.text}"`).join(' and ');
-  const verb = residue.length > 1 ? 'are not numbers' : 'is not a number';
-  return `Not saved: ${named} ${verb}. Enter plain decimals (example: 30.2741, 120.1551).`;
+function refusedResidueMessage(t: TranslateFn, residue: readonly ResidueHalf[]): string {
+  const [first, second] = residue.map(half => ({ name: coordinateName(t, half.label), text: half.text }));
+  if (!second) return t('fields.location.refusedResidueOne', { name: first.name, text: first.text });
+  return t('fields.location.refusedResidue', {
+    name: first.name,
+    text: first.text,
+    otherName: second.name,
+    otherText: second.text,
+  });
+}
+
+/**
+ * The reader's word for one coordinate.
+ *
+ * ⛔ Written as a branch over STRING LITERALS rather than a computed
+ * `t(`fields.location.${label}`)`: `check:i18n-keys` and `check:i18n-dead-keys`
+ * both read `t()` literals, so a template key would be invisible to the gate
+ * that proves it resolves AND to the one that proves it is still used.
+ */
+function coordinateName(t: TranslateFn, label: CoordinateLabel): string {
+  return label === 'latitude' ? t('fields.location.latitude') : t('fields.location.longitude');
 }
 
 /**
@@ -452,7 +507,7 @@ export function LocationField({ value, onChange, field, readonly, error, ...prop
       // `setRefusalError` the other two arms use — a third SILENT refusal is
       // precisely the defect objectui#6716 had just finished removing, which is
       // why this card was held until #6716 landed.
-      setRefusalError(refusedResidueMessage(parsed.residue));
+      setRefusalError(refusedResidueMessage(t as TranslateFn, parsed.residue));
       return;
     }
 

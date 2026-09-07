@@ -278,6 +278,12 @@ const ja = {
       refusedFormat:
         "保存されていません: 緯度, 経度 の組で入力してください（例: 30.2741, 120.1551）。",
       refusedRange: "保存されていません: {{detail}}",
+      latitude: "緯度",
+      longitude: "経度",
+      refusedResidueOne:
+        "保存されていません: {{name}}「{{text}}」は数値ではありません。通常の小数で入力してください（例: 30.2741, 120.1551）。",
+      refusedResidue:
+        "保存されていません: {{name}}「{{text}}」と{{otherName}}「{{otherText}}」は数値ではありません。通常の小数で入力してください（例: 30.2741, 120.1551）。",
     },
     tags: {
       placeholder: "入力してEnterキーで追加…",
@@ -1448,6 +1454,9 @@ const ja = {
   console: {
     saveAdvisoryTitle: "保存しました — 編集チェックで {{count}} 件の推奨事項が見つかりました",
     publishAdvisoryTitle: "公開しました — 編集チェックで {{count}} 件の推奨事項が見つかりました",
+    importMappingsUnavailable: "{{object}} の保存済みインポートマッピングを読み込めませんでした",
+    importMappingsRefused: "サーバーがこのリクエストを拒否しました。つまりこのリストが空なのは読み取れなかったためであり、何も登録されていないためではありません。再度サインインするか、管理者にアクセス権を依頼してください。",
+    importMappingsUnreadable: "このリストが空なのは読み取れなかったためであり、何も登録されていないためではありません。再試行し、繰り返し発生する場合は報告してください。",
     settingsHub: {
       title: "設定",
       subtitle: "ワークスペース、連携、機能フラグを設定します。",
