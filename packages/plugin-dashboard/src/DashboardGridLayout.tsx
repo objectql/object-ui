@@ -6,7 +6,7 @@ import { Edit, GripVertical, Save, X, RefreshCw } from 'lucide-react';
 import { SchemaRenderer, useHasDndProvider, useDnd } from '@object-ui/react';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { BaseSchema, DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
-import { chartMeasureKey } from '@object-ui/core';
+import { chartCategoryKey, chartMeasureKey } from '@object-ui/core';
 import { isObjectProvider, deriveStaticTableColumns } from './utils';
 import { classifyWidgetType } from './widgetDispatch';
 import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
@@ -245,12 +245,22 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         // the floor for a provider with NO aggregate, whose rows are raw
         // records — there the author's `yField` really is the key.
         const effectiveYField = chartMeasureKey(effectiveAggregate, yField);
+        // Which column carries the CATEGORY is the same question on the other
+        // axis, and this relay was answering it with a literal it never checked
+        // against the aggregate that decides it: `xField || 'name'` bound
+        // `'name'` against the rows a `groupBy: 'status'` aggregate returns, so
+        // `hasNoCategoryKey` refused the widget by the name of a key its author
+        // never wrote (objectui#8269). `xAxisKey` survives as the floor for the
+        // shapes the contract has no answer for — a provider with NO aggregate
+        // (rows are raw records) and an UNGROUPED one (a single row with no
+        // category column at all).
+        const effectiveXAxisKey = chartCategoryKey(effectiveAggregate, xAxisKey);
         return {
           type: 'object-chart',
           chartType: dispatch.chartType,
           objectName: widgetData.object,
           aggregate: effectiveAggregate,
-          xAxisKey: xAxisKey,
+          xAxisKey: effectiveXAxisKey,
           series: [{ dataKey: effectiveYField }],
           colors: CHART_COLORS,
           // Deterministic first paint inside the grid (#2756).
