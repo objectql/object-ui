@@ -1227,8 +1227,8 @@ interface KnownDrift {
  * pin below reads this sentence off disk —
  * **87 keys** is what this ledger records today.
  * The movements between the two are different facts. objectui#6152 measured the 23
- * callback-shaped
- * (`on*`) keys and ruled that mirroring is the wrong remedy for every one of them;
+ * callback-shaped (`on*`) keys and ruled that mirroring is the wrong remedy for every
+ * one of them;
  * they moved, intact and still pinned, to `RuntimeOnlyDeclared` below — ⛔ nothing
  * was mirrored, no declaration was removed, nothing was waived by that move. Then
  * objectui#6639 MIRRORED `ObjectGridSchema.title` (census-directed maintainer
@@ -1623,8 +1623,7 @@ interface UnmirroredDeclared {
  * `UnmirroredDeclared` records **87 keys** today.
  * These 23 moved here whole. Keys have since left that ledger by MIRRORING and by
  * RETIREMENT, but the move recorded HERE is neither and repaired nothing. ⛔ Nothing
- * was
- * mirrored by it, no declaration was removed, no defect was repaired and nothing was
+ * was mirrored by it, no declaration was removed, no defect was repaired and nothing was
  * waived: the same 23 facts are still measured, still declared-but-unmirrored, still
  * reconciled against the same measurement — under a different remedy.
  *
