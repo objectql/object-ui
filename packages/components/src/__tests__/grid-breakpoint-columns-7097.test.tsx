@@ -116,7 +116,13 @@ type _GateIsLive = _UncoveredBreakpoint;
 
 const classOf = (schema: unknown): string => {
   const { container } = render(<SchemaRenderer schema={schema as never} />);
-  return (container.firstElementChild as HTMLElement).className;
+  const el = container.firstElementChild as HTMLElement | null;
+  // Checked, not asserted away. A renderer that produced no element at all would
+  // otherwise throw a bare `Cannot read properties of null` here, BEFORE any
+  // `expect` ran — the failure summary would name a TypeError instead of the
+  // node that failed to render. This turns that case into a named assertion.
+  expect(el, `SchemaRenderer produced no element for ${JSON.stringify(schema)}`).not.toBeNull();
+  return (el as HTMLElement).className;
 };
 
 /** `xs` is the base tier: its class carries no variant prefix. */
