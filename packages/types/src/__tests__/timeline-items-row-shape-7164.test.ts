@@ -43,13 +43,26 @@
  * document `validate` admits — that is the invariant, and it is asserted at the
  * foot of this file over the in-repo fixtures.
  *
- * ## What is deliberately NOT narrowed
+ * ## The bar level: a deliberate stop, since SUPERSEDED
  *
- * The bars inside a row stay `z.any()` and the element stays `.passthrough()`:
- * the two element shapes (feed item / gantt row) are discriminated by `variant`
- * and read dynamically, and a feed item carries no `items` key, so the feed
- * variants parse exactly as before. Narrowing the bar shape or refining by
- * `variant` is a wider contract than the ruling named.
+ * This card narrowed the ROW and stopped one level short DELIBERATELY — the
+ * bars inside a row stayed `z.array(z.any())` — and this docblock recorded
+ * that stop as the contract. ⭐ It is no longer the contract: objectui#7365
+ * (director seat, decision batch #71, 2026-09-07, option B) SUPERSEDES the
+ * stop KNOWINGLY. Every BAR is now `z.object({}).passthrough()` too, so a
+ * `null` bar is refused at `validate` by its own name, at `items[i].items[j]`,
+ * instead of reaching the render-time date diagnostic that used to name a
+ * `startDate` the author never wrote. The bar level is pinned by
+ * `./timeline-items-bar-shape-7365.test.ts`; the table above and every
+ * assertion below are the ROW level and are unmoved by it.
+ *
+ * ## What is still deliberately NOT narrowed, by either card
+ *
+ * The element and the bar both stay `.passthrough()`: the two element shapes
+ * (feed item / gantt row) are discriminated by `variant` and read dynamically,
+ * and a feed item carries no `items` key, so the feed variants parse exactly
+ * as before. Neither a row's nor a bar's own keys are declared, and refining
+ * by `variant` is still a wider contract than either ruling named.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';

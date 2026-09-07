@@ -73,6 +73,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { TimelineSchema } from '../zod/data-display.zod';
+import { safeValidateSchema } from '../zod/index.zod';
 
 const GOOD_BAR = { title: 'API', startDate: '2024-01-01', endDate: '2024-01-31' };
 const gantt = (items: unknown) => ({ type: 'timeline', variant: 'gantt', items });
@@ -85,6 +86,22 @@ const firstPath = (r: ReturnType<typeof TimelineSchema.safeParse>): string | nul
     (acc, seg) => (typeof seg === 'number' ? `${acc}[${seg}]` : acc ? `${acc}.${String(seg)}` : String(seg)),
     '',
   );
+};
+
+/** Every issue path in the tree, per-arm `errors` included — the union door
+ * reports its arms nested, so a flat `issues[]` read would miss the bar. */
+const issuePaths = (r: ReturnType<typeof safeValidateSchema>): string[] => {
+  if (r.success) return [];
+  const out: string[] = [];
+  const walk = (issues: readonly z.core.$ZodIssue[]) => {
+    for (const issue of issues) {
+      out.push(issue.path.map(String).join('.'));
+      const nested = (issue as { errors?: readonly (readonly z.core.$ZodIssue[])[] }).errors;
+      if (nested) for (const arm of nested) walk(arm);
+    }
+  };
+  walk(r.error.issues);
+  return out;
 };
 
 describe('a gantt BAR that is not an object is refused at authoring time (objectui#7365)', () => {
@@ -113,6 +130,16 @@ describe('a gantt BAR that is not an object is refused at authoring time (object
     const issues = JSON.stringify(r.success ? [] : r.error.issues);
     expect(issues).not.toContain('startDate');
     expect(firstPath(r)).toBe('items[0].items[0]');
+  });
+
+  it('every refusal above is an `invalid_type` — the bar is refused for its TYPE, not its keys', () => {
+    // The bar stays `.passthrough()`, so an `unrecognized_keys` here would mean
+    // the refusal came from the wrong rule: the card declares OBJECT-ness only.
+    for (const [label, items] of refused) {
+      const r = TimelineSchema.safeParse(gantt(items));
+      expect(r.success).toBe(false);
+      expect(r.success ? null : r.error.issues[0].code, label).toBe('invalid_type');
+    }
   });
 
   it('the previous declaration accepted every bar above — the CONTROL that makes the refusals readings', () => {
@@ -214,5 +241,23 @@ describe('fixture census — the in-repo bar stock, read from disk', () => {
     // empty `bars` would be indistinguishable from a broken traversal.
     expect(bars.length).toBe(5);
     expect(bars.filter((b) => b === null || typeof b !== 'object' || Array.isArray(b))).toEqual([]);
+  });
+});
+
+describe('the same verdict through the real door the CLI applies (`safeValidateSchema`)', () => {
+  // `TimelineSchema.safeParse` above is the declaration; this is the union
+  // `objectui validate` actually runs. A `.passthrough()` arm elsewhere in the
+  // union could have re-admitted the document, so the door is measured, not
+  // assumed — and the good half is asserted beside it so a green refusal is
+  // not just "no arm matched anything".
+  it("a well-formed gantt document validates through the union", () => {
+    const r = safeValidateSchema(gantt([row([GOOD_BAR])]));
+    expect(r.success, r.success ? '' : JSON.stringify(r.error.issues, null, 2)).toBe(true);
+  });
+
+  it("the ruling's pin — a `null` bar — is refused through the union, and the bar is named", () => {
+    const r = safeValidateSchema(gantt([row([null])]));
+    expect(r.success).toBe(false);
+    expect(issuePaths(r)).toContain('items.0.items.0');
   });
 });
