@@ -1969,8 +1969,8 @@ export interface TimelineSchema extends BaseSchema {
    * The rows to draw.
    *
    * TWO element shapes, discriminated by `variant`, both read dynamically by
-   * the renderer (`items.map((item: any) => …)`), so the element type is left
-   * open rather than narrowed to either one:
+   * the renderer (`items.map((item: any) => …)`), so NEITHER shape's own keys
+   * are declared here — what is declared is what the two SHARE:
    *
    * - `vertical` / `horizontal` — a feed item:
    *   `{ time, title, description?, variant?, icon?, color?, content?, className?, meta?, group? }`
@@ -1979,13 +1979,46 @@ export interface TimelineSchema extends BaseSchema {
    *
    * `content/docs/plugins/plugin-timeline.mdx` carries both in full.
    *
-   * The zod mirror (`./zod/data-display.zod.ts`, objectui#7164) declares what
-   * both shapes share and nothing more: every element is an OBJECT, and a gantt
-   * row's own `items`, when present, is an ARRAY. `validate` refuses a `null`
-   * element and a row whose `items` is a number, a string or a plain object —
-   * the inputs that used to crash the gantt renderer from ordinary JSON.
+   * ## This type states the shared shape; it no longer describes it in prose
+   *
+   * The zod mirror (`./zod/data-display.zod.ts`) and this declaration state the
+   * SAME two levels, and the type below is the TypeScript spelling of the
+   * mirror's `z.object({}).passthrough()` at each of them:
+   *
+   * - every element is an OBJECT — a `null` row, a number, a string, an array
+   *   are all refused (objectui#7164);
+   * - a gantt row's own `items`, when present, is an ARRAY — of OBJECTS. A
+   *   `null` bar is refused by its own name, at `items[i].items[j]`
+   *   (objectui#7365, director seat decision batch #71, 2026-09-07, option B).
+   *
+   * ⭐ objectui#7164 narrowed the ROW and stopped at the bar level
+   * DELIBERATELY, and this docblock recorded the stop in prose. That stop is
+   * SUPERSEDED KNOWINGLY, so the prose describing it is gone rather than
+   * qualified: the next reader should not re-derive a gap that has been closed.
+   *
+   * ⛔ The render-time diagnostic is UNCHANGED by that ruling
+   * (`timeline.gantt.unusableRange.malformedRow` and the ten language packs are
+   * untouched) — the renderer stays only ever MORE lenient than `validate`, and
+   * the date diagnostic remains the defined outcome for anything reaching it.
    */
-  items?: any[];
+  items?: Array<{
+    /**
+     * A gantt row's bars — an ARRAY OF OBJECTS when present. Optional is
+     * deliberate: a row with no bars yet is an ordinary empty state
+     * (objectui#6750) and the renderer draws it. A feed item carries no
+     * `items` key at all and satisfies this element unchanged.
+     *
+     * The bar's OWN keys (`title` / `startDate` / `endDate` / `variant?`) are
+     * NOT declared, for the reason the element's are not: they are read
+     * dynamically and the mirror leaves them open too.
+     */
+    items?: Record<string, unknown>[];
+    /**
+     * The element's own keys, undeclared and open — the TypeScript spelling of
+     * the mirror's `.passthrough()`. Both shapes above pass through here.
+     */
+    [key: string]: unknown;
+  }>;
   /**
    * How item dates are rendered.
    * @default 'short'
