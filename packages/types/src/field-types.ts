@@ -235,6 +235,96 @@ export interface HtmlFieldMetadata extends BaseFieldMetadata {
 }
 
 /**
+ * Rich-text (WYSIWYG) field metadata — the THIRD registry key `RichTextField`
+ * serves, and the last of the three to get a declarable face.
+ *
+ * `markdown`, `html` and `richtext` are ONE widget (objectui#5498). The first
+ * two carried an exported metadata type; `richtext` carried none, so the only
+ * way to write a richtext field's metadata was
+ * `as unknown as MarkdownFieldMetadata` — a deliberate cast whose presence in
+ * `RichTextField.rows.test.tsx` was the gap's only evidence. Neither a member
+ * nor a recorded alias: a silent hole that had to be rediscovered to be seen.
+ * Closed by the maintainer's objectui#7083 ruling (decision batch #71,
+ * 2026-09-07), which is why the cast and its comment are gone as well.
+ *
+ * ## The read set below is DERIVED, not copied from the siblings
+ *
+ * Read off `RichTextField.tsx` on the `richtext` path, key by key:
+ *
+ *  - `type` — `resolveRichTextFieldType` reads `field.type` (stripping a
+ *    `field:` prefix). It is THE discriminator for the three keys, and the
+ *    ONLY thing that differs between them at runtime: it selects the display
+ *    pipeline (`richtext` reads through the HTML renderer, objectui#5452) and
+ *    the editor's format label. Nothing else in the widget branches on it.
+ *  - `rows` — `richField?.rows || 8`, the inline editor's height. Declared
+ *    here for the same reason objectui#6140 declared it on the two siblings:
+ *    the running widget honoured a key an annotated literal rejected.
+ *  - `mobile_fullscreen`, `placeholder`, `label` — also read off this carrier
+ *    (the expand affordance, the textarea placeholder, the dialog title), and
+ *    all three already sit on {@link BaseFieldMetadata}, so they need no
+ *    redeclaration here. Listed because "derived" has to name what it found,
+ *    including the keys that turned out to need no line.
+ *
+ * The readonly branch hands `field` whole to the `RICH_TEXT_CELL_RENDERERS`
+ * entry for the type; both renderers there destructure `value` only, so the
+ * display half contributes no metadata key.
+ *
+ * ## `max_length` — read at SUBMIT, not by the widget
+ *
+ * `RichTextField` never reads this key. It is declared because a live reader
+ * outside the widget does, on every field regardless of type:
+ * `buildValidationRules` (`packages/fields/src/index.tsx`) compiles
+ * `(field as any).maxLength ?? field.max_length` into a react-hook-form
+ * `maxLength` rule. That function is GENERIC — it has no field-type gate
+ * anywhere in it — and both form producers call it on every field they build
+ * (`ObjectForm`'s `validation: buildValidationRules(field)` and the same line
+ * in `sectionFields.ts`); the form renderer spreads the result into the RHF
+ * `rules` object and localizes the `maxLength` entry. ⇒ `max_length` written
+ * on a `richtext` field IS enforced when the form is submitted. That is the
+ * checkable reason this key is declared.
+ *
+ * ⛔ Spec symmetry is NOT that reason, and must not be restated as one. At
+ * `@objectstack/spec` 17.3.0 `FieldSchema` answers identically for EVERY field
+ * type — `text` included — on `maxLength` (admitted) and on the legacy
+ * snake_case `max_length` (refused BY NAME), so that reading is
+ * non-discriminating here: it says nothing about `richtext` versus its two
+ * siblings. It is still pinned, for the three types this widget serves, in
+ * `packages/fields/src/widgets/__tests__/richtext-field-metadata-7083.test.tsx`
+ * — the `maxLength` admitted and `max_length` refused halves. `rows` admitted
+ * is pinned separately, in
+ * `packages/types/src/__tests__/select-option-spec-extension-7014.test.ts`.
+ *
+ * ⚠️ Two form-side sites do NOT reach `richtext`, and this key claims no
+ * coverage there: `ObjectForm` forwards `max_length` to the HTML `maxlength`
+ * attribute for `text | textarea | markdown | html` only, and
+ * `EmbeddableForm`'s `DEFAULT_MAX_LENGTH` caps `markdown` and `html` only.
+ * `richtext` is absent from both. Those omissions predate this member and are
+ * not corrected here.
+ *
+ * Omitting the key would have left `richtext` the one type of the three whose
+ * ceiling cannot be authored under an annotation, while the submit-time rule
+ * that enforces it stayed live — a fresh instance of the asymmetry this member
+ * exists to end.
+ *
+ * ⚠️ The `rows` docblocks on the two siblings still describe the
+ * `@objectstack/spec` 17.2.0 boundary, where `rows` was refused by name. That
+ * prose is objectui#7635's declared surface, not this member's; the 17.3.0
+ * reading above is stated for `richtext` only and is not a correction of it.
+ */
+export interface RichtextFieldMetadata extends BaseFieldMetadata {
+  type: 'richtext';
+  max_length?: number;
+  /**
+   * Height of the INLINE editor, in text rows. Same read as
+   * `MarkdownFieldMetadata.rows` and `HtmlFieldMetadata.rows` — literally the
+   * same expression, since the three registry keys are one widget: `rows`
+   * lands on the inline `<Textarea>`'s `rows` attribute and the fullscreen
+   * dialog ignores it (`rows={fullHeight ? undefined : rows}`).
+   */
+  rows?: number;
+}
+
+/**
  * Number field metadata
  */
 export interface NumberFieldMetadata extends BaseFieldMetadata {
@@ -826,6 +916,7 @@ export type FieldMetadata =
   | TextareaFieldMetadata
   | MarkdownFieldMetadata
   | HtmlFieldMetadata
+  | RichtextFieldMetadata
   | NumberFieldMetadata
   | CurrencyFieldMetadata
   | PercentFieldMetadata
