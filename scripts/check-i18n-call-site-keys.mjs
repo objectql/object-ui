@@ -385,8 +385,11 @@
  *    register.
  *
  *    HARD from day one, and here the measurement is the whole story. The census
- *    over this tree found 32 factory sites, 32 distinct tables, 846 rows, 841 of
- *    them comparable against `en` — and 0 drifted. objectui#7454's instance,
+ *    objectui#7567 SHIPPED ON — 32 factory sites, 32 distinct tables, 846 rows,
+ *    841 of them comparable against `en`, 0 drifted — is a reading of the tree
+ *    that card landed against, and it is dated on purpose: today's numbers are
+ *    the ones the run prints on its own `Factory defaults tables:` summary
+ *    line, which is where a reader takes them from. objectui#7454's instance,
  *    the one known member of the class, was aligned in objectui#7574 before this
  *    class landed, which is why there is no ledger section here: a ledger with
  *    nothing in it is a mechanism asserting nothing, and it would read exactly
@@ -395,28 +398,40 @@
  *    is a number, not a silence.
  *
  *    Deliberately NOT judged (counted instead), and each abstention is a
- *    decision:
+ *    decision. Each bullet NAMES THE COUNTER it increments rather than
+ *    restating that counter's value: all four are on the `Factory defaults
+ *    tables:` summary line of every run, and a value transcribed into this
+ *    comment is true only until the next table moves — objectui#8102 is the
+ *    card that measured this paragraph claiming five rows the tree had not
+ *    carried since objectui#7887.
  *
  *      - A first argument that does not resolve to an object literal — a table
  *        built by a spread, a call, or an identifier this parser cannot follow
- *        to its `const`. Counted as an unreadable TABLE, which is the loudest
- *        of these numbers: it is not one row leaving the surface, it is all of
- *        them. 0 on this tree.
- *      - A row whose key is computed, or whose value is not a static string.
- *        Same abstention as a computed `defaultValue` in class 3, and for the
- *        same reason: there is no text to compare. 0 on this tree.
- *      - A row whose key `en` does not define. That is class 1's shape, not this
- *        one's, and the two stay disjoint exactly as classes 1 and 3 do. It is
- *        worth knowing that class 1 CANNOT reach these: it judges call sites,
- *        and a table row with no call site anywhere is invisible to it. The 5
- *        such rows on this tree (`timeline.relative.*`,
- *        `packages/plugin-timeline/src/useTimelineTranslation.ts`) are exactly
- *        that — no `en` leaf and no caller — which is why the count is printed
- *        rather than absorbed.
+ *        to its `const`. Counted as an unreadable TABLE
+ *        (`factoryUnreadableTables`), which is the loudest of these numbers: it
+ *        is not one row leaving the surface, it is all of them.
+ *      - A row whose key is computed, or whose value is not a static string
+ *        (`factoryUnreadableRows`). Same abstention as a computed
+ *        `defaultValue` in class 3, and for the same reason: there is no text
+ *        to compare.
+ *      - A row whose key `en` does not define (`factoryRowsNoEnKey`). That is
+ *        class 1's shape, not this one's, and the two stay disjoint exactly as
+ *        classes 1 and 3 do. It is worth knowing that class 1 CANNOT reach
+ *        these: it judges call sites, and a table row with no call site
+ *        anywhere is invisible to it. The worked example is objectui#7874's
+ *        five `timeline.relative.*` rows in
+ *        `packages/plugin-timeline/src/useTimelineTranslation.ts` — no `en`
+ *        leaf and no caller, so this counter was the only reader in the repo
+ *        that could see them, and once it did they were retired in
+ *        objectui#7887. That is the whole argument for printing the count
+ *        rather than absorbing it, and the argument does not need the bucket to
+ *        be occupied: an empty one is the outcome the printing bought, and the
+ *        day it stops being empty the run says so.
  *      - A key that resolves only through its plural suffixes, or an `en` leaf
- *        this parser could not read as a string. There is no single form to
- *        compare against; picking one would be an invention. Same words as
- *        class 3's own abstention, because it is the same abstention.
+ *        this parser could not read as a string (`factoryUnjudgedRows`). There
+ *        is no single form to compare against; picking one would be an
+ *        invention. Same words as class 3's own abstention, because it is the
+ *        same abstention.
  *
  *    A NESTED object literal inside a table is deliberately NOT descended into,
  *    and this is the one place where copying
@@ -426,7 +441,8 @@
  *    row spelled `{ calendar: { today: 'Today' } }` is never read by anything at
  *    runtime, so comparing it against `en.calendar.today` would green-light a
  *    dead row. It falls into "value is not a static string" instead, where a
- *    dead row belongs. 0 such rows today; the abstention is what stops the first
+ *    dead row belongs — inside `factoryUnreadableRows`, with the rest of that
+ *    bullet, where the run prints it. The abstention is what stops the first
  *    one being read as healthy.
  *
  *    THE OTHER HALF OF THE POPULATION — objectui#7877, the B half of the
@@ -447,8 +463,9 @@
  *
  *    The two halves keep SEPARATE counters, a separate collapse floor and a
  *    separate summary line, and that separation is the point rather than
- *    tidiness: the factory walk compares 841 rows, so a registry that stopped
- *    resolving anything at all would be invisible inside a combined number,
+ *    tidiness: the factory walk compares hundreds of rows — its own summary
+ *    line says how many — so a registry that stopped resolving anything at all
+ *    would be invisible inside a combined number,
  *    and this half's verdict — also "0 drifted" — would be read off an empty
  *    scan set. Its floor is 150 against a measured 215 (80 + 135), chosen to
  *    sit above the LARGER of the two tables so that losing either one fails.
@@ -2013,8 +2030,8 @@ export function analyze(
     // objectui#7877 — the widened half's own census, deliberately a SEPARATE
     // set of counters rather than added into the factory numbers. Two reasons,
     // both load-bearing: the collapse floor below has to be able to fail for
-    // this half alone (a factory walk of 841 rows would otherwise mask a
-    // registry that resolved nothing), and the abstention counts are what turn
+    // this half alone (a factory walk of hundreds of rows would otherwise mask
+    // a registry that resolved nothing), and the abstention counts are what turn
     // a blind spot into a card — objectui#7874 exists purely because the
     // factory half printed its 5 abstaining rows instead of absorbing them.
     handRolledDeclared: 0,
@@ -2837,8 +2854,9 @@ if (invokedDirectly) {
   }
 
   // The widened half's OWN floor (objectui#7877). It is a separate threshold on
-  // a separate counter on purpose: `factoryComparedRows` is 841, so a registry
-  // that resolved nothing at all would sail through the guard above while this
+  // a separate counter on purpose: `factoryComparedRows` runs to the hundreds,
+  // so a registry that resolved nothing at all would sail through the guard
+  // above while this
   // half reported "0 drifted" over 0 rows — the exact reading objectui#7567's
   // ⛔ #2 forbids, one level down.
   //
