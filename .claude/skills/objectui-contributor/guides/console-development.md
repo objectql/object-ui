@@ -154,7 +154,7 @@ SIMPLIFIED teaching copy of the published `MetadataResourceConfig`
 rather than replaced by an import: it shows the 22 fields you reach for most out
 of the **28** the interface declares, and the excerpt is what makes the section
 usable. Nothing checks the copy against the real type — `registry.ts` documents
-all 27 field by field, and the six not shown here are `hiddenFields`,
+all 28 field by field, and the six not shown here are `hiddenFields`,
 `fieldOrder`, `createSeed`, `createSchema`, `createHint` and `emptyStateHint`.
 
 ```typescript
