@@ -62,3 +62,28 @@ members). Six of the eight are already honoured by `DetailSection`, so the
 `sections` input description now teaches all of them, and says plainly which two
 are not read here. Designer controls for them are a separate feature and are
 deliberately not added.
+
+**`@object-ui/types` raises its declared `@objectstack/spec` floor `^17.0.0` →
+`^17.3.0`, and this is the second half of its `minor`.** The package's emitted
+`dist/spec-report.d.ts` names `FilterCondition` from `@objectstack/spec`, which
+`17.0.0` does not export, so the old range was a claim the artifact did not
+support — `scripts/check-spec-range-floors.mjs` reports it as `[floor-too-low]`
+and names `^17.3.0` as the lowest version carrying every symbol the package
+references. Breaking for a consumer pinned below 17.3.0: it can no longer
+resolve this package. That is the range stating the truth rather than a new
+restriction — the artifact already required those symbols — and it is the
+remedy the gate itself prescribes ("Raise that package's range to the lowest
+version that exports the symbol… Do not add a tolerant re-declaration on this
+side: the range is the claim, and the claim is what is wrong", objectui#5793).
+`@object-ui/core` and `@object-ui/data-objectstack` already declare `^17.2.0`
+and `@object-ui/plugin-detail` `^17.1.0`, so a floor above the family minimum is
+this repo's normal state, not an exception.
+
+⚠️ **Measured on both sides, because it is bump-caused rather than pre-existing
+and objectui#7688 records the opposite.** The gate is a scheduled / push-to-main
+workflow that cannot red a pull request, and `main` is green on it — the last
+eight runs, most recently at `c2e3cee2c`. On this branch's built tree it exits 1
+with CI's own `--cross-check` invocation, and exits 0 with this raise, judging
+278 (subpath, symbol) pairs across 19 published packages either way. Its blocking
+copy runs on the publish path, so leaving it would have surfaced as a cancelled
+release rather than as a red check. The correction is recorded on objectui#7688.
