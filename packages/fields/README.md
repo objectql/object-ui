@@ -23,10 +23,15 @@ The Field Registry is the core mechanism that allows decoupling view components 
 You can override standard fields or add new ones:
 
 ```tsx
-import { registerFieldRenderer } from '@object-ui/fields';
-import { MyCustomColorPicker } from './MyCustomColorPicker';
+import { registerFieldRenderer, type CellRendererProps } from '@object-ui/fields';
+import type { FC } from 'react';
 
-// Register a new 'color' field type
+// Your own renderer — anywhere in your app; it takes the standard props bag.
+declare const MyCustomColorPicker: FC<CellRendererProps>;
+
+// ⚠️ `color` is a SHIPPED type (`ColorSwatchCellRenderer`), and `getCellRenderer`
+// reads the registry BEFORE the standard map — so this call OVERRIDES the
+// built-in renderer. To ADD a type instead, register a name nothing ships.
 registerFieldRenderer('color', MyCustomColorPicker);
 ```
 
@@ -35,9 +40,9 @@ registerFieldRenderer('color', MyCustomColorPicker);
 View components use `getCellRenderer` to resolve the correct component for a field type.
 
 ```tsx
-import { getCellRenderer } from '@object-ui/fields';
+import { getCellRenderer, type CellRendererProps } from '@object-ui/fields';
 
-const MyGridCell = ({ field, value }) => {
+const MyGridCell = ({ field, value }: CellRendererProps) => {
   const Renderer = getCellRenderer(field.type);
   return <Renderer field={field} value={value} />;
 };
