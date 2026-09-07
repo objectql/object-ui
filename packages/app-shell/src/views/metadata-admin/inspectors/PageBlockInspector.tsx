@@ -26,7 +26,13 @@ import {
   InspectorEmptyState,
   moveArray,
 } from './_shared.js';
-import { BLOCK_CONFIG, blockHasConfig, type BlockPropField, type PlaceholderSpec } from '../previews/block-config.js';
+import {
+  BLOCK_CONFIG,
+  blockHasConfig,
+  stripRetiredBlockProps,
+  type BlockPropField,
+  type PlaceholderSpec,
+} from '../previews/block-config.js';
 import { ColorVariantPicker } from '../color-variant-field.js';
 import { ConditionBuilder } from './ConditionBuilder.js';
 import { expressionSource, writeExpressionSource } from './expression-envelope.js';
@@ -445,7 +451,20 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
   // Per-block configurable properties (spec `properties`). The renderer hoists
   // `properties.*` to the top level, so we read from either and always write
   // back to `properties` (the canonical shape).
-  const blockProps = (block.properties as Record<string, unknown>) || {};
+  //
+  // Read through `stripRetiredBlockProps` (objectui#7772): a key a released
+  // designer build wrote that the block's node schema now refuses BY NAME is
+  // dropped HERE, which is the only place it can be dropped without a migration
+  // pass. This is the single value every property write spreads from
+  // (`patchProp` below), and it is also what `advancedKeys` enumerates — so a
+  // retired key neither rides back out on the next save nor shows up in the
+  // generic "Advanced" editor, which can set a value but never delete one. The
+  // criterion for membership, and why this is a strip rather than a migration,
+  // are on the constant itself.
+  const blockProps = stripRetiredBlockProps(
+    block.type as string | undefined,
+    (block.properties as Record<string, unknown>) || {},
+  );
   // The record page's bound object — drives `field-picker`/`field-list` with
   // objectFrom:'page'. (objectFrom:'self' reads a sibling block property.)
   const pageObject = typeof (draft as any)?.object === 'string' ? ((draft as any).object as string) : undefined;

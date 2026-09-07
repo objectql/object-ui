@@ -30,6 +30,7 @@ const en = {
       manage_users: 'Manage Users',
       manage_org_users: 'Manage Organization Users',
       manage_metadata: 'Manage Metadata',
+      manage_org_presentation: 'Manage Organization Presentation',
       manage_platform_settings: 'Manage Platform Settings',
       setup_access: 'Setup Access',
       setup_write: 'Write Settings',
@@ -338,6 +339,12 @@ const en = {
       refusedFormat:
         'Not saved: enter a latitude, longitude pair (example: 30.2741, 120.1551).',
       refusedRange: 'Not saved: {{detail}}',
+      latitude: 'latitude',
+      longitude: 'longitude',
+      refusedResidueOne:
+        'Not saved: {{name}} "{{text}}" is not a number. Enter plain decimals (example: 30.2741, 120.1551).',
+      refusedResidue:
+        'Not saved: {{name}} "{{text}}" and {{otherName}} "{{otherText}}" are not numbers. Enter plain decimals (example: 30.2741, 120.1551).',
     },
     // objectui#3342 — the tags widget's input hint, shown while the tag list
     // is empty. The author-declared `field.placeholder` always wins over this.
@@ -1257,6 +1264,17 @@ const en = {
     // eagerly loaded and the `framework` chunk's gzip ceiling has ~0.2 KB of
     // headroom; the series keys are rendered by the chart as data, after it.
     scatterOneMeasure: 'A scatter plots one measure. Keep exactly one series:',
+    // The refusal an object-bound chart renders when it declares no category
+    // axis (objectui#8168) — `aggregate.groupBy` / `xAxisKey` / `xAxis.field`
+    // all absent, so `runAggregate` would have grouped on a name nobody wrote.
+    // The twin of `timeline.unconfigured.noDateAxis`. ONE short sentence, for
+    // the same reason `scatterOneMeasure` above is one: the packs ship it ten
+    // times, and the binding names are rendered by the component after it
+    // rather than interpolated, so a rung added to or retired from the
+    // resolver cannot leave this sentence naming a stale vocabulary.
+    unconfigured: {
+      noCategoryAxis: 'Chart category axis required — an object-bound chart will not invent one. Declare one of:',
+    },
   },
   report: {
     total: 'Total',
@@ -1652,6 +1670,9 @@ const en = {
   console: {
     saveAdvisoryTitle: 'Saved — the authoring check raised {{count}} advisory finding(s)',
     publishAdvisoryTitle: 'Published — the authoring check raised {{count}} advisory finding(s)',
+    importMappingsUnavailable: 'Saved import mappings for {{object}} could not be loaded',
+    importMappingsRefused: 'The server refused this request, so this list is empty because it could not be read — not because nothing is registered. Sign in again, or ask an administrator for access.',
+    importMappingsUnreadable: 'This list is empty because it could not be read, not because nothing is registered. Try again, and report this if it keeps happening.',
     title: 'ObjectOS',
     initializing: 'Initializing application…',
     search: 'Search…',
@@ -1996,11 +2017,21 @@ const en = {
           availableObjects: 'List the available data objects.',
           recentActivity: 'Summarize my recent activity.',
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: 'Add a field to one of the objects.',
           addObject: 'Add a new object and relate it to an existing one.',
           addDashboard: 'Add a dashboard for the key metrics.',
-          addAutomation: 'Add an automation — an approval, a status flow, or a notification.',
+          addSampleData: 'Fill the existing objects with realistic sample records so I can demo the app.',
         },
       },
       // objectui#3546 slice four — the AI console surfaces: the /ai chat page's app switcher,

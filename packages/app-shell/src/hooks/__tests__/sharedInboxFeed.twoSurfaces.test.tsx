@@ -92,13 +92,15 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('@object-ui/components', () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const stripProps = (p: any) => {
     const { asChild, variant, size, align, sideOffset, ...rest } = p ?? {};
     return rest;
   };
   const Pass = ({ children, ...p }: any) => <div {...stripProps(p)}>{children}</div>;
   return {
+    ...actual,
     Button: ({ children, asChild, variant, size, ...p }: any) => (
       <button type="button" {...p}>{children}</button>
     ),
@@ -141,7 +143,8 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
   useOffline: () => ({ isOnline: true }),
 }));
 
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   PresenceAvatars: () => <div data-testid="presence-avatars" />,
   useTenantPresence: () => [],
 }));
@@ -154,7 +157,8 @@ vi.mock('../../layout/AppSwitcher', () => ({ AppSwitcher: () => null }));
 vi.mock('../../layout/LocalizedSidebarTrigger', () => ({ LocalizedSidebarTrigger: () => null }));
 vi.mock('../../layout/PreviewBadge', () => ({ PreviewBadge: () => null }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
     user: { id: 'u1', name: 'Zhang San', email: 'zs@example.com' },
     signOut: vi.fn(),

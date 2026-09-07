@@ -45,14 +45,16 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 const { modalSchemas } = vi.hoisted(() => ({ modalSchemas: [] as any[] }));
 
 /** The probe: the global modal's schema is where the filtered field list lands. */
-vi.mock('@object-ui/plugin-form', () => ({
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ModalForm: ({ schema }: any) => {
     modalSchemas.push(schema);
     return <div data-testid="modal-form" />;
   },
 }));
 
-vi.mock('@object-ui/plugin-designer', () => ({
+vi.mock('@object-ui/plugin-designer', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-designer')>()),
   CreateAppPage: () => <div data-testid="create-app-page" />,
   EditAppPage: () => <div data-testid="edit-app-page" />,
   DashboardDesignPage: () => <div data-testid="dashboard-design-page" />,

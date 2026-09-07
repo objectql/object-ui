@@ -67,7 +67,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { buildInitFiles, buildInitPackageJson } from '../commands/init.js';
 import {
@@ -1176,6 +1176,65 @@ describe('generation onto disk', () => {
       // The nested schema directory really lands, rather than being flattened.
       expect(Object.keys(onDisk)).toContain('src/schemas/page0.json');
       expect(JSON.parse(onDisk['src/schemas/page0.json'])).toEqual(SCHEMA);
+    });
+  });
+
+  /**
+   * The two cases above mirror the ambient cwd on BOTH sides — the real
+   * `createTempApp*` derives its context from `process.cwd()` and
+   * `contextOfCurrentProcess()` derives the expectation the same way — so they
+   * are self-consistent under either cwd, deliberately (re-rooting only the
+   * expectation would desync the mirror and turn a passing test red).
+   *
+   * Their cost, measured by PR #7806's counter-probe and filed as
+   * objectui#7807: WHICH branch of the generator's `currentContext()` those two
+   * pin is decided by the directory the run was launched from, not by anything
+   * written here —
+   *
+   *   pnpm exec vitest run packages/cli/…  (repo root — the form CI runs) → IN-WORKSPACE
+   *   pnpm --filter @object-ui/cli test    (cwd `packages/cli`)          → STANDALONE
+   *
+   * — and that is invisible in the source: they read as two tests covering two
+   * branches. Since CI only ever runs the first form, the STANDALONE branch had
+   * never once executed through the writer in CI.
+   *
+   * The two cases below close that gap by NAMING the branch instead of
+   * inheriting it, leaving the mirror above untouched. Each pins
+   * `currentContext()` to a directory this file derives itself, so both
+   * branches are covered under every invocation. `process.chdir()` is not the
+   * available lever — it throws `ERR_WORKER_UNSUPPORTED_OPERATION` under the
+   * `unit` project's `pool: 'threads'` — so the cwd is stubbed for exactly the
+   * one synchronous writer call and restored immediately.
+   */
+  function writingFrom(cwd: string, write: () => void): void {
+    const stub = vi.spyOn(process, 'cwd').mockReturnValue(cwd);
+    try {
+      write();
+    } finally {
+      stub.mockRestore();
+    }
+  }
+
+  it('writes the IN-WORKSPACE map when the generator runs at a workspace root', () => {
+    // `REPO_ROOT` walks up from `import.meta.url`, so this pins the same branch
+    // whatever directory the run was launched from — and `IN_WORKSPACE` is that
+    // same file-derived root, which is what keeps the expectation independent
+    // too. Put either side back on `process.cwd()` and this case silently
+    // becomes a third copy of the ambient mirror.
+    withTempDir((dir) => {
+      writingFrom(REPO_ROOT, () => createTempApp(dir, SCHEMA));
+      expect(filesOnDisk(dir)).toEqual(buildAppFiles(SCHEMA, IN_WORKSPACE));
+    });
+  });
+
+  it('writes the STANDALONE map when the generator runs outside a workspace', () => {
+    // The other half, equally explicit: the throwaway directory holds no
+    // `pnpm-workspace.yaml`, so `currentContext()` takes the standalone branch
+    // — the one CI had never reached through the writer. Both sides name the
+    // same `dir`, so nothing here depends on the ambient cwd either.
+    withTempDir((dir) => {
+      writingFrom(dir, () => createTempApp(dir, SCHEMA));
+      expect(filesOnDisk(dir)).toEqual(buildAppFiles(SCHEMA, { cwd: dir, isMonorepo: false }));
     });
   });
 

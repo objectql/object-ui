@@ -2277,9 +2277,18 @@ describe('ListView', () => {
     it('should evaluate spec format with condition and style', () => {
       const result = evaluateConditionalFormatting(
         { status: 'active', amount: 200 },
-        [{ condition: '${data.status === "active"}', style: { backgroundColor: '#e0ffe0', color: '#0a0' } }] as any,
+        [{ condition: '${record.status === "active"}', style: { backgroundColor: '#e0ffe0', color: '#0a0' } }] as any,
       );
       expect(result).toEqual({ backgroundColor: '#e0ffe0', color: '#0a0' });
+    });
+
+    it('a legacy `${data.x}` condition no longer binds the row (objectui#5741) — no style on either row', () => {
+      // One scope shape per surface for both dialects: `data` is unbound on the
+      // legacy path too, so the rule faults and fails soft to "no style"
+      // whichever row it meets.
+      const rules = [{ condition: '${data.status === "active"}', style: { backgroundColor: '#e0ffe0' } }] as any;
+      expect(evaluateConditionalFormatting({ status: 'active', amount: 200 }, rules)).toEqual({});
+      expect(evaluateConditionalFormatting({ status: 'closed', amount: 200 }, rules)).toEqual({});
     });
 
     it('binds a host predicate scope alongside the row (grid/kanban parity)', () => {
@@ -2792,7 +2801,15 @@ describe('ListView — kanban config speaks the spec vocabulary', () => {
 
     const last = kanbanCalls.at(-1);
     expect(last?.schema?.groupBy).toBe('stage');
-    expect(last?.schema?.groupField).toBe('stage');
+    // TURNED, not deleted (objectui#7773). This line read
+    // `expect(last?.schema?.groupField).toBe('stage')` and pinned a duplicate
+    // write the `object-kanban` renderer never read — the key objectui#7322
+    // retired on that node (`groupField?: never` / `retirementTombstone()`).
+    // Kept in place and inverted so the history stays legible and so re-adding
+    // the write reddens here, rather than being silently re-blessed by a
+    // missing assertion. ⚠️ Node-local: the VIEW-LEVEL `kanban.groupField`
+    // alias is still live and still read — the two `it` blocks below pin it.
+    expect(last?.schema?.groupField).toBeUndefined();
   });
 
   it('still honors the deprecated `groupField` alias', async () => {

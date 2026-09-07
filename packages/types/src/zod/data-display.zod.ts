@@ -19,7 +19,7 @@
 import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema, I18nLabelSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
-import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
+import { aliasKeyRefusal, handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { TABLE_COLUMN_TYPES } from '../data-display.js';
 
 /**
@@ -94,6 +94,8 @@ export const ListSchema = BaseSchema.extend({
   ordered: z.boolean().optional().describe('Whether list is ordered'),
   dividers: z.boolean().optional().describe('Show dividers between items'),
   dense: z.boolean().optional().describe('Dense spacing'),
+  wrapperClass: z.string().optional()
+    .describe('Classes on the wrapper div around the title and the list, read at renderers/data-display/list.tsx:27 — `cn("space-y-2", schema.wrapperClass)` (objectui#7722)'),
 });
 
 /**
@@ -335,10 +337,25 @@ export const TreeNodeSchema: z.ZodType<any> = z.lazy(() =>
  */
 export const TreeViewSchema = BaseSchema.extend({
   type: z.literal('tree-view'),
-  data: z.array(TreeNodeSchema).optional()
-    .describe('Tree data, read THIRD as the fallback limb of `boundData || schema.nodes || schema.data || []` at renderers/data-display/tree-view.tsx:105. OPTIONAL since objectui#6939 — requiring a third-choice limb refused four catalog entries the renderer draws correctly. Kept DECLARED rather than deleted: `BaseSchema.data` is `z.any().optional()`, so removing this member would not reject the key, it would admit it unvalidated while the read stays'),
+  // ADR-0049 RETIREMENT TOMBSTONE (objectui#6951, maintainer ruling B1 of
+  // 2026-09-04). `data` was the second spelling of the one inline-nodes slot,
+  // read only as the last limb of `boundData || schema.nodes || schema.data || []`;
+  // the renderer now reads `bind` then `nodes`. A plain deletion here would NOT
+  // refuse the key: `BaseSchema.data` is `z.any().optional()`, so the authored
+  // array would be admitted unvalidated and render an empty tree. The tombstone
+  // on this extended schema shadows the base member and refuses BY NAME — one
+  // string, both channels (parse-time message and `.describe()`), see
+  // `./tombstone.zod.ts`; the base-vs-extended contrast is pinned in
+  // `../__tests__/tree-view-data-retired-6951.test.ts`.
+  data: retirementTombstone(
+    'RETIRED (objectui#6951) — `data` is no longer part of TreeViewSchema; write `nodes` (or bind the tree with '
+    + '`bind`). It was the second spelling of the one inline-nodes slot, read only as the last limb of '
+    + '`boundData || schema.nodes || schema.data || []`, and was retired under ADR-0049 enforce-or-remove with no '
+    + 'deprecation window (maintainer ruling B1, 2026-09-04). The renderer reads `bind` then `nodes` now, so an '
+    + 'authored `data` would render an empty tree. Rename the key; the array is unchanged.',
+  ),
   nodes: z.array(TreeNodeSchema).optional()
-    .describe('Tree data, read FIRST at renderers/data-display/tree-view.tsx:105 — the middle limb of `boundData || schema.nodes || schema.data || []`, so it wins over `data`. Declared by objectui#6150; a `nodes`-only document became LEGAL at objectui#6939, which relaxed `data` (the registration\'s own `inputs` and `defaultProps` spell it `nodes`, and the four catalog entries ARE those `defaultProps`)'),
+    .describe('Inline tree nodes — the one inline spelling, read at renderers/data-display/tree-view.tsx:105 as the second limb of `boundData || schema.nodes || []` (a `bind`-resolved value wins, so this stays optional and no presence rule exists — objectui#6951 B1). Declared by objectui#6150; a `nodes`-only document became LEGAL at objectui#6939; the `data` fallback spelling was retired by objectui#6951 (the registration\'s own `inputs` and `defaultProps` spell it `nodes`, and the four catalog entries ARE those `defaultProps`)'),
   title: z.string().optional()
     .describe('Heading above the tree, read at renderers/data-display/tree-view.tsx:115 (presence gate) and :117 (the h3 body) (objectui#6150)'),
   defaultExpandedIds: z.array(z.string()).optional().describe('Default expanded node IDs'),
@@ -406,6 +423,36 @@ export const ChartDataSeriesSchema = z.object({
   // ones `normalizeChartSchema` actually honours as a per-series override; see
   // the TS declaration for the read this narrowness is taken from.
   type: z.enum(['bar', 'line', 'area']).optional().describe('Per-series chart family override (combo charts)'),
+  // ALIAS REFUSAL (objectui#7694 — option A of the `domain:ui` PM ruling on
+  // objectui#7546 / the contract review of PR #7684). `chartType` is the
+  // renderer's INTERNAL spelling of `type` above — the first limb of
+  // `normalizeSeries`' `str(raw.chartType) ?? str(raw.type)`
+  // (`normalizeChartSchema.ts:244`) — written by the internal-shape producers
+  // that hand `dataKey`-shaped arrays straight to `ChartRenderer`, and by
+  // nothing on this authoring face: re-measured at implementation time with
+  // lit controls (docs 0, fixtures 0, designer inputs 0, src literals 0,
+  // tests 9 — all internal-shape; the limb's ablation left 304 files / 5817
+  // tests green while its `type` sibling went 2 red). The TS twin's docblock
+  // carries the numbers. This object is NON-STRICT, so until now an authored
+  // `chartType` was STRIPPED in silence and the series drew in the chart's own
+  // family — precisely what the author was overriding. Now it is DECLARED and
+  // unwritable, refusing by name in the spec's own posture (`ChartSeriesSchema`
+  // lists it as an alias of `type`: "Did you mean `chartType` → `type`?").
+  // Not a fold: when both are written the document is refused rather than one
+  // key silently winning — the renderer takes `chartType` FIRST, so a fold
+  // would invert the objectui#7113 precedence rule. Not a second writable
+  // name: that is the N-dialects hazard of AGENTS.md #0.1.
+  chartType: aliasKeyRefusal(
+    'chartType',
+    'type',
+    'this chart series',
+    '`chartType` is the renderer\'s INTERNAL spelling of the declared `type` (objectui#7694): '
+    + '`@objectstack/spec`\'s `ChartSeriesSchema` lists it as an alias of `type` and refuses it the '
+    + 'same way, and nothing on this authoring face writes it. Write `type` (`bar` | `line` | `area`) '
+    + 'for a per-series family override. Until this refusal an authored `chartType` was STRIPPED in '
+    + 'silence by this non-strict object, so the series drew in the chart\'s own family — precisely '
+    + 'what the author was overriding.',
+  ),
   color: z.string().optional().describe('Series color'),
   // THE SIX KEYS THE RENDERER READS (objectui#7546). Each was undeclared, and
   // because this object is NON-STRICT the mirror STRIPPED it in silence while
@@ -419,12 +466,8 @@ export const ChartDataSeriesSchema = z.object({
   // spec's `ChartSeriesSchema` members under the same names; the TS twin's
   // docblocks carry the read sites and the liveness measurement.
   //
-  // ⛔ `chartType` is NOT among them — deliberately. It is the renderer's
-  // INTERNAL spelling of `type` (the first limb of
-  // `str(raw.chartType) ?? str(raw.type)`), the spec refuses it by name as an
-  // alias of `type`, and nothing on this authoring face writes it. Declaring it
-  // is a contract decision for its own card; `chart-series-keys-7546.test.ts`
-  // pins the gap so it stays visible.
+  // `chartType` is NOT among the six: it is an ALIAS REFUSAL ARM, declared
+  // beside `type` above (objectui#7694).
   label: I18nLabelSchema.optional().describe(
     'Legend / tooltip name for this series — a plain string or an inline locale map; defaults to the column key',
   ),

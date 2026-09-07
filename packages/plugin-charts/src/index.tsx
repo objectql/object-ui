@@ -43,11 +43,11 @@ ComponentRegistry.register(
     label: 'Bar Chart',
     category: 'plugin',
     inputs: [
-      { name: 'data', type: 'array', label: 'Data', required: true },
-      { name: 'dataKey', type: 'string', label: 'Data Key', defaultValue: 'value' },
-      { name: 'xAxisKey', type: 'string', label: 'X-Axis Key', defaultValue: 'name' },
-      { name: 'height', type: 'number', label: 'Height', defaultValue: 400 },
-      { name: 'color', type: 'color', label: 'Color', defaultValue: '#8884d8' },
+      { name: 'data', type: 'array', required: true },
+      { name: 'dataKey', type: 'string' },
+      { name: 'xAxisKey', type: 'string' },
+      { name: 'height', type: 'number' },
+      { name: 'color', type: 'color' },
     ],
     defaultProps: {
       data: [
@@ -78,10 +78,10 @@ ComponentRegistry.register('chart', ObjectChartBlock, {
   label: 'Chart',
   skipFallback: true,
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'type', type: 'string', label: 'Chart Type' },
-    { name: 'categoryField', type: 'string', label: 'Category Field' },
-    { name: 'valueField', type: 'string', label: 'Value Field' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'type', type: 'string' },
+    { name: 'categoryField', type: 'string' },
+    { name: 'valueField', type: 'string' },
   ]
 });
 // Register the advanced chart component
@@ -96,7 +96,6 @@ ComponentRegistry.register(
       { 
         name: 'chartType', 
         type: 'enum', 
-        label: 'Chart Type',
         enum: [
           { label: 'Bar', value: 'bar' },
           { label: 'Line', value: 'line' },
@@ -105,14 +104,12 @@ ComponentRegistry.register(
           { label: 'Donut', value: 'donut' },
           { label: 'Radar', value: 'radar' },
           { label: 'Scatter', value: 'scatter' }
-        ],
-        defaultValue: 'bar'
-      },
-      { name: 'data', type: 'code', label: 'Data (JSON)', required: true },
-      { name: 'config', type: 'code', label: 'Config (JSON)' },
-      { name: 'xAxisKey', type: 'string', label: 'X Axis Key', defaultValue: 'name' },
-      { name: 'series', type: 'code', label: 'Series (JSON Array)', required: true },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        ]      },
+      { name: 'data', type: 'code', required: true },
+      { name: 'config', type: 'code' },
+      { name: 'xAxisKey', type: 'string' },
+      { name: 'series', type: 'code', required: true },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       chartType: 'bar',
@@ -136,6 +133,34 @@ ComponentRegistry.register(
   }
 );
 
+/**
+ * ⭐ The chart-family registrations below (`chart:bar`, `pie-chart`,
+ * `donut-chart`, `radar-chart`, `scatter-chart`) declare their family in ONE
+ * place, and it is not here: `CHART_TYPE_KEYWORD_FAMILIES` in
+ * `normalizeChartSchema.ts`, which `ChartRenderer` resolves through on every
+ * render.
+ *
+ * Until objectui#7401 each of them carried a second declaration —
+ * `defaultProps: { chartType: … }` — that **nothing on the SDUI path has ever
+ * read**. `SchemaRenderer` does not read a registration's `defaultProps`; the
+ * tree's one consumer (`core/src/registry/WidgetRegistry.ts`) WRITES manifest
+ * defaults into the registry and never reads these back. So all four of the
+ * families below rendered as BAR charts — `AdvancedChartImpl`'s default — on
+ * valid data, with no refusal that could fire. Ruled route C: derive the
+ * family from the schema's own `type`, and the inert declaration goes with it
+ * rather than sitting beside a mechanism that works (`AGENTS.md` #0.1).
+ *
+ * ⛔ Do not re-add `defaultProps: { chartType: … }` to a registration here. It
+ * would read as the family's declaration while changing nothing, which is the
+ * exact state this card removed. A NEW chart-family keyword is added to
+ * `CHART_TYPE_KEYWORD_FAMILIES` in the same edit as its `register()` call —
+ * `__tests__/chart-family-from-type-7401.test.tsx` fails on either half alone.
+ *
+ * ⚠️ `bar-chart` above is NOT one of these: it is registered to
+ * `ChartBarRenderer`, a wrapper that sets the family itself and never reaches
+ * `normalizeChartSchema`. Its own `defaultProps` is a sample-data seed, not a
+ * family declaration, and stays.
+ */
 // Alias for CRM App compatibility
 ComponentRegistry.register(
   'chart:bar',
@@ -143,8 +168,7 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Bar Chart (Alias)',
-    category: 'plugin',
-    defaultProps: { chartType: 'bar' }
+    category: 'plugin'
   }
 );
 
@@ -154,8 +178,7 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Pie Chart',
-    category: 'plugin',
-    defaultProps: { chartType: 'pie' }
+    category: 'plugin'
   }
 );
 
@@ -165,8 +188,7 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Donut Chart',
-    category: 'plugin',
-    defaultProps: { chartType: 'donut' }
+    category: 'plugin'
   }
 );
 
@@ -176,8 +198,7 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Radar Chart',
-    category: 'plugin',
-    defaultProps: { chartType: 'radar' }
+    category: 'plugin'
   }
 );
 
@@ -187,7 +208,6 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Scatter Chart',
-    category: 'plugin',
-    defaultProps: { chartType: 'scatter' }
+    category: 'plugin'
   }
 );

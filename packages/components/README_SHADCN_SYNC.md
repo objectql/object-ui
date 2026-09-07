@@ -134,9 +134,13 @@ If you don't have network access or prefer manual control:
 
 7. **Test the Component**
    ```bash
-   pnpm --filter @object-ui/components build
-   pnpm --filter @object-ui/components test
+   turbo run build --filter=@object-ui/components
+   turbo run test --filter=@object-ui/components
    ```
+
+   Go through turbo, not `pnpm --filter @object-ui/components build`: turbo
+   derives this package's build closure from its `dependencies`, and on a tree
+   where those are not built yet the bare per-package build fails.
 
 ## Using Official Shadcn CLI
 
@@ -241,13 +245,14 @@ className="... dark:bg-background/95 dark:backdrop-blur-sm"
 
 ```bash
 # Type check
-pnpm --filter @object-ui/components type-check
+turbo run type-check --filter=@object-ui/components
 
-# Build
-pnpm --filter @object-ui/components build
+# Build (turbo builds the upstream packages this one needs; a bare
+# `pnpm --filter @object-ui/components build` does not)
+turbo run build --filter=@object-ui/components
 
 # Run tests
-pnpm --filter @object-ui/components test
+turbo run test --filter=@object-ui/components
 
 # Integration test
 pnpm test

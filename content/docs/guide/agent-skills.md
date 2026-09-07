@@ -43,10 +43,10 @@ skills/objectui/
 ├── rules/           # Non-negotiable global constraints
 │   ├── protocol.md
 │   ├── styling.md
-│   ├── composition.md
-│   └── no-touch-zones.md
+│   └── composition.md
 ├── guides/          # Domain-specific deep dives, loaded on demand
 │   ├── architecture.md
+│   ├── app-composition.md
 │   ├── page-builder.md
 │   ├── plugin-development.md
 │   ├── schema-expressions.md
@@ -55,10 +55,17 @@ skills/objectui/
 │   ├── testing.md
 │   ├── i18n.md
 │   ├── mobile.md
-│   ├── auth-permissions.md
-│   └── console-development.md
+│   └── auth-permissions.md
 └── evals/           # Machine-checkable prompts (one per guide)
 ```
+
+Two files that once shipped in this bundle — `rules/no-touch-zones.md` and
+`guides/console-development.md` — moved into the repo-internal
+[`.claude/skills/objectui-contributor/`](https://github.com/objectstack-ai/objectui/tree/main/.claude/skills/objectui-contributor)
+skill instead. Both talk about paths that only exist inside this monorepo — `apps/console/`
+and `packages/components/src/ui/` — which a customer install of the published skill never
+has, so they stayed behind as contributor-only guidance rather than shipping to every
+consumer.
 
 When the agent picks up a task it:
 

@@ -74,12 +74,14 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   useObjectLabel: () => ({ appLabel: (app: any) => String(app?.label ?? app?.name ?? '') }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'Zhang San', email: 'zhangsan@acme-test.com' } }),
   useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
 }));
 
-vi.mock('@object-ui/plugin-chatbot', () => ({
+vi.mock('@object-ui/plugin-chatbot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-chatbot')>()),
   useAgents: () => ({ agents: [{ name: 'builder' }] }),
   isAskAgent: () => false,
   agentHasCapability: () => true,

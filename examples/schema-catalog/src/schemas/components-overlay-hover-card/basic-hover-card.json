@@ -7,6 +7,6 @@
   },
   "content": {
     "type": "text",
-    "value": "This is the hover card content"
+    "content": "This is the hover card content"
   }
 }

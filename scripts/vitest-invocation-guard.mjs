@@ -239,8 +239,24 @@ const CONCRETE_TEST_PATH = /[\\/].*\.(test|spec)\.(c|m)?[jt]sx?$/;
 /**
  * Split a `process.argv`-shaped array into the parts this guard reasons about.
  *
+ * Flags come back twice, because two readers want two different answers:
+ *
+ *  - `flags` is LAST-WINS — one scalar per flag, the final occurrence. That is
+ *    what this guard's own readers want (`--changed` for existence, `--root`
+ *    for the one root that actually takes effect), and it is the shape they
+ *    have always had.
+ *  - `flagValues` is the lossless sibling — every occurrence of every flag, in
+ *    argv order. A repeated flag is legal and meaningful in this repo: the root
+ *    `test:integration` script is `vitest run --project dom --project
+ *    dom-heavy`, which `flags` alone reports as `dom-heavy` with `dom` silently
+ *    dropped (objectui#7329). A reader asking "which projects does this command
+ *    run" reads `flagValues['--project']`.
+ *
+ * Every flag is in `flagValues`, including one that appears once (as a
+ * one-element array), so a reader never needs a scalar-or-array fallback.
+ *
  * @param {string[]} argv full `process.argv` (node binary + script + args)
- * @returns {{ subcommand: string | null, positionals: string[], afterDoubleDash: string[], flags: Record<string, string | true> }}
+ * @returns {{ subcommand: string | null, positionals: string[], afterDoubleDash: string[], flags: Record<string, string | true>, flagValues: Record<string, Array<string | true>> }}
  */
 export function parseVitestArgv(argv) {
   const args = argv.slice(2);
@@ -250,7 +266,20 @@ export function parseVitestArgv(argv) {
   const afterDoubleDash = [];
   /** @type {Record<string, string | true>} */
   const flags = {};
+  /** @type {Record<string, Array<string | true>>} */
+  const flagValues = {};
   let subcommand = null;
+
+  /**
+   * Record one occurrence of a flag into both views.
+   *
+   * @param {string} name the flag as written, e.g. `--project`
+   * @param {string | true} value its value, or `true` for a bare boolean flag
+   */
+  const record = (name, value) => {
+    flags[name] = value;
+    (flagValues[name] ??= []).push(value);
+  };
 
   for (let i = 0; i < args.length; i += 1) {
     const token = args[i];
@@ -263,16 +292,16 @@ export function parseVitestArgv(argv) {
     if (token.startsWith('-')) {
       const eq = token.indexOf('=');
       if (eq !== -1) {
-        flags[token.slice(0, eq)] = token.slice(eq + 1);
+        record(token.slice(0, eq), token.slice(eq + 1));
         continue;
       }
       const next = args[i + 1];
       if (VALUE_FLAGS.has(token) && next !== undefined && !next.startsWith('-')) {
-        flags[token] = next;
+        record(token, next);
         i += 1;
         continue;
       }
-      flags[token] = true;
+      record(token, true);
       continue;
     }
 
@@ -284,7 +313,7 @@ export function parseVitestArgv(argv) {
     positionals.push(token);
   }
 
-  return { subcommand, positionals, afterDoubleDash, flags };
+  return { subcommand, positionals, afterDoubleDash, flags, flagValues };
 }
 
 /**

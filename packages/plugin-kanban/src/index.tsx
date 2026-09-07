@@ -217,22 +217,16 @@ ComponentRegistry.register(
       { 
         name: 'columns', 
         type: 'array', 
-        label: 'Columns',
         description: 'Array of { id, title, cards, limit, className }',
         required: true
       },
       { 
         name: 'onCardMove', 
         type: 'code',
-        label: 'On Card Move',
-        description: 'Callback when a card is moved',
-        advanced: true
-      },
+        description: 'Callback when a card is moved'      },
       { 
         name: 'className', 
-        type: 'string', 
-        label: 'CSS Class' 
-      }
+        type: 'string'      }
     ],
     defaultProps: {
       columns: [
@@ -352,12 +346,12 @@ ComponentRegistry.register(
     icon: 'LayoutGrid',
     category: 'plugin',
     inputs: [
-      { name: 'columns', type: 'array', label: 'Columns', required: true },
-      { name: 'enableVirtualScrolling', type: 'boolean', label: 'Virtual Scrolling', defaultValue: false },
-      { name: 'virtualScrollThreshold', type: 'number', label: 'Virtual Scroll Threshold', defaultValue: 50 },
-      { name: 'onCardMove', type: 'code', label: 'On Card Move', advanced: true },
-      { name: 'onColumnToggle', type: 'code', label: 'On Column Toggle', advanced: true },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'columns', type: 'array', required: true },
+      { name: 'enableVirtualScrolling', type: 'boolean' },
+      { name: 'virtualScrollThreshold', type: 'number' },
+      { name: 'onCardMove', type: 'code' },
+      { name: 'onColumnToggle', type: 'code' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       columns: [],
@@ -425,12 +419,12 @@ ComponentRegistry.register(
     label: 'Object Kanban',
     category: 'view',
     inputs: [
-      { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-      { name: 'columns', type: 'array', label: 'Columns' }
+      { name: 'objectName', type: 'string', required: true },
+      { name: 'columns', type: 'array' },
+      { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the board fetches. Lowered to `$filter` on the query.' }
     ]
   }
 );
-
 ComponentRegistry.register(
   'kanban',
   ObjectKanbanRenderer,
@@ -438,9 +432,11 @@ ComponentRegistry.register(
     namespace: 'view',
     label: 'Kanban Board',
     category: 'view',
+    // Same renderer as `object-kanban`, therefore the same declared surface.
     inputs: [
-      { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-      { name: 'columns', type: 'array', label: 'Columns' }
+      { name: 'objectName', type: 'string', required: true },
+      { name: 'columns', type: 'array' },
+      { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the board fetches. Lowered to `$filter` on the query.' }
     ]
   }
 );

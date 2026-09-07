@@ -1,10 +1,10 @@
 /**
  * The shrink-only pin for the network-escape ledger (objectui#6640).
  *
- * `KNOWN_ESCAPES` in `vitest.setup.network-escape-guard.ts` records the 21 test
- * files measured reaching a real socket on `67dadd6`. The guard's own docstring
- * says that list "may only shrink" — and until this file existed, nothing made
- * that true. An author who hit the guard's red could make it green by adding a
+ * `KNOWN_ESCAPES` in `vitest.setup.network-escape-guard.ts` records what remains
+ * of the 21 test files measured reaching a real socket on `67dadd6`. The guard's
+ * own docstring says that list "may only shrink" — and until this file existed,
+ * nothing made that true. An author who hit the guard's red could make it green by adding a
  * line, which is exactly how a burn-down ledger decays into the permanent
  * quarantine it is not supposed to be. THAT is the failure this pin prevents;
  * it does not re-measure escapes (that needs a real DOM run) and does not try.
@@ -31,7 +31,7 @@ import { KNOWN_ESCAPES } from '../../vitest.setup.network-escape-guard';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
- * The 21 files measured escaping on `67dadd6`, pinned verbatim.
+ * What remains of the 21 files measured escaping on `67dadd6`, pinned verbatim.
  *
  * Provenance: a full sweep of every Vitest project (`dom` all 8 shards,
  * `dom-heavy`, `unit`, `apps/console`) with an attribution ledger wrapping
@@ -39,27 +39,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * and must be done in lockstep with `KNOWN_ESCAPES`.
  */
 const PINNED_LEDGER: readonly string[] = [
-  'examples/schema-catalog/test/catalog-gallery-render.test.tsx',
-  'packages/app-shell/src/console/home/__tests__/HomePage.approvalsTarget.test.tsx',
-  'packages/app-shell/src/console/home/__tests__/HomePage.authoringCapabilityGate.test.tsx',
-  'packages/app-shell/src/console/home/__tests__/HomePage.inboxLinksTarget.test.tsx',
-  'packages/app-shell/src/console/home/__tests__/HomePage.notificationDeepLink.test.tsx',
-  'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.inactiveRetained.test.tsx',
   'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
-  'packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx',
-  'packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx',
-  'packages/plugin-calendar/src/ObjectCalendar.navWidthDefault.test.tsx',
-  'packages/plugin-charts/src/ObjectChart.heightChain.test.tsx',
-  'packages/plugin-detail/src/__tests__/defaultFieldGroupsPage.sectionHeadings.test.tsx',
-  'packages/plugin-detail/src/__tests__/guideCrudAppRenders.test.tsx',
-  'packages/plugin-detail/src/__tests__/recordDetailsBodySource.test.tsx',
-  'packages/plugin-detail/src/renderers/__tests__/record-details.emptySectionDefault.test.tsx',
-  'packages/plugin-gantt/src/ObjectGantt.navWidthDefault.test.tsx',
-  'packages/plugin-grid/src/__tests__/bulkDeleteVisibleWhen.test.tsx',
-  'packages/plugin-kanban/src/ObjectKanban.navWidthDefault.test.tsx',
-  'packages/plugin-kanban/src/ObjectKanban.overlayTitleI18n.test.tsx',
-  'packages/plugin-kanban/src/ObjectKanban.overlayTitleNoProviderFallback.test.tsx',
-  'packages/plugin-view/src/__tests__/ObjectView.namedViewSortArity.test.tsx',
 ];
 
 describe('network-escape ledger (objectui#6640) is shrink-only', () => {
@@ -73,9 +53,11 @@ describe('network-escape ledger (objectui#6640) is shrink-only', () => {
         'The network-escape ledger GREW, and it may only shrink.',
         '',
         'A test that reaches a real socket is a defect to fix, not a line to add here.',
-        'If the guard went red on your file, serve its probe from a double instead —',
-        'packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx is the shape',
-        "(vi.stubGlobal('fetch', router) + vi.unstubAllGlobals()).",
+        'If the guard went red on your file, serve its probe from a double instead.',
+        'The remedy in full — the shape AND where its teardown has to go — is the',
+        "guard's own Fix: text in vitest.setup.network-escape-guard.ts. It is",
+        'deliberately NOT restated here: this line drifting out of step with that',
+        'one is objectui#7765, and one ruling written twice is how it rotted.',
         '',
         'Names added to KNOWN_ESCAPES but absent from PINNED_LEDGER:',
         ...added.map((file) => `  ${file}`),

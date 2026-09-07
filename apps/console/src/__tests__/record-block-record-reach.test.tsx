@@ -138,7 +138,10 @@ const RECORD_B = {
 const PROBE_OBJECT_SCHEMA = {
   name: PROBE_OBJECT,
   label: 'Probe Object',
-  primaryField: 'name',
+  // `nameField`, not `primaryField`: the latter is a `DetailViewSchema` key
+  // that `@objectstack/spec`'s `strictObject` object schema refuses on an
+  // object def, and no renderer reads it off one any more (objectui#7586).
+  nameField: 'name',
   fields: [
     { name: 'id', label: 'ID', type: 'text' },
     { name: 'name', label: 'Name', type: 'text' },
@@ -245,12 +248,38 @@ const SAMPLE_BY_INPUT: Readonly<Record<string, unknown>> = {
   // affordance is configured against something that exists rather than at a
   // dangling name.
   add: { picker: { object: PROBE_CHILD_OBJECT } },
+  // The SIXTH instance arrived with objectui#7493, which retired
+  // `ComponentInput.defaultValue`: until then `sampleFor` seeded these six from
+  // the registration's declared default, which happened to be the renderer's
+  // own fallback and the one value under which the probe is askable. The
+  // declared default is gone (nothing but this sampler ever read it), so each
+  // renderer default is restated HERE, next to the read it mirrors:
+  //   - `record:related_list` reads `relationshipValueField || 'id'`; the
+  //     generic `'x'` names a parent field the record does not carry, so the
+  //     list holds its fetch (by design) and the record cannot reach the output.
+  //   - `record:details` passes `showHeader ?? false`; with the header chrome ON
+  //     the same record renders differently twice and the stability control
+  //     (rightly) refuses to grade the probe. The header is not what this probe
+  //     asks about.
+  //   - `record:quick_actions` reads `location || 'record_header'`,
+  //     `align || 'end'`, `variant || 'default'`, `size || 'sm'`; the
+  //     probe action is declared at the header location, and the generic
+  //     samples (`'x'` for the two strings, the enum's first arm for the
+  //     other two) point the bar at a location with no actions.
+  relationshipValueField: 'id',
+  showHeader: false,
+  location: 'record_header',
+  align: 'end',
+  variant: 'default',
+  size: 'sm',
 };
 
 /** Fill one declared input. */
 const sampleFor = (input: any): unknown => {
   if (input.name in SAMPLE_BY_INPUT) return SAMPLE_BY_INPUT[input.name];
-  if (input.defaultValue !== undefined) return input.defaultValue;
+  // (`ComponentInput.defaultValue` is an ADR-0049 tombstone since objectui#7493 —
+  // no registration declares a default any more, so the sample is decided by the
+  // declared TYPE below, as it already was for every input without one.)
   switch (input.type) {
     case 'number': return 1;
     case 'boolean': return true;

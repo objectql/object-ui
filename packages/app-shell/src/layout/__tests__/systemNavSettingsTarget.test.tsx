@@ -105,15 +105,20 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 // `if (isWorkspaceAdmin)` at construction, and reusing NavigationRenderer must
 // not have introduced a path that renders it for anyone else.
 let isWorkspaceAdmin = true;
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: null, signOut: vi.fn(), isAuthEnabled: false, activeOrganization: null }),
   useWorkspaceAdminStatus: () => ({ isAdmin: isWorkspaceAdmin, isResolved: true }),
   getUserInitials: () => 'U',
 }));
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({ can: () => true, hasCapabilities: () => true }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({ can: () => true, hasCapabilities: () => true }),
+  };
+});
 
 /** The zero-app deployment this whole screen exists for. */
 vi.mock('../../providers/MetadataProvider', () => ({

@@ -317,8 +317,49 @@ export const ComponentInputSchema = z.object({
         message: 'Input control type arms must be distinct',
       }),
   ]).describe('Input control type, or the arms of a union type'),
-  label: z.string().optional().describe('Display label'),
-  defaultValue: z.any().optional().describe('Default value'),
+  /**
+   * The coarse kind(s) of the input's MEMBERS — array elements, or the values
+   * of an object used as a map (objectui#8067). Same shape and same two bounds
+   * as `type` one level up, for the same reason: an empty array declares a
+   * member contract nothing can satisfy, and a repeated arm means the author
+   * believes they said something they did not. Optional — an input that
+   * declares no member kind is judged exactly as it was before this key
+   * existed. See `ComponentInput.of` in `../base.ts` for the ruling boundary it
+   * stays inside (it is a KIND, never a value domain) and for its readers.
+   */
+  of: z.union([
+    ComponentInputControlTypeSchema,
+    z.array(ComponentInputControlTypeSchema)
+      .min(1)
+      .refine((arms) => new Set(arms).size === arms.length, {
+        message: 'Input member kind arms must be distinct',
+      }),
+  ]).optional().describe('Coarse kind of the input\'s members, or the arms of a union'),
+  /**
+   * ADR-0049 RETIREMENT TOMBSTONES (objectui#7493 item ① / objectui#7781,
+   * maintainer ruling A of 2026-09-06) — `label` / `defaultValue` /
+   * `advanced`, the three keys the manifest serializer does not forward and
+   * no consumer of `ComponentMeta.inputs` reads; the sixth, seventh and
+   * eighth tombstones of the shape the block below this one describes, and
+   * everything it says about the mechanism applies to them too. The route was
+   * MEASURED on the built face before it was chosen: this schema is a
+   * non-strict `z.object`, so an undeclared key parses green and is silently
+   * stripped — a deletion would have swallowed 1,162 authored values in
+   * silence, which is why each key stays declared and refuses BY NAME. See
+   * `ComponentInput.label` in `../base.ts` for the census and the ruling.
+   */
+  label: retirementTombstone(
+    'RETIRED (objectui#7493) — `ComponentInput.label` was never read, and never published: the manifest '
+    + 'serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'so an authored value was silently dropped. Delete the key; an input is identified by its `name` on '
+    + 'every path that reaches it, and nothing ever rendered a label for it.',
+  ),
+  defaultValue: retirementTombstone(
+    'RETIRED (objectui#7493) — `ComponentInput.defaultValue` was never read, and never published: the manifest '
+    + 'serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'so an authored value was silently dropped. Delete the key; the renderer\'s own fallback read is the '
+    + 'default, and `description`, which IS published, is where to state it.',
+  ),
   required: z.boolean().optional().describe('Required flag'),
   enum: z.union([
     z.array(z.string()),
@@ -328,7 +369,12 @@ export const ComponentInputSchema = z.object({
     })),
   ]).optional().describe('Enum options'),
   description: z.string().optional().describe('Help text'),
-  advanced: z.boolean().optional().describe('Advanced option flag'),
+  advanced: retirementTombstone(
+    'RETIRED (objectui#7493) — `ComponentInput.advanced` was never read, and never published: the manifest '
+    + 'serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'so an authored value was silently dropped. Delete the key; no designer surface ever hid an "advanced" '
+    + 'input, so there is nothing to write instead.',
+  ),
   /**
    * ADR-0049 RETIREMENT TOMBSTONE (objectui#5905) — the FIFTH key, retired
    * later than the four below and by its own ruling (maintainer, 2026-08-31).
@@ -341,7 +387,7 @@ export const ComponentInputSchema = z.object({
    */
   inputType: retirementTombstone(
     'RETIRED (objectui#5905) — `ComponentInput.inputType` was never read, and never published: the manifest '
-    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and this is not one of them, '
     + 'so an authored value was silently dropped. Delete the key; put the control hint in `description`, '
     + 'which IS published.',
   ),
@@ -367,25 +413,25 @@ export const ComponentInputSchema = z.object({
    */
   min: retirementTombstone(
     'RETIRED (objectui#5905) — `ComponentInput.min` was never read, and never published: the manifest '
-    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and this is not one of them, '
     + 'so an authored value was silently dropped. Delete the key; spell the numeric domain out in `description`, '
     + 'which IS published.',
   ),
   max: retirementTombstone(
     'RETIRED (objectui#5905) — `ComponentInput.max` was never read, and never published: the manifest '
-    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and this is not one of them, '
     + 'so an authored value was silently dropped. Delete the key; spell the numeric domain out in `description`, '
     + 'which IS published.',
   ),
   step: retirementTombstone(
     'RETIRED (objectui#5905) — `ComponentInput.step` was never read, and never published: the manifest '
-    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and this is not one of them, '
     + 'so an authored value was silently dropped. Delete the key; spell the numeric domain out in `description`, '
     + 'which IS published.',
   ),
   placeholder: retirementTombstone(
     'RETIRED (objectui#5905) — `ComponentInput.placeholder` was never read, and never published: the manifest '
-    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and this is not one of them, '
     + 'so an authored value was silently dropped. Delete the key; put the hint in `description`, which IS '
     + 'published. `BaseSchema.placeholder`, the node-level prop, is a DIFFERENT key and is unaffected.',
   ),

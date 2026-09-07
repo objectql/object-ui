@@ -17,7 +17,8 @@ let fetchImpl: (url: string, init?: any) => Promise<any>;
 vi.mock('react-router-dom', () => ({
   useNavigate: () => navigateMock,
 }));
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ activeOrganization: { id: 'org_1' } }),
   createAuthenticatedFetch: () => (url: string, init?: any) => fetchImpl(url, init),
 }));

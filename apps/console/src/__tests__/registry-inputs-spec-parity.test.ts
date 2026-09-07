@@ -97,24 +97,37 @@
  * DELETED rather than kept — the last test in this file turns a no-longer-needed
  * exemption red, so the list cannot rot into a permanent allowlist.
  *
- * LIMIT — worth knowing before trusting a pass. This gate compares TOP-LEVEL
- * KEY NAMES and nothing else. Two things it therefore cannot see, both real and
- * both filed:
+ * LIMIT — worth knowing before trusting a pass. Of the two things this gate
+ * used to be unable to see, ONE IS NOW GATED and one is still deliberately not:
  *
- *   - member shapes. An `inputs` entry of type `array`/`object` declares no
- *     member shape (`ComponentInput` has no slot for one), so a drifted key
- *     INSIDE an array element or nested object is invisible here — which is why
- *     `record:details.sections`, `record:highlights.fields` and
- *     `record:related_list.add` publish their members in prose and are pinned by
- *     per-block tests next to their renderers. PR #3795's open question;
+ *   - member KINDS — CLOSED, objectui#8067. This gate used to compare top-level
+ *     key names and nothing else, because an `inputs` entry of type
+ *     `array`/`object` declared no member shape at all: `ComponentInput` had no
+ *     slot for one, so a member that drifted from the contract was invisible
+ *     here. That is what `page:header.actions` cost — spec `z.array(z.string())`
+ *     ("Action IDs"), a renderer reading the members as `ActionDef` OBJECTS, and
+ *     this gate green for the whole life of the drift because both sides had the
+ *     key. `ComponentInput.of` now carries the member kind, and the MEMBER
+ *     DIRECTION section below compares every declared one against what
+ *     `ComponentPropsMap[type]` accepts at the member position. It stops at the
+ *     KIND, exactly as the arm direction does: `of: 'object'` says the members
+ *     are objects, never WHICH KEYS they have. Those keys — `record:details
+ *     .sections`, `record:highlights.fields` and `record:related_list.add`
+ *     among them — publish their members in prose and are pinned by per-block
+ *     tests next to their renderers, and since objectui#8068 the MEMBER-PIN
+ *     DIRECTION below makes naming that pin MANDATORY rather than voluntary.
+ *     PR #3795's open question, half of it closed;
  *   - types, NARROWER than the contract. A key can be in perfect name parity
  *     while declaring fewer arms than the spec accepts, and this gate does not
  *     look. That half is deliberately left to per-block discipline, for the
  *     reason the ARM DIRECTION section below sets out: narrowing is NOISY, and
- *     noise is at least audible.
+ *     noise is at least audible. It applies to `of` unchanged — a member union
+ *     declared with one arm is not gated either, and the keys left undeclared
+ *     for that reason are pinned in `MULTI_KIND_MEMBER_CONTRACTS`.
  *
- * A pass means the top-level key names are in parity, and that no declared arm
- * is one the contract refuses outright — nothing more.
+ * A pass means the top-level key names are in parity, that no declared arm is
+ * one the contract refuses outright, and that no declared MEMBER kind is —
+ * nothing more.
  *
  * ── THE ARM DIRECTION, AND WHY ONLY ONE OF ITS TWO HALVES IS GATED ──────────
  *                                                             (objectui#4971)
@@ -241,11 +254,47 @@ import {
   tombstonedShapeKeys,
 } from '@object-ui/test-support';
 
-// The two graphs whose registrations this file reads, at module scope rather
-// than in a hook: their cold transform is billed to the import phase, which has
-// no test/hook timeout (AGENTS.md §测试纪律, objectui#3010).
+// The graphs whose registrations this file reads, at module scope rather than
+// in a hook: their cold transform is billed to the import phase, which has no
+// test/hook timeout (AGENTS.md §测试纪律, objectui#3010).
 import '@object-ui/components';
 import '../register-plugins';
+
+// ── objectui#8176: the blocks `register-plugins` alone cannot show this gate ──
+//
+// `register-plugins` is the console's REAL block layer, and importing it is what
+// makes this gate read the registrations the console ships rather than a
+// hand-copied list. It is not sufficient on its own, and the gap was silent for
+// as long as this file existed.
+//
+// Most of that module's plugin blocks are registered with
+// `ComponentRegistry.registerLazy`, which files a STUB carrying only the meta
+// `registerLazy` was handed — no `inputs`, until the chunk loads. `getConfig`,
+// which `declaredInputEntries` below calls, is loaded-only BY DESIGN (its own
+// docblock: it answers "can I render this right now", and callers read
+// `.component` off the result). So for a lazily-registered block `getConfig`
+// returned `undefined`, `declaredInputs` returned `null`, and the block landed
+// in neither `covered` (filter: `length > 0`) nor `registeredWithoutInputs`
+// (filter: `length === 0`, which `null` does not satisfy). Unjudged AND
+// uncounted — the gate reported green over a population it never read.
+//
+// MEASURED on `origin/main` `0c8dbc492` before this import existed: 42 blocks in
+// `ComponentPropsMap`, 27 judged, 7 counted as propless, and 8 in neither set.
+// Two of those 8 — `object-calendar` and `object-kanban` — are spec-carried
+// blocks this repo registers WITH inputs, hidden only by the lazy stub. That is
+// the structural reason objectui#7712 (a spec-declared `filter` published by
+// neither registration) was invisible to this direction.
+//
+// Loading the two plugin packages here is the fix, and the import is the whole
+// of it: their top-level `ComponentRegistry.register()` calls replace the stubs
+// with real registrations, `getConfig` answers, and both blocks enter `covered`.
+// The cost is import-phase transform, which is the right place for it (the same
+// note as above). `no spec-carried block is registered but unloaded` below is
+// what keeps this list correct: a future plugin block that reaches
+// `ComponentPropsMap` while the console registers it lazily fails there, by
+// name, instead of quietly rejoining the blind spot.
+import '@object-ui/plugin-kanban';
+import '@object-ui/plugin-calendar';
 
 /** This block's spec props schema, or `undefined` when this pin has none. */
 const specSchema = (type: string): unknown => (ComponentPropsMap as Record<string, unknown>)[type];
@@ -380,9 +429,22 @@ function undiscoverableSpecKeys(type: string): string[] {
 
 /**
  * The blocks this gate judges: an entry of `ComponentPropsMap` that this repo
- * registers with at least one `inputs` entry. A block with no `inputs` — or one
- * present only as a `registerLazy` stub, which has none yet — has no declaration
- * to be wrong.
+ * registers with at least one `inputs` entry. A block with no `inputs` has no
+ * declaration to be wrong.
+ *
+ * ⚠️ This set is a PARTITION MEMBER, not a standalone reading, and objectui#8176
+ * is why the distinction is written down. Every `ComponentPropsMap` entry must
+ * land in exactly one of three places — here, in `registeredWithoutInputs`
+ * below, or in `UNJUDGED_SPEC_BLOCKS` with a reason — and
+ * `accounts for every spec-carried block` asserts it. Before that assertion the
+ * three sets did not have to add up, so a block could be absent from all of
+ * them: not judged, and not counted as unjudged either. Eight were.
+ *
+ * The comment this docblock replaces said a block "present only as a
+ * `registerLazy` stub, which has none yet — has no declaration to be wrong."
+ * That reading was the defect stated as if it were the design: a lazy stub's
+ * emptiness says nothing about the registration behind it, and for
+ * `object-calendar` / `object-kanban` there WAS a declaration, and it WAS wrong.
  */
 const covered = Object.keys(ComponentPropsMap)
   .filter((type) => (declaredInputs(type) ?? []).length > 0)
@@ -498,8 +560,31 @@ const PINNED_EXPECTED_COVERED = [
  * current `main`, and hard-coding only the eighteen fails the day the pin moves;
  * both readings are correct facts about different installed contracts.
  */
+/**
+ * The two spec-carried blocks the console registers ONLY with `registerLazy`,
+ * newly judged by objectui#8176.
+ *
+ * Pin-INDEPENDENT, unlike the two groups above: `@objectstack/spec` has carried
+ * both since well before the GA line, and this repo has registered both with
+ * `inputs` for just as long (`plugin-kanban/src/index.tsx:208`+,
+ * `plugin-calendar/src/index.tsx:293`/`:303`). Nothing about either side moved.
+ * What moved is this FILE — it now loads the two plugin packages (see the import
+ * block at the top), so `getConfig` answers for them and the reverse direction
+ * reaches them for the first time.
+ *
+ * Kept as its own group rather than folded into `PINNED_EXPECTED_COVERED` so the
+ * transition stays legible: a reader asking "why did this gate's population
+ * change without a pin bump" gets the answer from the name and this docblock,
+ * not from `git log`.
+ */
+const LAZY_REGISTERED_BLOCKS = [
+  'object-calendar',
+  'object-kanban',
+];
+
 const EXPECTED_COVERED = [
   ...PINNED_EXPECTED_COVERED,
+  ...LAZY_REGISTERED_BLOCKS,
   ...(specCarriesGaBlocks ? GA_ONLY_BLOCKS : []),
   ...(specCarries171Blocks ? MINOR_17_1_BLOCKS : []),
 ].sort();
@@ -530,6 +615,65 @@ const EXPECTED_WITHOUT_INPUTS = [
   'nav:breadcrumb',
   'nav:menu',
 ];
+
+/**
+ * The third and last place a `ComponentPropsMap` entry may land: blocks this
+ * gate CANNOT judge, each with the reason it cannot (objectui#8176).
+ *
+ * ## Why a ledger and not an absence
+ *
+ * "Not judged" used to be spelled as absence — a block simply failed both
+ * filters and vanished from every set this file computes. Absence is the one
+ * state a gate cannot report on, and it is how eight blocks stayed outside this
+ * gate unnoticed for its whole life, two of them (`object-calendar`,
+ * `object-kanban`) with a real, wrong declaration behind a lazy stub. Fixing
+ * those two by loading them (see the import block) closes the instance; this
+ * ledger plus `accounts for every spec-carried block` closes the CLASS, because
+ * a block can no longer leave the judged population without a line here saying
+ * so and a diff someone reviews.
+ *
+ * ## Two classes, each mechanically checked so an entry cannot rot
+ *
+ * `every unjudged-block ledger entry still describes a block this gate cannot
+ * judge` asserts the reason, not just the name:
+ *
+ *   - EMPTY SPEC SHAPE — `ComponentPropsMap[type]` accepts no top-level key at
+ *     all, so neither direction has a question to ask. Whether this repo happens
+ *     to register the block is irrelevant to that, which is why it is the
+ *     recorded reason even for the ones the app shell does register — a count
+ *     this sentence deliberately does not carry, since nothing pins it and the
+ *     pin moves it. Asserted as
+ *     `specTopLevelKeys(type).length === 0`, so the day upstream gives one of
+ *     these blocks props, this entry goes red and the block gets judged.
+ *   - NOT REGISTERED, DELIBERATELY — this repo renders no such block on purpose,
+ *     and the refusal is written at the site that refuses. Asserted as absent
+ *     from `ComponentRegistry.getKnownTypes()` (lazy stubs INCLUDED, so the
+ *     assertion cannot be satisfied by the very stub-blindness objectui#8176 is
+ *     about), so registering one of them forces this entry out.
+ *
+ * `aria` is not a member of the empty-shape reasoning: it is a key on non-empty
+ * shapes and has its own uniform cover in `GLOBALLY_UNPUBLISHED_SPEC_KEYS`.
+ */
+const UNJUDGED_SPEC_BLOCKS: Record<string, string> = {
+  'ai:chat_window':
+    'NOT REGISTERED, DELIBERATELY. `packages/components/src/renderers/placeholders.tsx` omits it from `PROTOCOL_COMPONENTS` in so many words — the floating chat overlay (plugin-chatbot) is the canonical entry point, an inline page-level chat window is not a supported surface, and a page schema referencing it should raise a loud unknown-type error rather than draw a placeholder. `app-shell/src/views/metadata-admin/previews/block-types.ts` records the same refusal. objectui#8176.',
+  'app:launcher':
+    'EMPTY SPEC SHAPE. `ComponentPropsMap[app:launcher]` declares no props at all, so there is nothing for either direction to judge. It IS registered — `app-shell/src/views/app-launcher-renderer.tsx` registers it propless for exactly this reason, and says so — but by `@object-ui/app-shell`, which this file does not import; the empty shape is the load-bearing half either way. objectui#8176.',
+  'cloud-connection:panel':
+    'EMPTY SPEC SHAPE. New in `@objectstack/spec` 17.3.0, which declares it with no top-level key at all, so neither direction has a question to ask. It IS registered — `app-shell/src/console/cloud-connection/CloudConnectionPanel.tsx` registers it propless — but by `@object-ui/app-shell`, which this file does not import; the empty shape is the load-bearing half either way, exactly as for `app:launcher` above. objectui#7122, ledger objectui#8176.',
+  'element:filter':
+    'EMPTY SPEC SHAPE. The pin declares no top-level key for it, and no package in this repo registers the tag. Nothing to judge on either count. objectui#8176.',
+  'element:form':
+    'NOT REGISTERED, DELIBERATELY. `app-shell/src/views/metadata-admin/previews/block-types.ts` records the reason verbatim: no renderer, use the object-bound `object-form` block, which IS registered and IS judged here. objectui#8176.',
+  'global:notifications':
+    'EMPTY SPEC SHAPE. Same shape and same reasoning as `app:launcher` above: `app-shell/src/views/global-notifications-renderer.tsx` registers it propless because the spec shape is empty, and that registration is not in this file\'s import graph. objectui#8176.',
+  'marketplace:installed-list':
+    'EMPTY SPEC SHAPE. New in `@objectstack/spec` 17.3.0, which declares it with no top-level key at all. Registered propless by `@object-ui/app-shell` (`src/console/marketplace/InstalledListWidget.tsx`), outside this file\'s import graph; the empty shape is the load-bearing half either way. objectui#7122, ledger objectui#8176.',
+  'mcp:connect-agent':
+    'EMPTY SPEC SHAPE. New in `@objectstack/spec` 17.3.0, which declares it with no top-level key at all. Registered propless by `@object-ui/app-shell` (`src/console/connect/ConnectAgentWidget.tsx`), outside this file\'s import graph; the empty shape is the load-bearing half either way. objectui#7122, ledger objectui#8176.',
+  'user:profile':
+    'EMPTY SPEC SHAPE. Declared by the spec with no top-level key; in this repo it exists only as a `PROTOCOL_COMPONENTS` placeholder name, which is a scaffold rather than a renderer and publishes no authoring surface. objectui#8176.',
+};
 
 /*
  * `SPEC_SHAPE_EMPTY_ON_THE_PIN` — DELETED on the @objectstack/spec 17.0.0-rc.6
@@ -794,7 +938,9 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   // THESE DO NOT SELF-RETIRE ON A PIN BUMP, and that is deliberate: unlike the
   // GA-pending five above, no issue owns declaring them later. They retire only
   // if `@objectstack/spec` retires the keys upstream (an ADR-0087 D2 tombstone,
-  // which by itself would NOT make them stale here — see the record_picker trio)
+  // which by itself DOES make the entry dangling and stale here, because
+  // `specTopLevelKeys` subtracts tombstones — the record_picker trio was
+  // harvested that way, and `defaultSort` followed it at 17.3.0)
   // or if objectui un-deprecates a spelling. Do not resolve one by declaring the
   // input; that is the move the ruling refused.
   //
@@ -804,7 +950,8 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   // `@deprecated` in `ObjectGridSchema`, AND declared by GA — measures TEN. The
   // five extra (`showPagination`, `defaultSort`, `defaultFilters`,
   // `resizableColumns`, `title`) are the same class by the same test, so they are
-  // carved out with it. Trimming back to exactly five is a one-line reversal
+  // carved out with it. `defaultSort` has since been harvested — spec 17.3.0
+  // tombstoned it (see the note below), leaving nine. Trimming back to exactly five is a one-line reversal
   // (delete the entry, declare the input); publishing first and withdrawing later
   // is not, which is why the exemption is the direction taken while the card is
   // open.
@@ -820,14 +967,107 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
     '@deprecated in ObjectGridSchema ("Use searchableFields instead"); GA describes it as "read only when `searchableFields` is absent". A boolean cannot say WHICH fields to search, which is why the list is the surface. Read as back-compat, deliberately not published — the canonical `searchableFields` IS declared. Ruled carve-out, objectui#4648 (maintainer 2026-08-16).',
   'object-grid.showPagination':
     '@deprecated in ObjectGridSchema ("Use pagination config instead"); GA describes it as "read only when `pagination` is absent". Read as back-compat, deliberately not published — the canonical `pagination` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
-  'object-grid.defaultSort':
-    '@deprecated in ObjectGridSchema ("Use sort instead"); GA describes it as the "Legacy single-sort fallback ({ field, order }), read only when `sort` is absent. Prefer `sort`". Read as back-compat, deliberately not published — the canonical `sort` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+  /*
+   * `object-grid.defaultSort` WAS THE NINTH TOMBSTONE HARVESTED HERE —
+   * `@objectstack/spec` 17.3.0, and it died the way the eight above did.
+   *
+   * 17.3.0 converted the key to an ADR-0087 D2 tombstone: its member is
+   * `z.never().optional()` and its description opens `[REMOVED] … removed in
+   * @objectstack/spec 17 (ADR-0049) — it was the legacy second spelling of
+   * `sort` … Rename the key to `sort` and wrap the value in an array`. Read
+   * from the installed artifact, not from a changelog: `safeParse` of
+   * `{ defaultSort: … }` fails `invalid_type` `expected: 'never'` at that path.
+   *
+   * So it left the AUTHORABLE set while staying listed, and the two checks that
+   * police this list reported it DANGLING and STALE exactly as designed —
+   * deleting the entry is the only way to green. The carve-out reason it used
+   * to carry is now upstream's own prescription, which is strictly better: the
+   * contract refuses the spelling by name and says what to write instead.
+   *
+   * ⛔ Not resolved by declaring the input. `sort`, the canonical spelling, is
+   * declared already, and publishing a key the contract rejects by name is the
+   * one resolution the test below forbids in so many words.
+   */
   'object-grid.defaultFilters':
     '@deprecated in ObjectGridSchema ("Use filter instead"); GA describes it as the "Legacy base-filter fallback, read only when `filter` is absent. Prefer `filter`". Read as back-compat, deliberately not published — the canonical `filter` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
   'object-grid.resizableColumns':
     '@deprecated in ObjectGridSchema ("Moved to top-level resizable"); GA describes it as the "Alternate spelling of `resizable`". Read as back-compat, deliberately not published — the canonical `resizable` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
   'object-grid.title':
     '@deprecated in ObjectGridSchema ("Use label instead"); GA describes it as the "Fallback for `label` (the renderer reads `label || title`)". Read as back-compat, deliberately not published — the canonical `label` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+
+
+  // ── objectui#8176: the two lazily-registered blocks, judged for the first ──
+  //     time. Sixteen keys, two owners, every one of them A DECLARATION
+  //     SOMEONE OWES (the arm this map's docblock above says must name itself).
+  //
+  //     ⚠️ IT STARTED AT EIGHTEEN, and the two that left are the ledger doing
+  //     its job rather than a correction to it. `object-kanban.filter` and
+  //     `object-calendar.filter` were objectui#7712's two keys; objectui#8186
+  //     landed that declaration on all six registrations while this branch was
+  //     open, which made both entries STALE — `carries no stale unpublished-key
+  //     exemption` named them by name and stayed red until they were deleted
+  //     here. That is the documented exit written into the ⛔ note below,
+  //     observed on a real landing: a declaration retires its own cover.
+  //
+  //     These are NOT a new divergence. The registrations and the spec entries
+  //     are unchanged; what changed is that this file now loads the two plugin
+  //     packages, so `getConfig` answers for them and the reverse direction
+  //     reaches them at all. Eighteen is the "dozens" case this file already
+  //     owns a route for (see the member-pin transition note below): list them
+  //     BY NAME, cite the issue that owns each, and let the existing dangling
+  //     and stale checks force their deletion the moment a key is declared.
+  //     `the objectui#8176 backlog has a ceiling` below stops the list growing.
+  //
+  //     ⛔ Not a licence to keep them unpublished — the bar is unchanged. A key
+  //     the renderer honours gets DECLARED at its registration site, and the
+  //     entry goes stale in the same change.
+  // `object-kanban.filter` and `object-calendar.filter` stood here until
+  // objectui#8186 declared them. Deleted, not updated — see the ⚠️ note above.
+  // `object-calendar.sort` stood here until objectui#8171 declared it on both
+  // `plugin-calendar` registrations (PR objectui#8223). Deleted, not updated —
+  // the same documented exit the two `filter` entries took above, observed here
+  // a second time.
+  //   ⚠️ One correction that outlives the entry, because the rider note that
+  //   stood here asserted the opposite and a future reader would inherit it:
+  //   `sort` is NOT a pass-through key, and its member claim is NOT the
+  //   identity-forwarding one the two `filter` pins make. `ObjectCalendar.tsx`
+  //   writes `$orderby: convertSortToQueryParams(schema.sort)`, and that sink
+  //   BUILDS a `field -> direction` map rather than handing the authored array
+  //   to the query — so `toBe` on `$orderby` is false about this key and could
+  //   never have passed. The pin registered below asserts what is READ inside a
+  //   member instead (`field`, `order`, an omitted `order` meaning ascending,
+  //   and a member with no usable `field` dropped rather than invented). That
+  //   is a SHARPER member claim than a pass-through, not a weaker one.
+  'object-kanban.groupBy':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.data':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.cardTitle':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.titleField':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.cardFields':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.swimlaneField':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.grouping':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.quickAdd':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.coverImageField':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.conditionalFormatting':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.defaultView':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.data':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.staticData':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.locale':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.loading':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
 
   // ── record:reference_rail.entries — a nested collection, newly JUDGED ──────
   //                                                                   (1 key)
@@ -914,7 +1154,6 @@ const GA_PENDING_UNPUBLISHED_KEYS = [
   'object-grid.pageSize',
   'object-grid.showSearch',
   'object-grid.showPagination',
-  'object-grid.defaultSort',
   'object-grid.defaultFilters',
   'object-grid.resizableColumns',
   'object-grid.title',
@@ -1112,15 +1351,54 @@ function coarseKindOf(value: unknown): string {
  *  - anything else at the node (`too_small`, `invalid_format`, a custom
  *    refinement) is a VALUE refusal, and the coarse-kind ceiling
  *    (`ComponentInput.type`, maintainer 2026-08-17) puts it outside what an arm
- *    claims.
+ *    claims — UNLESS an `invalid_type` sits beside it, which is the next
+ *    paragraph.
+ *
+ * ## WHY `invalid_type` IS DECISIVE AND NOT JUST ANOTHER `every` MEMBER
+ *
+ * The two rules are not the same statement, and objectui#8204 is the difference.
+ * A node can carry a kind refusal AND a content complaint at once, because Zod
+ * keeps running a schema's checks after its type check has already failed: for
+ * `z.string().min(1)` the probe `[]` comes back as BOTH `invalid_type`
+ * (expected string) AND `too_small` (`[].length` is 0), at the same node, in
+ * that order. Read by `every` alone that pair is a CONTENT refusal — one member
+ * of the pair is not a kind code — and the value it describes is an array that
+ * the contract refused for being an array.
+ *
+ * `some(invalid_type)` first is the fix, and it is a statement about the
+ * contract rather than about Zod: `invalid_type` at a node says the value is not
+ * of that node's type, and a value cannot be simultaneously the right kind and
+ * the wrong one. Whatever else the node says about a value it has already
+ * refused for its kind is downstream of that refusal, not a second opinion
+ * competing with it. (`too_small` on a non-string is exactly such an artefact:
+ * "too short" is not a claim anyone would make about `[]` against a string
+ * contract.)
+ *
+ * MEASURED on the installed `@objectstack/spec` 17.3.0 artifact, on the union
+ * this card was filed for — `record:activity.types`,
+ * `z.array(z.union([FeedItemType, z.string().min(1)]))`. Two array probes, one
+ * key, opposite readings under the old rule, and the ONLY difference between
+ * them is the artefact issue:
+ *
+ *     probe `[]`          branch 2 issues -> [invalid_type, too_small] -> every() false
+ *     probe `['Account']` branch 2 issues -> [invalid_type]            -> every() true
+ *
+ * so `[]` alone put `array` into the accepted kind set of a key whose array
+ * members the contract measurably refuses, and the derivation gate read
+ * `contract accepts {string,array}`. The union recursion below was NEVER the
+ * missing piece — it runs, and it is what carries the branch verdicts up — the
+ * per-branch reading underneath it was wrong.
  */
 function refusesKind(issues: readonly SpecIssue[], probed: unknown): boolean {
   const here = issues.filter((issue) => (issue.path ?? []).length === 0);
   if (issues.length > here.length) return false;
   if (here.length === 0) return false;
+  // Decisive, and therefore ahead of the `every` — see the paragraph above. It
+  // also makes an `invalid_type` arm of that `every` unreachable, which is why
+  // there no longer is one.
+  if (here.some((issue) => issue.code === 'invalid_type')) return true;
   return here.every(
     (issue) =>
-      issue.code === 'invalid_type' ||
       (issue.code === 'invalid_value' &&
         Array.isArray(issue.values) &&
         issue.values.length > 0 &&
@@ -1281,11 +1559,850 @@ const refusedArms = (type: string): string[] =>
  * arrival gets REPORTED rather than declared away by editing the declaration.
  */
 const OFF_SPEC_ARM_EXEMPTIONS: Record<string, string> = {
-  'element:number.filter:array':
-    'Declared `array` (every other `filter` input in the repo is — object-grid, object-metric, record:related_list, plugin-list, data-list), while ComponentPropsMap[element:number].filter is a record/object ("Filter criteria") and refuses an array outright. The renderer is an opaque passthrough (elements.tsx:375-451, `filter?: unknown` → adapter.aggregate / find), so nothing in-tree settles which side moves: widening the spec entry to the ViewFilterRule array form every sibling filter uses, or re-declaring this one block. A contract question, filed as objectui#6206.',
-  'object-grid.data:object':
-    'Two spec authorities disagree about the KIND, so no declaration can satisfy both: ObjectGridSchema.data resolves to ViewDataSchema (an object discriminated on `provider`) while ComponentPropsMap[object-grid].data is `z.array(z.unknown())` ("Static inline rows"). The `object` arm is the DELIBERATE one — objectui#5090 / PR objectui#5108 changed it from `array` against ViewDataSchema, and plugin-grid/src/__tests__/gridDataInputContract.test.ts pins it there; flipping it back re-opens #5090 and fails `tsc` (TS2322, measured on that card). Convergence is upstream, filed as objectui#6207.',
+  /*
+   * EMPTY, AND THAT IS THE RESULT — both entries were harvested at
+   * `@objectstack/spec` 17.3.0, each resolved upstream in the direction its own
+   * reason named. Measured with this gate's own coarse probes against the
+   * installed artifact:
+   *
+   *   - `element:number.filter:array` (objectui#6206) — the spec entry was a
+   *     record and refused an array outright; 17.3.0 accepts `[]` and answers
+   *     `invalid_type` at `filter.0` for `['Account']`. So the ARRAY KIND is
+   *     accepted and only the content is judged, which is the first of the two
+   *     resolutions the reason offered: "widening the spec entry to the
+   *     ViewFilterRule array form every sibling filter uses". The declaration
+   *     was right; the contract moved to it.
+   *   - `object-grid.data:object` (objectui#6207) — the two spec authorities
+   *     that disagreed have converged. `ComponentPropsMap[object-grid].data`
+   *     was `z.array(z.unknown())`; it now answers `invalid_union` at
+   *     `data.provider` for an object probe, i.e. the discriminated
+   *     `ViewDataSchema` shape `ObjectGridSchema.data` already resolved to.
+   *     That is exactly the "convergence is upstream" the entry was waiting on,
+   *     and the `object` arm objectui#5090 / PR objectui#5108 deliberately
+   *     chose is now the contract's own.
+   *
+   * ⛔ Neither was closed by editing a declaration — both declarations are
+   * byte-identical to what they were; the contract changed underneath them.
+   * `carries no stale arm exemption` is what forced the deletion, which is this
+   * file's exemption discipline working end to end. objectui#6206 and #6207 can
+   * be closed as resolved-upstream; reported on objectui#7122.
+   */
 };
+
+// ── the MEMBER direction (objectui#8067) ─────────────────────────────────────
+//
+// The first of the two LIMITs in this file's header, closed. `ComponentInput`
+// now carries `of` — the coarse KIND of an input's members, array elements or
+// the values of an object used as a map — so the `inputs` side can finally say
+// what a container holds, and this section compares it to what the contract
+// holds. Same `covered` set, same derived-not-restated expectations, same
+// exemption discipline as the three directions above, and the same ONE
+// DIRECTION for the same reason: a member kind the contract REFUSES is silent
+// (the manifest, the generated `.d.ts` and `validateTree` all publish it as
+// legal), while declaring FEWER member kinds than the contract accepts is
+// merely noisy, and noise is audible.
+//
+// WHAT THIS COST BEFORE IT EXISTED. `page:header.actions` — spec
+// `z.array(z.string())`, "Action IDs"; the renderer read the members as
+// `ActionDef` OBJECTS; this gate saw `actions` on both sides and stayed green
+// for the whole life of the drift. What settled it was a maintainer ruling, not
+// a test, and even after the fix the fact "these are ids" lived only in the
+// registration's `description` PROSE. It is now `of: 'string'` at that
+// registration, and the calibration pin below asserts, by name, that this gate
+// reds on `of: 'object'` there — the exact declaration the drift would have
+// made.
+
+/**
+ * The container arms a member declaration can describe.
+ *
+ * `of` means the same thing on each: the ELEMENTS of the array, and the VALUES
+ * of an object used as a MAP. An input declaring `of` and neither of these has
+ * no member position at all, which `judgeMembers` reports rather than skips.
+ */
+const CONTAINER_ARMS = new Set(['array', 'object']);
+
+/**
+ * The key a member probe occupies when the container arm is `object`.
+ *
+ * Deliberately a name no contract declares, because the two answers it can draw
+ * are exactly the two cases that need telling apart: a MAP contract
+ * (`z.record(...)`) judges the value under whatever key it is given, while a
+ * NAMED-SHAPE contract (`z.object({ ... })`) refuses the key itself at the
+ * container node — which is not a verdict about the member kind, it is the
+ * absence of a uniform member position.
+ */
+const OBJECT_MEMBER_PROBE_KEY = '__objectui_member_probe__';
+
+/** The value that puts one member probe in the member position of a container arm. */
+function containerProbe(containerArm: string, member: unknown): { value: unknown; position: unknown } {
+  return containerArm === 'array'
+    ? { value: [member], position: 0 }
+    : { value: { [OBJECT_MEMBER_PROBE_KEY]: member }, position: OBJECT_MEMBER_PROBE_KEY };
+}
+
+type MemberVerdict = ArmVerdict | 'no-member-position';
+
+/**
+ * What the contract says about ONE member value, in ONE container arm, on ONE
+ * key.
+ *
+ * The same scoping discipline `specArmVerdict` is built on, one level deeper:
+ * only issues about this key count, and of those only the ones at the MEMBER's
+ * own position, so a sibling key's missing requirement cannot speak for a
+ * member and a complaint about the container cannot either. Once the issues are
+ * rebased onto the member node, the judgement is `refusesKind` — the same
+ * function, unchanged, because "is this a KIND refusal or a CONTENT refusal" is
+ * the same question at any depth.
+ *
+ * `no-member-position` is the verdict this level adds, and it is not a shrug:
+ * it means the contract refused the CONTAINER — either its kind outright, or,
+ * for an `object` arm, the probe key itself, which is how a named-shape
+ * `z.object({ ... })` says it is not a map. A declaration claiming uniform
+ * members of a contract that has no uniform member position is wrong in a way
+ * worth naming, so the gate below treats it as a refusal rather than skipping
+ * it.
+ */
+function specMemberVerdict(
+  type: string,
+  key: string,
+  containerArm: string,
+  member: unknown,
+): MemberVerdict {
+  const parser = specParser(type);
+  if (!parser) return 'no-schema';
+  const { value, position } = containerProbe(containerArm, member);
+  const result = parser.safeParse({ [key]: value });
+  if (result.success) return 'accepts';
+  const issues = result.error?.issues ?? [];
+  // The key refused BY NAME at the top — the forward direction's subject, and
+  // `judgeMembers` only judges keys the accepted set already carries.
+  if (issues.some((issue) => issue.code === 'unrecognized_keys' && (issue.keys ?? []).includes(key)))
+    return 'no-member-position';
+  const mine = issues.filter((issue) => (issue.path ?? [])[0] === key);
+  if (mine.length === 0) return 'accepts';
+  // Anything AT the container node is about the container, not the member: an
+  // `invalid_type` refusing the container kind, or the `unrecognized_keys` a
+  // named-shape object raises for the probe key.
+  if (mine.some((issue) => (issue.path ?? []).length === 1)) return 'no-member-position';
+  const atMember = mine
+    .filter((issue) => (issue.path ?? [])[1] === position)
+    .map((issue) => ({ ...issue, path: (issue.path ?? []).slice(2) }));
+  if (atMember.length === 0) return 'accepts';
+  return refusesKind(atMember, member) ? 'refuses-kind' : 'refuses-content';
+}
+
+interface MemberJudgement {
+  /** `BLOCK.INPUT:of=ARM` — the exemption key format. */
+  id: string;
+  type: string;
+  input: string;
+  arm: string;
+  verdict: 'witnessed' | 'refused' | 'exempt-slot' | 'exempt-empty-enum' | 'no-container-arm';
+  /** What the contract actually answered, for the failure message. */
+  evidence: string;
+}
+
+/**
+ * Judge every declared member arm of every declared input on one block.
+ *
+ * An input that declares no `of` produces no judgement — this direction asks
+ * what a DECLARATION claims, and there is nothing to compare against a key that
+ * claims nothing. (What that silence costs is the LIMIT this section closes;
+ * which keys deserve a declaration and which are left to per-block discipline
+ * is recorded on `ComponentInput.of` and pinned by
+ * `member declarations are derived from single-kind member contracts` below.)
+ *
+ * Off-spec input names are skipped for the same reason `judgeArms` skips them:
+ * asking what members a contract accepts inside a key it does not declare has
+ * no answer worth reporting.
+ */
+function judgeMembers(type: string): MemberJudgement[] {
+  const accepted = new Set(specTopLevelKeys(type));
+  const judgements: MemberJudgement[] = [];
+  for (const input of declaredInputEntries(type) ?? []) {
+    if (!accepted.has(input.name)) continue;
+    const memberArms = inputTypeArms(input.of as never);
+    if (memberArms.length === 0) continue;
+    const containerArms = inputTypeArms(input.type).filter((arm) => CONTAINER_ARMS.has(arm));
+    for (const arm of memberArms) {
+      const id = `${type}.${input.name}:of=${arm}`;
+      if (containerArms.length === 0) {
+        judgements.push({
+          id, type, input: input.name, arm,
+          verdict: 'no-container-arm',
+          evidence: `declares members but its type is ${JSON.stringify(input.type)}, which holds none`,
+        });
+        continue;
+      }
+      if (ARM_KINDS_WITHOUT_A_VALUE_CLAIM.has(arm)) {
+        judgements.push({
+          id, type, input: input.name, arm,
+          verdict: 'exempt-slot',
+          evidence: 'describes a child position, not a value',
+        });
+        continue;
+      }
+      if (arm === 'enum') {
+        // EXACT, not coarse — the same rule the `enum` ARM is judged by, since
+        // an enum's admitted set is finite and written down. Every declared
+        // member must be a value the contract accepts SOMEWHERE in the member
+        // position of some declared container arm.
+        const members = declaredEnumValues(input);
+        if (members.length === 0) {
+          judgements.push({
+            id, type, input: input.name, arm,
+            verdict: 'exempt-empty-enum',
+            evidence: 'declares no members, so it admits nothing',
+          });
+          continue;
+        }
+        const refused = members.filter((member) =>
+          !containerArms.some(
+            (containerArm) => specMemberVerdict(type, input.name, containerArm, member) === 'accepts',
+          ),
+        );
+        judgements.push({
+          id, type, input: input.name, arm,
+          verdict: refused.length === 0 ? 'witnessed' : 'refused',
+          evidence:
+            refused.length === 0
+              ? `all ${members.length} declared members accepted`
+              : `the contract refuses the declared member(s) ${JSON.stringify(refused)}`,
+        });
+        continue;
+      }
+      const probes = COARSE_ARM_PROBES[arm] ?? [];
+      const verdicts = containerArms.flatMap((containerArm) =>
+        probes.map((probe) => specMemberVerdict(type, input.name, containerArm, probe)),
+      );
+      const witnessed = verdicts.some(
+        (verdict) => verdict === 'accepts' || verdict === 'refuses-content',
+      );
+      judgements.push({
+        id, type, input: input.name, arm,
+        verdict: witnessed ? 'witnessed' : 'refused',
+        evidence: witnessed
+          ? `member probe verdicts ${JSON.stringify(verdicts)}`
+          : `the contract admits no member of this KIND — member probe verdicts ${JSON.stringify(verdicts)}`,
+      });
+    }
+  }
+  return judgements;
+}
+
+/** Every member judgement this gate makes, computed once. */
+const MEMBER_JUDGEMENTS: MemberJudgement[] = covered.flatMap(judgeMembers);
+
+/** The verdicts that mean "the contract will not have this member declaration". */
+const MEMBER_REFUSALS = new Set(['refused', 'no-container-arm']);
+
+/** Member arms of `type` the contract refuses, as `BLOCK.INPUT:of=ARM`. */
+const refusedMembers = (type: string): string[] =>
+  MEMBER_JUDGEMENTS.filter(
+    (judgement) => judgement.type === type && MEMBER_REFUSALS.has(judgement.verdict),
+  ).map((judgement) => judgement.id);
+
+/**
+ * Declared MEMBER arms the contract refuses, ACCEPTED for now, each with the
+ * reason. Key format: `BLOCK.INPUT:of=ARM`.
+ *
+ * Fourth instance of this file's one exemption discipline, and the bar is
+ * unchanged: the divergence has to be owned by a named, open piece of work,
+ * because neither `@objectstack/spec` nor a declaration is edited to make a
+ * gate green (AGENTS.md #0 / #0.1).
+ *
+ * EMPTY ON ARRIVAL, and that is a measurement rather than an accident. Every
+ * `of` this repository declares was DERIVED from the contract — each container
+ * key's member position was probed with one value of each coarse kind, and a
+ * declaration was written only where exactly ONE kind was accepted — so a
+ * refusal here would mean the derivation and the contract disagree, which is a
+ * finding, not an exemption.
+ */
+const OFF_SPEC_MEMBER_EXEMPTIONS: Record<string, string> = {};
+
+/**
+ * Container keys whose member contract accepts MORE THAN ONE coarse kind, and
+ * are therefore deliberately left without an `of`.
+ *
+ * Pinned rather than merely absent, because "no declaration" and "no
+ * declaration for a reason" are the same byte in the registration and opposite
+ * facts about this gate. Declaring one arm of a genuine member union is the
+ * NARROWING this repo leaves un-gated as noise (#4971), and declaring all of
+ * them would advertise member shapes the renderer may not resolve — the rule
+ * `ComponentInput.type` states for arms, one level down. Either way it is
+ * per-block knowledge, not a repo-wide derivation, so it stays out of this
+ * change.
+ */
+const MULTI_KIND_MEMBER_CONTRACTS: Record<string, string> = {
+  'record:highlights.fields':
+    'The member contract is a union — a field NAME or an inline field object — so no single coarse arm describes it and declaring both would advertise a member shape only the per-block pin next to the renderer can vouch for (packages/plugin-detail/src/__tests__/recordHighlightsInputs.spec-parity.test.ts). objectui#8067 leaves it undeclared on purpose.',
+};
+
+// ── the MEMBER-PIN direction (objectui#8068) ─────────────────────────────────
+//
+// The four directions above judge a block's DECLARATION — which top-level keys
+// it publishes, with which coarse kinds, and (since objectui#8067 landed
+// alongside this one) with which coarse kind INSIDE a container. None of them
+// can see the member's own KEYS, and the LIMIT note at the top of this file says
+// so in as many words: `of` "stops at the KIND … `of: 'object'` says the members
+// are objects, never WHICH KEYS they have", so a drifted key INSIDE an array
+// element or a nested object is still invisible here.
+//
+// ⚠️ That merge changed a NUMBER in this paragraph and nothing else in this
+// direction. `of` is a DECLARATION, not a pin, so it neither satisfies nor
+// exempts anything below: the population this direction judges, its ledger and
+// its ceiling are the same on the merged tree as they were on the branch that
+// measured them.
+//
+// That note then names the mitigation — `record:details.sections`,
+// `record:highlights.fields` and `record:related_list.add` "publish their
+// members in prose and are pinned by per-block tests next to their renderers".
+// All three pins are real. What was NOT real is any requirement that a fourth
+// key get one.
+//
+// `page:header.actions` is that fourth key, and it is the measurement this
+// direction exists for. Array-typed, member shape in `description` prose only
+// (`packages/components/src/renderers/layout/containers.tsx`), spec
+// `z.array(z.string())` — action IDs — while the renderer read the members as
+// `ActionDef` OBJECTS and resolved nothing, so metadata satisfying the published
+// contract rendered ZERO buttons. Every layer was green: the key names are in
+// parity (forward and reverse), the `'array'` arm is a kind the contract accepts
+// (the arm direction), and no per-block test existed to look inside. It took a
+// human filing objectstack#11592 and a maintainer ruling (2026-08-25) to settle
+// it, and `packages/components/src/__tests__/page-header-action-ids.test.tsx` —
+// the fourth pin — arrived as part of that FIX (objectui#6252), not because
+// anything demanded it.
+//
+// Three keys got it right, the fourth did not, and nothing noticed the fourth.
+// So the discipline stops being voluntary here: every array/object-armed input
+// on a covered block must name a pin, or carry an exemption.
+//
+// ## WHAT THIS DIRECTION CAN AND CANNOT JUDGE
+//
+// The criterion objectui#8068 sets is a JUDGEMENT, not a computation: a pin must
+// constrain the shape the renderer actually READS, rather than restate the
+// registration. A registration saying `of: 'string'` while the code reads
+// members as objects is the exact hole, and no mechanical reader can tell the
+// two apart — the four exemplars do it four different ways (a description
+// derived from the spec's element schema, a spec-vs-declaration arm set, a
+// renderer-default comparison, and a twice-authored render equivalence).
+//
+// So this direction is built the way every exemption in this file is: the
+// judgement is made in a diff someone reviews, and what is MECHANISED is the
+// part that rots silently. A registered pin must
+//
+//   1. exist on disk — a deleted or renamed pin file is the failure mode that
+//      leaves the key uncovered while the registry entry still reads deliberate;
+//   2. be a file the test runner collects, so "pinned" means "executed";
+//   3. NAME the block and NAME the key, so an entry cannot point at a file that
+//      says nothing about this key. That is the locator, and it is why the
+//      calibration below asserts it discriminates: a check that matched any file
+//      would license every entry at once.
+//
+// ## THE POPULATION, MEASURED FIRST — 58 of 77 (objectui#8071)
+//
+// objectui#8068 required the number before the gate, because the number chooses
+// the route: single digits means add the pins and let the gate bite, dozens
+// means a transition. Measured on this branch, over this file's own `covered`
+// set: 77 array/object-armed inputs across 22 blocks, of which 19 already have a
+// pin that meets both the criterion and the locator. 58 do not.
+//
+// ⚠️ THAT CENSUS WAS TAKEN OVER AN INCOMPLETE POPULATION — objectui#8176. Two
+// spec-carried blocks were missing from `covered` because `getConfig` is
+// loaded-only and the console registers plugin blocks with `registerLazy`, so
+// 77/22/58 was never the whole tree. Re-measured over the corrected population:
+// 81 array/object-armed inputs across 24 blocks, 19 pinned, 62 not. The four
+// that moved are `object-calendar.calendar` / `.dataSource` and
+// `object-kanban.columns` / `.dataSource` — pre-existing declarations, named in
+// `NEWLY_JUDGED_UNPINNED_MEMBERS`, and the reason
+// `MEMBER_PIN_EXEMPTION_CEILING` reads 62. objectui#8071's work is unchanged in
+// kind and four keys longer in extent.
+//
+// ⚠️ THE POPULATION THEN GREW BY TWO, and they were answered with PINS rather
+// than with room. objectui#8186 landed objectui#7712's declaration while this
+// branch was open, so `object-calendar.filter` and `object-kanban.filter`
+// became array-armed inputs on newly judged blocks — exactly the case this
+// ceiling exists to refuse absorbing. Both are in `MEMBER_PINS` below: the
+// calendar's is the file objectui#7711 already left behind, the kanban's was
+// written for this change. 83 array/object-armed inputs across 24 blocks, 21
+// pinned, 62 not — and the ceiling does NOT move. A genuinely new array key
+// gets a pin, which is the whole rule, now demonstrated rather than only
+// asserted.
+//
+// 58 is the transition case, and this file already owns the pattern for it —
+// `OFF_SPEC_EXEMPTIONS` / `UNPUBLISHED_EXEMPTIONS` / `OFF_SPEC_ARM_EXEMPTIONS`
+// are explicit, reasoned, issue-backed, and go RED once stale. This is the same
+// mechanism, not a second one: `MEMBER_PIN_EXEMPTIONS` below lists all 58 BY
+// NAME, every entry cites objectui#8071 (which owns writing the pins), and an
+// entry whose key acquires a pin is reported STALE and must be deleted in the
+// same change. The list has a CEILING as well as a stale check, because the
+// cheap way to green a new array key is to add a 59th entry rather than a pin.
+//
+// ## WHAT IS DELIBERATELY NOT IN THE POPULATION, stated rather than dropped
+//
+// `covered` — this file's own set, spec-carried blocks that declare inputs — is
+// the population, unchanged. The wider registration graph carries 310
+// array/object-armed inputs across 501 registered type names (aliases included:
+// `object-grid`, `plugin-grid:object-grid` and `view:grid` are three names for
+// one registration), and 233 of those sit on blocks with no `ComponentPropsMap`
+// entry. NO direction in this file has ever judged them — a member pin needs a
+// published contract to compare a member shape against, and those blocks have
+// none. That boundary is pre-existing rather than a narrowing taken here, and it
+// is recorded in objectui#8071 so it cannot go quiet.
+
+/** Coarse arms whose values have a MEMBER shape this file cannot see. */
+const STRUCTURED_ARMS = new Set(['array', 'object']);
+
+/** One declared input that carries a member shape, as this direction sees it. */
+interface StructuredInput {
+  /** `BLOCK.INPUT` — the registry/exemption key format used throughout. */
+  id: string;
+  type: string;
+  input: string;
+  arms: string[];
+}
+
+/**
+ * Every array/object-armed input on a covered block — the population this
+ * direction judges.
+ *
+ * Deliberately NOT filtered to keys the contract accepts, unlike `judgeArms`.
+ * That filter is right there — an arm makes a claim ABOUT the contract, so a key
+ * the contract does not declare has no arm question to answer — and wrong here:
+ * a member shape is a claim about what the RENDERER reads, which an off-spec key
+ * makes just as loudly. Today the two sets coincide (`no covered block declares
+ * an off-spec input`), so the choice removes nothing and cannot hide anything;
+ * it is stated because the day they diverge, the stricter reading is the one
+ * this card asked for.
+ */
+const structuredInputs: StructuredInput[] = covered.flatMap((type) =>
+  (declaredInputEntries(type) ?? [])
+    .map((input) => ({
+      id: `${type}.${input.name}`,
+      type,
+      input: input.name,
+      arms: inputTypeArms(input.type),
+    }))
+    .filter((entry) => entry.arms.some((arm) => STRUCTURED_ARMS.has(arm))),
+);
+
+/** The array/object-armed inputs of one covered block. */
+const structuredInputsOf = (type: string): StructuredInput[] =>
+  structuredInputs.filter((entry) => entry.type === type);
+
+/** A registered per-block member pin. */
+interface MemberPin {
+  /** Repo-relative path of the test file that pins this key's member shape. */
+  file: string;
+  /** WHAT it constrains — the half a reader needs and the locator cannot check. */
+  pins: string;
+}
+
+/**
+ * The per-block member pins this repo has, by key.
+ *
+ * An entry is a claim that the named file constrains the member shape the
+ * RENDERER reads for that key — the criterion objectui#8068 sets, and the one
+ * thing here that is reviewed rather than computed. `pins` says which assertion
+ * carries the claim, so the next reader can check it in one hop instead of
+ * re-deriving why the file counts.
+ *
+ * The four objectui#8068 names are all here: the three the LIMIT note at the top
+ * of this file already delegated to (`record:details.sections`,
+ * `record:highlights.fields`, `record:related_list.add`) and the fourth that
+ * arrived with objectui#6252's fix rather than from any mechanism
+ * (`page:header.actions`). They are asserted BY NAME below, because they are the
+ * calibration for everything else: if the population or the locator ever stops
+ * recognising those four, this direction has stopped describing the defect it
+ * was built for.
+ */
+const MEMBER_PINS: Record<string, MemberPin> = {
+  'element:button.label': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map `{ en, "zh-CN" }` and nothing else — driven through the real `manifestFromConfigs` + `validateTree` pair the JSX-page compiler and the save gate use, each positive paired with a value matching NEITHER arm that must still be reported (objectui#4970).',
+  },
+  'element:record_picker.emptyText': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, asserted at the render site that actually resolves one, with the non-matching controls (`42`, `["No records"]`) still reported (objectui#3832).',
+  },
+  'element:record_picker.filter': {
+    file: 'packages/components/src/__tests__/record-picker-inputs-spec-parity.test.ts',
+    pins: 'The `object` arm is `FilterConditionSchema` — field keys plus `$and`/`$or`/`$not` — with the rule-ARRAY spelling every sibling `filter` uses rejected outright, and the description pinned to the renderer\'s own precedence read (`composed?.filter ?? props.filter`), objectui#3830.',
+  },
+  'element:text.content': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, derived from the spec\'s own verdicts rather than restated, with a non-matching control (objectui#4970).',
+  },
+  'element:text_input.description': {
+    file: 'packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts',
+    pins: 'The I18nLabel trio: the declared arms equal the arms the spec accepts as a SET in both directions, the `object` arm is the locale map, and the description must teach `zh-CN` and the locale-aware resolution the read site performs (objectui#5717).',
+  },
+  'element:text_input.label': {
+    file: 'packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts',
+    pins: 'The I18nLabel trio — see `element:text_input.description` (objectui#5717).',
+  },
+  'element:text_input.placeholder': {
+    file: 'packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts',
+    pins: 'The I18nLabel trio — see `element:text_input.description` (objectui#5717).',
+  },
+  'object-calendar.filter': {
+    file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.filterIsNotAConfigSlot-7711.test.tsx',
+    pins: 'The members are ObjectQL `$filter` elements, and this renderer adds nothing to that contract and subtracts nothing from it: the authored value reaches `dataSource.find` as `$filter` BY IDENTITY (`toBe`, so a normalising rewrite cannot pass), and the retired `filter.calendar` member spelling yields NO configuration — one authored key read twice with two incompatible meanings is the member-level defect objectui#7711 closed here and objectui#4034 closed on the map. Both member forms are covered (the object form and the array-of-arrays form). The spec side cannot supply this: the `object-calendar` `filter` row is `z.unknown()`, so the wire is the only member contract there is (objectui#7711, registered as a pin by objectui#8176 once objectui#8186 declared the key).',
+  },
+  'object-calendar.sort': {
+    file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.sortMembersReachTheWire-8171.test.tsx',
+    pins: 'The members are `{ field, order }` and those two keys are the whole of what this renderer reads inside one: `{ field, order }` lowers to the `field -> direction` map on `$orderby`, an omitted `order` is ascending rather than a dropped member (the objectui#4022 regression), every member arrives in authored order, and a member with no usable `field` is dropped rather than given an invented one — with an unauthored `sort` reaching the wire as `undefined` as the control. Also carries objectui#7711\'s case transposed: a sort on a field named `calendar` stays a sort and the config still comes from the declared `calendar` container. ⛔ NOT an identity pin, unlike the two `filter` entries: `ObjectCalendar.tsx` writes `$orderby: convertSortToQueryParams(schema.sort)`, which builds a new map, so `toBe` is false about this key — the pin asserts what is read inside the member instead, which is the sharper claim. The spec side cannot supply any of it: the `sort` row is unconstrained (an array, a bare string and a bare number all parse), so the wire is the whole member contract (objectui#8171).',
+  },
+  'object-grid.data': {
+    file: 'packages/plugin-grid/src/__tests__/gridDataInputContract.test.ts',
+    pins: 'The `object` arm is `ViewDataSchema` discriminated on `provider`: each of the four providers parses, none of them is an array, the declaration is one shape across both registered tags so the alias cannot drift, and it is pinned at compile time too (objectui#5090).',
+  },
+  'object-kanban.filter': {
+    file: 'packages/plugin-kanban/src/__tests__/ObjectKanban.filterMembersReachTheWire-8176.test.tsx',
+    pins: 'The `object-kanban` twin of `object-calendar.filter` above, written for this change because the board had no equivalent: the authored array reaches `$filter` BY IDENTITY, a condition on a field named `columns` (this block\'s own configuration key) stays a filter and never reaches a configuration read, both member forms pass through identically, and an unauthored `filter` arrives as `undefined` rather than as a fabricated default — the control that keeps the other three from reading as a coincidence. Same reasoning as the calendar entry: the spec row is `z.unknown()`, so the wire is the whole member contract (objectui#8176).',
+  },
+  'page:card.title': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control that must still be reported (objectui#3832).',
+  },
+  'page:header.actions': {
+    file: 'packages/components/src/__tests__/page-header-action-ids.test.tsx',
+    pins: 'THE card\'s own key. The members are ACTION IDS, not `ActionDef` objects: the same action metadata is authored twice — once as ids, once as inline objects — and the two renders are compared, with the object-shape render as a live non-empty control so an id-side green cannot come from two empty headers agreeing. Covers placement, `requiredPermissions`, `visible` and `order` (objectui#6252, objectstack#11592).',
+  },
+  'page:header.subtitle': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control (objectui#3832).',
+  },
+  'page:header.title': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control (objectui#3832).',
+  },
+  'record:alert.body': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control (objectui#3832).',
+  },
+  'record:alert.title': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control (objectui#3832).',
+  },
+  'record:details.fields': {
+    file: 'packages/plugin-detail/src/__tests__/recordDetailsInputs.spec-parity.test.ts',
+    pins: 'Members are BARE NAMES: the spec rejects the entry-object spelling on its value, the description is asserted non-empty first and then required to teach no entry shape, and the renderer\'s more tolerant read is recorded as unexercised drift rather than a second contract.',
+  },
+  'record:details.hideFields': {
+    file: 'packages/plugin-detail/src/__tests__/recordDetailsInputs.spec-parity.test.ts',
+    pins: 'Members are bare names — the object spelling is rejected on its VALUE (a full parse, not a strip), and the description may not teach `{` (objectui#3808).',
+  },
+  'record:details.sections': {
+    file: 'packages/plugin-detail/src/__tests__/recordDetailsInputs.spec-parity.test.ts',
+    pins: 'Members are OBJECTS: every spec member key must be discoverable from the description, the retired section-id spelling must be ruled out by name, and the three renderer-only keys the spec refuses (`title`, `showBorder`, `hideEmpty`) may not be taught — filtered through the spec at runtime so a stale prohibition drops out on its own (objectui#3807).',
+  },
+  'record:highlights.fields': {
+    file: 'packages/plugin-detail/src/__tests__/recordHighlightsInputs.spec-parity.test.ts',
+    pins: 'Members are objects carrying `readonly` PER ENTRY — asserted to be per-entry rather than top-level, and every spec entry key must be discoverable from the `fields` description (objectui#3407).',
+  },
+  'record:related_list.add': {
+    file: 'packages/plugin-detail/src/__tests__/recordRelatedListInputs.spec-parity.test.ts',
+    pins: 'Every spec member key of `add` must be discoverable from its description, the published defaults must be the RENDERER\'s rather than the spec\'s prose, and `picker.filter` must be documented as a real restriction (objectui#3808).',
+  },
+};
+
+/**
+ * The reason every entry in `MEMBER_PIN_EXEMPTIONS` carries today.
+ *
+ * One shared constant rather than 58 near-copies, because the reason really is
+ * uniform and a copy is what drifts: none of these keys has a pin, and writing
+ * 58 of them is not the dispatched scope of the card that built this direction.
+ * objectui#8068 prescribes the transition itself for a population this size, and
+ * objectui#8071 owns the work — key by key, deleting an entry here in the same
+ * change that registers its pin.
+ *
+ * A key that needs a DIFFERENT reason — a shape a pin genuinely cannot express,
+ * a contract question upstream owns — gets its own string. The map is
+ * `Record<string, string>` precisely so that stays possible without a second
+ * mechanism.
+ */
+const AWAITING_A_PIN =
+  'No per-block member pin today. Measured with objectui#8068: 58 of the 77 array/object-armed ' +
+  'inputs on covered blocks had none, which is the population size that card prescribes a ' +
+  'self-deleting transition for rather than a same-PR sweep. objectui#8071 owns writing the pin; ' +
+  'delete this entry in the same change that registers it.';
+
+/**
+ * The reason the four keys objectui#8176 brought INTO this population carry.
+ *
+ * Separate from `AWAITING_A_PIN` on purpose, because the two say different
+ * things about how the key got here and a reader must be able to tell them
+ * apart. An `AWAITING_A_PIN` key was in objectui#8068's measured 77. These four
+ * were not — not because anything about them changed, but because their blocks
+ * were outside this file's `covered` set entirely while the console's
+ * `registerLazy` stubs hid them from `getConfig`. The declarations are older
+ * than the measurement that missed them.
+ *
+ * Same owner and same exit as their 58 neighbours: objectui#8071 writes the pin,
+ * and the entry is deleted in the change that registers it.
+ */
+const AWAITING_A_PIN_NEWLY_JUDGED =
+  'No per-block member pin today, and NOT one of objectui#8068\'s measured 77: this key was ' +
+  'invisible to that measurement because its block sat outside `covered` behind a `registerLazy` ' +
+  'stub until objectui#8176 loaded it. The declaration is older than the census that missed it, ' +
+  'so this is a correction to the measured population and not a newly added array key. ' +
+  'objectui#8071 owns writing the pin; delete this entry in the same change that registers it.';
+
+/**
+ * Array/object-armed inputs accepted WITHOUT a member pin for now, each with the
+ * reason. Key format: `BLOCK.INPUT`.
+ *
+ * Fourth instance of this file's one exemption discipline, and the bar is the
+ * one the three above already set: the divergence is explicit, reasoned,
+ * issue-backed, and DELETED by a failing test once it stops describing anything.
+ * `carries no stale member-pin exemption` fires the moment a key here acquires a
+ * pin, and `every member-pin exemption names a key that is still
+ * array/object-armed` fires when a key leaves the population.
+ *
+ * The ceiling below is the other half, and it is what makes this a transition
+ * rather than an allowlist: a NEW array-typed key cannot be absorbed by adding a
+ * 59th entry, because the count may only go down.
+ */
+const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
+  // element:button
+  'element:button.action': AWAITING_A_PIN,
+
+  // element:number
+  'element:number.filter': AWAITING_A_PIN,
+
+  // element:record_picker
+  'element:record_picker.dataSource': AWAITING_A_PIN,
+  'element:record_picker.label': AWAITING_A_PIN,
+  'element:record_picker.placeholder': AWAITING_A_PIN,
+  'element:record_picker.sort': AWAITING_A_PIN,
+
+  // object-form
+  'object-form.customFields': AWAITING_A_PIN,
+  'object-form.dataSource': AWAITING_A_PIN,
+  'object-form.fields': AWAITING_A_PIN,
+  'object-form.initialData': AWAITING_A_PIN,
+  'object-form.initialValues': AWAITING_A_PIN,
+  'object-form.mobile': AWAITING_A_PIN,
+  'object-form.sections': AWAITING_A_PIN,
+  'object-form.submitBehavior': AWAITING_A_PIN,
+
+  // object-grid
+  'object-grid.aggregations': AWAITING_A_PIN,
+  'object-grid.batchActions': AWAITING_A_PIN,
+  'object-grid.bulkActionDefs': AWAITING_A_PIN,
+  'object-grid.bulkActions': AWAITING_A_PIN,
+  'object-grid.columns': AWAITING_A_PIN,
+  'object-grid.conditionalFormatting': AWAITING_A_PIN,
+  'object-grid.dataSource': AWAITING_A_PIN,
+  'object-grid.exportOptions': AWAITING_A_PIN,
+  'object-grid.filter': AWAITING_A_PIN,
+  'object-grid.grouping': AWAITING_A_PIN,
+  'object-grid.navigation': AWAITING_A_PIN,
+  'object-grid.operations': AWAITING_A_PIN,
+  'object-grid.pagination': AWAITING_A_PIN,
+  'object-grid.rowActions': AWAITING_A_PIN,
+  'object-grid.rowColor': AWAITING_A_PIN,
+  'object-grid.searchableFields': AWAITING_A_PIN,
+  'object-grid.selection': AWAITING_A_PIN,
+  'object-grid.sort': AWAITING_A_PIN,
+
+  // object-master-detail-form
+  'object-master-detail-form.dataSource': AWAITING_A_PIN,
+  'object-master-detail-form.details': AWAITING_A_PIN,
+  'object-master-detail-form.fields': AWAITING_A_PIN,
+  'object-master-detail-form.initialData': AWAITING_A_PIN,
+  'object-master-detail-form.initialValues': AWAITING_A_PIN,
+  'object-master-detail-form.sections': AWAITING_A_PIN,
+
+  // object-metric
+  'object-metric.aggregate': AWAITING_A_PIN,
+  'object-metric.compareTo': AWAITING_A_PIN,
+  'object-metric.dataSource': AWAITING_A_PIN,
+  'object-metric.drillDown': AWAITING_A_PIN,
+  'object-metric.filter': AWAITING_A_PIN,
+  'object-metric.trend': AWAITING_A_PIN,
+
+  // page:accordion
+  'page:accordion.items': AWAITING_A_PIN,
+
+  // page:tabs
+  'page:tabs.items': AWAITING_A_PIN,
+
+  // record:activity
+  'record:activity.types': AWAITING_A_PIN,
+
+  // record:alert
+  'record:alert.action': AWAITING_A_PIN,
+
+  // record:chatter
+  'record:chatter.feed': AWAITING_A_PIN,
+
+  // record:discussion
+  'record:discussion.feed': AWAITING_A_PIN,
+
+  // record:path
+  'record:path.stages': AWAITING_A_PIN,
+
+  // record:quick_actions
+  'record:quick_actions.actionNames': AWAITING_A_PIN,
+  'record:quick_actions.requiredPermissions': AWAITING_A_PIN,
+
+  // record:related_list
+  'record:related_list.actions': AWAITING_A_PIN,
+  'record:related_list.columns': AWAITING_A_PIN,
+  'record:related_list.dataSource': AWAITING_A_PIN,
+  'record:related_list.filter': AWAITING_A_PIN,
+  'record:related_list.sort': AWAITING_A_PIN,
+
+  // objectui#8176 — the four this direction could not see. See
+  // `NEWLY_JUDGED_UNPINNED_MEMBERS` below, which pins them BY NAME so the
+  // ceiling correction cannot absorb anything else.
+  'object-calendar.calendar': AWAITING_A_PIN_NEWLY_JUDGED,
+  'object-calendar.dataSource': AWAITING_A_PIN_NEWLY_JUDGED,
+  'object-kanban.columns': AWAITING_A_PIN_NEWLY_JUDGED,
+  'object-kanban.dataSource': AWAITING_A_PIN_NEWLY_JUDGED,
+};
+
+/**
+ * The four ids the ceiling below moves for, named so the move is auditable.
+ *
+ * A ceiling that goes up is worth exactly as much as the account of why, and
+ * "+4, trust me" is not an account. Pinning the four by name means the
+ * correction admits four SPECIFIC pre-existing keys and nothing else: a fifth
+ * entry cannot hide inside the same headroom, because `the member-pin exemption
+ * list only ratchets DOWN` still reads the total.
+ */
+const NEWLY_JUDGED_UNPINNED_MEMBERS = [
+  'object-calendar.calendar',
+  'object-calendar.dataSource',
+  'object-kanban.columns',
+  'object-kanban.dataSource',
+];
+
+/**
+ * How many keys may be exempt. Ratchet: this number may only ever go DOWN.
+ *
+ * Measured with objectui#8068 and pinned so the list cannot grow. Without it the
+ * cheapest way to green a newly added array-typed input is an exemption entry
+ * with the same reason as its 58 neighbours — which is exactly the "voluntary"
+ * state this direction was built to end, one entry further in.
+ *
+ * ## 58 -> 62, and why that is a CORRECTION rather than a loosening
+ *
+ * ⚠️ The one number in this file that has gone UP. It is the judgement call in
+ * objectui#8176's change and it is written out here rather than left in a diff,
+ * because a reviewer who disagrees with the reading should be able to find it
+ * without reading the whole card.
+ *
+ * The 58 was measured "over this file's own `covered` set" — and objectui#8176
+ * is the finding that `covered` was wrong: it held 27 of the 42 spec-carried
+ * blocks, because `getConfig` is loaded-only and the console registers plugin
+ * blocks with `registerLazy`. `object-calendar` and `object-kanban` were never
+ * offered to objectui#8068's census. Over the corrected population the same
+ * measurement, by the same method, yields 81 array/object-armed inputs across 24
+ * blocks, 19 pinned and 62 not.
+ *
+ * So this raise admits no new key. It admits four PRE-EXISTING declarations that
+ * the census could not see, named individually in
+ * `NEWLY_JUDGED_UNPINNED_MEMBERS` above and asserted by name below. Nothing
+ * about what the ratchet forbids changes: a genuinely new array-typed input
+ * still cannot be absorbed, because 62 is now the true measured floor and the
+ * count may still only go down from it.
+ *
+ * ⛔ The reading a future edit must not take from this: that a ceiling may be
+ * raised to fit a list. The ONLY thing that licensed it here is that the
+ * population itself was mis-measured, and that fact is independently asserted —
+ * if `states the size of the population it judges` and
+ * `no spec-carried block is registered but unloaded` ever stop holding, this
+ * paragraph stops being true and the number owes a re-derivation, not a bump.
+ */
+const MEMBER_PIN_EXEMPTION_CEILING = 62;
+
+/**
+ * Every test file a member pin can live in, as LAZY `?raw` loaders.
+ *
+ * Vite's glob, not `node:fs`, and that is a constraint rather than a taste: this
+ * app's tsconfig is browser-only (`lib: ES2020, DOM`, `types` without `node`),
+ * so a `node:fs` import passes under Vitest and fails the console's own `tsc` —
+ * the trap `insecure-origin-crypto.placement.test.ts` and
+ * `__tests__/helpers/preview-page-sources.ts` both record. It is also the better
+ * instrument here: the glob is expanded against the real directory at transform
+ * time, so the KEY SET alone answers "does this pin file still exist", which is
+ * the failure this locator exists to catch.
+ *
+ * LAZY on purpose. `eager: true` would inline the raw text of every test file in
+ * the repo — 2,000+ files, ~3 MB — into this module on every run of a gate that
+ * already loads the whole registration graph. Lazy hands back loaders, so the
+ * cost is the glob itself plus one read per REGISTERED pin (21 today).
+ */
+const PIN_SOURCES = import.meta.glob(
+  [
+    '../../../../packages/*/src/**/*.test.ts',
+    '../../../../packages/*/src/**/*.test.tsx',
+    '../../**/*.test.ts',
+    '../../**/*.test.tsx',
+  ],
+  { query: '?raw', import: 'default' },
+) as Record<string, () => Promise<string>>;
+
+/** This file's own directory, repo-relative — the anchor the glob keys resolve against. */
+const THIS_DIR = 'apps/console/src/__tests__';
+
+/** A glob key (`../../../../packages/…`) as a repo-relative path. */
+function repoPathOfGlobKey(key: string): string {
+  const out: string[] = [];
+  for (const segment of `${THIS_DIR}/${key}`.split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment === '..') out.pop();
+    else out.push(segment);
+  }
+  return out.join('/');
+}
+
+/** Pin sources by repo-relative path — the spelling `MEMBER_PINS` entries use. */
+const PIN_SOURCE_BY_PATH = new Map<string, () => Promise<string>>(
+  Object.entries(PIN_SOURCES).map(([key, load]) => [repoPathOfGlobKey(key), load]),
+);
+
+/** Vitest collects `*.test.ts` / `*.test.tsx`; anything else would never run. */
+const IS_A_COLLECTED_TEST_FILE = /\.test\.tsx?$/;
+
+/**
+ * What is WRONG with one registered pin, or `null` when nothing is.
+ *
+ * Three failures, and each is a way a pin stops covering its key while the
+ * registry entry still reads deliberate: the file was deleted, renamed or moved
+ * out of the glob's reach; it is not a file the runner collects, so "pinned"
+ * would not mean "executed"; or it does not mention this block and this key at
+ * all, which is what an entry pointed at the wrong file looks like.
+ *
+ * The key match is word-boundaried. A substring match would accept `fields` for
+ * `hideFields` — those two are pinned by the SAME file here, so the weaker form
+ * would be satisfied by the wrong assertion.
+ */
+async function memberPinProblem(id: string, pin: MemberPin): Promise<string | null> {
+  const [type, key] = splitExemptionKey(id);
+  if (!IS_A_COLLECTED_TEST_FILE.test(pin.file)) {
+    return `${id} -> ${pin.file}: not a *.test.ts(x) file, so the runner never collects it`;
+  }
+  const load = PIN_SOURCE_BY_PATH.get(pin.file);
+  if (!load) {
+    return `${id} -> ${pin.file}: no such pin file (deleted, renamed, or moved outside the glob)`;
+  }
+  const text = await load();
+  if (!text.includes(type)) return `${id} -> ${pin.file}: pin file never names the block \`${type}\``;
+  if (!new RegExp(`\\b${key}\\b`).test(text)) {
+    return `${id} -> ${pin.file}: pin file never names the key \`${key}\``;
+  }
+  return null;
+}
+
+/** Ids with neither a pin nor an exemption — the new red. */
+const unpinnedMembersOf = (type: string): string[] =>
+  structuredInputsOf(type)
+    .map((entry) => entry.id)
+    .filter((id) => !(id in MEMBER_PINS) && !(id in MEMBER_PIN_EXEMPTIONS));
 
 describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)', () => {
   it('judges every spec-carried block that declares an authoring surface', () => {
@@ -1297,6 +2414,156 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
   it('pins the spec-carried blocks that are registered with no inputs', () => {
     expect(registeredWithoutInputs).toEqual(EXPECTED_WITHOUT_INPUTS);
+  });
+
+  it('accounts for every spec-carried block — judged, propless, or ledgered', () => {
+    // THE ASSERTION objectui#8176 EXISTS FOR, and the one that turns this gate's
+    // population from an accident into a statement.
+    //
+    // Every other assertion in this file is generated from `covered`. That makes
+    // `covered` the gate's whole reach, and until this test there was nothing
+    // anywhere saying what SHOULD be in it — only `EXPECTED_COVERED`, which
+    // pins the set it happens to hold. A block that fell out of `covered` and
+    // out of `registeredWithoutInputs` fell out of both pins at once and left no
+    // trace: not judged, not counted as unjudged, not reported. Eight did,
+    // measured on `origin/main` `0c8dbc492`.
+    //
+    // The three sets are now required to PARTITION `ComponentPropsMap`, so
+    // absence is no longer expressible. A block leaving the judged population
+    // has exactly one way to do it: a `UNJUDGED_SPEC_BLOCKS` entry, written by
+    // hand, with a reason, in a diff someone reviews.
+    const specBlocks = Object.keys(ComponentPropsMap).sort();
+    const accounted = [
+      ...covered,
+      ...registeredWithoutInputs,
+      ...Object.keys(UNJUDGED_SPEC_BLOCKS),
+    ].sort();
+    expect(
+      specBlocks.filter((type) => !accounted.includes(type)),
+      'spec-carried blocks this gate neither judges nor accounts for — add a ' +
+        'UNJUDGED_SPEC_BLOCKS entry with the reason, or make them judgeable',
+    ).toEqual([]);
+    // …and the converse, so the ledger cannot name a block the spec dropped.
+    expect(
+      accounted.filter((type) => !specBlocks.includes(type)),
+      'accounted for a block ComponentPropsMap does not carry',
+    ).toEqual([]);
+    // Exactly once each: a block may not be both judged and ledgered.
+    expect(accounted, 'a block is accounted for twice').toEqual(specBlocks);
+  });
+
+  it('states the size of the population it judges', () => {
+    // The census, in one place, as one readable object. Redundant with the exact
+    // membership pins above BY CONSTRUCTION and kept anyway: the failure mode
+    // objectui#8176 is about was never a wrong name, it was a population nobody
+    // could see the size of. A reader (and a diff) gets all four numbers here.
+    expect({
+      specCarried: Object.keys(ComponentPropsMap).length,
+      judged: covered.length,
+      registeredPropless: registeredWithoutInputs.length,
+      ledgeredUnjudgeable: Object.keys(UNJUDGED_SPEC_BLOCKS).length,
+    }).toEqual({
+      // 42 -> 45 on the `@objectstack/spec` 17.3.0 pin: the map grew by
+      // `cloud-connection:panel`, `marketplace:installed-list` and
+      // `mcp:connect-agent`, all three declared with an EMPTY shape, so all
+      // three are ledgered rather than judged and 6 -> 9 is the same three
+      // blocks counted on the other side of the partition. `judged` and
+      // `registeredPropless` do not move, which is the check that the pin
+      // added blocks rather than moving any across the partition (objectui#7122).
+      specCarried: 45,
+      judged: 29,
+      registeredPropless: 7,
+      ledgeredUnjudgeable: 9,
+    });
+    // Non-vacuity, stated rather than implied by the numbers above.
+    expect(covered.length).toBeGreaterThan(0);
+  });
+
+  it('no spec-carried block is registered but unloaded', () => {
+    // The MECHANISM behind objectui#8176, asserted so it cannot come back
+    // silently — and the reason the two eager plugin imports at the top of this
+    // file are not merely a convenience.
+    //
+    // `getConfig` is loaded-only by design, so a block present only as a
+    // `registerLazy` stub reads exactly like a block nobody registered: both
+    // answer `undefined`. `hasLazy` is what tells them apart, and it is the one
+    // question this file never asked. A block that answers YES here has a
+    // declaration this gate is not reading — which is the whole defect, and the
+    // reason objectui#7712 was invisible to a direction written to catch it.
+    //
+    // The remedy is an eager import, never a ledger entry: the declaration
+    // exists and is reachable, so `UNJUDGED_SPEC_BLOCKS` would be a false
+    // statement about it. `assertFullyLoaded` in `sdui-parser` makes the same
+    // demand of manifest generation for the same reason.
+    const registeredButUnloaded = Object.keys(ComponentPropsMap)
+      .filter((type) => ComponentRegistry.hasLazy(type))
+      .filter((type) => ComponentRegistry.getConfig(type) === undefined)
+      .sort();
+    expect(
+      registeredButUnloaded,
+      'these blocks are registered lazily and this file has not loaded them, so ' +
+        'their `inputs` are invisible to both directions — add an eager import ' +
+        'of the owning plugin package alongside the two at the top of this file',
+    ).toEqual([]);
+  });
+
+  it('every unjudged-block ledger entry still describes a block this gate cannot judge', () => {
+    // The ledger's own rot check. An entry states WHY the block is unjudgeable,
+    // and both reasons it may state are mechanically decidable — so an entry
+    // that stops being true fails here instead of quietly excusing a block that
+    // became judgeable.
+    expect(Object.keys(UNJUDGED_SPEC_BLOCKS).length).toBeGreaterThan(0);
+    for (const [type, reason] of Object.entries(UNJUDGED_SPEC_BLOCKS)) {
+      expect(reason, `${type}'s ledger reason cites no issue`).toMatch(/#\d+/);
+      expect(
+        Object.keys(ComponentPropsMap),
+        `${type} is ledgered but the spec no longer carries it — delete the entry`,
+      ).toContain(type);
+      if (reason.startsWith('EMPTY SPEC SHAPE')) {
+        expect(
+          specTopLevelKeys(type),
+          `${type} is ledgered as having an empty spec shape, and it does not — ` +
+            'it now has an authoring surface, so it must be judged',
+        ).toEqual([]);
+      } else {
+        // NOT REGISTERED, DELIBERATELY. `getKnownTypes` includes pending lazy
+        // stubs on purpose: a stub is a registration, and satisfying this
+        // assertion with one would be the exact blindness objectui#8176 is about.
+        expect(
+          ComponentRegistry.getKnownTypes(),
+          `${type} is ledgered as deliberately unregistered, and something ` +
+            'registers it — judge it instead',
+        ).not.toContain(type);
+      }
+    }
+  });
+
+  it('the two lazily-registered blocks are judged, with a real declaration behind them', () => {
+    // The instance pin behind the mechanism pin above.
+    //
+    // ⚠️ It deliberately does NOT assert `hasLazy` on these two, and the reason
+    // is the same registry behaviour that makes the mechanism assertion exact:
+    // `register()` DELETES the matching `lazyEntries` keys, so a stub that has
+    // been loaded stops answering `hasLazy` at all. Measured, not assumed —
+    // both answer false here, precisely because the eager imports at the top of
+    // this file replaced their stubs. That is also why
+    // `registeredButUnloaded` above can never name a loaded block: the two
+    // conditions it ANDs are only ever true together for a stub still pending.
+    //
+    // What is asserted instead is the fact the blind spot hid: there is a real
+    // declaration behind each of these names, with inputs, being judged. If a
+    // future change drops the eager imports, the console's `registerLazy` stubs
+    // come back, `hasLazy` starts answering true again, and the mechanism
+    // assertion above reddens by name — which is the guard this instance pin
+    // does not need to duplicate.
+    for (const type of LAZY_REGISTERED_BLOCKS) {
+      expect(
+        (declaredInputs(type) ?? []).length,
+        `${type} is registered without inputs, or its plugin package stopped ` +
+          'being loaded by this file',
+      ).toBeGreaterThan(0);
+      expect(covered, `${type} is not being judged`).toContain(type);
+    }
   });
 
   it('resolves a non-empty accepted key set for each covered block', () => {
@@ -1544,7 +2811,6 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // declared by GA, and deliberately NOT published (maintainer 2026-08-16).
     const CARVED_OUT_GRID_KEYS = [
       'defaultFilters',
-      'defaultSort',
       'fields',
       'pageSize',
       'resizableColumns',
@@ -1618,6 +2884,44 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
         return !undiscoverableSpecKeys(type).includes(specKey);
       });
     expect(stale).toEqual([]);
+  });
+
+  it('the objectui#8176 backlog has a ceiling — it may shrink, never grow', () => {
+    // The transition list's other half, and the reason a "dozens" case is
+    // survivable at all. The stale check above forces an entry OUT once its key
+    // is declared; without a ceiling nothing stops the cheap move in the other
+    // direction — greening a fresh divergence on these two blocks by writing a
+    // nineteenth entry instead of declaring the input.
+    //
+    // Sixteen is the MEASURED backlog today, not a budget: ten undiscoverable
+    // keys on `object-kanban`, six on `object-calendar`. It was EIGHTEEN when
+    // these blocks entered the population; objectui#7712's declaration landed
+    // as objectui#8186 while this branch was open and took its two `filter`
+    // entries with it, which is the first observed round-trip of the exit this
+    // ceiling is paired with. Landing objectui#8201 / objectui#8171 lowers it
+    // again. A new divergence on these blocks is a plain defect and gets
+    // declared, exactly as it would on any other covered block.
+    //
+    // ⚠️ The `toBe` below is EXACT in both directions on purpose, so the card
+    // that lands a declaration must lower this number in the same change. That
+    // is a rider objectui#8171's PR objectui#8223 owes if it lands after this
+    // one — see the note on `object-calendar.sort` in `UNPUBLISHED_EXEMPTIONS`.
+    const backlog = Object.keys(UNPUBLISHED_EXEMPTIONS).filter((key) =>
+      LAZY_REGISTERED_BLOCKS.includes(splitExemptionKey(key)[0]),
+    );
+    expect(
+      backlog.length,
+      'a new unpublished-key exemption was added on a block objectui#8176 newly ' +
+        'judged — declare the input at its registration site instead; the ' +
+        'backlog list is shrink-only',
+    ).toBeLessThanOrEqual(15);
+    // Lower it here when the owning cards land, so the ceiling keeps ratcheting
+    // rather than banking the headroom their fixes free up.
+    expect(
+      backlog.length,
+      'the objectui#8176 backlog shrank — lower the ceiling above to match, in ' +
+        'the same change that declared the input',
+    ).toBe(15);
   });
 
   it('the eight tombstoned keys are recognised, not exempted — and not published either', () => {
@@ -1827,6 +3131,208 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     expect(Object.keys(OFF_SPEC_ARM_EXEMPTIONS).filter((id) => !refused.has(id))).toEqual([]);
   });
 
+  // ── the MEMBER direction (objectui#8067) ───────────────────────────────────
+
+  it.each(covered)('%s declares no member kind the spec refuses outright', (type) => {
+    const unregistered = refusedMembers(type).filter((id) => !(id in OFF_SPEC_MEMBER_EXEMPTIONS));
+    const evidence = MEMBER_JUDGEMENTS.filter((judgement) => unregistered.includes(judgement.id))
+      .map((judgement) => `${judgement.id} — ${judgement.evidence}`)
+      .join('; ');
+    expect(unregistered, evidence).toEqual([]);
+  });
+
+  it('judges a non-vacuous member census — real declarations, on real blocks', () => {
+    // THE NON-VACUITY GUARD for this direction, and it has to be stricter than
+    // the arm direction's. `of` is OPTIONAL: a walk that resolved nothing —
+    // `inputTypeArms(input.of)` returning `[]` because the key stopped reaching
+    // the registry, a `specTopLevelKeys` that skipped every key as off-spec, a
+    // serializer that dropped the field — produces an EMPTY judgement list, and
+    // an empty list is INDISTINGUISHABLE from "no block declares members yet".
+    // That is precisely the failure mode objectui#5905 recorded: a key written
+    // everywhere and read by nothing, with every gate green. So the counts are
+    // pinned as lower bounds rather than merely asserted non-zero.
+    const keysJudged = new Set(
+      MEMBER_JUDGEMENTS.map((judgement) => `${judgement.type}.${judgement.input}`),
+    );
+    const blocksJudged = new Set(MEMBER_JUDGEMENTS.map((judgement) => judgement.type));
+    const census =
+      `blocks with member declarations ${blocksJudged.size} · keys judged ${keysJudged.size} ` +
+      `· member arms judged ${MEMBER_JUDGEMENTS.length} · witnessed ` +
+      `${MEMBER_JUDGEMENTS.filter((j) => j.verdict === 'witnessed').length} · refused ` +
+      `${MEMBER_JUDGEMENTS.filter((j) => MEMBER_REFUSALS.has(j.verdict)).length} ` +
+      `· registered exemptions ${Object.keys(OFF_SPEC_MEMBER_EXEMPTIONS).length}`;
+
+    // The fifteen keys objectui#8067 derived from single-kind member contracts,
+    // across ten blocks. A LOWER bound, not an equality: a new declaration that
+    // this gate then judges is the direction this section exists to encourage,
+    // and it should not have to edit a number to land. A declaration
+    // DISAPPEARING is the regression, and that is what the bound catches.
+    expect(keysJudged.size, census).toBeGreaterThanOrEqual(15);
+    expect(blocksJudged.size, census).toBeGreaterThanOrEqual(10);
+    expect(MEMBER_JUDGEMENTS.length, census).toBeGreaterThanOrEqual(keysJudged.size);
+    // Every judgement must be a real verdict about the contract, not a skip.
+    expect(
+      MEMBER_JUDGEMENTS.filter((j) => j.verdict === 'witnessed').length,
+      census,
+    ).toBeGreaterThanOrEqual(15);
+  });
+
+  it('the member judge reds on the drift that started this — page:header.actions, by name', () => {
+    // CALIBRATION, and the reason this section is not just three more green
+    // assertions. Every other member assertion here is satisfied by a judge that
+    // never refutes anything; this one asserts the refutation, on the key whose
+    // drift the card was filed for.
+    //
+    // `ComponentPropsMap['page:header'].actions` is `z.array(z.string())` —
+    // "Action IDs". The declaration says `of: 'string'`, and that must be
+    // witnessed…
+    expect(specMemberVerdict('page:header', 'actions', 'array', 'Account')).toBe('accepts');
+    // …while `of: 'object'` — the members the renderer actually read for the
+    // whole life of the drift, and the exact mutation the ablation for this card
+    // applies — must read as a KIND refusal at the MEMBER position. Before this
+    // section existed there was no declaration to make and nothing to compare
+    // it with, which is why the gate stayed green.
+    expect(specMemberVerdict('page:header', 'actions', 'array', { id: 'clone' })).toBe(
+      'refuses-kind',
+    );
+    expect(specMemberVerdict('page:header', 'actions', 'array', 42)).toBe('refuses-kind');
+
+    // The container-level control, which is what tells a member refusal from the
+    // top-level refusal the ARM direction already covered: the ARRAY itself is
+    // perfectly acceptable on this key. A judge that simply refused everything
+    // would pass the two assertions above and fail this one.
+    expect(specArmVerdict('page:header', 'actions', [])).toBe('accepts');
+
+    // …and the second half of the calibration: a CONTENT refusal at the member
+    // position is NOT a kind refusal, so the coarse-kind ceiling survives one
+    // level down exactly as it does at the top.
+    //
+    // `record:activity.types` was a CLOSED `z.enum([...])` of strings when this
+    // row was written, and it probed that enum with an unlisted word.
+    // `@objectstack/spec` 17.3.0 made the vocabulary OPEN —
+    // `z.array(z.union([FeedItemType, z.string().min(1)]))`, objectstack#11658
+    // executing the maintainer's 2026-08-24 ruling on objectstack#11507 — so no
+    // ordinary string is refused there any more and the unlisted word ACCEPTS.
+    // The widening kept exactly ONE content refusal, and it is the one this
+    // control needs: `''` IS a string, so the only check it fails is `.min(1)`
+    // and it raises no `invalid_type` anywhere — right KIND, wrong CONTENT.
+    // That is exactly the distinction from the `42` line below, which is
+    // refused for its KIND, and it is why the pair still discriminates.
+    // Re-pointed under the maintainer 2026-09-07 authorisation on objectui#8137.
+    expect(specMemberVerdict('record:activity', 'types', 'array', '')).toBe(
+      'refuses-content',
+    );
+    expect(specMemberVerdict('record:activity', 'types', 'array', 42)).toBe('refuses-kind');
+  });
+
+  it('a contract with no uniform member position is named, not silently skipped', () => {
+    // The third verdict this level adds, calibrated by name because nothing in
+    // the repository declares it today and an unexercised branch is a branch
+    // that can be wrong for free.
+    //
+    // `record:related_list.add` is a named-shape `z.object({ ... })`, not a map:
+    // it has no position where "every value is of kind K" is even a statement,
+    // so a probe key it never declared is refused AT THE CONTAINER. That is not
+    // a verdict about the member kind — it is the absence of a member position,
+    // and `judgeMembers` reports a declaration resting on one rather than
+    // passing it.
+    expect(specMemberVerdict('record:related_list', 'add', 'object', 'Account')).toBe(
+      'no-member-position',
+    );
+    // …and the control: the same block's `columns` IS a container with a member
+    // position, so the verdict above is about the contract's shape and not about
+    // the probe machinery.
+    expect(specMemberVerdict('record:related_list', 'columns', 'array', 'name')).toBe('accepts');
+    // The other half of the same fact: a MAP contract judges the value under
+    // whatever key it is given, so the probe key is not refused there.
+    expect(specMemberVerdict('object-form', 'initialValues', 'object', 'Account')).toBe('accepts');
+  });
+
+  it('member declarations are derived from single-kind member contracts', () => {
+    // The rule `ComponentInput.of` states, asserted rather than trusted: a key
+    // is declared when the contract accepts exactly ONE coarse member kind, and
+    // left alone when it accepts several. Both halves matter — the first is what
+    // makes a declaration underivable-by-hand and therefore checkable, and the
+    // second is what keeps this change from advertising member shapes only a
+    // per-block pin can vouch for.
+    const KINDS = ['string', 'number', 'boolean', 'array', 'object'] as const;
+    // `refuses-content` COUNTS, and objectui#8204 asked whether that is intended
+    // rather than the same defect one level up. It is intended, it is the same
+    // fold `judgeMembers` and the arm direction already make, and it is
+    // load-bearing in a way that is measurable: `refuses-content` means the
+    // contract took the value's KIND and then refused its VALUE, which is
+    // exactly what "the contract admits members of this kind" means at the
+    // coarse-kind ceiling this file judges by.
+    //
+    // Dropping the fold would not have fixed objectui#8204 — it would have
+    // broken the case the ceiling exists for. MEASURED on `@objectstack/spec`
+    // 17.2.0, where `record:activity.types` is a bare `z.enum([...])` of
+    // strings: every string probe is refused, `'Account'` among them, as
+    // `invalid_value` — so an `accepts`-only reading answers `{}` for a key
+    // whose `of: 'string'` was derived from that very enum, and this block's
+    // one-kind assertion reds on a declaration that is right.
+    //
+    // The fold was never the leak; it was the amplifier. It only ever admitted
+    // a kind the contract refuses while `refusesKind` was MIS-REPORTING a kind
+    // refusal as a content one (the union-branch reading fixed on this card),
+    // and with that reading corrected `refuses-content` again means what it
+    // says.
+    const acceptedMemberKinds = (type: string, key: string): string[] =>
+      KINDS.filter((kind) =>
+        (COARSE_ARM_PROBES[kind] ?? []).some((probe) => {
+          const verdict = specMemberVerdict(type, key, 'array', probe);
+          return verdict === 'accepts' || verdict === 'refuses-content';
+        }),
+      );
+
+    // Every declared member arm is the contract's single accepted kind…
+    const declaredAgainstContract = MEMBER_JUDGEMENTS.filter(
+      (judgement) => judgement.verdict === 'witnessed',
+    ).map((judgement) => {
+      const accepted = acceptedMemberKinds(judgement.type, judgement.input);
+      return `${judgement.id} → contract accepts {${accepted.join(',')}}`;
+    });
+    expect(
+      declaredAgainstContract.filter((row) => !/→ contract accepts \{[a-z]+\}$/.test(row)),
+      declaredAgainstContract.join('; '),
+    ).toEqual([]);
+
+    // …and the keys left undeclared for a member UNION are pinned with their
+    // reason, so "no declaration" and "no declaration for a reason" stay
+    // different facts. A stale entry fails: once the contract collapses to one
+    // kind, the key becomes derivable and the entry must be deleted.
+    for (const [id, reason] of Object.entries(MULTI_KIND_MEMBER_CONTRACTS)) {
+      const [type, key] = splitExemptionKey(id);
+      expect(reason.length, id).toBeGreaterThan(40);
+      expect(reason, id).toMatch(/objectui#\d+/);
+      expect(declaredInputs(type) ?? [], id).toContain(key);
+      expect(acceptedMemberKinds(type, key).length, `${id} — ${reason}`).toBeGreaterThan(1);
+      expect(
+        MEMBER_JUDGEMENTS.some((judgement) => judgement.type === type && judgement.input === key),
+        `${id} is pinned as a member union yet declares an \`of\` — delete the entry`,
+      ).toBe(false);
+    }
+  });
+
+  it('every member exemption names a member arm a covered block really declares', () => {
+    const declaredIds = new Set(MEMBER_JUDGEMENTS.map((judgement) => judgement.id));
+    expect(Object.keys(OFF_SPEC_MEMBER_EXEMPTIONS).filter((id) => !declaredIds.has(id))).toEqual([]);
+  });
+
+  it('every member exemption states a reason and references a tracking issue', () => {
+    for (const [id, reason] of Object.entries(OFF_SPEC_MEMBER_EXEMPTIONS)) {
+      expect(reason.length, id).toBeGreaterThan(40);
+      expect(reason, id).toMatch(/objectui#\d+|objectstack#\d+/);
+    }
+  });
+
+  it('carries no stale member exemption — a member kind the contract accepts must lose its entry', () => {
+    const refused = new Set(
+      MEMBER_JUDGEMENTS.filter((j) => MEMBER_REFUSALS.has(j.verdict)).map((j) => j.id),
+    );
+    expect(Object.keys(OFF_SPEC_MEMBER_EXEMPTIONS).filter((id) => !refused.has(id))).toEqual([]);
+  });
+
   it('the five A-class keys objectui#3808 / #3830 declared are discoverable, block by block', () => {
     // Named, not just covered by the derived loop above. The derived assertion
     // would also pass if these five were added to `UNPUBLISHED_EXEMPTIONS`
@@ -1962,5 +3468,209 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       expect(Object.keys(OFF_SPEC_EXEMPTIONS)).not.toContain(`${type}.${key}`);
     }
     expect(Object.keys(OFF_SPEC_EXEMPTIONS)).toEqual([]);
+  });
+
+  // ── the MEMBER-PIN direction (objectui#8068) ───────────────────────────────
+  //
+  // Same `covered` set and the same exemption discipline as the three
+  // directions above. What moves is the SUBJECT once more: not which keys a
+  // block publishes, nor with which kinds, but whether anything anywhere
+  // constrains what is INSIDE an array element or a nested object.
+
+  it('judges a non-vacuous member-shape census — every covered block, every array/object input', () => {
+    // Non-vacuity FIRST, for the reason the arm census gives next door: every
+    // assertion below is generated from `structuredInputs`, so a reader that
+    // resolved nothing (a renamed `ComponentInput.type`, an `inputTypeArms`
+    // that stopped recognising the array form) would empty the population and
+    // turn the whole direction green on nothing at all.
+    expect(structuredInputs.length).toBeGreaterThan(0);
+
+    // The partition is TOTAL and DISJOINT: every member of the population is
+    // either pinned or exempt, never both and never neither. Stated here as
+    // well as per-block below because the per-block loop cannot see the
+    // "both" case, which is the shape a stale exemption takes.
+    const ids = structuredInputs.map((entry) => entry.id);
+    expect(ids.filter((id) => id in MEMBER_PINS && id in MEMBER_PIN_EXEMPTIONS)).toEqual([]);
+    expect(
+      ids.filter((id) => !(id in MEMBER_PINS) && !(id in MEMBER_PIN_EXEMPTIONS)),
+    ).toEqual([]);
+
+    // Every arm the population was selected on is one of the two, so a widened
+    // `STRUCTURED_ARMS` cannot quietly pull in scalars.
+    for (const entry of structuredInputs) {
+      expect(entry.arms.some((arm) => STRUCTURED_ARMS.has(arm)), entry.id).toBe(true);
+    }
+  });
+
+  it.each(covered)('%s pins the member shape of every array/object input it declares', (type) => {
+    // THE new red. A block that grows an array-typed key with no pin and no
+    // exemption fails here, naming the key — which is the one thing that did
+    // not happen for `page:header.actions` through an entire contract cycle.
+    expect(unpinnedMembersOf(type)).toEqual([]);
+  });
+
+  it('the pin-source glob resolves against the right anchor', () => {
+    // Self-location, and the one thing `THIS_DIR` cannot assert about itself. A
+    // wrong anchor resolves every key to a path nothing matches, every pin then
+    // reads as MISSING, and the resulting repo-wide red looks like 19 deleted
+    // pins instead of one bad constant.
+    //
+    // NOT asserted on this file's own path: `import.meta.glob` excludes the
+    // module that calls it, so `registry-inputs-spec-parity.test.ts` is never in
+    // its own glob — measured, and the first shape of this control failed on it.
+    // The two arms below are what actually discriminate. A `THIS_DIR` off by a
+    // level still yields correct `packages/…` paths (the `..` walk bottoms out),
+    // so the `./`-anchored half is the half that catches it.
+    const resolved = [...PIN_SOURCE_BY_PATH.keys()];
+    expect(resolved.length).toBeGreaterThan(0);
+    // No key may still carry a `..`: that is the signature of an anchor the walk
+    // could not consume, and it would silently match nothing forever after.
+    expect(resolved.filter((path) => path.includes('..'))).toEqual([]);
+    // The `./`-anchored half — this directory's own siblings land back in it.
+    // Witnessed by a long-standing neighbour that is NOT a registered pin, on
+    // purpose: naming a pin file here would make a DELETED PIN red this control
+    // too, and "the anchor is broken" and "one pin is gone" are different
+    // diagnoses that must not share a signal. A generic
+    // `some(path.startsWith(THIS_DIR))` cannot do the job either — it compares
+    // the anchor against itself and passes for any wrong value.
+    expect(resolved).toContain(`${THIS_DIR}/public-contract.test.ts`);
+    // …and the `../../../../`-anchored half reaches the packages. Generic here,
+    // because a wrong anchor cannot produce a `packages/` prefix at all: the
+    // `..` walk bottoms out at the repo root either way.
+    expect(resolved.some((path) => path.startsWith('packages/'))).toBe(true);
+  });
+
+  it('every registered member pin points at a collected test file that names its block and key', async () => {
+    // The locator, and the failure mode it exists for: a pin file deleted or
+    // renamed leaves the key uncovered while its registry entry still reads
+    // deliberate. Reported as one list so a sweep names every broken entry at
+    // once rather than one per run.
+    const problems = (
+      await Promise.all(
+        Object.entries(MEMBER_PINS).map(([id, pin]) => memberPinProblem(id, pin)),
+      )
+    ).filter((problem): problem is string => problem !== null);
+    expect(problems).toEqual([]);
+  });
+
+  it('the locator discriminates — it is not a check that passes on any file', async () => {
+    // Calibration for the check above, in the direction it cannot fail on its
+    // own. A locator that matched everything would license every entry at once
+    // and read exactly like a clean sweep, which is the false-negative shape
+    // this card was dispatched to end. Every probe is aimed at a REAL registered
+    // pin, so the control cannot pass by pointing at nothing.
+    const real = MEMBER_PINS['page:header.actions'];
+    expect(await memberPinProblem('page:header.actions', real)).toBeNull();
+
+    // …a key that file never mentions is REFUSED,
+    expect(await memberPinProblem('page:header.__objectui_8068_probe__', real)).toMatch(
+      /never names the key/,
+    );
+    // …a block it never mentions is refused,
+    expect(await memberPinProblem('__objectui_8068_block__.actions', real)).toMatch(
+      /never names the block/,
+    );
+    // …a path with no file behind it is refused,
+    expect(
+      await memberPinProblem('page:header.actions', {
+        file: 'packages/components/src/__tests__/__objectui_8068_absent__.test.tsx',
+        pins: 'probe',
+      }),
+    ).toMatch(/no such pin file/);
+    // …and a file that really exists but the runner would never collect is
+    // refused too, which is what separates "present" from "executed".
+    expect(
+      await memberPinProblem('page:header.actions', { file: 'package.json', pins: 'probe' }),
+    ).toMatch(/never collects it/);
+  });
+
+  it('the four keys objectui#8068 names are in the population, and all four are pinned', () => {
+    // The calibration this whole direction is measured against. Three of these
+    // are the keys the LIMIT note at the top of this file delegates to; the
+    // fourth is the one that had no pin, drifted for a full contract cycle, and
+    // was only ever caught by a human. If a future narrowing of the population
+    // or the locator drops any of the four, the direction has stopped
+    // describing the defect it was built for — and that must be loud, not a
+    // shorter list nobody re-derives.
+    const exemplars = [
+      'record:details.sections',
+      'record:highlights.fields',
+      'record:related_list.add',
+      'page:header.actions',
+    ];
+    const ids = new Set(structuredInputs.map((entry) => entry.id));
+    for (const id of exemplars) {
+      expect(ids, `${id} left the member-shape population`).toContain(id);
+      expect(MEMBER_PINS[id], `${id} lost its pin`).toBeDefined();
+      expect(Object.keys(MEMBER_PIN_EXEMPTIONS), `${id} was exempted instead of pinned`).not.toContain(id);
+    }
+  });
+
+  it('every member pin names a key that is still array/object-armed on a covered block', () => {
+    // Dangling, the same check the three lists above carry: a pin for a key
+    // that changed kind, lost its declaration or left `covered` silently
+    // licenses nothing while reading as coverage.
+    const ids = new Set(structuredInputs.map((entry) => entry.id));
+    expect(Object.keys(MEMBER_PINS).filter((id) => !ids.has(id))).toEqual([]);
+  });
+
+  it('every member-pin exemption names a key that is still array/object-armed on a covered block', () => {
+    const ids = new Set(structuredInputs.map((entry) => entry.id));
+    expect(Object.keys(MEMBER_PIN_EXEMPTIONS).filter((id) => !ids.has(id))).toEqual([]);
+  });
+
+  it('every member-pin exemption states a reason and references a tracking issue', () => {
+    const unjustified = Object.entries(MEMBER_PIN_EXEMPTIONS)
+      .filter(([, reason]) => !/#\d+/.test(reason))
+      .map(([key]) => key);
+    expect(unjustified).toEqual([]);
+  });
+
+  it('carries no stale member-pin exemption — a pinned key must lose its entry', () => {
+    // The half that keeps the transition from becoming a permanent allowlist.
+    // objectui#8071 converts these to pins one at a time, and this is what
+    // demands the entry be deleted in the same change rather than left behind
+    // as cover for a key that no longer needs any.
+    expect(Object.keys(MEMBER_PIN_EXEMPTIONS).filter((id) => id in MEMBER_PINS)).toEqual([]);
+  });
+
+  it('the member-pin exemption list only ratchets DOWN', () => {
+    // The other half. A new array-typed key must be answered with a pin, not
+    // with a 63rd entry carrying the same reason as its neighbours — that move
+    // is what made the discipline voluntary in the first place, one layer in.
+    expect(Object.keys(MEMBER_PIN_EXEMPTIONS).length).toBeLessThanOrEqual(
+      MEMBER_PIN_EXEMPTION_CEILING,
+    );
+  });
+
+  it('the ceiling correction admits exactly the four keys objectui#8176 made visible', () => {
+    // The audit of the one number in this file that went up. The ceiling moved
+    // 58 -> 62 because the population it was measured over was wrong, not
+    // because four keys needed room — and the difference between those two
+    // sentences is only checkable if the four are named.
+    //
+    // Both directions are asserted. Every named key must really be exempt (so
+    // the list cannot claim credit for headroom it does not use), and every
+    // exemption on a newly judged block must be one of the four (so a fifth
+    // cannot ride in on the same correction).
+    for (const id of NEWLY_JUDGED_UNPINNED_MEMBERS) {
+      expect(
+        Object.keys(MEMBER_PIN_EXEMPTIONS),
+        `${id} is named as part of the objectui#8176 ceiling correction but is ` +
+          'not exempt — delete it from the list and lower the ceiling',
+      ).toContain(id);
+      expect(
+        MEMBER_PIN_EXEMPTIONS[id],
+        `${id} carries the generic reason; it was not in objectui#8068's census`,
+      ).toBe(AWAITING_A_PIN_NEWLY_JUDGED);
+    }
+    const onNewlyJudgedBlocks = Object.keys(MEMBER_PIN_EXEMPTIONS).filter((id) =>
+      LAZY_REGISTERED_BLOCKS.includes(splitExemptionKey(id)[0]),
+    );
+    expect(
+      onNewlyJudgedBlocks.sort(),
+      'a member-pin exemption was added on a block objectui#8176 newly judged ' +
+        'that is not part of the measured correction — it needs a pin, not room',
+    ).toEqual([...NEWLY_JUDGED_UNPINNED_MEMBERS].sort());
   });
 });

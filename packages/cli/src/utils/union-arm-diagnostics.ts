@@ -31,8 +31,8 @@
  *
  * ## Measured facts this rests on (Zod 4.4.3, measured on this tree)
  *
- * 1. `errors` is positionally aligned with the union's options: 14 entries for
- *    `AnyComponentSchema`'s 14 members, `errors[i]` being option `i`'s issues.
+ * 1. `errors` is positionally aligned with the union's options: one entry per
+ *    member of `AnyComponentSchema`, `errors[i]` being option `i`'s issues.
  *    Selection here never relies on that alignment — see (2) — but it is why
  *    the arm lists can be read as arms at all.
  * 2. **An arm names the literals it accepts, in its own issues.** Two shapes do
@@ -48,9 +48,12 @@
  *    union at `['items', 0]` reports its arm issues at `['type']`, not at
  *    `['items', 0, 'type']`. Printing them raw would name the wrong node, so
  *    every path here is rebased onto its parent's prefix.
- * 4. `AnyComponentSchema` resolves to 108 leaf arms and 108 DISTINCT `type`
- *    literals — no literal is claimed by two arms — so "exactly one arm accepts
- *    that literal" is total and unambiguous at the document root.
+ * 4. Every leaf arm of `AnyComponentSchema` carries a DISTINCT `type` literal —
+ *    no literal is claimed by two arms — so "exactly one arm accepts that
+ *    literal" is total and unambiguous at the document root. Stated as a
+ *    property and not as a count on purpose: the number of arms moves every
+ *    time a component lands, the distinctness does not, and it is the
+ *    distinctness the selection rests on.
  *
  * ## The third branch, and why it is not option A
  *
@@ -68,7 +71,7 @@
  * dropped. So a union with NO declaring arm falls back to the ruling's own
  * named fallback, "A with a cap": every arm reported, capped by
  * {@link MAX_UNION_ARMS_REPORTED}. This is not option A at the root, which the
- * ruling rejected on the 108-arm noise argument — the root is always
+ * ruling rejected on the arm-count noise argument — the root is always
  * discriminated (fact 4), and undiscriminated unions in this mirror are small
  * (`MenuItemSchema` has two arms).
  */
@@ -117,7 +120,7 @@ export interface UnionArmNote {
    * Nearest arm names, already ranked and capped.
    *
    * EMPTY when the document declares no `type` at all. "Nearest" needs
-   * something to be near, and an alphabetical slice of 108 arm names presented
+   * something to be near, and an alphabetical slice of the arm names presented
    * under a `type` the author never wrote is a bogus suggestion — the failure
    * `known-type-case-suggestion.ts` refuses by returning `undefined` rather
    * than guessing. The note still fires; it just names the missing `type` key
@@ -125,11 +128,11 @@ export interface UnionArmNote {
    */
   candidates: string[];
   /**
-   * How many `type` values the union accepts in total (108 at the document
-   * root). Printed with the candidates so the list reads as "the nearest few of
-   * a closed set" rather than as a confident "did you mean" — which matters
-   * because a foreign `type` has no near miss at all: measured, `module`'s
-   * nearest arm is `toggle` at distance 3.
+   * How many `type` values the union accepts in total. Printed with the
+   * candidates so the list reads as "the nearest few of a closed set" rather
+   * than as a confident "did you mean" — which matters because a foreign
+   * `type` has no near miss at all: measured, `module`'s nearest arm is
+   * `toggle` at distance 3.
    */
   totalArmNames: number;
 }
@@ -142,20 +145,22 @@ export type UnionArmLine = UnionArmIssue | UnionArmNote;
  * and pinned").
  *
  * Five, from a measurement rather than taste. The candidate set is the union's
- * arm names — 108 of them at the document root — so the cap is the whole
- * distance between a hint and the option A the ruling rejected.
+ * arm names, and the document root carries far more of them than five, so the
+ * cap is the whole distance between a hint and the option A the ruling
+ * rejected.
  *
- * Ranking those 108 by edit distance against four authored typos gave the same
- * shape every time: the intended arm is rank 1 and ALONE in its distance band
- * (`dropdwn-menu` -> `dropdown-menu` at 1, one name at that distance;
+ * Ranking those arm names by edit distance against four authored typos gave the
+ * same shape every time: the intended arm is rank 1 and ALONE in its distance
+ * band (`dropdwn-menu` -> `dropdown-menu` at 1, one name at that distance;
  * `dropdwon-menu` -> `dropdown-menu` at 2, one name; `Page` -> `page` at 1, one
  * name; `obect-grid` -> `object-grid` at 1, one name), and the next band opens
  * 1-6 edits further out holding 1-5 names. So a cap of 5 shows the winner plus
- * the following band entire, and stops well short of the 108. A cap of 1 would
- * print the winner with nothing around it and read as a confident answer rather
- * than as a ranked list — the same over-claim `known-type-case-suggestion.ts`
- * refuses on the sibling surface. Five is also the conventional shell and
- * compiler suggestion size and holds one terminal line at these name lengths.
+ * the following band entire, and stops well short of the arm count. A cap of 1
+ * would print the winner with nothing around it and read as a confident answer
+ * rather than as a ranked list — the same over-claim
+ * `known-type-case-suggestion.ts` refuses on the sibling surface. Five is also
+ * the conventional shell and compiler suggestion size and holds one terminal
+ * line at these name lengths.
  *
  * The same number caps the arms reported when a union has no discriminator to
  * select on (see this module's header). Both lists answer the same question —

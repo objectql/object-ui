@@ -97,26 +97,46 @@ const MARK = 'ratchet-child';
 const CENSUS_TIMEOUT = 120_000;
 
 /**
- * The cwd is the repo root by construction: `scripts/
- * vitest-invocation-guard.mjs` refuses any invocation whose vitest root is not
- * the repo root (AGENTS.md §怎么跑测试), and this is the same idiom the i18n
- * ratchet pins use to read their own baseline.
+ * The repo root, derived from THIS FILE's own location — never from the cwd
+ * (objectui#7799).
  *
- * NOT `import.meta.url`: under vite that is an `http://` module URL, not a
- * `file://` one, so `fileURLToPath` throws at import time.
+ * TWO premises stood here and BOTH were false.
+ *
+ * 1. "The cwd is the repo root by construction: `scripts/
+ *    vitest-invocation-guard.mjs` refuses any invocation whose vitest root is
+ *    not the repo root." The guard is real, but it is a DIFFERENT invariant:
+ *    `--root` moves VITEST's root and moves nothing about `process.cwd()`. This
+ *    package's own `test` script — `vitest run --root ../.. packages/components/`,
+ *    which is what `pnpm --filter @object-ui/components test` and
+ *    `turbo run test` both run — sets that root correctly and leaves cwd at
+ *    `packages/components/`. Measured with cwd as the only variable: 13 passed
+ *    from the repo root, 6 failed / 7 passed from the package directory.
+ * 2. "NOT `import.meta.url`: under vite that is an `http://` module URL, not a
+ *    `file://` one." Measured on objectui#7799 in this very project (`dom`) and
+ *    under both cwds, bare `import.meta.url` is
+ *    `file:///…/packages/components/src/renderers/__tests__/<this file>`. What
+ *    Vite rewrites is the TWO-ARGUMENT form `new URL(rel, import.meta.url)`,
+ *    which does evaluate to a `http://localhost:3000/@fs/…` dev-server URL — so
+ *    only the bare form is read below, and it is taken apart by hand rather than
+ *    passed to `fileURLToPath`. That is the spelling landed for objectui#7791
+ *    (PR #7796), copied here rather than invented again.
+ *
+ * The `globalThis` indirection went with the cwd read: this package's
+ * `src/global.d.ts` declares a BROWSER `process` shim that its type-check
+ * resolves ahead of the node global, so neither the bare `process` global nor
+ * `import process from 'node:process'` compiles with `.cwd()`. Deriving the root
+ * from `import.meta.url` reads no `process` at all, so the dance is simply gone.
+ * That shim's own compile pin is not weakened by this: it lives in
+ * `packages/components/src/__tests__/browser-process-shim-scope.test.ts`, which
+ * still makes the `process.cwd()` call deliberately, for exactly that purpose.
  */
-const BASELINE_PATH = join(
-  // Reached through `globalThis` with a local type, not as the bare `process`
-  // global and not via `node:process` either. This package's `src/global.d.ts`
-  // declares a BROWSER shim — `declare const process: { env: { NODE_ENV } }` —
-  // which its type-check resolves ahead of the node global; and because
-  // `@types/node` spells its module as `export = process`, that shim is what
-  // `import process from 'node:process'` resolves to as well. Both spellings
-  // therefore fail to compile with "Property 'cwd' does not exist". Runtime is
-  // plain node in every case; only the declaration is wrong.
-  (globalThis as unknown as { process: { cwd(): string } }).process.cwd(),
-  'scripts/container-declaration-baseline.json',
-);
+const SELF_DEPTH_BELOW_REPO_ROOT = 6; // packages / components / src / renderers / __tests__ / this file
+const REPO_ROOT = decodeURIComponent(new URL(import.meta.url).pathname)
+  .split('/')
+  .slice(0, -SELF_DEPTH_BELOW_REPO_ROOT)
+  .join('/');
+
+const BASELINE_PATH = join(REPO_ROOT, 'scripts/container-declaration-baseline.json');
 
 interface Baseline {
   note: string[];

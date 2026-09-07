@@ -27,18 +27,12 @@ import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
  */
 export const ActionExecutionModeSchema = z.enum(['sequential', 'parallel']).describe('Action execution mode for chaining');
 
-/**
- * Action Callback Schema
- */
-export const ActionCallbackSchema = z.object({
-  type: z.enum(['toast', 'message', 'redirect', 'reload', 'custom', 'ajax', 'dialog']).describe('Callback type'),
-  message: z.string().optional().describe('Message to display'),
-  url: z.string().optional().describe('Redirect URL'),
-  api: z.string().optional().describe('API endpoint for ajax callback'),
-  method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().describe('HTTP method for ajax callback'),
-  dialog: SchemaNodeSchema.optional().describe('Dialog schema to open'),
-  handler: z.string().optional().describe('Custom callback handler expression'),
-});
+// `ActionCallbackSchema` — the mirror of the Phase-2 `ActionCallback` object the legacy
+// `ActionSchema.onSuccess` / `onFailure` keys carried — was DELETED by objectui#7068
+// (the objectui#7664 route for a standalone retired pair: const, TS declaration and
+// barrel exports gone, parity-ledger rows removed, absence pinned in
+// `../__tests__/action-callback-retired-7068.test.ts`). The two keys below stay
+// declared as named refusals — see their comment.
 
 /**
  * The wire shape of an action's execution gate: a boolean, a bare CEL string
@@ -95,8 +89,32 @@ export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
   }).optional().describe('Dialog configuration (for dialog actions)'),
   successMessage: z.string().optional().describe('Success message after execution'),
   errorMessage: z.string().optional().describe('Error message on failure'),
-  onSuccess: ActionCallbackSchema.optional().describe('Success callback'),
-  onFailure: ActionCallbackSchema.optional().describe('Failure callback'),
+  // ADR-0049 RETIREMENT TOMBSTONES (objectui#7068, maintainer ruling option 1 of
+  // 2026-09-05). Both keys carried a Phase-2 `ActionCallback` object that no renderer
+  // or runner ever read and that the spec refuses at publish (`onSuccess`: wrong
+  // block shape; `onFailure`: no such key). A plain deletion here would NOT refuse
+  // them: `BaseSchema` is `.passthrough()`, so an authored callback would be KEPT
+  // unvalidated and silently inert. The tombstones refuse BY NAME — one string, both
+  // channels (parse-time message and `.describe()`), see `./tombstone.zod.ts`; the
+  // TS twins are `?: never` (`../crud.ts`). Pinned in
+  // `../__tests__/action-callback-retired-7068.test.ts`.
+  onSuccess: retirementTombstone(
+    'RETIRED (objectui#7068) — `onSuccess` is no longer part of this legacy ActionSchema; nothing reads '
+    + 'it. It carried a Phase-2 `ActionCallback` object (`{ type: \'toast\' | \'message\' | \'redirect\' | '
+    + '\'reload\' | \'custom\' | \'ajax\' | \'dialog\', message?, url?, api?, method?, dialog?, handler? }`) that '
+    + 'no renderer or runner ever consumed — the THIRD meaning of this key — and that `@objectstack/spec`\'s '
+    + 'ActionSchema refuses at publish (`invalid_type` at `onSuccess.navigate` plus `unrecognized_keys`). '
+    + 'Post-success navigation is the spec\'s `onSuccess` block, `{ navigate, openIn }`, declared on '
+    + 'UIActionSchema (objectui#5934); a success notice is `successMessage`. Retired under ADR-0049 '
+    + 'enforce-or-remove with no deprecation window (maintainer ruling option 1, 2026-09-05).',
+  ),
+  onFailure: retirementTombstone(
+    'RETIRED (objectui#7068) — `onFailure` is no longer part of this legacy ActionSchema; nothing reads '
+    + 'it. It carried the same Phase-2 `ActionCallback` object `onSuccess` carried, and '
+    + '`@objectstack/spec`\'s ActionSchema declares no `onFailure` at all (an authored one is refused at '
+    + 'publish as an unrecognized key). A failure notice is `errorMessage`. Retired under ADR-0049 '
+    + 'enforce-or-remove with no deprecation window (maintainer ruling option 1, 2026-09-05).',
+  ),
   chain: z.array(ActionSchema).optional().describe('Action chaining - actions to execute after this one'),
   chainMode: ActionExecutionModeSchema.optional().default('sequential').describe('Chain execution mode'),
   condition: ActionConditionPredicateSchema.optional().describe('Execution gate — the action runs only while this predicate holds'),
@@ -184,7 +202,6 @@ export const CRUDComponentSchema = z.union([
  * Export type inference helpers
  */
 export type ActionExecutionModeSchemaType = z.infer<typeof ActionExecutionModeSchema>;
-export type ActionCallbackSchemaType = z.infer<typeof ActionCallbackSchema>;
 export type ActionSchemaType = z.infer<typeof ActionSchema>;
 export type DetailSchemaType = z.infer<typeof DetailSchema>;
 export type CRUDDialogSchemaType = z.infer<typeof CRUDDialogSchema>;

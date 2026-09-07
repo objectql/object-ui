@@ -14,7 +14,8 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
   }),
@@ -26,12 +27,16 @@ vi.mock('react-router-dom', () => ({
 }));
 
 let authState: Record<string, unknown>;
-vi.mock('@object-ui/auth', () => ({ useAuth: () => authState }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => authState,
+}));
 
 vi.mock('../../console/organizations/resolveHomeUrl', () => ({ resolveRootUrl: () => '/root' }));
 
 // Passthrough dropdown primitives so label/hint render without interaction.
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   DropdownMenu: (p: any) => <div>{p.children}</div>,
   DropdownMenuTrigger: (p: any) => <button {...p} />,
   DropdownMenuContent: (p: any) => <div>{p.children}</div>,
@@ -39,7 +44,8 @@ vi.mock('@object-ui/components', () => ({
   DropdownMenuLabel: (p: any) => <div {...p} />,
   DropdownMenuSeparator: () => <hr />,
 }));
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ChevronsUpDown: () => <span />,
   Check: () => <span />,
   Plus: () => <span />,

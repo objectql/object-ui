@@ -11,7 +11,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ChatDockPanel, ChatDockMobileSheet, type ChatDockState } from '../ChatDock';
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
   }),
@@ -24,7 +25,8 @@ vi.mock('../../console/ai/AiChatPage', () => ({
   ChatPane: () => null,
   resolveApiBase: (explicit?: string) => explicit ?? '/api/v1/ai',
 }));
-vi.mock('@object-ui/plugin-chatbot', () => ({
+vi.mock('@object-ui/plugin-chatbot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-chatbot')>()),
   useAgents: () => ({ agents: [], isLoading: false, error: undefined }),
 }));
 vi.mock('../../hooks', () => ({

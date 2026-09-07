@@ -17,7 +17,12 @@ interface CheckboxSchema {
   name?: string;
   label?: string;
   defaultChecked?: boolean;
+  checked?: boolean;
   required?: boolean;
   disabled?: boolean | string | { dialect?: string; source: string };   // boolean, predicate expression, or CEL envelope
+  description?: string;
+  error?: string;
+  className?: string;
+  wrapperClass?: string;
 }
 ```

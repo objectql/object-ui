@@ -19,6 +19,7 @@ const ko = {
       manage_users: "사용자 관리",
       manage_org_users: "조직 사용자 관리",
       manage_metadata: "메타데이터 관리",
+      manage_org_presentation: "조직 표시 관리",
       manage_platform_settings: "플랫폼 설정 관리",
       setup_access: "설정 접근",
       setup_write: "설정 쓰기",
@@ -277,6 +278,12 @@ const ko = {
       refusedFormat:
         "저장되지 않았습니다: 위도, 경도 쌍으로 입력하세요(예: 30.2741, 120.1551).",
       refusedRange: "저장되지 않았습니다: {{detail}}",
+      latitude: "위도",
+      longitude: "경도",
+      refusedResidueOne:
+        "저장되지 않았습니다: {{name}} “{{text}}”은(는) 숫자가 아닙니다. 일반 소수로 입력하세요(예: 30.2741, 120.1551).",
+      refusedResidue:
+        "저장되지 않았습니다: {{name}} “{{text}}”과(와) {{otherName}} “{{otherText}}”은(는) 숫자가 아닙니다. 일반 소수로 입력하세요(예: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "입력 후 Enter 키로 추가…",
@@ -1096,6 +1103,9 @@ const ko = {
     loading: "차트 로딩 중…",
     nullCategory: "(미지정)",
     scatterOneMeasure: "산점도는 측정값 하나만 그립니다. 계열을 하나만 남기세요:",
+    unconfigured: {
+      noCategoryAxis: "차트 범주 축이 필요합니다 — 객체 바인딩 차트는 축을 임의로 만들지 않습니다. 다음 중 하나를 선언하세요:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1447,6 +1457,9 @@ const ko = {
   console: {
     saveAdvisoryTitle: "저장되었습니다 — 작성 검사에서 {{count}}건의 권장 사항이 발견되었습니다",
     publishAdvisoryTitle: "게시되었습니다 — 작성 검사에서 {{count}}건의 권장 사항이 발견되었습니다",
+    importMappingsUnavailable: "{{object}}의 저장된 가져오기 매핑을 불러오지 못했습니다",
+    importMappingsRefused: "서버가 이 요청을 거부했습니다. 따라서 이 목록이 비어 있는 것은 읽지 못했기 때문이며, 등록된 항목이 없어서가 아닙니다. 다시 로그인하거나 관리자에게 접근 권한을 요청하세요.",
+    importMappingsUnreadable: "이 목록이 비어 있는 것은 읽지 못했기 때문이며, 등록된 항목이 없어서가 아닙니다. 다시 시도하고, 계속 발생하면 문제를 보고하세요.",
     settingsHub: {
       title: "설정",
       subtitle: "워크스페이스, 연동, 기능 플래그를 구성합니다.",
@@ -1636,11 +1649,21 @@ const ko = {
           availableObjects: "사용 가능한 데이터 객체를 나열해 주세요.",
           recentActivity: "내 최근 활동을 요약해 주세요.",
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: "객체 중 하나에 필드를 추가해 주세요.",
           addObject: "새 객체를 추가하고 기존 객체와 연결해 주세요.",
           addDashboard: "핵심 지표를 위한 대시보드를 추가해 주세요.",
-          addAutomation: "자동화를 추가해 주세요 — 승인, 상태 흐름 또는 알림.",
+          addSampleData: "기존 객체에 데모에서 보여 줄 만한 현실적인 샘플 데이터를 채워 주세요.",
         },
       },
       changesTitle: "변경 확인",

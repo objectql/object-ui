@@ -1,6 +1,6 @@
 ---
 title: "Enhanced Actions"
-description: "Advanced action system with AJAX calls, chaining, conditions, and callbacks"
+description: "Advanced action system with AJAX calls, chaining, conditions, and tracking"
 ---
 
 import { SchemaExample } from '@/app/components/ComponentDemo';
@@ -15,7 +15,7 @@ The enhanced `ActionSchema` provides:
 - **New action types**: `ajax`, `confirm`, `dialog`
 - **Action chaining**: Execute multiple actions sequentially or in parallel
 - **Conditional execution**: a `condition` predicate gates whether an action runs
-- **Callbacks**: Success and failure handlers
+- **Notices**: `successMessage` / `errorMessage` strings
 - **Tracking**: Event logging and analytics
 - **Retry logic**: Automatic retry with configurable backoff
 
@@ -54,14 +54,8 @@ const ajaxAction: ActionSchema = {
   data: {
     filter: 'active'
   },
-  onSuccess: {
-    type: 'toast',
-    message: 'Data loaded successfully'
-  },
-  onFailure: {
-    type: 'message',
-    message: 'Failed to load data'
-  }
+  successMessage: 'Data loaded successfully',
+  errorMessage: 'Failed to load data'
 };
 ```
 
@@ -302,47 +296,25 @@ for an either/or.
 > diagnostic at runtime. The shape is now refused by `ActionSchema`'s zod schema
 > instead of being accepted and ignored.
 
-## Callbacks
+## Post-success behaviour
 
-Handle success and failure scenarios:
+This legacy `ActionSchema` has no callback slot. The Phase-2 pair it used to
+declare — `onSuccess` / `onFailure` carrying an `ActionCallback` object
+(`{ type: 'toast' | 'message' | 'redirect' | 'reload' | 'custom' | 'ajax' | 'dialog', message, url, api, … }`)
+— was RETIRED (objectui#7068): nothing ever read it (the runner never consumed
+the shape), and `@objectstack/spec`'s `ActionSchema` refuses it at publish. Both
+keys are `never` on the TypeScript face and named refusals on the Zod mirror, so an
+authored callback fails at the authoring site with the migration in the message.
 
-```ts
-import type { ActionSchema } from '@object-ui/types';
+What to write instead:
 
-const actionWithCallbacks: ActionSchema = {
-  type: 'action',
-  label: 'Submit',
-  actionType: 'ajax',
-  api: '/api/submit',
-  method: 'POST',
-  
-  onSuccess: {
-    type: 'toast',
-    message: 'Submitted successfully!'
-  },
-  
-  onFailure: {
-    type: 'dialog',
-    dialog: {
-      type: 'dialog',
-      title: 'Submission Failed',
-      content: {
-        type: 'text',
-        value: 'Please try again or contact support.'
-      }
-    }
-  }
-};
-```
-
-**Callback Types:**
-- `toast` - Show toast notification
-- `message` - Show message dialog
-- `redirect` - Navigate to URL
-- `reload` - Reload data
-- `ajax` - Execute another API call
-- `dialog` - Open dialog
-- `custom` - Custom handler
+- **A notice** — `successMessage` / `errorMessage`, plain strings (the runner
+  surfaces `successMessage` as a toast after a successful action).
+- **Post-success navigation** — the spec's `onSuccess` block, `{ navigate, openIn }`,
+  declared on `UIActionSchema` and forwarded to the runner (objectui#5934). It is
+  a spec key, not a member of this legacy type, so it is not shown in a fence here.
+- **Follow-up work** — `chain` (see [Action Chaining](#action-chaining)): declared
+  actions, not callbacks.
 
 ## Action Tracking
 
@@ -446,22 +418,9 @@ const complexAction: ActionSchema = {
   ],
   chainMode: 'sequential',
   
-  // Callbacks
-  onSuccess: {
-    type: 'toast',
-    message: 'Order processed successfully!'
-  },
-  onFailure: {
-    type: 'dialog',
-    dialog: {
-      type: 'dialog',
-      title: 'Order Processing Failed',
-      content: {
-        type: 'text',
-        value: 'Unable to process order. Please try again.'
-      }
-    }
-  },
+  // Notices
+  successMessage: 'Order processed successfully!',
+  errorMessage: 'Unable to process order. Please try again.',
   
   // Tracking
   tracking: {
@@ -514,7 +473,7 @@ Enhanced Actions are ideal for:
 
 - **API integration** - Connect to backend services and external APIs
 - **Multi-step processes** - Execute complex workflows with multiple stages
-- **Form submissions** - Handle form data with validation and callbacks
+- **Form submissions** - Handle form data with validation and chained follow-up actions
 - **Confirmation dialogs** - Add safety checks for critical operations
 - **Event tracking** - Monitor user interactions for analytics
 - **Batch operations** - Process multiple items in sequence or parallel
@@ -522,7 +481,7 @@ Enhanced Actions are ideal for:
 ## Best Practices
 
 1. **Use confirm for destructive actions** - Always confirm delete, archive, etc.
-2. **Provide clear feedback** - Use callbacks to inform users of success/failure
+2. **Provide clear feedback** - Set `successMessage` / `errorMessage` so users learn what happened
 3. **Chain related operations** - Group logically related API calls
 4. **Track important events** - Enable tracking for business-critical actions
 5. **Set appropriate timeouts** - Don't let users wait indefinitely

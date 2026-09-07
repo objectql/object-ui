@@ -15,13 +15,37 @@ name: Doc Fence Languages
 # gate, one home.
 #
 # It needs no install and no build. The script reads the checkout with `node:fs`
-# only — the same 222 documents `check-doc-snippet-types` covers — and it
+# only — exactly the documents `check-doc-snippet-types` covers — and it
 # deliberately re-implements that gate's document walk rather than importing it,
 # because that gate imports `typescript` and an install-gated docs check is one
 # a docs-only pull request skips. The copy is held to the original by the pin
 # test above, which imports BOTH walks and compares them. Keep this job
 # install-free: the moment it needs `pnpm install` it stops being cheap enough
 # to run unfiltered, and the filter is the hole.
+#
+# ⛔ Deliberately NO document count is written here, and none may be added
+# (objectui#7448). The sentence above used to state one as a literal, and it was
+# already wrong by the time anyone read it back — nothing fails on a stale number
+# in a comment, which is precisely why it rots. Refreshing the literal only
+# restarts that clock; a pointer has no clock to restart. This is the fix
+# `check-doc-snippet-types.mjs`'s `UNGATED_DOCS` header records being applied to
+# itself once both halves of its own copied count had drifted ("a pointer to the
+# list now rather than a copy of its length"), and it is why the pin test
+# deliberately does not assert the size of the baseline either. Two durable
+# readings, neither of them a copy:
+#
+#   * HOW MANY — the run below prints it, in the gate's own verdict line: "every
+#     TypeScript block in N document(s) is fenced ts/tsx/typescript". `pnpm
+#     check:doc-fences` reprints it on demand.
+#   * WHICH — `listDocuments` in `scripts/check-doc-fence-languages.mjs`, which
+#     derives the population from the tree on every run.
+#
+# What IS pinned is the claim that survives a document being added or deleted:
+# that the two populations are the same SET. The pin test compares the walks
+# themselves rather than a copy of their length — the only number it holds is a
+# non-vacuity FLOOR, which no addition or deletion can falsify — and it also
+# fails if a population count reappears in this header, so the paragraph above
+# is a gate rather than an intention.
 
 on:
   pull_request:

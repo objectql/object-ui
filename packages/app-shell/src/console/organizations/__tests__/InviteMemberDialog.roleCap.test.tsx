@@ -21,7 +21,8 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
   }),
@@ -41,7 +42,8 @@ vi.mock('@object-ui/auth', async (importActual) => ({
   }),
 }));
 
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Dialog: ({ open, children }: any) => (open ? <div>{children}</div> : null),
   DialogContent: (p: any) => <div {...p} />,
   DialogDescription: (p: any) => <p {...p} />,
@@ -66,7 +68,8 @@ vi.mock('@object-ui/components', () => ({
   SelectTrigger: (p: any) => <>{p.children}</>,
   SelectValue: () => null,
 }));
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Loader2: () => <span />,
   Copy: () => <span />,
   Check: () => <span />,

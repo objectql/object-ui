@@ -172,38 +172,34 @@ describe('turbo `build` inputs cover every out-of-package file (objectui#4185)',
   /**
    * A `pnpm --filter <pkg> build` segment inside a `prebuild` is a task-GRAPH
    * fact, not an inputs fact: the right answer to "this build needs that
-   * package's dist" is `dependsOn: ["^build"]`, which turbo already declares —
-   * but `^build` only orders DECLARED dependencies. Two packages delegate this
-   * way (`apps/site` to `@object-ui/example-schema-catalog`, `packages/components`
-   * to types/core/react), and the derivation deliberately does not walk into
-   * them. That narrowing is sound only while each delegated package is a real
-   * dependency, so assert it rather than assume it.
+   * package's dist" is `dependsOn: ["^build"]`, which turbo already declares
+   * and derives from the dependency graph. A hand-written chain is a SECOND,
+   * unchecked copy of the package's own `dependencies` — and it drifts:
+   * objectui#7292 measured `packages/components`' three-package `prebuild`
+   * against the seven-package closure turbo computes, and a clean worktree's
+   * `pnpm --filter @object-ui/components build` died inside `@object-ui/react`
+   * on the two packages the list had never gained.
+   *
+   * The predecessor of this assertion policed the survivors (each delegated
+   * package must be a declared dependency). That is the weaker guard: a
+   * delegation whose target IS declared still duplicates the graph, still
+   * drifts, and still fails only on the trees nobody looks at. So this ratchets
+   * the class to zero instead. The derivation still COLLECTS delegations —
+   * that is what makes re-introducing one fail here rather than silently widen
+   * an unswept build program.
    */
-  it('every delegated build target is a declared dependency', () => {
+  it('no build lifecycle script delegates to another package with `pnpm --filter`', () => {
     const delegating = DERIVED.filter((pkg) => pkg.program.delegations.length > 0);
     expect(
-      delegating.map((pkg) => pkg.name),
-      'no package delegates a build any more — drop this assertion with the narrowing it ' +
-        'defends, in helpers/build-program.ts',
-    ).not.toHaveLength(0);
-
-    for (const pkg of delegating) {
-      const manifest = JSON.parse(
-        fs.readFileSync(path.join(pkg.dir, 'package.json'), 'utf8'),
-      ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
-      const declared = new Set([
-        ...Object.keys(manifest.dependencies ?? {}),
-        ...Object.keys(manifest.devDependencies ?? {}),
-      ]);
-      const undeclared = pkg.program.delegations.filter((name) => !declared.has(name));
-      expect(
-        undeclared,
-        `${pkg.name} builds ${undeclared.join(', ')} through a \`pnpm --filter\` lifecycle ` +
-          `script without declaring ${undeclared.length === 1 ? 'it' : 'them'} as a dependency, ` +
-          `so turbo's \`dependsOn: ["^build"]\` does not order the two. Declare the dependency, ` +
-          `or teach build-program.ts to walk into the delegated package's program.`,
-      ).toEqual([]);
-    }
+      delegating.map((pkg) => `${pkg.name} -> ${pkg.program.delegations.join(', ')}`),
+      'a build lifecycle script builds another workspace package through `pnpm --filter`. ' +
+        "That hand-writes a copy of this package's build closure next to the `dependencies` " +
+        'turbo already derives it from, and the two drift silently — the copy is only ever ' +
+        'exercised on a tree where the missing packages happen to be built already. Declare ' +
+        "the dependency in package.json and let turbo's `dependsOn: [\"^build\"]` order it; " +
+        'build the package with `turbo run build --filter=<pkg>`, not `pnpm --filter <pkg> ' +
+        'build`.',
+    ).toEqual([]);
   });
 
   /**

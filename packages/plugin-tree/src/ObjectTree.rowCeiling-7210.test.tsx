@@ -44,7 +44,18 @@ import { describe, it, expect, vi } from 'vitest';
 import { NON_GRID_ROW_CEILING, NON_GRID_ROW_CEILING_TOP } from '@object-ui/react';
 import { ObjectTree } from './ObjectTree';
 
-vi.mock('@object-ui/plugin-detail', () => ({
+// objectui#6892 slice 9 — inherit the real surface, but through `<any>` rather
+// than the `typeof import('@object-ui/plugin-detail')` its twelve siblings use.
+// ⚠️ Not a style drift, and ⛔ do not "fix" it to match them: `plugin-tree` does
+// NOT declare `@object-ui/plugin-detail`, and it has no reason to — measured,
+// `ObjectTree`'s module graph reaches ZERO plugin-detail modules, where
+// `ObjectGantt`'s and `ObjectCalendar`'s each reach 50. So this factory mocks a
+// module nothing under test ever loads. A type-position `import()` of it is a
+// real specifier to `check-phantom-dependencies`, which then (correctly) demands
+// the package declare a dependency its runtime does not have. `<any>` inherits
+// the surface without asserting an edge that isn't there.
+vi.mock('@object-ui/plugin-detail', async (importOriginal) => ({
+  ...((await importOriginal<any>()) as Record<string, unknown>),
   RecordDetailDrawer: () => null,
   deriveRecordPageHref: () => null,
 }));

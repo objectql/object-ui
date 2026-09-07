@@ -19,6 +19,7 @@ const fr = {
       manage_users: "Gérer les utilisateurs",
       manage_org_users: "Gérer les utilisateurs de l'organisation",
       manage_metadata: "Gérer les métadonnées",
+      manage_org_presentation: "Gérer la présentation de l'organisation",
       manage_platform_settings: "Gérer les paramètres de la plateforme",
       setup_access: "Accès à la configuration",
       setup_write: "Écriture des paramètres",
@@ -277,6 +278,12 @@ const fr = {
       refusedFormat:
         "Non enregistré : saisissez une paire latitude, longitude (exemple : 30.2741, 120.1551).",
       refusedRange: "Non enregistré : {{detail}}",
+      latitude: "latitude",
+      longitude: "longitude",
+      refusedResidueOne:
+        "Non enregistré : {{name}} « {{text}} » n'est pas un nombre. Saisissez des décimales simples (exemple : 30.2741, 120.1551).",
+      refusedResidue:
+        "Non enregistré : {{name}} « {{text}} » et {{otherName}} « {{otherText}} » ne sont pas des nombres. Saisissez des décimales simples (exemple : 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Saisissez puis appuyez sur Entrée pour ajouter…",
@@ -1098,6 +1105,9 @@ const fr = {
     loading: "Chargement du graphique…",
     nullCategory: "(Non défini)",
     scatterOneMeasure: "Un nuage de points trace une seule mesure. Ne conservez qu’une série :",
+    unconfigured: {
+      noCategoryAxis: "Axe de catégories requis — un graphique lié à un objet n’en invente pas. Déclarez l’un des suivants :",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1449,6 +1459,9 @@ const fr = {
   console: {
     saveAdvisoryTitle: "Enregistré — le contrôle de création a signalé {{count}} recommandation(s)",
     publishAdvisoryTitle: "Publié — le contrôle de création a signalé {{count}} recommandation(s)",
+    importMappingsUnavailable: "Impossible de charger les mappages d’import enregistrés pour {{object}}",
+    importMappingsRefused: "Le serveur a refusé cette requête : cette liste est donc vide parce qu’elle n’a pas pu être lue, et non parce que rien n’est enregistré. Reconnectez-vous ou demandez un accès à un administrateur.",
+    importMappingsUnreadable: "Cette liste est vide parce qu’elle n’a pas pu être lue, et non parce que rien n’est enregistré. Réessayez, et signalez le problème s’il persiste.",
     settingsHub: {
       title: "Paramètres",
       subtitle: "Configurez votre espace de travail, vos intégrations et vos indicateurs de fonctionnalité.",
@@ -1638,11 +1651,21 @@ const fr = {
           availableObjects: "Liste les objets de données disponibles.",
           recentActivity: "Résume mon activité récente.",
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: "Ajoute un champ à l'un des objets.",
           addObject: "Ajoute un nouvel objet et relie-le à un objet existant.",
           addDashboard: "Ajoute un tableau de bord pour les indicateurs clés.",
-          addAutomation: "Ajoute une automatisation — une approbation, un flux de statuts ou une notification.",
+          addSampleData: "Remplis les objets existants avec des données d'exemple réalistes pour que je puisse présenter l'application.",
         },
       },
       changesTitle: "Confirmer les modifications",

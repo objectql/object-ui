@@ -61,7 +61,8 @@ import { MemoryRouter, Routes, Route, useLocation, useParams } from 'react-route
 vi.mock('@object-ui/app-shell', () => ({
   useAdapter: () => ({ find: async () => ({ data: [] }) }),
 }));
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
 }));
 

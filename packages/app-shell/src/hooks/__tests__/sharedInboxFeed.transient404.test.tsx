@@ -69,7 +69,10 @@ import { act, renderHook } from '@testing-library/react';
 
 /** `null` is the pre-auth session; every case here is one signed-in user. */
 let userFixture: { id: string } | null = { id: 'u1' };
-vi.mock('@object-ui/auth', () => ({ useAuth: () => ({ user: userFixture }) }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => ({ user: userFixture }),
+}));
 
 /** Rows the inbox read answers with once it stops rejecting. */
 const ROWS = [

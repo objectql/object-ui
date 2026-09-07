@@ -44,16 +44,15 @@ ComponentRegistry.register('carousel',
     namespace: 'ui',
     label: 'Carousel',
     inputs: [
-      { name: 'orientation', type: 'enum', enum: ['horizontal', 'vertical'], defaultValue: 'horizontal', label: 'Orientation' },
-      { name: 'showArrows', type: 'boolean', label: 'Show Arrows', defaultValue: true },
+      { name: 'orientation', type: 'enum', enum: ['horizontal', 'vertical'] },
+      { name: 'showArrows', type: 'boolean' },
       { 
         name: 'items', 
         type: 'array', 
-        label: 'Items',
         description: 'Array of content schemas'
       },
-      { name: 'itemClassName', type: 'string', label: 'Item CSS Class' },
-      { name: 'className', type: 'string', label: 'Container CSS Class' }
+      { name: 'itemClassName', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       orientation: 'horizontal',

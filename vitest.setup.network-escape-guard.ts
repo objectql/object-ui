@@ -47,7 +47,8 @@
  *
  * ## The burn-down list
  *
- * `KNOWN_ESCAPES` is the 21 files measured on `67dadd6`. They are not excused:
+ * `KNOWN_ESCAPES` is what REMAINS of the 21 files measured on `67dadd6`
+ * (objectui#7307 is burning them down batch by batch). They are not excused:
  * each still emits, and now prints an ATTRIBUTED line naming itself, so a
  * reader who meets a bare stack in a truncated run can tell whose it is. The
  * list may only SHRINK — enforced mechanically by the reconcile pin in
@@ -108,52 +109,12 @@ function writeStderr(message: string): void {
 const ESCAPE_ORIGIN = /^https?:\/\/(?:127\.0\.0\.1|localhost):3000(?:\/|$)/;
 
 /**
- * Files measured escaping on 67dadd6 (objectui#6640). ONLY SHRINKS.
- * The comment on each line is the endpoint it reached.
+ * What remains of the files measured escaping on 67dadd6 (objectui#6640).
+ * ONLY SHRINKS. The comment on each line is the endpoint it reached.
  */
 export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
-  // /api/v1/security/explain
-  'examples/schema-catalog/test/catalog-gallery-render.test.tsx',
-  // /api/v1/meta/_drafts
-  'packages/app-shell/src/console/home/__tests__/HomePage.approvalsTarget.test.tsx',
-  // /api/v1/meta/_drafts
-  'packages/app-shell/src/console/home/__tests__/HomePage.authoringCapabilityGate.test.tsx',
-  // /api/v1/meta/_drafts
-  'packages/app-shell/src/console/home/__tests__/HomePage.inboxLinksTarget.test.tsx',
-  // /api/v1/meta/_drafts
-  'packages/app-shell/src/console/home/__tests__/HomePage.notificationDeepLink.test.tsx',
-  // /api/v1/meta/object
-  'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.inactiveRetained.test.tsx',
   // /api/v1/meta/object
   'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
-  // /api/v1/automation/_status
-  'packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx',
-  // /api/v1/ai/conversations
-  'packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-calendar/src/ObjectCalendar.navWidthDefault.test.tsx',
-  // /api/v1/meta/object/task
-  'packages/plugin-charts/src/ObjectChart.heightChain.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-detail/src/__tests__/defaultFieldGroupsPage.sectionHeadings.test.tsx',
-  // /api/task/42, /api/v1/security/explain
-  'packages/plugin-detail/src/__tests__/guideCrudAppRenders.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-detail/src/__tests__/recordDetailsBodySource.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-detail/src/renderers/__tests__/record-details.emptySectionDefault.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-gantt/src/ObjectGantt.navWidthDefault.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-grid/src/__tests__/bulkDeleteVisibleWhen.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-kanban/src/ObjectKanban.navWidthDefault.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-kanban/src/ObjectKanban.overlayTitleI18n.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-kanban/src/ObjectKanban.overlayTitleNoProviderFallback.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-view/src/__tests__/ObjectView.namedViewSortArity.test.tsx',
 ]);
 
 type Escape = { file: string; test: string; url: string };
@@ -236,7 +197,23 @@ afterEach(() => {
       `\n` +
       `Fix: serve the probe from a double rather than the network. See\n` +
       `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx for the\n` +
-      `shape (vi.stubGlobal('fetch', router) + vi.unstubAllGlobals()). Do NOT add\n` +
-      `this file to KNOWN_ESCAPES — that list only shrinks.`,
+      `shape (vi.stubGlobal('fetch', router) + vi.unstubAllGlobals()).\n` +
+      `\n` +
+      `WHERE that pair is torn down is part of the shape, not a detail\n` +
+      `(objectui#7439). Vitest runs afterEach hooks in REVERSE registration order,\n` +
+      `so a teardown written in THIS file runs FIRST — before the root setup's\n` +
+      `RTL cleanup() and before this assertion. Unstubbing there restores the real\n` +
+      `fetch while the tree is still mounted, so even a read that cleanup()'s\n` +
+      `act-flush triggers escapes. So:\n` +
+      `  - call cleanup() BEFORE vi.unstubAllGlobals(), as that\n` +
+      `    DatasetReportRenderer afterEach already does; and\n` +
+      `  - if the component can issue a read AFTER the test body returns — any\n` +
+      `    refreshAfter, any notifyDataChanged consumer, any fire-and-forget\n` +
+      `    refresh no barrier awaits — do not tear the double down at all.\n` +
+      `    Install ONE at module scope and leave it up for the whole file, so no\n` +
+      `    test can ever end with the real fetch back in place. Worked example:\n` +
+      `    packages/app-shell/src/views/RecordDetailView.approvalDeclaredActions.test.tsx\n` +
+      `\n` +
+      `Do NOT add this file to KNOWN_ESCAPES — that list only shrinks.`,
   );
 });

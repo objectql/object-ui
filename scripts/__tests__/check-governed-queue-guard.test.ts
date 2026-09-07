@@ -14,6 +14,8 @@ import {
   governedPathsIn,
 } from '../check-governed-queue-guard.mjs';
 
+import { selfTestCases, stripAnsi } from './helpers/child-verdict';
+
 const ROOT = path.resolve(fileURLToPath(import.meta.url), '../../..');
 const GATE = 'scripts/check-governed-queue-guard.mjs';
 const WORKFLOW = `.github/workflows/${CHECK_WORKFLOW}`;
@@ -123,7 +125,16 @@ describe('check-governed-queue-guard is wired, not merely present', () => {
 
   it('its self-test passes — the half that makes a green run mean something', () => {
     const out = execFileSync('node', [GATE, '--self-test'], { cwd: ROOT, encoding: 'utf8' });
-    expect(out).toMatch(/check-governed-queue-guard self-test: \d+ cases pass/);
+    // objectui#7897 — the COUNT, not the shape. `\d+ cases pass` is satisfied
+    // by `0 cases pass`, so the old spelling passed for a self-test whose case
+    // table had gone empty: the outcome it exists to refuse. `selfTestCases`
+    // also strips ANSI, the second belt for a child that starts colouring —
+    // that is the CI-only direction, and no repo gate colours today.
+    expect(stripAnsi(out)).toMatch(/check-governed-queue-guard self-test: \d+ cases pass/);
+    expect(
+      selfTestCases(out, 'check-governed-queue-guard'),
+      'a self-test that ran no cases is not a passing self-test',
+    ).toBeGreaterThan(0);
   });
 });
 

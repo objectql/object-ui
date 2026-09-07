@@ -83,17 +83,54 @@ import { readVocabulary } from '../../../../scripts/check-i18n-call-site-keys.mj
 import { CapabilityMultiSelectField } from './CapabilityMultiSelectField';
 
 /**
- * The root `readVocabulary` resolves `module` against. `'.'` — the process cwd —
- * IS the repo root here, and not by luck: `scripts/vitest-invocation-guard.mjs`
- * refuses any invocation whose vitest root is not the repo root (objectui#3378,
- * #3288), which is the same invariant. Spelled this way rather than as
- * `resolve(__dirname, '../../../..')` because this package's test program
- * deliberately does not name `types: ['node']` — see the long note in
- * `packages/fields/tsconfig.test.json` — and a test file is not the place to
- * change that program. If the invariant ever broke, `declaredMembers()` throws
- * the message below rather than reporting an empty vocabulary.
+ * The root `readVocabulary` resolves `module` against, derived from THIS FILE's
+ * own location — never from the process cwd (objectui#7791).
+ *
+ * It was `'.'` until then, on the reasoning that cwd IS the repo root because
+ * `scripts/vitest-invocation-guard.mjs` refuses any invocation whose vitest root
+ * is not the repo root. That guard is real, but it is a DIFFERENT invariant:
+ * `--root` moves VITEST's root and moves nothing about `process.cwd()`. This
+ * package's own `test` script — `vitest run --root ../.. packages/fields/`,
+ * which is what `pnpm --filter @object-ui/fields test` and `turbo run test` both
+ * run — leaves cwd at `packages/fields/`, so the read resolved against the
+ * package directory, missed, and `declaredMembers()` threw. Two of that
+ * message's three disjuncts read as a regression in
+ * `CapabilityMultiSelectField.tsx`, so the false RED actively sent its reader
+ * hunting a defect that was not there. Measured on one tree with cwd as the only
+ * variable: 7 passed from the repo root, 2 failed / 5 passed from the package
+ * directory.
+ *
+ * `SELF_DEPTH_BELOW_REPO_ROOT` is the same walk the `readVocabulary` import above
+ * already spells as `../../../../`, and what both ends of that gate already do:
+ * `scriptDir` in `scripts/check-i18n-call-site-keys.mjs`, `repoRoot` in
+ * `scripts/__tests__/check-i18n-call-site-keys.test.ts`. The pin now reaches one
+ * verdict under every cwd, which is the property it always wanted.
+ *
+ * ## Why the derivation is spelled in string operations
+ *
+ * Both of the shorter spellings were MEASURED here and both are traps in this
+ * package's `dom` project:
+ *
+ *   - `dirname(fileURLToPath(import.meta.url))` — the form the two files above
+ *     use — does not type-check here. They are `.test.ts` in the `unit` project;
+ *     this is a `.test.tsx`, and `tsconfig.test.json` names no `types` (see its
+ *     header for why that is deliberate), so `node:path`/`node:url` are TS2591.
+ *     A test file is not the place to change that program.
+ *   - `new URL('../../../..', import.meta.url)` is a form VITE REWRITES. In this
+ *     very file it evaluates to `http://localhost:3000/@fs/…`, a dev-server URL,
+ *     under BOTH cwds — a false red would have become a suite that does not load
+ *     at all. Bare `import.meta.url` is left alone by that transform, which is
+ *     why it is read on its own and taken apart by hand.
+ *
+ * Skipping the case when the file cannot be read was never an option: a
+ * conditional skip is how a case stops running on precisely the machines where
+ * it would have fired.
  */
-const VOCABULARY_ROOT = '.';
+const SELF_DEPTH_BELOW_REPO_ROOT = 5; // packages / fields / src / widgets / this file
+const VOCABULARY_ROOT = decodeURIComponent(new URL(import.meta.url).pathname)
+  .split('/')
+  .slice(0, -SELF_DEPTH_BELOW_REPO_ROOT)
+  .join('/');
 
 /** The registry entry `check-i18n-call-site-keys.mjs` declares for this family. */
 const VOCABULARY = {
@@ -119,7 +156,8 @@ const declaredMembers = (): string[] => {
       `${VOCABULARY.name} is unreadable as a \`${VOCABULARY.kind}\` in ${VOCABULARY.module} — ` +
         'either the declaration moved, was renamed, or was rewritten into a shape the i18n ' +
         'gate cannot parse (which would silently downgrade `capability.label.` to a prefix ' +
-        'check), or this run\'s cwd is not the repo root and the file was never opened.',
+        `check), or THIS file moved and \`${VOCABULARY_ROOT}\` is no longer the repo root. ` +
+        'It is NOT the cwd: this root is derived from `import.meta.url` (objectui#7791).',
     );
   }
   return [...members].sort();

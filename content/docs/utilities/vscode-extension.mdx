@@ -76,23 +76,42 @@ Converts the schema to a React component.
 **Usage:**
 1. Open a schema file
 2. Run command
-3. React component code is copied to clipboard
+3. The generated component opens in a **new untitled editor tab**, with its
+   language set to `typescriptreact`
+4. VS Code shows `React component generated! Save it to a .tsx file.` — nothing
+   is written to disk and nothing is put on your clipboard, so save that tab
+   yourself
 
 **Output Example:**
 
+This is the file the command produces — your exported schema comes back verbatim
+as the `schema` constant, and both imports are part of the output.
+`import '@object-ui/components'` is load-bearing: importing the package is what
+registers the default renderers, so a file that drops it renders nothing.
+
 ```typescript
-import { SchemaRenderer } from '@object-ui/react'
+// No React import: under the automatic JSX runtime ("jsx": "react-jsx",
+// what a new Vite or Next project is configured with) nothing here reads that
+// identifier, so it compiles as an unused local. Add the import back only if
+// this file is built with the classic "jsx": "react" transform.
+import { SchemaRenderer } from '@object-ui/react';
+// Importing the package registers every default renderer as a side effect —
+// there is no separate registration call.
+import '@object-ui/components';
 
 const schema = {
   "type": "div",
   "className": "p-4",
   "children": [
-    { "type": "h1", "children": "Hello World" }
+    {
+      "type": "h1",
+      "children": "Hello World"
+    }
   ]
-}
+};
 
-export default function MyComponent() {
-  return <SchemaRenderer schema={schema} />
+export default function GeneratedComponent() {
+  return <SchemaRenderer schema={schema} />;
 }
 ```
 

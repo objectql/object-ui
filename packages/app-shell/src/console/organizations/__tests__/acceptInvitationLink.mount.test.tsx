@@ -26,7 +26,8 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
   }),
@@ -56,7 +57,8 @@ vi.mock('../manage/orgContext', () => ({
 }));
 
 // Passthrough primitives — these cases assert a string, not the design system.
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Avatar: (p: any) => <div {...p} />,
   AvatarFallback: (p: any) => <div {...p} />,
   Badge: (p: any) => <span {...p} />,
@@ -89,7 +91,8 @@ vi.mock('@object-ui/components', () => ({
   SelectTrigger: (p: any) => <>{p.children}</>,
   SelectValue: () => null,
 }));
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Loader2: () => <span />,
   Copy: () => <span />,
   Check: () => <span />,

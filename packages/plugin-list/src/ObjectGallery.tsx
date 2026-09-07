@@ -7,9 +7,10 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useContext } from 'react';
-import { useDataScope, SchemaRendererContext, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
+import { useDataScope, SchemaRendererContext, useNavigationOverlay, useSafeFieldLabel, useSettledSchema } from '@object-ui/react';
 import { ComponentRegistry, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 import { cn, Card, CardContent, NavigationOverlay } from '@object-ui/components';
+import { usePermissions } from '@object-ui/permissions';
 import type { GalleryConfig, ObjectGallerySchema } from '@object-ui/types';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { getCellRenderer, resolveCellRendererType, readFileValues } from '@object-ui/fields';
@@ -219,7 +220,84 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
 
     const [fetchedData, setFetchedData] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(false);
-    const [objectDef, setObjectDef] = useState<any>(null);
+
+    /**
+     * The object definition, and whether the read for THIS object has SETTLED —
+     * one piece of state, through the shared hook (objectui#7903).
+     *
+     * `ObjectGallery` sat outside the set objectui#6482 converged
+     * (`ObjectKanban`, `ObjectView`, `ObjectCalendar`, `ObjectTree`; `ObjectGantt`
+     * at objectui#7225 ask 2, `ObjectTimeline` at objectui#7895) and nothing
+     * marked it a deliberate exclusion. It still held the definition in a local
+     * `useState` fed by its own metadata effect, with `objectDef` listed in the
+     * record-fetch effect's dependency array below — so every object-bound
+     * gallery load issued the record query TWICE: once before the definition
+     * landed, with `buildExpandFields` seeing no fields and therefore carrying
+     * no `$expand` at all, and once after.
+     *
+     * Measured on THIS component before the change (objectui#6482's per-component
+     * standard — the cost differs by component), instrumented renderer, one mount
+     * per hold, `getObjectSchema` held 0/1/2/3/4/5/6/7/8/9/10/15/25/50/100 ms,
+     * with `ObjectCalendar` as a positive control in the same run: 2 `find` calls
+     * with expand sets `[null, ['owner']]` at EVERY hold, the issue order always
+     * `schema:issued, find(unexpanded), schema:settled, find(expanded)`, two
+     * distinct painted states (raw foreign-key ids, then the expanded rows), 3
+     * late writes into the card grid after the first paint, and a first paint
+     * FLAT at 3-8 ms across the whole 0->100 ms sweep. The control read 1 `find`
+     * carrying `['owner']`, one painted state, and a first paint that TRACKS the
+     * hold (33-69 ms at 0-15 ms, 77 ms at +50, 161 ms at +100).
+     *
+     * ⚠️ This component's visible cost is a TWO-step paint, not the three-step
+     * one `ObjectCalendar` (objectui#6453) and `ObjectTimeline` (objectui#7895)
+     * each measured. Those two make `loading` an unconditional early return, so
+     * the re-run's `setLoading(true)` drops them back to their placeholder
+     * between the two paints. Here the early return is `loading && !items.length`
+     * — once the first (raw) rows are in state the skeleton cannot come back —
+     * so the user sees raw foreign-key ids replaced in place by the expanded
+     * rows. Measured, not inherited: `skelAfter=false` at every hold.
+     *
+     * ⚠️ The gate below is only safe because this resolution SETTLES ON EVERY
+     * EXIT (objectui#7232) — no source, no `getObjectSchema`, no object name, and
+     * a read that threw alike. The hand-written effect it replaces returned
+     * WITHOUT settling on all four, which cost nothing while nothing waited on it
+     * and would hold a gated query open forever.
+     *
+     * ⛔ `dataSource` is passed unconditionally, NOT `hasInlineData ? undefined :
+     * dataSource` the way `ObjectCalendar` and `ObjectGantt` pass it — the same
+     * departure `ObjectTimeline` made, and it applies here for a stronger reason.
+     * Those two read metadata only to expand a record query, so an inline data
+     * set has nothing to wait for. This component reads the definition on EVERY
+     * path, query or not: `buildEnrichedField` above reads `objectDef.fields` for
+     * each visible field's type, options, currency, precision and reference
+     * target, and `getRecordDisplayName(objectDef, item)` below resolves each
+     * card's title under ADR-0079. Disabling the read for authored `data` /
+     * `bind` items would strip cell semantics and card titles off exactly the
+     * paths that issue no query — a second, unasked-for change riding on a
+     * fetch-sequencing fix.
+     *
+     * The key is `schema.objectName` — the object the record query itself names
+     * (`dataSource.find(schema.objectName, …)` below) and the one the replaced
+     * effect read. ⛔ Not `resolveRecordSourceObjectName`, the same departure
+     * `ObjectTimeline` made, and again for a stronger reason: that reader's
+     * second rung is a resolved `data` BLOCK (`dataConfig.provider === 'object'`),
+     * and `ObjectGallerySchema['data']` is typed `Record<string, unknown>[]` — a
+     * bare inline record array, not a provider config. This component calls
+     * `getDataConfig` nowhere, so there is no second name to read; the ladder
+     * would degenerate to `schema.objectName` with extra spelling. Gating on a
+     * key the query does not use is exactly the stale-key mismatch
+     * `useSettledSchema`'s render-time comparison exists to make unrepresentable.
+     */
+    const { ready: objectDefReady, def: objectDef } = useSettledSchema<any>(
+        schema.objectName ?? '',
+        dataSource as any,
+    );
+
+    // Permissions context, read here rather than inside the fetch effect below:
+    // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has
+    // to be a binding that already exists by the time this component's render
+    // reaches that effect (objectui#7429, same structural note PR #7229 /
+    // PR #7428 recorded for `ListView`'s memo and `ObjectCalendar`'s effect).
+    const perms = usePermissions();
 
     // --- NavigationConfig support ---
     const navigation = useNavigationOverlay({
@@ -288,22 +366,6 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
       return enriched;
     }, [objectDef, schema.objectName, fieldLabel, fieldOptionLabel]);
 
-    // Fetch object definition for metadata
-    useEffect(() => {
-        let isMounted = true;
-        const fetchMeta = async () => {
-            if (!dataSource || typeof dataSource.getObjectSchema !== 'function' || !schema.objectName) return;
-            try {
-                const def = await dataSource.getObjectSchema(schema.objectName);
-                if (isMounted) setObjectDef(def);
-            } catch (e) {
-                console.warn('Failed to fetch object def for ObjectGallery', e);
-            }
-        };
-        fetchMeta();
-        return () => { isMounted = false; };
-    }, [schema.objectName, dataSource]);
-
     useEffect(() => {
         let isMounted = true;
 
@@ -316,8 +378,53 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
             if (!dataSource || typeof dataSource.find !== 'function' || !schema.objectName) return;
             if (isMounted) setLoading(true);
             try {
-                // Auto-inject $expand for lookup/master_detail fields
-                const expand = buildExpandFields(objectDef?.fields);
+                // Auto-inject $expand for lookup/master_detail fields.
+                //
+                // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same
+                // gate objectui#7215 / PR #7229 put on the two projection sites
+                // in its scope, and objectui#7230 / PR #7428 applied unchanged
+                // at four more; `ListView.tsx` in this same package already
+                // carries it. `$select` on a denied lookup asks the server for
+                // a bare foreign key; `$expand` asks it to RESOLVE the relation
+                // and return the related record, the larger of the two
+                // requests.
+                //
+                // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp
+                // one: `buildExpandFields` reads an absent column list as "no
+                // column restriction" and falls back to EVERY declared
+                // relation on the object, denied ones included. A standalone
+                // gallery therefore asks for the maximum possible set by
+                // default, not by configuration.
+                //
+                // Graded as objectui#7215 graded it, by measurement rather
+                // than assumption: against ObjectStack this is
+                // defence-in-depth, because `plugin-security`'s
+                // `FieldMasker.maskRecord` does `delete result[field]` on
+                // every unreadable key and objectql's expand path writes the
+                // resolved record back under THAT SAME KEY, so one statement
+                // removes the expanded object and the bare id alike; the
+                // expansion sub-read itself takes the referenced object's full
+                // CRUD + RLS + FLS treatment (objectstack#7626). It is
+                // load-bearing for a backend that does not strip.
+                //
+                // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+                // alternative is not merely unsound but unreachable: the call
+                // passes `undefined`, so there is no input to gate. Gating the
+                // output also gives the required ordering structurally:
+                // `buildExpandFields` returns a subset of the object's
+                // DECLARED reference-bearing fields, so every name judged here
+                // is declared by construction and the "`checkField` answers
+                // false for an undeclared key" trap cannot be reached. Pinned
+                // in `__tests__/ObjectGallery.expandFls-7429.test.tsx`.
+                //
+                // Deferral matches every other gate on this path: an
+                // unanswered policy filters nothing, and `perms` is in this
+                // effect's dependency list, so the expansion is rebuilt the
+                // moment the answer arrives.
+                const expandable = buildExpandFields(objectDef?.fields);
+                const expand = !perms?.isLoaded
+                  ? expandable
+                  : expandable.filter((f) => perms.checkField(schema.objectName as string, f, 'read'));
                 const results = await dataSource.find(schema.objectName, {
                     $filter: schema.filter,
                     ...(expand.length > 0 ? { $expand: expand } : {}),
@@ -346,10 +453,37 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
         };
 
         if (schema.objectName && !boundData && !schema.data && !props.data) {
+            // ⭐ objectui#7903 — the object definition GATES this query; it does
+            // not refine it afterwards. `objectDef` stays in the dependency list
+            // below and the two are ONE mechanism, not two: the dependency is
+            // what makes this effect re-run when the definition lands, and this
+            // branch is what stops the first run from spending a query before it
+            // has. Removing either half alone restores the double fetch.
+            //
+            // Scoped to the branch that actually issues the query. The authored
+            // (`props.data` / `schema.data`) and bound (`bind`) paths never query,
+            // so gating them would hold nothing useful — and this component still
+            // reads the definition on those paths (cell semantics and ADR-0079
+            // card titles), which is why the resolution above is not disabled for
+            // them.
+            if (!objectDefReady) {
+                // ⚠️ Hold the placeholder across the gate window. `loading` starts
+                // `false` here and was only ever flipped inside `fetchData`, so a
+                // bare `return` would leave the gallery showing "No items to
+                // display" — a FALSE empty state — for the whole metadata read,
+                // where before the gate it showed the loading placeholder. The
+                // two siblings get this for free from their own initial state
+                // (`ObjectCalendar` starts `loading` at `true`; `ObjectTimeline`
+                // computes the same thing in a lazy initializer); this component
+                // does not, so the same guarantee is stated here, in the one
+                // branch that knows a query is coming.
+                if (isMounted) setLoading(true);
+                return;
+            }
             fetchData();
         }
         return () => { isMounted = false; };
-    }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, props.data, objectDef]);
+    }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, props.data, objectDefReady, objectDef, perms]);
 
     const items: Record<string, unknown>[] = props.data || boundData || schema.data || fetchedData || [];
 

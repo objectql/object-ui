@@ -12,7 +12,7 @@ import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { describeIgnoredBind, describeNonArrayData } from './dataTableBindDiagnostic';
-import { ComponentRegistry, compareSortValues, evalRowPredicate, getSortValue } from '@object-ui/core';
+import { ComponentRegistry, compareSortValues, evalRowPredicate, formatDate, formatDateTime, getSortValue } from '@object-ui/core';
 import type { DataTableSchema, TableSortItem, TableColumnType } from '@object-ui/types';
 import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
@@ -766,10 +766,27 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     if (Number.isNaN(ts)) return value;
     const hasTime = value.includes('T');
     try {
-      const fmt = new Intl.DateTimeFormat(language, hasTime
-        ? { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-        : { year: 'numeric', month: 'short', day: 'numeric' });
-      return fmt.format(new Date(ts));
+      // The datetime half is `formatDateTime`'s DEFAULT style — the one home
+      // for this convention (objectui#7443). It used to be a third,
+      // independently authored `Intl.DateTimeFormat` bag here, close to but
+      // not derived from the shared function. Byte-identical in en-US, zh and
+      // de-DE, so no table cell changes.
+      if (hasTime) return formatDateTime(new Date(ts), { locale: language });
+      // The DATE-only half is `formatDate`'s DEFAULT style — the same one home,
+      // one type over (objectui#7620, maintainer ruling A). It used to build its
+      // own `Intl.DateTimeFormat` bag here, which asked for `year: 'numeric'`
+      // unconditionally while `formatDate` drops the year INSIDE the current
+      // year on purpose; so one table showed two faces for one value, picked by
+      // which path the cell happened to take. Current-year cells move with this
+      // (`Jul 4, 2026` → `Jul 4`, matching the `date` field cell beside them);
+      // past-year cells are byte-identical, which is why the split went
+      // unnoticed. A column that genuinely wants the year on every row is an
+      // explicit `format` style honoured by both paths, never a second bag.
+      //
+      // `undefined` in the positional slot is how the published signature
+      // `formatDate(value, style?, options?)` asks for the default face; the
+      // positional argument outranks `options.style` (objectui#7745).
+      return formatDate(new Date(ts), undefined, { locale: language });
     } catch {
       return value;
     }
@@ -2731,31 +2748,29 @@ ComponentRegistry.register('data-table', DataTableRenderer, {
   label: 'Data Table',
   icon: 'table',
   inputs: [
-    { name: 'caption', type: 'string', label: 'Caption' },
+    { name: 'caption', type: 'string' },
     {
       name: 'columns',
       type: 'array',
-      label: 'Columns',
       description: 'Array of { header, accessorKey, className, width, sortable, filterable, resizable }',
       required: true,
     },
     {
       name: 'data',
       type: 'array',
-      label: 'Data',
       description: 'Array of data objects',
       required: true,
     },
-    { name: 'pagination', type: 'boolean', label: 'Enable Pagination', defaultValue: true },
-    { name: 'pageSize', type: 'number', label: 'Page Size', defaultValue: 10 },
-    { name: 'searchable', type: 'boolean', label: 'Enable Search', defaultValue: true },
-    { name: 'selectable', type: 'boolean', label: 'Enable Row Selection', defaultValue: false },
-    { name: 'sortable', type: 'boolean', label: 'Enable Sorting', defaultValue: true },
-    { name: 'exportable', type: 'boolean', label: 'Enable Export', defaultValue: false },
-    { name: 'rowActions', type: 'boolean', label: 'Show Row Actions', defaultValue: false },
-    { name: 'resizableColumns', type: 'boolean', label: 'Enable Column Resizing', defaultValue: true },
-    { name: 'reorderableColumns', type: 'boolean', label: 'Enable Column Reordering', defaultValue: true },
-    { name: 'className', type: 'string', label: 'CSS Class' },
+    { name: 'pagination', type: 'boolean' },
+    { name: 'pageSize', type: 'number' },
+    { name: 'searchable', type: 'boolean' },
+    { name: 'selectable', type: 'boolean' },
+    { name: 'sortable', type: 'boolean' },
+    { name: 'exportable', type: 'boolean' },
+    { name: 'rowActions', type: 'boolean' },
+    { name: 'resizableColumns', type: 'boolean' },
+    { name: 'reorderableColumns', type: 'boolean' },
+    { name: 'className', type: 'string' },
   ],
   defaultProps: {
     caption: 'Enterprise Data Table',

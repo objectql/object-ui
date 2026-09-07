@@ -11,11 +11,13 @@
  * `ApiDataSource` both read `params.$top` — so a cap written under `options`
  * never reaches the wire and the query silently runs unbounded.
  *
- * Nothing else catches this. `QueryParams` carries `[key: string]: any`, which
- * is deliberate (adapters accept adapter-specific params) but means the type
- * system accepts both spellings equally: `{ options: { $top: 100 } }`
- * type-checks exactly as well as `{ $top: 100 }`, and the two mean completely
- * different things — the first means nothing at all.
+ * When this rule landed nothing else caught it: `QueryParams` carried
+ * `[key: string]: any`, read as room for adapter-specific params, so the type
+ * system accepted both spellings equally — `{ options: { $top: 100 } }`
+ * type-checked exactly as well as `{ $top: 100 }`, and the two mean completely
+ * different things (the first means nothing at all). objectui#7497 closed the
+ * type, so a typed literal is now a `tsc` error too; this rule still reaches
+ * untyped sources, JS, and `as QueryParams` assertions, and fires at write time.
  *
  * Two live instances existed, written by different people at different times:
  *

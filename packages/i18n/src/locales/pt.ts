@@ -19,6 +19,7 @@ const pt = {
       manage_users: "Gerenciar usuários",
       manage_org_users: "Gerenciar usuários da organização",
       manage_metadata: "Gerenciar metadados",
+      manage_org_presentation: "Gerenciar a apresentação da organização",
       manage_platform_settings: "Gerenciar configurações da plataforma",
       setup_access: "Acesso à configuração",
       setup_write: "Gravação de configurações",
@@ -276,6 +277,12 @@ const pt = {
       refusedFormat:
         "Não salvo: informe um par latitude, longitude (exemplo: 30.2741, 120.1551).",
       refusedRange: "Não salvo: {{detail}}",
+      latitude: "latitude",
+      longitude: "longitude",
+      refusedResidueOne:
+        "Não salvo: {{name}} “{{text}}” não é um número. Informe decimais simples (exemplo: 30.2741, 120.1551).",
+      refusedResidue:
+        "Não salvo: {{name}} “{{text}}” e {{otherName}} “{{otherText}}” não são números. Informe decimais simples (exemplo: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Digite e pressione Enter para adicionar…",
@@ -1095,6 +1102,9 @@ const pt = {
     loading: "Carregando gráfico…",
     nullCategory: "(Não especificado)",
     scatterOneMeasure: "Um gráfico de dispersão traça uma única medida. Mantenha apenas uma série:",
+    unconfigured: {
+      noCategoryAxis: "Eixo de categorias do gráfico obrigatório — um gráfico vinculado a um objeto não o inventa. Declare um destes:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1446,6 +1456,9 @@ const pt = {
   console: {
     saveAdvisoryTitle: "Salvo — a verificação de criação gerou {{count}} recomendação(ões)",
     publishAdvisoryTitle: "Publicado — a verificação de criação gerou {{count}} recomendação(ões)",
+    importMappingsUnavailable: "Não foi possível carregar os mapeamentos de importação salvos de {{object}}",
+    importMappingsRefused: "O servidor recusou esta solicitação, portanto esta lista está vazia porque não pôde ser lida, não porque nada esteja registrado. Entre novamente ou peça acesso a um administrador.",
+    importMappingsUnreadable: "Esta lista está vazia porque não pôde ser lida, não porque nada esteja registrado. Tente novamente e relate o problema se ele persistir.",
     settingsHub: {
       title: "Configurações",
       subtitle: "Configure seu workspace, integrações e sinalizadores de recursos.",
@@ -1635,11 +1648,21 @@ const pt = {
           availableObjects: "Liste os objetos de dados disponíveis.",
           recentActivity: "Resuma minha atividade recente.",
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: "Adicione um campo a um dos objetos.",
           addObject: "Adicione um novo objeto e relacione-o a um existente.",
           addDashboard: "Adicione um painel para as métricas principais.",
-          addAutomation: "Adicione uma automação — uma aprovação, um fluxo de status ou uma notificação.",
+          addSampleData: "Preencha os objetos existentes com registros de exemplo realistas para eu poder demonstrar o aplicativo.",
         },
       },
       changesTitle: "Confirmar alterações",

@@ -56,7 +56,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { isFilterAST } from '@objectstack/spec/data';
+import { isFilterAST, parseFilterAST } from '@objectstack/spec/data';
 import {
   ObjectStackAdapter,
   clearSharedDiscoveryCache,
@@ -167,14 +167,22 @@ describe('the spec-shape branch is the branch under test — asserted on the wir
     expect(r.urls.some((u) => u === 'http://localhost:3000/api/v1/data/opportunity/query')).toBe(true);
   });
 
-  it('legacy analytics params go to POST /analytics/query — the OTHER branch, still lowering (#6302)', async () => {
+  it('legacy analytics params go to POST /analytics/query — the OTHER branch, still lowering (#6302, #7752)', async () => {
     // The control that keeps "we now refuse" from meaning "we now refuse
-    // everything": the analytics branch is untouched by this change and still
-    // LOWERS the very rule array the spec-shape branch refuses.
+    // everything": the analytics branch is untouched by THIS file's ruling and
+    // still LOWERS the very rule array the spec-shape branch refuses.
+    //
+    // What that branch lowers TO moved one hop in objectui#7752: it used to post
+    // the AST tuple, and now posts the `FilterCondition` `parseFilterAST` makes
+    // of it, because a POST body's `where` is transport and a `FilterArray` is
+    // input-only sugar (objectstack#5158 ruling C). The refusal this file pins
+    // is unaffected — the two branches still take their filter by different
+    // names and answer it differently — so only the expected value moves, read
+    // from the spec's own sink rather than written out here.
     const r = await run({ function: 'sum', field: 'amount', groupBy: '_all', filter: RULE_WHERE });
     expect(r.error).toBeNull();
     expect(r.door).toBe('analytics');
-    expect(r.analyticsBodies[0].where).toEqual(['stage', '=', 'won']);
+    expect(r.analyticsBodies[0].where).toEqual(parseFilterAST(['stage', '=', 'won']));
     expect(r.specShapeBodies).toHaveLength(0);
   });
 

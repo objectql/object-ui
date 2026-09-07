@@ -9,7 +9,7 @@
     },
     {
       "type": "text",
-      "value": "to"
+      "content": "to"
     },
     {
       "type": "date-picker",

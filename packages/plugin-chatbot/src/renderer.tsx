@@ -135,113 +135,85 @@ ComponentRegistry.register('chatbot',
       { 
         name: 'messages', 
         type: 'array', 
-        label: 'Initial Messages',
         description: 'Array of message objects with id, role, content, and optional timestamp'
       },
       { 
         name: 'placeholder', 
-        type: 'string', 
-        label: 'Input Placeholder',
-        defaultValue: 'Type your message...'
-      },
+        type: 'string'      },
       { 
         name: 'showTimestamp', 
-        type: 'boolean', 
-        label: 'Show Timestamps',
-        defaultValue: false
-      },
+        type: 'boolean'      },
       { 
         name: 'disabled', 
-        type: 'boolean', 
-        label: 'Disabled',
-        defaultValue: false
-      },
+        type: 'boolean'      },
       { 
         name: 'userAvatarUrl', 
         type: 'string', 
-        label: 'User Avatar URL',
+        
         description: 'URL of the user avatar image'
       },
       { 
         name: 'userAvatarFallback', 
         type: 'string', 
-        label: 'User Avatar Fallback',
-        defaultValue: 'You',
+        
+        
         description: 'Fallback text shown when user avatar image is not available'
       },
       { 
         name: 'assistantAvatarUrl', 
         type: 'string', 
-        label: 'Assistant Avatar URL',
+        
         description: 'URL of the assistant avatar image'
       },
       { 
         name: 'assistantAvatarFallback', 
         type: 'string', 
-        label: 'Assistant Avatar Fallback',
-        defaultValue: 'AI',
+        
+        
         description: 'Fallback text shown when assistant avatar image is not available'
       },
       { 
         name: 'maxHeight', 
-        type: 'string', 
-        label: 'Max Height',
-        defaultValue: '500px'
-      },
+        type: 'string'      },
       {
         name: 'api',
         type: 'string',
-        label: 'API Endpoint',
         description: 'Backend SSE endpoint (e.g., /api/v1/ai/chat). When set, enables streaming AI mode.'
       },
       {
         name: 'conversationId',
         type: 'string',
-        label: 'Conversation ID',
         description: 'Multi-turn conversation identifier'
       },
       {
         name: 'systemPrompt',
         type: 'string',
-        label: 'System Prompt',
         description: 'System prompt to configure assistant behavior'
       },
       {
         name: 'model',
         type: 'string',
-        label: 'AI Model',
         description: 'AI model identifier (e.g., gpt-4o)'
       },
       {
         name: 'streamingEnabled',
-        type: 'boolean',
-        label: 'Enable Streaming',
-        defaultValue: true
-      },
+        type: 'boolean'      },
       { 
         name: 'autoResponse', 
         type: 'boolean', 
-        label: 'Enable Auto Response (Demo)',
-        defaultValue: false,
+        
+        
         description: 'Automatically send a response after user message (for demo purposes, ignored when API is set)'
       },
       { 
         name: 'autoResponseText', 
-        type: 'string', 
-        label: 'Auto Response Text',
-        defaultValue: 'Thank you for your message!'
-      },
+        type: 'string'      },
       { 
         name: 'autoResponseDelay', 
-        type: 'number', 
-        label: 'Auto Response Delay (ms)',
-        defaultValue: 1000
-      },
+        type: 'number'      },
       { 
         name: 'className', 
-        type: 'string', 
-        label: 'CSS Class'
-      }
+        type: 'string'      }
     ],
     defaultProps: {
       messages: [
@@ -273,7 +245,9 @@ ComponentRegistry.register('chatbot-enhanced',
   // anonymous `ChatbotSchema & { ... }` intersection local to this file;
   // every key that intersection carried was read-site-censused before being
   // declared on `ChatbotEnhancedSchema`, and the two `ChatbotSchema` keys this
-  // registration never read (`displayMode`, `floatingConfig`) are not on it.
+  // registration never read (`floatingConfig`, and `displayMode` — since
+  // retired as a `?: never` tombstone on both faces, objectui#7654) are not on
+  // it.
   // `surface` (objectui#6687, maintainer ruling 2026-08-29) is declared there
   // too; the plugin's own `ChatbotSurface` alias is pinned equal to it in
   // `__tests__`, so the union has one contract, not two dialects
@@ -354,28 +328,28 @@ ComponentRegistry.register('chatbot-enhanced',
     namespace: 'plugin-chatbot',
     label: 'Chatbot (Enhanced)',
     inputs: [
-      { name: 'messages', type: 'array', label: 'Initial Messages' },
-      { name: 'placeholder', type: 'string', label: 'Input Placeholder', defaultValue: 'Type your message...' },
-      { name: 'showTimestamp', type: 'boolean', label: 'Show Timestamps', defaultValue: false },
-      { name: 'disabled', type: 'boolean', label: 'Disabled', defaultValue: false },
-      { name: 'enableMarkdown', type: 'boolean', label: 'Enable Markdown', defaultValue: true },
-      { name: 'enableFileUpload', type: 'boolean', label: 'Enable File Upload', defaultValue: false },
-      { name: 'processVisibility', type: 'enum', label: 'Agent Process Visibility', defaultValue: 'summary' },
-      { name: 'surface', type: 'enum', label: 'Surface Chrome', defaultValue: 'card', description: "'card' bordered panel, or 'plain' frameless full-page workspace" },
-      { name: 'userAvatarUrl', type: 'string', label: 'User Avatar URL' },
-      { name: 'userAvatarFallback', type: 'string', label: 'User Avatar Fallback', defaultValue: 'You' },
-      { name: 'assistantAvatarUrl', type: 'string', label: 'Assistant Avatar URL' },
-      { name: 'assistantAvatarFallback', type: 'string', label: 'Assistant Avatar Fallback', defaultValue: 'AI' },
-      { name: 'maxHeight', type: 'string', label: 'Max Height', defaultValue: '500px' },
-      { name: 'api', type: 'string', label: 'API Endpoint', description: 'Backend SSE endpoint for streaming AI mode' },
-      { name: 'conversationId', type: 'string', label: 'Conversation ID' },
-      { name: 'systemPrompt', type: 'string', label: 'System Prompt' },
-      { name: 'model', type: 'string', label: 'AI Model' },
-      { name: 'streamingEnabled', type: 'boolean', label: 'Enable Streaming', defaultValue: true },
-      { name: 'autoResponse', type: 'boolean', label: 'Enable Auto Response (Demo)', defaultValue: false },
-      { name: 'autoResponseText', type: 'string', label: 'Auto Response Text', defaultValue: 'Thank you for your message!' },
-      { name: 'autoResponseDelay', type: 'number', label: 'Auto Response Delay (ms)', defaultValue: 1000 },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'messages', type: 'array' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'showTimestamp', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'enableMarkdown', type: 'boolean' },
+      { name: 'enableFileUpload', type: 'boolean' },
+      { name: 'processVisibility', type: 'enum' },
+      { name: 'surface', type: 'enum', description: "'card' bordered panel, or 'plain' frameless full-page workspace" },
+      { name: 'userAvatarUrl', type: 'string' },
+      { name: 'userAvatarFallback', type: 'string' },
+      { name: 'assistantAvatarUrl', type: 'string' },
+      { name: 'assistantAvatarFallback', type: 'string' },
+      { name: 'maxHeight', type: 'string' },
+      { name: 'api', type: 'string', description: 'Backend SSE endpoint for streaming AI mode' },
+      { name: 'conversationId', type: 'string' },
+      { name: 'systemPrompt', type: 'string' },
+      { name: 'model', type: 'string' },
+      { name: 'streamingEnabled', type: 'boolean' },
+      { name: 'autoResponse', type: 'boolean' },
+      { name: 'autoResponseText', type: 'string' },
+      { name: 'autoResponseDelay', type: 'number' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       messages: [
@@ -459,6 +433,20 @@ ComponentRegistry.register('chatbot-floating',
 
     return (
       <FloatingChatbot
+        // Fenced and FIRST — matches the two sibling registrations above
+        // (objectui#7708). Was a raw `{...props}` spread LAST: every authored
+        // key `SchemaRenderer` forwarded reached the panel's `ChatbotEnhanced`
+        // unfiltered, so `processVisibility`, `surface` and `showAvatars` were
+        // live here although `ChatbotFloatingSchema` declares none of them,
+        // AND the authored `messages` seed overrode the runtime `messages`
+        // prop written below — a sent message never rendered on a floating
+        // node. Filtering through `toDomProps` and moving it first closes
+        // both: only the DOM-safe whitelist (plus `id`/`data-*`/`aria-*`)
+        // survives, and every named prop below now wins over it. No member
+        // `ChatbotFloatingSchema` declares depends on this channel — each is
+        // consumed by `useObjectChat` above or forwarded by name below, so
+        // fencing dark-outs nothing the face promises.
+        {...toDomProps(props)}
         floatingConfig={schema.floatingConfig}
         messages={runtimeMessages}
         placeholder={schema.placeholder}
@@ -478,46 +466,45 @@ ComponentRegistry.register('chatbot-floating',
         enableMarkdown={schema.enableMarkdown ?? true}
         enableFileUpload={schema.enableFileUpload ?? false}
         className={className}
-        // ⚠️ Raw and LAST — the two sibling registrations spread
-        // `toDomProps(props)` FIRST. Every authored key `SchemaRenderer`
-        // forwards reaches the panel's `ChatbotEnhanced` unfiltered (so
-        // `processVisibility`, `surface` and `showAvatars` are live here
-        // although `ChatbotFloatingSchema` declares none of them), and the
-        // authored `messages` seed overrides the runtime `messages` prop
-        // written above. Measured through the real host and carded as objectui#7708
-        // — fence vs declare is that card's ruling. Deliberately NOT changed
-        // by objectui#7655, which declared faces and moved no render outcome.
-        {...props}
       />
     );
   },
   {
     namespace: 'plugin-chatbot',
     label: 'Chatbot (Floating)',
+    // `displayMode` is NOT offered here and NOT seeded below (objectui#7654,
+    // maintainer ruling B, 2026-09-05). The control painted a "Display Mode"
+    // switch this registration never read — the node `type` is the one
+    // selector of presentation, and `<FloatingChatbot>` below renders
+    // unconditionally — while `defaultProps` wrote `'floating'` into every
+    // designer-created node. The control is restated, not deleted into a
+    // vacuum (objectui#7070): the restatement is the `?: never` tombstone on
+    // `ChatbotSchema` / `ChatbotFloatingSchema` in `@object-ui/types` and the
+    // release note. Stored documents carrying the key are unaffected — it has
+    // no Zod arm and `BaseSchema` is `.passthrough()`, so they parse exactly
+    // as before, and nothing here ever read the value.
     inputs: [
-      { name: 'displayMode', type: 'string', label: 'Display Mode', defaultValue: 'floating', description: 'Set to "floating" for FAB widget' },
-      { name: 'floatingConfig.position', type: 'string', label: 'FAB Position', defaultValue: 'bottom-right', description: 'bottom-right or bottom-left' },
-      { name: 'floatingConfig.defaultOpen', type: 'boolean', label: 'Default Open', defaultValue: false },
-      { name: 'floatingConfig.panelWidth', type: 'number', label: 'Panel Width', defaultValue: 400 },
-      { name: 'floatingConfig.panelHeight', type: 'number', label: 'Panel Height', defaultValue: 520 },
-      { name: 'floatingConfig.title', type: 'string', label: 'Panel Title', defaultValue: 'Chat' },
-      { name: 'floatingConfig.triggerSize', type: 'number', label: 'Trigger Size', defaultValue: 56 },
-      { name: 'messages', type: 'array', label: 'Initial Messages' },
-      { name: 'placeholder', type: 'string', label: 'Input Placeholder', defaultValue: 'Type your message...' },
-      { name: 'enableMarkdown', type: 'boolean', label: 'Enable Markdown', defaultValue: true },
-      { name: 'enableFileUpload', type: 'boolean', label: 'Enable File Upload', defaultValue: false },
-      { name: 'api', type: 'string', label: 'API Endpoint', description: 'Backend SSE endpoint for streaming AI mode' },
-      { name: 'conversationId', type: 'string', label: 'Conversation ID' },
-      { name: 'systemPrompt', type: 'string', label: 'System Prompt' },
-      { name: 'model', type: 'string', label: 'AI Model' },
-      { name: 'streamingEnabled', type: 'boolean', label: 'Enable Streaming', defaultValue: true },
-      { name: 'autoResponse', type: 'boolean', label: 'Enable Auto Response (Demo)', defaultValue: false },
-      { name: 'autoResponseText', type: 'string', label: 'Auto Response Text', defaultValue: 'Thank you for your message!' },
-      { name: 'autoResponseDelay', type: 'number', label: 'Auto Response Delay (ms)', defaultValue: 1000 },
-      { name: 'className', type: 'string', label: 'CSS Class' },
+      { name: 'floatingConfig.position', type: 'string', description: 'bottom-right or bottom-left' },
+      { name: 'floatingConfig.defaultOpen', type: 'boolean' },
+      { name: 'floatingConfig.panelWidth', type: 'number' },
+      { name: 'floatingConfig.panelHeight', type: 'number' },
+      { name: 'floatingConfig.title', type: 'string' },
+      { name: 'floatingConfig.triggerSize', type: 'number' },
+      { name: 'messages', type: 'array' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'enableMarkdown', type: 'boolean' },
+      { name: 'enableFileUpload', type: 'boolean' },
+      { name: 'api', type: 'string', description: 'Backend SSE endpoint for streaming AI mode' },
+      { name: 'conversationId', type: 'string' },
+      { name: 'systemPrompt', type: 'string' },
+      { name: 'model', type: 'string' },
+      { name: 'streamingEnabled', type: 'boolean' },
+      { name: 'autoResponse', type: 'boolean' },
+      { name: 'autoResponseText', type: 'string' },
+      { name: 'autoResponseDelay', type: 'number' },
+      { name: 'className', type: 'string' },
     ],
     defaultProps: {
-      displayMode: 'floating',
       floatingConfig: {
         position: 'bottom-right',
         defaultOpen: false,

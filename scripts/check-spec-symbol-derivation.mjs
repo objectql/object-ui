@@ -93,11 +93,13 @@
  *     `@objectstack/spec/ui` owns — a model citizen that a bare co-occurrence
  *     test flags and a proximity test does not.
  *   - Renderers are not shapes. A function, class, or const initialised with an
- *     arrow/function/call expression is skipped, on the same judgement the ALLOW
- *     entries for `AuthProvider` / `ListView` / `UserFilters` already make: a
- *     component that RENDERS the spec's shape is not a second declaration of it,
- *     so "Aligned with @objectstack/spec ReactionSchema" on a `<ReactionPicker>`
- *     is a statement about what it draws.
+ *     arrow/function/call expression is skipped, on the same judgement that was
+ *     once written by hand as the ALLOW entries for `AuthProvider` / `ListView`
+ *     / `UserFilters` and is now made structurally by rule 1's `rendersJsx` (all
+ *     three entries are gone; their tombstones are in ALLOW): a component that
+ *     RENDERS the spec's shape is not a second declaration of it, so "Aligned
+ *     with @objectstack/spec ReactionSchema" on a `<ReactionPicker>` is a
+ *     statement about what it draws.
  *
  * ── The tie is judged against the symbols the claim CITES (objectui#4607) ────
  * The tie test above asks "does this declaration reference ANY spec-bound
@@ -582,41 +584,38 @@ const ALLOW = {
       "where a stored row can be null. A row is not a response.",
     issue: 4115,
   },
-  // Two RENDERERS in @object-ui/plugin-list, judged by the AuthProvider rule
-  // above and NOT by "components are exempt" — the sibling `ViewTab` in the same
-  // package was a hand copy under a spec name and was derived (objectui#3160).
-  "@object-ui/plugin-list:ListView": {
-    reason:
-      "The RENDERER of the spec type, not a second declaration of it. The spec's `ListView` " +
-      "is authored view METADATA (`z.infer<typeof ListViewSchema>`, type-only); this is the " +
-      "React component that draws it, and its own props bind that metadata at the declaration " +
-      "— `ListViewProps.schema` is `ListViewSchema` from `@object-ui/types`, itself the " +
-      "declared dialect two entries up. So the two layers are joined here, not confused: there " +
-      "is no shape to drift, and `<ListView schema={…}/>` cannot be read as canonical for a " +
-      "metadata SHAPE the way `AuthProviderConfig` could. The repo already disambiguates from " +
-      "the other side — `@object-ui/types` re-exports the spec's type as `SpecListView` — and " +
-      "renaming the package's headline export would rewrite every consumer's JSX for zero " +
-      "defect, the AuthProvider judgement exactly. Pinned by " +
-      "packages/plugin-list/src/__tests__/spec-symbol-batch6.test.tsx, which fails if the " +
-      "spec's `ListView` stops being authored metadata or if this export stops being a " +
-      "component that consumes it.",
-    issue: 4115,
-  },
-  // `@object-ui/plugin-list:UserFilters` sat here, on the same judgement, until
-  // objectui#6291 — `export function UserFilters(…)` returns JSX, so
-  // `rendersJsx` skips it and ratchet 3 required the entry's deletion. Its pin
-  // (the same spec-symbol-batch6.test.tsx) still asserts
-  // `UserFiltersProps['config']` accepts the spec's authored `UserFilters`.
+  // `@object-ui/plugin-list:ListView` and `@object-ui/plugin-list:UserFilters`
+  // both sat here — two RENDERERS judged by the AuthProvider rule above and NOT
+  // by "components are exempt" (the sibling `ViewTab` in the same package was a
+  // hand copy under a spec name and was derived, objectui#3160). Both entries
+  // are gone now, and neither judgement changed: `rendersJsx` skips a
+  // declaration that literally contains JSX, so neither
+  // `export function UserFilters(…)` nor the component at ListView.tsx makes a
+  // finding for an entry to excuse. Ratchet 3 requires deleting an entry that
+  // excuses nothing.
   //
-  // `ListView` above SURVIVED the same narrowing, and the asymmetry is worth
-  // reading before anyone "tidies" it: the finding it now matches is not the
-  // component at ListView.tsx:747 (that one is skipped too) but the bare
-  // `export { ListView, … }` in packages/plugin-list/src/index.tsx. The barrel
-  // skip a dozen lines into `scanFile` only fires when the re-export carries a
-  // module specifier (`export { X } from './x'`); a bare `export { X }` over a
-  // local import has none, so it is recorded at the barrel rather than at the
-  // declaration. That is a pre-existing hole, not something objectui#6291
-  // opened, and it is filed rather than fixed here.
+  // The two left on DIFFERENT dates, and the gap is the whole point of
+  // objectui#7275. `UserFilters` went with objectui#6291's narrowing.
+  // `ListView` outlived it by matching a SECOND finding the narrowing did not
+  // touch — not the component, but the bare `export { ListView, … }` in
+  // packages/plugin-list/src/index.tsx, recorded at the BARREL because the
+  // re-export arm's skip read a module specifier that spelling does not write.
+  // objectui#7275 resolved a bare re-export against the file's own imports, the
+  // barrel line stopped being a finding, and ratchet 3 then failed this entry
+  // exactly as it had failed the other two. ⇒ Three entries written on one
+  // judgement, all three now made structurally, none of them reachable by
+  // editing a barrel.
+  //
+  // ⚠️ What the entries carried beyond the waiver is NOT lost:
+  // packages/plugin-list/src/__tests__/spec-symbol-batch6.test.tsx still fails
+  // if the spec's `ListView` stops being authored metadata or if the export
+  // stops being a component that consumes it (`ListViewProps['schema']` is
+  // `ListViewSchema`), and still asserts `UserFiltersProps['config']` accepts
+  // the spec's authored `UserFilters`. The repo also disambiguates from the
+  // other side — `@object-ui/types` re-exports the spec's type as
+  // `SpecListView`. ⛔ Do not re-add either entry to make a count match: after
+  // objectui#7275 neither name produces a finding at all, so an entry under it
+  // would be stale on the run that added it.
   // ── Different-concept name collisions, module-local (objectui#6291) ───────
   // The four the export-filter drop surfaced that are NOT mirrors. Each was
   // read at its site and, where the spec's symbol is a schema, probed with
@@ -670,46 +669,18 @@ const ALLOW = {
       "case this map exists to make someone write a reason for.",
     issue: 4115,
   },
-  // ── Re-homed layout vocabulary, objectui#7580 (ruling 2026-09-04, option A) ──
-  // Both entries below are SELF-EXPIRING, and deliberately so. They are the same
-  // shape as the three theme document types noted at the end of this map: a
-  // maintainer ruling localized a vocabulary whose upstream retirement is MERGED
-  // but not yet RELEASED, so for the length of one pin interval the local
-  // declaration and a live spec export share a name. Ratchet 3 fails an ALLOW
-  // entry that excuses nothing, so the pin bump that lands objectstack#11027
-  // cannot leave either entry behind — it must delete them and pin the vacancy
-  // where it can execute, exactly as objectui#5668 did for the theme trio.
-  //
-  // ⛔ Neither is a deliberate-divergence waiver, and neither may be renewed on
-  // that reading: the local declarations are the retired spec members VERBATIM.
-  // The reason they are here is the interval, not a difference.
-  "@object-ui/types:BreakpointName": {
-    reason:
-      "Re-homed from `@objectstack/spec/ui` by the objectui#7580 ruling, NOT a fork: " +
-      "objectstack#11027 retired the whole `ui/responsive` vocabulary upstream " +
-      "(tombstone + `RETIRED_DEFS_BY_MAJOR[18]`), and this repo keeps the union because " +
-      "`responsive-grid` is a REGISTERED SDUI component whose authorable `columns` reaches " +
-      "`resolveColumnClasses` on the render path — the tombstone's own stated return " +
-      "condition, met on the renderer side. The collision is an INTERVAL, not a divergence: " +
-      "the pin is still 17.2.0, which pre-dates the retirement. Members are the retired " +
-      "enum's verbatim (`xs`…`2xl`), width-pinned by " +
-      "packages/types/src/__tests__/spec-derived-unions.test.ts. ⛔ Delete this entry on the " +
-      "pin bump — ratchet 3 will force it — and move the name to the absence pin in " +
-      "page-nav-misc-spec-parity.test.ts, the disposition objectui#5716/#5668 used for the " +
-      "theme trio.",
-    issue: 7580,
-  },
-  "@object-ui/layout:BreakpointColumnMap": {
-    reason:
-      "The `BreakpointName` entry above, one package over and for the same interval: the " +
-      "authorable `columns` input of the registered `responsive-grid` component. Declared " +
-      "verbatim from the retired `BreakpointColumnMapSchema` — six optional column counts " +
-      "keyed `xs`…`2xl`, and no index signature, because that schema was `$strict`. Its " +
-      "twin `BreakpointOrderMap` was NOT re-homed (ruling item 3): it had no read point in " +
-      "the package and existed only because the retired `ResponsiveConfigSchema` paired the " +
-      "two. ⛔ Delete this entry on the pin bump; ratchet 3 will force it.",
-    issue: 7580,
-  },
+  // ── Re-homed layout vocabulary, objectui#7580 — ENTRIES RETIRED, spec 17.3.0 ──
+  // `@object-ui/types:BreakpointName` and `@object-ui/layout:BreakpointColumnMap`
+  // lived here for exactly the interval their own text described: a maintainer
+  // ruling localized the `ui/responsive` vocabulary while objectstack#11027's
+  // upstream retirement was MERGED but not yet RELEASED, so the local
+  // declarations and live spec exports shared a name. 17.3.0 published the
+  // retirement, the collisions ended, ratchet 3 failed both entries as excusing
+  // nothing, and the pin bump deleted them — the disposition the entries
+  // themselves prescribed. The vacancy is pinned where it can execute:
+  // page-nav-misc-spec-parity.test.ts asserts both names ABSENT from the spec
+  // export set, so an upstream re-publish is a loud collision rather than an
+  // exemption a future fork inherits under the same name.
   // The three theme document types (`Theme`, `ThemeMode`, `ColorPalette`,
   // objectui#5716 ruling, option A — localize) carried ALLOW entries here from
   // the localization until the `@objectstack/spec` 17.2.0 refresh
@@ -877,6 +848,13 @@ const DEBT = {
 const SKIP_PATH_SEGMENTS = ["components/src/ui/", "plugin-chatbot/src/elements/"];
 
 const isSpecModule = (m) => m === "@objectstack/spec" || m.startsWith("@objectstack/spec/");
+
+// A module THIS scan already covers on its own turn: a relative path inside the
+// package, or an `@object-ui/*` sibling package. Used by the re-export arm in
+// `scanFile` for both spellings of a barrel line — `export { X } from './x'`,
+// where the module is written on the statement, and a bare `export { X }`, where
+// it is written on the `import` that binds `X` one screen up.
+const isScannedElsewhere = (m) => m.startsWith(".") || m.startsWith("@object-ui/");
 
 // ── Rule 2: spec-alignment claims (objectui#4592) ────────────────────────────
 // See the header for what a claim is and why the three precision rules exist.
@@ -1610,17 +1588,27 @@ export function scanFile(file, specNames) {
   const text = readFileSync(file, "utf8");
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, /\.tsx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
 
-  // Local names bound to a `@objectstack/spec` import in THIS file.
+  // Local names bound to an import in THIS file. `specBindings` is the
+  // `@objectstack/spec` subset — the derivation evidence a re-export needs;
+  // `importedFrom` keeps EVERY binding with the module it came from, which is
+  // what lets the re-export arm below give a bare `export { X }` the module
+  // specifier it does not write down. Same loop, because the two answers are
+  // read off the same import declarations.
   const specBindings = new Set();
+  const importedFrom = new Map(); // local name -> the module specifier that binds it
   for (const stmt of sf.statements) {
     if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) continue;
-    if (!isSpecModule(stmt.moduleSpecifier.text)) continue;
+    const mod = stmt.moduleSpecifier.text;
     const clause = stmt.importClause;
     if (!clause) continue;
-    if (clause.name) specBindings.add(clause.name.text);
+    const bind = (local) => {
+      importedFrom.set(local, mod);
+      if (isSpecModule(mod)) specBindings.add(local);
+    };
+    if (clause.name) bind(clause.name.text);
     const named = clause.namedBindings;
-    if (named && ts.isNamespaceImport(named)) specBindings.add(named.name.text);
-    if (named && ts.isNamedImports(named)) for (const el of named.elements) specBindings.add(el.name.text);
+    if (named && ts.isNamespaceImport(named)) bind(named.name.text);
+    if (named && ts.isNamedImports(named)) for (const el of named.elements) bind(el.name.text);
   }
 
   const findings = [];
@@ -1643,10 +1631,29 @@ export function scanFile(file, specNames) {
       // at gets judged at its own declaration site; reporting the barrel too would
       // just make one fork look like four, and would make the fix land in the
       // barrel rather than at the declaration.
-      if (fromModule && (fromModule.startsWith(".") || fromModule.startsWith("@object-ui/"))) continue;
+      if (fromModule && isScannedElsewhere(fromModule)) continue;
       for (const el of stmt.exportClause.elements) {
         const exportedName = el.name.text;
         const localName = (el.propertyName ?? el.name).text;
+        // The same barrel line, written WITHOUT a module specifier. `export { X }`
+        // over an `import { X } from './x'` re-exports exactly what
+        // `export { X } from './x'` does, so it must be skipped for exactly the
+        // same reason — and until objectui#7275 it was not, because the guard
+        // above reads a specifier this spelling does not have. The module is
+        // still written down, one screen up on the import that binds the LOCAL
+        // name (`propertyName ?? name`, so `export { X as Y }` resolves by `X`).
+        //
+        // ⛔ Not every bare `export { X }` may be skipped, and the two that may
+        // not are why this resolves the binding instead of matching the syntax:
+        //   - `import { X } from '@objectstack/spec'; export { X }` is genuine
+        //     derivation, and is what the `specBindings` arm below answers;
+        //   - `const X = …; export { X }` binds no import at all, so it stays a
+        //     visible local declaration — the fork this rule exists to catch.
+        // An import from anywhere else (a third-party module) is not skipped
+        // either, for the reason the specifier form is not: this scan does not
+        // cover that module, so nothing else will judge the name.
+        const boundFrom = fromModule ? null : importedFrom.get(localName);
+        if (boundFrom && isScannedElsewhere(boundFrom)) continue;
         const derived = fromModule
           ? isSpecModule(fromModule) // re-export straight from the spec
           : specBindings.has(localName); // `import { X } from spec; export { X }`

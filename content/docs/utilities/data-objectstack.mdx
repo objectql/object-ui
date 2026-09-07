@@ -113,7 +113,7 @@ implements `DataSource` — backed by an ObjectStack backend.
 
 **Config:**
 
-{/* doc-snippet: fragment — a SIGNATURE excerpt of the factory, quoted from its declaration so the config members can be annotated one by one: a `function` declaration with no body and an `ObjectStackAdapter` return type this reference block does not import (measured: TS2391 x1, TS2304 x1). Because the block is DECLARED, this gate never compiles it, so the agreement with the shipped `packages/data-objectstack/dist/index.d.ts` — every config member declared there with the same type, and the return type — is hand-checked at each edit, not gate-enforced; that gap is why the return type here outlived the change that widened it (objectui#7323) */}
+{/* doc-snippet: fragment — a SIGNATURE excerpt of the factory: a `function` declaration with no body and an `ObjectStackAdapter` return type this reference block does not import (measured: TS2391 x1, TS2304 x1). ⚠️ This gate never compiles a DECLARED block, so nothing here re-verifies that this excerpt still agrees with the shipped `packages/data-objectstack/dist/index.d.ts` — and this reason may not claim it does (objectui#7505). Read the shipped declaration when this page matters to you; it has drifted twice, once in the return type (objectui#7503) and once in a config member (objectui#7505) */}
 ```typescript
 function createObjectStackAdapter<T = unknown>(config: {
   /** ObjectStack server base URL */
@@ -135,6 +135,14 @@ function createObjectStackAdapter<T = unknown>(config: {
   autoReconnect?: boolean; // default true
   maxReconnectAttempts?: number; // default 3
   reconnectDelay?: number; // default 1000 ms
+
+  /**
+   * [ADR-0066] The session's system capabilities, when the host already has them
+   * at construction time. Most hosts do NOT — `/me/permissions` resolves after
+   * the adapter exists — and push them in later via `setSystemCapabilities`.
+   * Omit for "unreported".
+   */
+  systemCapabilities?: string[];
 }): ObjectStackAdapter<T>;
 ```
 
@@ -244,7 +252,7 @@ A schema node's `dataSource` key is the spec's `ElementDataSource` (validated by
 `ElementDataSourceSchema` in `@objectstack/spec`) — plain JSON metadata, **not**
 the adapter object:
 
-{/* doc-snippet: fragment — a SHAPE excerpt restating `@objectstack/spec`'s own `ElementDataSource`, whose `filter` member is typed `FilterCondition` — a spec type that is NOT re-exported from `@objectstack/spec`'s root entry, so neither this block nor a reader can import the name (measured: TS2304 x1). Verified member for member against `ElementDataSourceSchema` in the installed `@objectstack/spec`: `object` required, `view` / `filter` / `sort` / `limit` optional, `sort` an array of `{ field, order: 'asc' | 'desc' }`, and the object strict */}
+{/* doc-snippet: fragment — a SHAPE excerpt restating `@objectstack/spec`'s own `ElementDataSource`, whose `filter` member is typed `FilterCondition` — a spec type that is NOT re-exported from `@objectstack/spec`'s root entry, so neither this block nor a reader can import the name (measured: TS2304 x1). ⚠️ This gate never compiles a DECLARED block, so nothing here re-verifies this excerpt against `ElementDataSourceSchema` in the installed `@objectstack/spec` — and this reason may not claim it does (objectui#7505). The schema is the authority on which members are required and whether it is strict; read it there */}
 ```typescript
 interface ElementDataSource {
   /** Object to query (required) */

@@ -158,8 +158,8 @@ ComponentRegistry.register('board', BoardRenderer, {
   label: 'Board View',
   category: 'plugin',
   inputs: [
-    { name: 'columns', type: 'array', label: 'Columns', required: true },
-    { name: 'items', type: 'array', label: 'Items', required: true },
+    { name: 'columns', type: 'array', required: true },
+    { name: 'items', type: 'array', required: true },
   ],
   defaultProps: {
     columns: [
@@ -366,20 +366,21 @@ export interface BoardSchema extends BaseSchema {
 }
 ```
 
-Declare `ComponentInput` entries when registering so the visual designer can offer a property panel:
+Declare `ComponentInput` entries when registering: they are what the published manifest (`sdui.manifest.json`) and the JSX-page compiler's diagnostics read. Each entry carries the seven keys the manifest forwards — `name`, `type`, `of`, `required`, `enum`, `binding`, `description`; a default belongs in the renderer's own fallback read and, for the author, in `description` (`label`, `defaultValue` and `advanced` are retired keys — nothing ever read them).
+
+`of` is the coarse kind of an `array`'s elements, or of the values of an `object` used as a map. Declare it whenever the contract admits exactly one kind there: `type: 'array'` alone says a value is a list and stops, so a member of the wrong shape reaches the renderer with nothing anywhere reporting it. With `of` declared, the parser reports a member no declared kind accepts, and the generated `sdui-intrinsics.d.ts` types the elements (`string[]` rather than `unknown[]`). Like `type`, it names a KIND and never a domain: `of: 'object'` says the elements are objects, not which keys they carry — spell that out in `description`, and let `os validate` judge the values. A member contract that genuinely accepts several kinds takes the array form (`of: ['string', 'object']`), or no `of` at all:
 
 <!-- doc-snippet: fragment — continues the board example: ComponentRegistry and BoardRenderer both come from step 3's src/index.tsx; this block shows only the inputs metadata -->
 ```tsx
 ComponentRegistry.register('board', BoardRenderer, {
   inputs: [
-    { name: 'columns', type: 'array', label: 'Columns', required: true },
-    { name: 'items', type: 'array', label: 'Items', required: true },
+    { name: 'columns', type: 'array', of: 'object', required: true },
+    { name: 'items', type: 'array', of: 'object', required: true },
     {
       name: 'layout',
       type: 'enum',
-      label: 'Layout',
       enum: ['horizontal', 'vertical'],
-      defaultValue: 'horizontal',
+      description: 'Defaults to "horizontal" — the renderer\'s own fallback',
     },
   ],
 });

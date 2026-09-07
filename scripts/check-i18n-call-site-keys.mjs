@@ -7,11 +7,14 @@
  * to receive them (objectui#3845) — and the OTHER spelling of a fallback,
  * `t(key) || 'English'`, must not exist at all (objectui#4117) — and whatever
  * text that inline default carries must spell its placeholders the one way the
- * provider-less fallback can resolve them (objectui#4905).
+ * provider-less fallback can resolve them (objectui#4905) — and the SAME
+ * promise written one indirection away, in a `createSafeTranslation` defaults
+ * table, must say the same thing the pack does too (objectui#7567).
  *
  * Run:  node scripts/check-i18n-call-site-keys.mjs   (also `pnpm check:i18n-keys`)
  * Exit: 0 = every in-scope call-site key resolves (or is baselined), no inline
- *           default contradicts its `en` value, no call site's option names
+ *           default contradicts its `en` value, no `createSafeTranslation`
+ *           defaults row contradicts it either, no call site's option names
  *           disagree with its `en` value's holes, and no call site carries a
  *           literal sibling fallback, 1 = otherwise
  *
@@ -117,7 +120,10 @@
  * it, and the rule is the class rather than the instance: the first full run
  * found 24 such sites in four files, every one of them on a key `en` defines.
  *
- * ## Five failure classes
+ * ## Eight failure classes
+ *
+ * (The heading said "Five" while the list below held seven — a stale count
+ * corrected here rather than left to grow by one more.)
  *
  * 1. `missing-key` — a literal key with no leaf in `en`. i18next plural suffixes
  *    (`_one`, `_other`, …) count as defining the base key, and a key passed with
@@ -346,6 +352,118 @@
  *    one, like classes 3-5: the first full run found 0 violations, so there is
  *    no debt for a ratchet to hold, and 0 stops being luck.
  *
+ * 8. `factory-default-drift` (objectui#7567) — the same promise as class 3, one
+ *    indirection away, and it was blind to all seven for exactly that reason.
+ *    Class 3 reads the call's ARGUMENTS, so it sees `t(key, { defaultValue })`
+ *    and nothing else; a `createSafeTranslation(DEFAULT_TRANSLATIONS, …)` row
+ *    carries the identical string with no argument anywhere near the call site.
+ *    Before this class the gate classified those hooks as pack-backed, checked
+ *    every key they were asked for, and never once read the table they fall back
+ *    to.
+ *
+ *    THE DIRECTION IS NOT A CHOICE HERE, and stating it is half the class. Read
+ *    `packages/i18n/src/useSafeTranslation.ts`: `fallbackT` resolves
+ *    `defaults[key] || defaultValue || key`, and its own comment calls the table
+ *    "the pack value's stand-in here … it takes the pack's position in i18next's
+ *    own order". So a row that differs from `en` is not a second opinion, it is
+ *    the SAME control labelled one way on a provider-less host and another in
+ *    the console — objectui#7454's measured instance, where a calendar lane read
+ *    `all-day` standalone and `All Day` in the app, plus a ternary kept
+ *    structurally unreachable by nothing. The pack wins, for the same reason it
+ *    wins in class 3: it is what essentially all traffic renders and what the
+ *    nine other packs were translated from.
+ *
+ *    Not a new rule so much as a generalisation of one that already existed for
+ *    three tables: `packages/app-shell/src/__tests__/defaults-maps-mirror-en-pack.test.tsx`
+ *    (objectui#4401) compares `DETAIL_`/`LIST_`/`DESIGNER_DEFAULT_TRANSLATIONS`
+ *    against the pack key by key. That test found the divergence it was written
+ *    for; what it could not do is cover the other 29 tables, because each one
+ *    would have to be added by hand. This class takes the population from the
+ *    SOURCE instead — every `createSafeTranslation(...)` /
+ *    `createSafeTranslationHook(...)` invocation, whatever its table is called —
+ *    so a 33rd factory is covered on the day it is written, with nothing to
+ *    register.
+ *
+ *    HARD from day one, and here the measurement is the whole story. The census
+ *    over this tree found 32 factory sites, 32 distinct tables, 846 rows, 841 of
+ *    them comparable against `en` — and 0 drifted. objectui#7454's instance,
+ *    the one known member of the class, was aligned in objectui#7574 before this
+ *    class landed, which is why there is no ledger section here: a ledger with
+ *    nothing in it is a mechanism asserting nothing, and it would read exactly
+ *    like a populated one. The abstention counts below are printed on every run
+ *    for the same reason the dynamic-key count is — an instrument's blind spot
+ *    is a number, not a silence.
+ *
+ *    Deliberately NOT judged (counted instead), and each abstention is a
+ *    decision:
+ *
+ *      - A first argument that does not resolve to an object literal — a table
+ *        built by a spread, a call, or an identifier this parser cannot follow
+ *        to its `const`. Counted as an unreadable TABLE, which is the loudest
+ *        of these numbers: it is not one row leaving the surface, it is all of
+ *        them. 0 on this tree.
+ *      - A row whose key is computed, or whose value is not a static string.
+ *        Same abstention as a computed `defaultValue` in class 3, and for the
+ *        same reason: there is no text to compare. 0 on this tree.
+ *      - A row whose key `en` does not define. That is class 1's shape, not this
+ *        one's, and the two stay disjoint exactly as classes 1 and 3 do. It is
+ *        worth knowing that class 1 CANNOT reach these: it judges call sites,
+ *        and a table row with no call site anywhere is invisible to it. The 5
+ *        such rows on this tree (`timeline.relative.*`,
+ *        `packages/plugin-timeline/src/useTimelineTranslation.ts`) are exactly
+ *        that — no `en` leaf and no caller — which is why the count is printed
+ *        rather than absorbed.
+ *      - A key that resolves only through its plural suffixes, or an `en` leaf
+ *        this parser could not read as a string. There is no single form to
+ *        compare against; picking one would be an invention. Same words as
+ *        class 3's own abstention, because it is the same abstention.
+ *
+ *    A NESTED object literal inside a table is deliberately NOT descended into,
+ *    and this is the one place where copying
+ *    `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`'s
+ *    table reader would be wrong. That test recurses with a dotted prefix; this
+ *    class must not, because `fallbackT` does a FLAT `defaults[key]` lookup — a
+ *    row spelled `{ calendar: { today: 'Today' } }` is never read by anything at
+ *    runtime, so comparing it against `en.calendar.today` would green-light a
+ *    dead row. It falls into "value is not a static string" instead, where a
+ *    dead row belongs. 0 such rows today; the abstention is what stops the first
+ *    one being read as healthy.
+ *
+ *    THE OTHER HALF OF THE POPULATION — objectui#7877, the B half of the
+ *    ruling on objectui#7567 Q2. Three tables hand-roll `fallbackT`'s literal
+ *    needle instead of taking the factory, so the walk above cannot see them:
+ *    nothing in the source says which local function is a `fallbackT`. Two of
+ *    them are reachable no other way (`GANTT_DEFAULT_TRANSLATIONS`,
+ *    `IMPORT_DEFAULT_TRANSLATIONS`); the third,
+ *    `TIMELINE_DEFAULT_TRANSLATIONS`, also reaches the factory and is already
+ *    counted above.
+ *
+ *    Covering them takes a DECLARATION — which is why objectui#7567 shipped
+ *    the registry-free half first and split this out, and why the population
+ *    here is `packages/test-support/src/hand-rolled-tables.json` and not a
+ *    heuristic. Option C on that card (gate every `Record<string, string>`
+ *    that looks like a defaults map, inferred rather than declared) was
+ *    rejected for inventing a heuristic where a declaration is available.
+ *
+ *    The two halves keep SEPARATE counters, a separate collapse floor and a
+ *    separate summary line, and that separation is the point rather than
+ *    tidiness: the factory walk compares 841 rows, so a registry that stopped
+ *    resolving anything at all would be invisible inside a combined number,
+ *    and this half's verdict — also "0 drifted" — would be read off an empty
+ *    scan set. Its floor is 150 against a measured 215 (80 + 135), chosen to
+ *    sit above the LARGER of the two tables so that losing either one fails.
+ *
+ *    What keeps the declaration from rotting is not diligence and does not
+ *    live here:
+ *    `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`
+ *    asserts that the set of runtime files carrying the hand-rolled needle
+ *    equals a pinned list, and that every declared entry contributes rows. A
+ *    fourth hand-rolled `fallbackT` turns that case red naming its own file.
+ *    Because this gate reads the SAME bytes that test reads rather than a
+ *    copy of them, that one ratchet covers both readers — the reason the data
+ *    moved to JSON on objectui#6923's ruling instead of being duplicated here
+ *    and pinned.
+ *
  * ## Dynamic keys: the explicit policy
  *
  * A key that is not a string literal cannot be resolved statically. Those call
@@ -357,6 +475,54 @@
  * head at all (`t(key)` on a variable — 35 sites), which nothing but a type
  * checker could resolve. Same treatment, same reason, for the deliberate
  * `I18N_PROBE_FLAG` misses (see below) and for the skipped binding classes.
+ *
+ * ## Key-building helpers: the leg that needs no call site (objectui#7592)
+ *
+ * Everything above starts at a `t()`/`tt()` call and reads its arguments. A
+ * module that BUILDS a key and hands it to a translator it received as a plain
+ * function VALUE has no such call for the walk to start from:
+ *
+ *   export function toolTitleKey(name) { return `ns.family.${name}`; }
+ *   // …
+ *   return translate ? translate(toolTitleKey(trimmed), english) : english;
+ *
+ * `translate` is a parameter, not `t`/`tt`, so the callee never matches; and the
+ * file holds no `t(` spelling at all, so the pre-filter below drops it before
+ * anything is even parsed. Both reverse-sweep legs and both family ratchets are
+ * therefore blind at once — measured on `chatbot.tool.*`, whose 35 live,
+ * rendering keys put 33 entries into `check-i18n-dead-keys.mjs`'s CONFIRMED
+ * tier, 22% of it, one deletion away from reverting every AI tool card to
+ * English in nine locales (objectui#7592, the regression cloud#1658 filed and
+ * objectui#7254 fixed).
+ *
+ * So the head is read WHERE IT IS WRITTEN instead. A KEY BUILDER is a function
+ * whose whole body is one returned template literal whose head is a dotted key
+ * prefix that resolves against `en`; its head and tail feed `dynamicHeads` and
+ * `dynamicFamilies` exactly as a template ARGUMENT would, which means the
+ * family lands under the same two ratchets: undeclared is a red, and a builder
+ * that stops being one turns its declaration stale, also a red. That is the
+ * anti-vacuous half — a detection leg that silently degrades to a no-op is the
+ * failure mode this whole class of card is about.
+ *
+ * Three boundaries, each load-bearing and each measured on this tree:
+ *
+ *   1. ONE returned template, nothing else. A multi-statement helper composes
+ *      its head from things this parser cannot follow, and reading its first
+ *      template anyway would invent families out of unrelated strings.
+ *   2. The head must RESOLVE against `en` (`headMatches`), which is what makes
+ *      this a key probe rather than a template-literal census: 97 files hold a
+ *      dotted template, and requiring the head to prefix a real pack path is
+ *      what leaves the builder shapes that are about i18n. The consequence is
+ *      deliberate and is the one place this leg differs from the argument
+ *      position: a builder whose head matches NOTHING is not recognised at all,
+ *      so it never raises `missing-prefix`. Judging it would make every
+ *      `` `${a}.${b}` `` in the repo a candidate defect.
+ *   3. The registered local tables are skipped, same scope rule the call-site
+ *      classifier uses — a builder inside `metadata-admin/` builds `engine.*`
+ *      keys that are not in any pack by design.
+ *
+ * Blast radius on this checkout: 1 builder, 1 head, 47 extra files parsed out of
+ * 1572 walked. The leg is narrow BY MEASUREMENT, not by hope.
  *
  * ## The probe exclusion
  *
@@ -386,12 +552,66 @@ import ts from 'typescript';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
 /** Hook names whose `t` reaches i18next. See the header for why a name is enough. */
 export const PACK_HOOK = /^use[A-Za-z0-9_]*(Translation|Translate|T)$/;
+
+/**
+ * The defaults-table factory, and `plugin-detail`'s re-export alias for it
+ * (objectui#7567). Both spellings are ONE function —
+ * `packages/plugin-detail/src/useDetailTranslation.ts` declares
+ * `export const createSafeTranslationHook = createSafeTranslation` — so a class
+ * that knew only the canonical name would silently skip
+ * `DETAIL_DEFAULT_TRANSLATIONS`, the very table objectui#4401's hand-written
+ * mirror test was written for. Same set, same reason, as the objectui#3512 test
+ * in `packages/i18n/src/__tests__/`.
+ */
+export const FACTORY_NAMES = new Set(['createSafeTranslation', 'createSafeTranslationHook']);
+
+/**
+ * The DECLARED hand-rolled tables — objectui#7877, the B half of the ruling on
+ * objectui#7567 Q2.
+ *
+ * Two tables re-implement `fallbackT` instead of taking the factory above, so
+ * the factory-resolved walk cannot see them: nothing in the source says which
+ * local function is a `fallbackT`, which is why covering them takes a
+ * declaration and why objectui#7567 shipped A (registry-free) first and split
+ * this out. Option C on that card — inferring the population by pattern-matching
+ * identifier names or every `Record<string, string>` — was REJECTED for
+ * inventing a heuristic where a declaration is available; if a future edit finds
+ * itself matching on names, it is building C.
+ *
+ * ⚠️ This is not a second list. It is the SAME BYTES
+ * `packages/test-support/src/defaults-table-scan.ts` reads, reached through the
+ * `exports` subpath objectui#6923 ruled for data that has to cross the
+ * `.mjs` / TypeScript boundary (`zod-wrapper-keys` is the first instance, read
+ * the same way by two other gates in this directory). A bare
+ * `node scripts/check-*.mjs` cannot import that module: its `exports` entry
+ * resolves to TypeScript source with no build artefact. Copying the list here
+ * and pinning the copies to each other was the alternative, and the reason it
+ * was not taken is written out in that module's header — a copy CAN be stale for
+ * the window between the two edits, and a scan population that quietly loses an
+ * entry reports "0 drifted" while judging nothing.
+ *
+ * `createRequire` rather than `import … with { type: 'json' }` for the reason
+ * `check-action-forward-parity.mjs` already records: this module is loaded both
+ * by `node` (the gate run) and by Vite's SSR transform (its pin tests in
+ * `scripts/__tests__/`), and under the latter an attributed JSON import yields
+ * no default export.
+ *
+ * The registry carries `TIMELINE_DEFAULT_TRANSLATIONS` too, because it mirrors
+ * the needle-file set objectui#3512's completeness case pins — but that table
+ * ALSO reaches the factory, so this class de-duplicates against the tables the
+ * factory walk already scanned rather than counting its rows twice. That
+ * overlap is reported, not swallowed.
+ */
+export const HAND_ROLLED_TABLES = createRequire(import.meta.url)(
+  '@object-ui/test-support/hand-rolled-tables',
+);
 
 /**
  * Annotations that mark a forwarded `t` as a translator. Only used to tell a
@@ -567,17 +787,29 @@ function unresolvableReason(inner) {
  *     string literal or the literal segments of a template, and a JSX brace is
  *     not inside either.
  *
- * ## The sibling copy, named rather than hidden
+ * ## The sibling copy, named rather than hidden — and now pinned to it
  *
- * `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`
- * carries the same rule as `placeholderViolations`, over the ten locale packs
- * and the 31+3 defaults TABLES. This copy exists because that gate is a vitest
- * suite reading copy tables and this one is a node script reading call-site
- * ARGUMENTS — the walk that finds a `defaultValue` is the classifier this file
- * already owns, and rebuilding it there was rejected on objectui#4905. The
- * self-test pins this copy against all four i18next-only spellings and both
- * out-of-range classes, so the two can only drift by someone editing one and
- * not the other with both self-tests in front of them.
+ * `packages/i18n/src/__tests__/placeholder-spelling-rule.ts`
+ * (`placeholderViolations`, enforced by `fallback-placeholder-spelling-3512.test.ts`)
+ * carries the same rule over the ten locale packs and the discovered defaults
+ * TABLES. This copy exists because that gate is a vitest suite reading copy
+ * tables and this one is a node script reading call-site ARGUMENTS — the walk
+ * that finds a `defaultValue` is the classifier this file already owns, and
+ * rebuilding it there was rejected on objectui#4905.
+ *
+ * Until objectui#7310 the only thing holding the two together was that each
+ * names the other and each has its own self-test, which is a promise rather
+ * than a mechanism: it survives exactly as long as whoever widens one of them
+ * happens to read both. `scripts/__tests__/placeholder-spelling-parity.test.ts`
+ * is the mechanism — it feeds one corpus (both self-tests' cases, a grammar
+ * matrix over every dialect and boundary, every string leaf of the ten packs
+ * and every discovered defaults row) through BOTH implementations and fails
+ * naming the input they disagreed on. Merging the two was measured first and is
+ * closed in both directions; that file's header records what was measured.
+ *
+ * ⇒ Widening this rule means widening it on BOTH sides, in one change. The
+ * parity gate is not a thing to relax when it goes red — it going red IS the
+ * defect objectui#7310 filed.
  */
 export function unresolvableSpellings(value) {
   const out = [];
@@ -729,6 +961,22 @@ export const DYNAMIC_KEY_FAMILIES = [
   {
     head: 'capability.label.',
     vocabulary: { module: 'packages/fields/src/widgets/CapabilityMultiSelectField.tsx', name: 'CURATED_CAPABILITY_LABELS', kind: 'set' },
+  },
+  {
+    head: 'chatbot.tool.',
+    // Reached through the KEY-BUILDER leg, not a call site: `toolTitleKey()` in
+    // packages/plugin-chatbot/src/tool-display.ts builds the key and the module
+    // spells no `t(` at all (objectui#7592).
+    enumerable: false,
+    why: 'external-vocabulary',
+    reason:
+      'The member set is the platform tool registry — `PLATFORM_TOOLS_BY_PACKAGE` in ' +
+      '`@objectstack/spec/system` — and this reader opens repo source only (see readVocabulary). ' +
+      'No repo-local exhaustive Record mirrors it, and writing one here would be a SECOND ' +
+      'registry to keep in sync with a pinned spec that already lags the cloud runtime. The set ' +
+      'identity is pinned one layer out instead, where the registry can be imported: ' +
+      'packages/plugin-chatbot/src/__tests__/toolLabels-locale-parity-7481.test.ts requires every ' +
+      'registered tool to carry a non-empty label in all ten packs (objectui#7481).',
   },
   {
     head: 'common.',
@@ -1527,19 +1775,151 @@ function templateShape(argument) {
   return { head, tail: inner.templateSpans[0].literal.text };
 }
 
+/**
+ * The key family a KEY BUILDER declares (objectui#7592).
+ *
+ * A key builder is a function whose ENTIRE body is one returned template
+ * literal — `function toolTitleKey(n) { return `ns.family.${n}`; }`, or the
+ * concise-arrow spelling of the same thing. The head/tail it yields is the same
+ * shape `templateShape()` reads off a key ARGUMENT, so the caller can record it
+ * through the identical bookkeeping; see the header section "Key-building
+ * helpers" for why the argument position never sees this shape at all.
+ *
+ * Shape only. Whether the head is an i18n key at all is the CALLER's test
+ * (`headMatches`), because that answer needs the `en` pack and this does not.
+ *
+ * @returns {{ head: string, tail: string | null } | null}
+ */
+function keyBuilderShape(node) {
+  if (
+    !ts.isFunctionDeclaration(node) &&
+    !ts.isFunctionExpression(node) &&
+    !ts.isArrowFunction(node) &&
+    !ts.isMethodDeclaration(node)
+  ) {
+    return null;
+  }
+  const body = node.body;
+  if (!body) return null;
+  // A block body must be exactly `return <expr>` — boundary 1 in the header.
+  let returned = body;
+  if (ts.isBlock(body)) {
+    if (body.statements.length !== 1 || !ts.isReturnStatement(body.statements[0])) return null;
+    returned = body.statements[0].expression;
+  }
+  const shape = templateShape(returned);
+  if (!shape || !KEY_PREFIX_HEAD.test(shape.head)) return null;
+  return shape;
+}
+
+/**
+ * A template head that is a dotted key prefix ending at a segment boundary
+ * (`chatbot.tool.`). The trailing dot is required: it is what separates a key
+ * family from a template that merely contains a dot (a URL, a version, a CSS
+ * custom property), and it is the shape every entry in DYNAMIC_KEY_FAMILIES has.
+ */
+const KEY_PREFIX_HEAD = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.$/;
+
+// ── the `createSafeTranslation` defaults tables (objectui#7567) ──────────────
+
+/**
+ * The initializer of a `const <name> = …` declared anywhere in `source`.
+ *
+ * Not scoped to the top level on purpose: a factory table is conventionally a
+ * module constant, but nothing enforces that, and a table declared inside a
+ * block would otherwise silently leave the checked surface rather than being
+ * counted as unreadable.
+ */
+function declaredConstant(source, name) {
+  let found = null;
+  const visit = (node) => {
+    if (found) return;
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name && node.initializer) {
+      found = node.initializer;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(source, visit);
+  return found;
+}
+
+/** The module specifier a named import of `name` comes from, or `null`. */
+function namedImportSpecifier(source, name) {
+  let specifier = null;
+  ts.forEachChild(source, (node) => {
+    if (specifier !== null) return;
+    if (
+      ts.isImportDeclaration(node) &&
+      node.importClause?.namedBindings &&
+      ts.isNamedImports(node.importClause.namedBindings) &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      for (const element of node.importClause.namedBindings.elements) {
+        // `import { X as Y }` — the table is declared under its ORIGINAL name in
+        // the other module, so that is the name to look for there.
+        if (element.name.text === name) specifier = { module: node.moduleSpecifier.text, declaredAs: (element.propertyName ?? element.name).text };
+      }
+    }
+  });
+  return specifier;
+}
+
+/**
+ * A `createSafeTranslation` first argument, resolved to the object literal the
+ * runtime will index (objectui#7567).
+ *
+ * Three shapes reach it on this tree: an inline literal, a `const` in the same
+ * file, and a `const` imported over a RELATIVE specifier. A package specifier
+ * is deliberately not followed — resolving `@object-ui/x` means resolving a
+ * workspace graph, and a table this returns `null` for is reported as an
+ * unreadable table rather than skipped, which is the loud outcome.
+ *
+ * @returns {{ literal: ts.ObjectLiteralExpression, source: ts.SourceFile, name: string } | { literal: null, name: string }}
+ */
+function resolveFactoryTable(root, source, argument, parseModule) {
+  const inner = unwrapExpression(argument);
+  if (!inner) return { literal: null, name: '(no argument)' };
+  if (ts.isObjectLiteralExpression(inner)) return { literal: inner, source, name: '(inline table)' };
+  if (!ts.isIdentifier(inner)) return { literal: null, name: ts.SyntaxKind[inner.kind] };
+
+  const name = inner.text;
+  let initializer = declaredConstant(source, name);
+  let owner = source;
+  if (initializer === null) {
+    const imported = namedImportSpecifier(source, name);
+    if (imported === null || !imported.module.startsWith('.')) return { literal: null, name };
+    const relPath = resolveImport(root, source.fileName, imported.module);
+    const module = parseModule(join(root, relPath));
+    if (module === null) return { literal: null, name };
+    initializer = declaredConstant(module, imported.declaredAs);
+    owner = module;
+  }
+  if (initializer === null) return { literal: null, name };
+  const literal = unwrapExpression(initializer);
+  if (!literal || !ts.isObjectLiteralExpression(literal)) return { literal: null, name };
+  return { literal, source: owner, name };
+}
+
 // ── the analysis ─────────────────────────────────────────────────────────────
 
 /**
- * `families` is injectable so the synthetic-repo tests can pin the registry
- * RULES against a registry they control. The real run always uses the module
- * constant — nothing in this file reads a registry from disk, so there is no
- * configuration path a call site could quietly narrow.
+ * `families` and `handRolled` are injectable so the synthetic-repo tests can pin
+ * the registry RULES against a registry they control. The real run always uses
+ * the module constants, and every CLI path below calls `analyze(root)` with no
+ * options at all — so there is no configuration path a call site could quietly
+ * narrow, which for `handRolled` is the same property its collapse floor exists
+ * to protect (objectui#7877).
  *
  * @returns {{ findings: Array, counters: Record<string, number>, enKeyCount: number,
  *   referencedKeys: Set<string>, referencedBranches: Set<string>, dynamicHeads: Set<string>,
  *   dynamicFamilies: Map<string, { tails: Set<string>, sites: Array, multiSubstitution: number }> }}
  */
-export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ { families = DYNAMIC_KEY_FAMILIES } = {}) {
+export function analyze(
+  root,
+  /** @type {{ families?: DynamicKeyFamily[], handRolled?: { file: string, name: string }[] }} */
+  { families = DYNAMIC_KEY_FAMILIES, handRolled = HAND_ROLLED_TABLES } = {},
+) {
   const { leaves, branches, values } = collectEnKeys(root);
   const resolvesLeaf = (key) => leaves.has(key) || PLURAL_SUFFIXES.some((suffix) => leaves.has(key + suffix));
   // Materialised once, not inside the predicate: spreading a 2.6k-entry Set per
@@ -1565,6 +1945,11 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
   // key have a call site" can never drift apart from each other. Unused by
   // this gate's own findings/counters; `scripts/check-i18n-dead-keys.mjs` is
   // the consumer.
+  //
+  // objectui#7592 — a head also reaches both Sets from a KEY BUILDER, a helper
+  // whose body is one returned template literal, with no `t()` call anywhere in
+  // its module. Same bookkeeping, same ratchets; see the header section
+  // "Key-building helpers".
   const referencedKeys = new Set();
   const referencedBranches = new Set();
   const dynamicHeads = new Set();
@@ -1587,6 +1972,7 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     resolvedKeys: 0,
     dynamicKeySites: 0,
     headlessDynamicKeySites: 0,
+    keyBuilderSites: 0,
     declaredFamilies: 0,
     enumerableFamilies: 0,
     notEnumerableFamilies: 0,
@@ -1611,6 +1997,201 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     computedSiblingFallbacks: 0,
     optionalCallFallbacks: 0,
     unjudgedSiblingFallbacks: 0,
+    // objectui#7567 — class 8's own census. `factorySites` counts INVOCATIONS
+    // and `factoryTables` counts the distinct literals behind them; the two
+    // differ the moment one table is passed to two factories, and reporting
+    // only the first would overstate the surface.
+    factorySites: 0,
+    factoryTables: 0,
+    factoryUnreadableTables: 0,
+    factoryRows: 0,
+    factoryComparedRows: 0,
+    factoryMatchingRows: 0,
+    factoryRowsNoEnKey: 0,
+    factoryUnjudgedRows: 0,
+    factoryUnreadableRows: 0,
+    // objectui#7877 — the widened half's own census, deliberately a SEPARATE
+    // set of counters rather than added into the factory numbers. Two reasons,
+    // both load-bearing: the collapse floor below has to be able to fail for
+    // this half alone (a factory walk of 841 rows would otherwise mask a
+    // registry that resolved nothing), and the abstention counts are what turn
+    // a blind spot into a card — objectui#7874 exists purely because the
+    // factory half printed its 5 abstaining rows instead of absorbing them.
+    handRolledDeclared: 0,
+    handRolledTables: 0,
+    handRolledAlreadyFactoryCovered: 0,
+    handRolledUnreadableTables: 0,
+    handRolledRows: 0,
+    handRolledComparedRows: 0,
+    handRolledMatchingRows: 0,
+    handRolledRowsNoEnKey: 0,
+    handRolledUnjudgedRows: 0,
+    handRolledUnreadableRows: 0,
+  };
+
+  // objectui#7567 — a table may be declared in a module the factory imports, so
+  // this reader parses on demand and caches; and one table passed to two
+  // factories is scanned ONCE, keyed by the literal's own position, so the row
+  // counts stay a census rather than a multiset.
+  /** @type {Map<string, ts.SourceFile | null>} */
+  const factoryModules = new Map();
+  const parseModule = (absolute) => {
+    if (factoryModules.has(absolute)) return factoryModules.get(absolute);
+    let parsed = null;
+    try {
+      if (existsSync(absolute) && statSync(absolute).isFile()) {
+        parsed = ts.createSourceFile(absolute, readFileSync(absolute, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+      }
+    } catch {
+      parsed = null;
+    }
+    factoryModules.set(absolute, parsed);
+    return parsed;
+  };
+  const scannedTables = new Set();
+
+  /**
+   * Compare one defaults table against `en`, row by row (objectui#7567).
+   *
+   * The finding is located at the ROW, not at the `createSafeTranslation` call,
+   * because the row is where the fix goes — and for an imported table those are
+   * in two different files.
+   */
+  const scanDefaultsTable = (literal, owner, tableName, half) => {
+    const ownerRel = relative(root, owner.fileName).split('\\').join('/');
+    for (const property of literal.properties) {
+      counters[`${half}Rows`] += 1;
+      const { line, character } = owner.getLineAndCharacterOfPosition(property.getStart(owner));
+      const at = { file: ownerRel, line: line + 1, column: character + 1 };
+      if (!ts.isPropertyAssignment(property)) {
+        // A spread or a shorthand: this reader cannot say which keys it brings.
+        counters[`${half}UnreadableRows`] += 1;
+        continue;
+      }
+      const key =
+        ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) || ts.isNoSubstitutionTemplateLiteral(property.name)
+          ? property.name.text
+          : null;
+      if (key === null) {
+        counters[`${half}UnreadableRows`] += 1;
+        continue;
+      }
+      // NOT descended into — `fallbackT` indexes `defaults[key]` flat, so a
+      // nested literal is a row nothing can ever read. See the header.
+      const text = staticString(property.initializer, owner);
+      if (text === null) {
+        counters[`${half}UnreadableRows`] += 1;
+        continue;
+      }
+      if (!resolvesLeaf(key)) {
+        // class 1's shape, and class 1 cannot reach it: it judges CALL SITES,
+        // and a table row nothing calls has none. Counted, printed, never failed.
+        counters[`${half}RowsNoEnKey`] += 1;
+        continue;
+      }
+      const enValue = values.get(key);
+      if (enValue === undefined) {
+        // A plural family, or an `en` leaf that is not a readable static string.
+        counters[`${half}UnjudgedRows`] += 1;
+        continue;
+      }
+      counters[`${half}ComparedRows`] += 1;
+      if (enValue === text) counters[`${half}MatchingRows`] += 1;
+      else
+        findings.push({
+          reason: half === 'factory' ? 'factory-default-drift' : 'hand-rolled-default-drift',
+          ...at,
+          detail: key,
+          expected: enValue,
+          actual: text,
+          table: tableName,
+        });
+    }
+  };
+
+  /** Every `createSafeTranslation(...)` invocation in one parsed file. */
+  const scanFactorySites = (source) => {
+    const visit = (node) => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && FACTORY_NAMES.has(node.expression.text)) {
+        counters.factorySites += 1;
+        const { literal, source: owner, name } = resolveFactoryTable(root, source, node.arguments[0], parseModule);
+        if (literal === null) {
+          // The loudest abstention in this class: not one row leaving the
+          // checked surface, all of them. See the header.
+          counters.factoryUnreadableTables += 1;
+        } else {
+          const id = `${owner.fileName}#${literal.getStart(owner)}`;
+          if (!scannedTables.has(id)) {
+            scannedTables.add(id);
+            counters.factoryTables += 1;
+            scanDefaultsTable(literal, owner, name, 'factory');
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    ts.forEachChild(source, visit);
+  };
+
+  // objectui#7592 — the key-builder leg. `keyBuilderShape()` answers the SHAPE
+  // question; `headMatches` is the one that makes it a key probe rather than a
+  // census of every dotted template. Findings are deliberately never raised
+  // here: `missing-prefix` is an argument-position rule and a builder whose head
+  // resolves to nothing is simply not a key builder (header, boundary 2).
+  const recordKeyBuilders = (source, relPath) => {
+    const visit = (node) => {
+      const shape = keyBuilderShape(node);
+      if (shape && headMatches(shape.head)) {
+        const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source));
+        counters.keyBuilderSites += 1;
+        dynamicHeads.add(shape.head);
+        const family = dynamicFamilies.get(shape.head) ?? { tails: new Set(), sites: [], multiSubstitution: 0 };
+        if (shape.tail === null) family.multiSubstitution += 1;
+        else family.tails.add(shape.tail);
+        family.sites.push({ file: relPath, line: line + 1, column: character + 1 });
+        dynamicFamilies.set(shape.head, family);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  };
+
+  /**
+   * The widened half (objectui#7877): the DECLARED hand-rolled tables.
+   *
+   * Runs AFTER the file walk on purpose — `scannedTables` is only complete once
+   * every factory site has been resolved, and `TIMELINE_DEFAULT_TRANSLATIONS` is
+   * in the registry AND reachable from the factory. De-duplicating on the
+   * literal's own position (the same id the factory half keys on) is what keeps
+   * the row counts a census rather than a multiset; the overlap is counted and
+   * printed rather than silently dropped.
+   *
+   * A declared table that no longer resolves is an UNREADABLE TABLE, never a
+   * skip — that is the whole registry rotting in the direction nothing else
+   * would notice, and the floor below is what makes it fatal rather than quiet.
+   */
+  const scanHandRolledTables = () => {
+    for (const { file, name } of handRolled) {
+      counters.handRolledDeclared += 1;
+      const absolute = join(root, file);
+      const source = parseModule(absolute);
+      const initializer = source === null ? null : declaredConstant(source, name);
+      const literal = initializer === null ? null : unwrapExpression(initializer);
+      if (literal === null || !ts.isObjectLiteralExpression(literal)) {
+        counters.handRolledUnreadableTables += 1;
+        continue;
+      }
+      const id = `${source.fileName}#${literal.getStart(source)}`;
+      if (scannedTables.has(id)) {
+        // Declared here and reachable from the factory too. Its rows are already
+        // in the factory census; counting them again would inflate both halves.
+        counters.handRolledAlreadyFactoryCovered += 1;
+        continue;
+      }
+      scannedTables.add(id);
+      counters.handRolledTables += 1;
+      scanDefaultsTable(literal, source, `${name} (${file})`, 'handRolled');
+    }
   };
 
   for (const file of collectSourceFiles(root)) {
@@ -1640,13 +2221,44 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     // spells EVERY call `t?.(…)` because its `t` is an optional prop, so it holds
     // no `t(` at all and this pre-filter used to drop the whole file — silently,
     // out of all five classes at once (objectui#4117).
-    if (!/\btt?\s*(?:\?\.)?\s*\(/.test(text)) continue;
-    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    const bindings = collectBindings(root, file, source);
+    const hasTranslatorCall = /\btt?\s*(?:\?\.)?\s*\(/.test(text);
+    // objectui#7592 — the key-builder leg's own pre-filter, because a builder's
+    // module need hold no `t(` spelling at all (the measured one does not, and
+    // the line above used to drop it unparsed). `.${` is the adjacency a dotted
+    // key template always has and that essentially nothing else in TS source
+    // does: 97 files match it, 47 of which the line above rejects — that 47 is
+    // the whole added parse cost, against 1572 files walked.
+    const hasKeyTemplate = text.includes('.${');
+    // objectui#7567 — and a THIRD reason to parse, for the same structural
+    // reason as the other two: class 8's subject is a defaults TABLE, not a
+    // call, and the two do not co-occur — `useTimelineTranslation.ts` and its
+    // siblings declare a factory and its table and never write `t(` at all.
+    const declaresFactory = text.includes('createSafeTranslation');
+    if (!hasTranslatorCall && !hasKeyTemplate && !declaresFactory) continue;
+    // Each leg below is guarded by its OWN predicate, never by "this file was
+    // parsed". That is the load-bearing half of having three: a leg gated on
+    // the union would silently inherit the other two's widenings, and each
+    // card's measured blast radius (#7592's 1 builder over 47 extra files,
+    // #7567's 32 factory sites) would stop being a reading about that leg.
+    let source = factoryModules.get(file) ?? null;
+    if (source === null) {
+      source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+      factoryModules.set(file, source);
+    }
+    if (declaresFactory) scanFactorySites(source);
 
     // A file's provenance: which table its own `t` reaches. A forwarded `t`
     // inherits it, because the parser cannot follow the value across modules.
-    let provenance = localScopes.some((dir) => relPath.startsWith(dir)) || isLocalTableFile ? 'local' : null;
+    const inLocalScope = localScopes.some((dir) => relPath.startsWith(dir)) || isLocalTableFile;
+
+    // Boundary 3: a builder inside a registered local table builds keys no pack
+    // defines by design, so it must not mark pack leaves live.
+    if (hasKeyTemplate && !inLocalScope) recordKeyBuilders(source, relPath);
+
+    if (!hasTranslatorCall) continue;
+    const bindings = collectBindings(root, file, source);
+
+    let provenance = inLocalScope ? 'local' : null;
     for (const binding of bindings) {
       if (binding.kind === 'packHook' && provenance === null) provenance = 'pack';
       if (binding.kind === 'import' && registeredModules.has(binding.detail)) provenance = 'local';
@@ -1903,6 +2515,8 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     visit(source);
   }
 
+  scanHandRolledTables();
+
   // ── the dynamic-family registry, evaluated (objectui#4964) ─────────────────
   //
   // Three rules, and the order matters: the two ratchet directions run over the
@@ -2056,7 +2670,8 @@ const HINTS = {
     ' registry — narrowing a declared vocabulary to make a red go away is how an exact' +
     ' check silently becomes a smaller one.',
   'undeclared-dynamic-family':
-    'A pack-backed template key whose static head is not in DYNAMIC_KEY_FAMILIES' +
+    'A pack-backed template key — at a call site, or built by a helper (objectui#7592) —' +
+    ' whose static head is not in DYNAMIC_KEY_FAMILIES' +
     ' (objectui#4964). Prefix-checking alone cannot see a member missing from all ten' +
     ' packs, so every family must say how its member set is known: add an entry with a' +
     ' `vocabulary` naming the declaration the call site iterates (a union, a const array,' +
@@ -2065,7 +2680,10 @@ const HINTS = {
     ' preferred over a guessed vocabulary; what is not allowed is silence.',
   'stale-dynamic-family':
     'A DYNAMIC_KEY_FAMILIES entry whose head no longer appears at any pack-backed call' +
-    ' site. Delete the entry — the registry describes the repo, and an entry nothing' +
+    ' site — nor, since objectui#7592, at any key-building helper. Delete the entry, OR' +
+    ' find out why the head stopped being seen: for a family that reaches the scan through' +
+    ' a builder, this finding is also how a detection leg that quietly stopped detecting' +
+    ' announces itself. Either way the registry describes the repo, and an entry nothing' +
     ' exercises is an exact check running against nothing.',
   'duplicate-family':
     'Two DYNAMIC_KEY_FAMILIES entries declare the same head. Only the first would be' +
@@ -2102,6 +2720,28 @@ const HINTS = {
     ' the same change in the other nine packs. If the pack value is genuinely the wrong' +
     ' copy for this spot, that is a copy change in its own PR, or the call site is asking' +
     ' for the wrong key.',
+  'factory-default-drift':
+    'A `createSafeTranslation` defaults row says something other than the `en` value of the same' +
+    ' key (objectui#7567). That table is the pack value\'s STAND-IN: `fallbackT` resolves' +
+    ' `defaults[key] || defaultValue || key`, so with an `I18nProvider` the pack wins and with' +
+    ' none this row is what renders — the same control labelled two different ways depending on' +
+    ' where it is mounted, and the difference is invisible in the console, which is where anyone' +
+    ' would look. objectui#7454 was the measured instance. Fix it in the TABLE: copy the `en`' +
+    ' value in byte-for-byte, ellipsis and capitalisation included. Do NOT edit' +
+    ' `packages/i18n/src/locales/en.ts` to match the table — the pack value is what users read' +
+    ' today, and changing it makes `scripts/check-i18n-en-drift.mjs` demand the same change in' +
+    ' the other nine packs. If the row is genuinely dead (no key in `en`, no caller), delete the' +
+    ' row rather than inventing a pack entry for it.',
+  'hand-rolled-default-drift':
+    'Same failure as `factory-default-drift`, on the half that needs a DECLARED registry to be' +
+    ' seen at all (objectui#7877). This table hand-rolls `fallbackT` rather than taking' +
+    ' `createSafeTranslation`, so nothing in its source says it is a defaults table and the' +
+    ' factory-resolved walk cannot reach it; it is checked because' +
+    ' `packages/test-support/src/hand-rolled-tables.json` names it. The consequence is the' +
+    ' same and so is the fix: copy the `en` value into the TABLE byte-for-byte. Do NOT edit' +
+    ' `packages/i18n/src/locales/en.ts` to match the table — that changes what users read and' +
+    ' obliges the other nine packs through `scripts/check-i18n-en-drift.mjs`. If the row is' +
+    ' genuinely dead (no key in `en`, no caller), delete the row.',
   'interpolation-parity':
     'The arguments this call site passes are not the holes the `en` value has (objectui#3845).' +
     ' An INERT argument is one i18next drops on the floor — no hole to receive it, no warning,' +
@@ -2180,6 +2820,47 @@ if (invokedDirectly) {
     process.exit(1);
   }
 
+  // The same guard again for class 8's subject (objectui#7567), and it is the
+  // one this class needs most: its whole verdict on this tree is "0 drifted",
+  // which is indistinguishable from "the table reader stopped resolving tables"
+  // unless the size of what it compared is asserted. `factoryComparedRows` was
+  // 841 over 32 tables when the class landed.
+  if (counters.factoryComparedRows < 500) {
+    console.error(
+      `The factory-defaults scan collapsed: ${counters.factoryComparedRows} row(s) compared over` +
+        ` ${counters.factoryTables} table(s), ${counters.factoryUnreadableTables} table(s) unreadable.` +
+        ' Expected hundreds — this repo carries 30-odd `createSafeTranslation` tables, so a number' +
+        ' this small means the resolver stopped following them and the comparison is passing on an' +
+        ' empty set.',
+    );
+    process.exit(1);
+  }
+
+  // The widened half's OWN floor (objectui#7877). It is a separate threshold on
+  // a separate counter on purpose: `factoryComparedRows` is 841, so a registry
+  // that resolved nothing at all would sail through the guard above while this
+  // half reported "0 drifted" over 0 rows — the exact reading objectui#7567's
+  // ⛔ #2 forbids, one level down.
+  //
+  // How 150 was chosen, rather than picked: measured on this tree the two
+  // registry entries the factory walk cannot reach compare 80
+  // (`GANTT_DEFAULT_TRANSLATIONS`) and 135 (`IMPORT_DEFAULT_TRANSLATIONS`)
+  // rows, 215 together. The threshold sits ABOVE the larger of the two, so
+  // losing EITHER declared table — not just both — collapses the scan into a
+  // failure instead of a quieter green. A floor below 135 would let the bigger
+  // table carry the smaller one's disappearance.
+  if (counters.handRolledComparedRows < 150) {
+    console.error(
+      `The hand-rolled defaults scan collapsed: ${counters.handRolledComparedRows} row(s) compared over` +
+        ` ${counters.handRolledTables} table(s) from ${counters.handRolledDeclared} declared,` +
+        ` ${counters.handRolledUnreadableTables} table(s) unreadable.` +
+        ' Expected 200-odd — the registry in `packages/test-support/src/hand-rolled-tables.json`' +
+        ' names two tables the factory walk cannot reach, and a number this small means one of' +
+        ' them stopped resolving and this half is passing on an empty set.',
+    );
+    process.exit(1);
+  }
+
   const { unexpected, stale } = applyBaseline(findings, readBaseline(root));
 
   console.log(
@@ -2200,6 +2881,23 @@ if (invokedDirectly) {
       `of them on call sites the drift rule cannot pin, ${counters.opaqueDefaultText} with no readable text at all.`,
   );
   console.log(
+    `Factory defaults tables: ${counters.factorySites} createSafeTranslation site(s) over ` +
+      `${counters.factoryTables} distinct table(s) (${counters.factoryUnreadableTables} unreadable) — ` +
+      `${counters.factoryComparedRows} row(s) compared against their en value, ` +
+      `${counters.factoryMatchingRows} matching, ${counters.factoryRowsNoEnKey} on a key en does not define, ` +
+      `${counters.factoryUnjudgedRows} with no single comparable en value, ` +
+      `${counters.factoryUnreadableRows} unreadable.`,
+  );
+  console.log(
+    `Hand-rolled defaults tables: ${counters.handRolledDeclared} declared, ` +
+      `${counters.handRolledTables} scanned here (${counters.handRolledAlreadyFactoryCovered} already ` +
+      `covered by the factory walk, ${counters.handRolledUnreadableTables} unreadable) — ` +
+      `${counters.handRolledComparedRows} row(s) compared against their en value, ` +
+      `${counters.handRolledMatchingRows} matching, ${counters.handRolledRowsNoEnKey} on a key en does not define, ` +
+      `${counters.handRolledUnjudgedRows} with no single comparable en value, ` +
+      `${counters.handRolledUnreadableRows} unreadable.`,
+  );
+  console.log(
     `Interpolation parity: ${counters.judgedInterpolation} call sites compared against their en value's holes, ` +
       `${counters.unjudgedInterpolation} with no single comparable en value, ${counters.opaqueOptions} with an ` +
       `unreadable option set, ${EXTERNALLY_INTERPOLATED_HOLES.length} key(s) whose holes are filled downstream.`,
@@ -2209,7 +2907,8 @@ if (invokedDirectly) {
       `static vocabulary (${counters.checkedMembers} member key(s) checked exactly), ` +
       `${counters.notEnumerableFamilies} with no enumerable member set (prefix-checked only), ` +
       `${counters.unexpandableFamilySites} multi-substitution site(s) not expandable, ` +
-      `${counters.headlessDynamicKeySites} dynamic call site(s) with no static head at all.`,
+      `${counters.headlessDynamicKeySites} dynamic call site(s) with no static head at all, ` +
+      `${counters.keyBuilderSites} head(s) read off a key-building helper rather than a call site.`,
   );
   console.log(
     `Sibling fallbacks: ${counters.siblingFallbacks} call site(s) sit left of a ||/?? — ` +
@@ -2223,6 +2922,8 @@ if (invokedDirectly) {
   // says "en defines it with different holes", and one paragraph cannot honestly
   // introduce all three.
   const drift = unexpected.filter((finding) => finding.reason === 'default-value-drift');
+  const factoryDrift = unexpected.filter((finding) => finding.reason === 'factory-default-drift');
+  const handRolledDrift = unexpected.filter((finding) => finding.reason === 'hand-rolled-default-drift');
   const parity = unexpected.filter((finding) => finding.reason === 'interpolation-parity');
   const siblings = unexpected.filter((finding) => finding.reason === 'dead-sibling-fallback');
   const spelling = unexpected.filter((finding) => finding.reason === 'unresolvable-default-spelling');
@@ -2240,6 +2941,8 @@ if (invokedDirectly) {
   const families = unexpected.filter((finding) => FAMILY_CLASSES.has(finding.reason));
   const VALUE_CLASSES = new Set([
     'default-value-drift',
+    'factory-default-drift',
+    'hand-rolled-default-drift',
     'interpolation-parity',
     'dead-sibling-fallback',
     'unresolvable-default-spelling',
@@ -2251,7 +2954,8 @@ if (invokedDirectly) {
   if (unexpected.length === 0 && stale.length === 0) {
     console.log(
       `Every in-scope call-site key resolves against the en pack (${enKeyCount} keys), every` +
-        ' literal inline defaultValue matches the value the pack serves, every call site passes' +
+        ' literal inline defaultValue matches the value the pack serves, every readable' +
+        ' createSafeTranslation defaults row repeats it too, every call site passes' +
         ' exactly the arguments that value has holes for, every inline defaultValue spells its' +
         ' placeholders the one way the provider-less fallback resolves, no call site carries a' +
         ' literal fallback beside itself, and every dynamic key family either checks its members' +
@@ -2282,6 +2986,39 @@ if (invokedDirectly) {
       console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
       console.error(`      en renders: ${quote(finding.expected)}`);
       console.error(`      call site:  ${quote(finding.actual)}`);
+    }
+  }
+
+  if (factoryDrift.length > 0) {
+    const distinct = new Set(factoryDrift.map((finding) => finding.detail));
+    console.error(
+      `\n${factoryDrift.length} createSafeTranslation defaults row${factoryDrift.length === 1 ? '' : 's'} ` +
+        `contradict${factoryDrift.length === 1 ? 's' : ''} the en value of a key that EXISTS ` +
+        `(${distinct.size} distinct key${distinct.size === 1 ? '' : 's'}) — that table stands in for the ` +
+        'pack on a provider-less host, so this control is labelled one way there and another in the ' +
+        'console:',
+    );
+    for (const finding of factoryDrift) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}  (${finding.table})`);
+      console.error(`      en renders:      ${quote(finding.expected)}`);
+      console.error(`      defaults table:  ${quote(finding.actual)}`);
+    }
+  }
+
+  if (handRolledDrift.length > 0) {
+    const distinct = new Set(handRolledDrift.map((finding) => finding.detail));
+    console.error(
+      `\n${handRolledDrift.length} hand-rolled defaults row${handRolledDrift.length === 1 ? '' : 's'} ` +
+        `contradict${handRolledDrift.length === 1 ? 's' : ''} the en value of a key that EXISTS ` +
+        `(${distinct.size} distinct key${distinct.size === 1 ? '' : 's'}) — this table hand-rolls ` +
+        '`fallbackT`, so it is reached through the declared registry in ' +
+        '`packages/test-support/src/hand-rolled-tables.json` rather than through the factory; the ' +
+        'consequence on a provider-less host is identical:',
+    );
+    for (const finding of handRolledDrift) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}  (${finding.table})`);
+      console.error(`      en renders:      ${quote(finding.expected)}`);
+      console.error(`      defaults table:  ${quote(finding.actual)}`);
     }
   }
 

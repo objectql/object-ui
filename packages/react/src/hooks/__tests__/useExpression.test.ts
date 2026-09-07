@@ -149,9 +149,13 @@ describe('useRowPredicate (canonical CEL row predicate — issue #1584)', () => 
     expect(renderHook(() => useRowPredicate(undefined, { a: 1 }, { fallback: false })).result.current).toBe(false);
   });
 
-  it('evaluates a CEL predicate over the row (record.* and bare)', () => {
+  it('evaluates a CEL predicate over the row (`record.*`; the bare shorthand retired in objectui#5741)', () => {
     expect(renderHook(() => useRowPredicate("record.status == 'active'", { status: 'active' })).result.current).toBe(true);
-    expect(renderHook(() => useRowPredicate("status == 'active'", { status: 'closed' })).result.current).toBe(false);
+    expect(renderHook(() => useRowPredicate("record.status == 'active'", { status: 'closed' })).result.current).toBe(false);
+    // A bare field is unbound: it faults into this hook's fallback (default
+    // `true`) on EITHER row, so it no longer discriminates.
+    expect(renderHook(() => useRowPredicate("status == 'active'", { status: 'closed' })).result.current).toBe(true);
+    expect(renderHook(() => useRowPredicate("status == 'active'", { status: 'active' }, { fallback: false })).result.current).toBe(false);
   });
 
   it('supports the CEL `in` operator (legacy engine could not)', () => {
@@ -182,10 +186,11 @@ describe('useRowPredicate (canonical CEL row predicate — issue #1584)', () => 
  * `usePredicateRecordContext` — the no-row half of the binding rule
  * (objectui#4075 / #4080).
  *
- * The row-PRESENT half (all three spellings resolving) is pinned behaviorally
- * where the rule is consumed: `action-record-predicate-root.test.tsx` for the
- * four generic renderers, `DeclaredActionsBar.test.tsx` for the bar. What is
- * pinned HERE is the return shape itself, one level below any renderer — the
+ * The row-PRESENT half (`record.*` resolving; the bare and `data.*` spellings
+ * retired in objectui#5741 and faulting) is pinned behaviorally where the rule
+ * is consumed: `action-record-predicate-root.test.tsx` for the four generic
+ * renderers, `DeclaredActionsBar.test.tsx` for the bar. What is pinned HERE is
+ * the return shape itself, one level below any renderer — the
  * distinction between "this surface has no row" and "this surface's row is
  * empty", which is the single point on which the helper and the inline copies
  * it replaced ever differed. Its consumers can only fail it through a rendered
@@ -193,7 +198,15 @@ describe('useRowPredicate (canonical CEL row predicate — issue #1584)', () => 
  * the helper) would not be caught by them at all.
  */
 describe('usePredicateRecordContext — no row binds NOTHING (objectui#4075)', () => {
-  it('returns an EMPTY bag for no row — not `{ record: {}, data: {} }`', () => {
+  it('with a row, binds `{ record: row }` and nothing else (objectui#5741)', () => {
+    const row = { status: 'pending' };
+    const { result } = renderHook(() => usePredicateRecordContext(row));
+    expect(result.current).toEqual({ record: row });
+    expect('data' in result.current).toBe(false);
+    expect('status' in result.current).toBe(false);
+  });
+
+  it('returns an EMPTY bag for no row — not `{ record: {} }`', () => {
     for (const noRow of [null, undefined, 'a string', 42, [1, 2]]) {
       const { result } = renderHook(() => usePredicateRecordContext(noRow));
       expect(result.current, String(noRow)).toEqual({});

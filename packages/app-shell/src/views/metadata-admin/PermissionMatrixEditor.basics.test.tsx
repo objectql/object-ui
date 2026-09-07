@@ -36,7 +36,8 @@ vi.mock('./useMetadata', () => ({
 vi.mock('./AssignedUsersSection', () => ({ AssignedUsersSection: () => null }));
 // Stub the capability picker so the B1 collapse logic is isolated from the
 // live sys_capability registry read.
-vi.mock('@object-ui/fields', () => ({
+vi.mock('@object-ui/fields', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/fields')>()),
   CapabilityMultiSelectField: () => <div data-testid="cap-picker" />,
   parseCapabilityNames: (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : []),
 }));

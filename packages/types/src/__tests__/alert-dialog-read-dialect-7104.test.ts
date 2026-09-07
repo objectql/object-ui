@@ -55,10 +55,18 @@
  *   and its own changeset grade (the objectui#7104 ruling); the pins below
  *   record today's state so that the PR which retires them re-derives these
  *   lines deliberately rather than passing unnoticed.
- * - The four schema-catalog fixtures author `actions`, a key no surface
- *   carries, so the docs page's own examples render an empty footer —
- *   objectui#7693. Pinned here as that card's filed premise; its fix goes red
- *   here and re-derives the pin.
+ * - RESOLVED, and re-derived rather than deleted: the four schema-catalog
+ *   fixtures used to author `actions`, a key no surface carries, so the docs
+ *   page's own examples rendered an empty footer — objectui#7693. That card
+ *   landed and this file went red exactly as predicted above, on all four
+ *   membership legs. The block at the bottom is the SAME pin re-derived onto
+ *   the other side of the flip: the fixtures now author the read dialect, and
+ *   what it asserts is the TYPES-side reading (every key they author is a
+ *   member of the mirror's shape), not the render-side one. The render-side
+ *   half lives with the catalog, in
+ *   `examples/schema-catalog/test/alert-dialog-footer-read-dialect-7693.test.tsx`
+ *   — deliberately not duplicated here, because this package cannot see a
+ *   renderer and that one cannot see the mirror's shape.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -312,21 +320,58 @@ describe('the docs page publishes the read dialect (objectui#7104)', () => {
 
   it('control: the rows both faces always agreed on are still there', () => {
     expect(rows().get('type')?.typeText).toBe("'alert-dialog'");
-    expect(rows().get('trigger')?.typeText).toBe('SchemaNode');
+    // `trigger` widened to the union on both faces with objectui#7081; the row
+    // still says what the declaration says.
+    expect(rows().get('trigger')?.typeText).toBe('SchemaNode | SchemaNode[]');
   });
 });
 
-describe('the schema-catalog fixtures still author `actions` — objectui#7693, pinned as its filed premise', () => {
-  it.each(FIXTURES)('%s.json carries an `actions` array and neither `cancelText` nor `actionText`', (name) => {
-    const fixture = JSON.parse(read(`${FIXTURE_DIR}/${name}.json`)) as Record<string, unknown>;
-    expect(Array.isArray(fixture.actions)).toBe(true);
-    expect(fixture).not.toHaveProperty('cancelText');
-    expect(fixture).not.toHaveProperty('actionText');
+describe('the schema-catalog fixtures author the READ dialect — objectui#7693, the premise pin re-derived', () => {
+  const fixture = (name: string): Record<string, unknown> =>
+    JSON.parse(read(`${FIXTURE_DIR}/${name}.json`)) as Record<string, unknown>;
+
+  it.each(FIXTURES)('%s.json authors `cancelText` and `actionText` and no `actions` array', (name) => {
+    const json = fixture(name);
+    expect(json).not.toHaveProperty('actions');
+    expect(typeof json.cancelText).toBe('string');
+    expect(typeof json.actionText).toBe('string');
   });
 
-  it('and every one of them parses GREEN regardless — passthrough is why nothing red covers objectui#7693', () => {
+  it('every key any fixture authors is a MEMBER of the mirror — the reading passthrough used to hide', () => {
+    // The types-side half of objectui#7693, and the only half this package can
+    // measure. `BaseSchema` is `.passthrough()`, so `safeParse` says nothing
+    // about whether an authored key is carried by anything; membership in the
+    // mirror's own shape is the question, and it is asked here rather than in
+    // the catalog because `AlertDialogZod.shape` is not visible from there.
+    const authored = new Set(FIXTURES.flatMap((name) => Object.keys(fixture(name))));
+    const undeclared = [...authored].filter((key) => !(key in shape)).sort();
+    expect(undeclared).toEqual([]);
+  });
+
+  it('control: `actions` is not a member, so the leg above really would catch it', () => {
+    // Without this, the assertion above passes just as well against a mirror
+    // that declares everything, and the four fixture legs read as a tautology.
+    expect('actions' in shape).toBe(false);
+    expect(['type', 'title', 'trigger', 'cancelText', 'actionText'].every((k) => k in shape)).toBe(true);
+  });
+
+  it('control: the pre-repair shape STILL parses green — passthrough did not change', () => {
+    // Why nothing red covered objectui#7693 before it landed, kept as a live
+    // reading rather than as history: re-authoring a fixture under `actions`
+    // would sail through `safeParse` again, which is why the membership leg
+    // above is the guard and `.success` is not.
+    const preRepair = {
+      type: 'alert-dialog',
+      title: 'Are you sure?',
+      trigger: { type: 'button', label: 'Open' },
+      actions: [{ type: 'button', label: 'Cancel' }, { type: 'button', label: 'Continue' }],
+    };
+    expect(AlertDialogZod.safeParse(preRepair).success).toBe(true);
+  });
+
+  it('and every one of them parses GREEN — now with the keys the renderer reads', () => {
     for (const name of FIXTURES) {
-      expect(AlertDialogZod.safeParse(JSON.parse(read(`${FIXTURE_DIR}/${name}.json`))).success, name).toBe(true);
+      expect(AlertDialogZod.safeParse(fixture(name)).success, name).toBe(true);
     }
   });
 });

@@ -62,11 +62,11 @@ ComponentRegistry.register(
     label: 'Code Editor',
     category: 'plugin',
     inputs: [
-      { name: 'value', type: 'string', label: 'Code', defaultValue: '' },
-      { name: 'language', type: 'enum', label: 'Language', enum: ['javascript', 'typescript', 'python', 'json', 'html', 'css'], defaultValue: 'javascript' },
-      { name: 'theme', type: 'enum', label: 'Theme', enum: ['vs-dark', 'light'], defaultValue: 'vs-dark' },
-      { name: 'height', type: 'string', label: 'Height', defaultValue: '400px' },
-      { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
+      { name: 'value', type: 'string' },
+      { name: 'language', type: 'enum', enum: ['javascript', 'typescript', 'python', 'json', 'html', 'css'] },
+      { name: 'theme', type: 'enum', enum: ['vs-dark', 'light'] },
+      { name: 'height', type: 'string' },
+      { name: 'readOnly', type: 'boolean' },
     ],
     defaultProps: {
       value: '// Write your code here\nconsole.log("Hello, World!");',

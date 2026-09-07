@@ -19,41 +19,106 @@ import type {
   DashboardWidget as SpecDashboardWidget,
   DateRangeDefaultRange as SpecDateRangeDefaultRange,
   GlobalFilter as SpecGlobalFilter,
+  GroupingConfig,
 } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
+import type { KanbanConditionalFormattingRule } from './objectql.js';
 
 /**
- * Kanban column — the DECLARATIVE (authoring / validation) face.
+ * Kanban card — the shape the registered `'kanban'` renderer reads.
  *
- * ## Why the name carries a `Declarative` prefix (objectui#6172)
+ * ## Why this dialect lives here (objectui#7664, maintainer ruling (a), 2026-09-05)
  *
- * This trio and `@object-ui/plugin-kanban`'s `KanbanCard` / `KanbanColumn` /
- * `KanbanSchema` were two declarations of one set of names, in two dialects.
- * The 2026-08-31 maintainer ruling (决裁批 #14, option A) settled the authority:
- * **the plugin KEEPS the bare names**, because those are what all four
- * registered kanban renderers (`kanban`, `kanban-ui`, `kanban-enhanced`,
- * `object-kanban`) consume, and objectui#6086 measured the failure mode of
- * getting that backwards — an IDE or agent auto-importing the bare name picks
- * whichever copy sorts first, and the wrong one produces a **confident empty
- * board** instead of an abstention. So the surviving bare name has to be the
- * one a renderer honours.
+ * `@object-ui/types` used to declare a DIFFERENT board under the same
+ * `'kanban'` key — the `DeclarativeKanban*` trio (`columns` with `color`,
+ * `draggable`, cards with `labels` / `assignees` / `priority`), which was the
+ * `'kanban'` arm of `ComplexSchema` → `AnyComponentSchema` → `safeValidateSchema`
+ * — while the renderer registered for that key (`ObjectKanbanRenderer` in
+ * `@object-ui/plugin-kanban`) consumed the plugin's own `KanbanSchema`. A board
+ * could pass `objectui validate` and render EMPTY, because the validator and the
+ * renderer honoured two unrelated faces (objectui#6086 measured the consequence).
  *
- * What survives here is the face this package really serves: the authoring
- * shape and its Zod mirror (`zod/complex.zod.ts`), which is the `'kanban'` arm
- * of `ComplexSchema` → `AnyComponentSchema` → `safeValidateSchema` and so
- * validates every authored `{ "type": "kanban" }` document the CLI's
- * `validate` / `check` commands see. Renaming rather than retiring was the
- * ruled outcome; ⛔ do not re-point these at the plugin — `@object-ui/types` is
- * the zero-workspace-dependency bottom layer and cannot depend on a plugin.
+ * The ruling: for an authored `type: 'kanban'` document the PLUGIN dialect is
+ * authoritative, so this package declares exactly that dialect and
+ * `@object-ui/plugin-kanban` imports it back rather than declaring its own
+ * (`packages/plugin-kanban/src/types.ts` re-exports these names — one
+ * declaration, one authority, the dependency direction unchanged: `types`
+ * declares, the plugin conforms). The declarative trio and its three Zod
+ * mirrors are retired in the same change (ADR-0049 enforce-or-remove): its only
+ * retained value was the validator arm, and that arm now validates this shape.
+ * objectui#6172's "keep both faces" half is what this reverses; the ruling says
+ * so explicitly.
+ *
+ * Every member below was carried from the plugin's declaration verbatim. The
+ * runtime-computed members (`cardSubtitle`, `cardFieldCells`, `coverImage`,
+ * a badge's `colorStyle`) are what `ObjectKanban` writes onto the cards it
+ * hands the board and what `KanbanImpl` / `KanbanEnhanced` read back; the Zod
+ * mirror (`zod/complex.zod.ts`) passes those through the way it passes
+ * `TableColumn.headerIcon` through (objectui#6424).
+ *
+ * `React.CSSProperties` / `React.ReactNode` resolve through the ambient
+ * namespace, the way `data-display.ts` already spells `headerIcon` and
+ * `rowStyle` — this package still declares no React dependency.
  */
-export interface DeclarativeKanbanColumn {
-  /**
-   * Unique column identifier
-   */
+export interface KanbanCard {
   id: string;
+  title: string;
+  description?: string;
+  badges?: Array<{
+    label: string;
+    variant?: "default" | "secondary" | "destructive" | "outline";
+    /**
+     * Optional Tailwind class string applied to the badge. When set, it
+     * overrides `variant` so callers can reuse the same colors as list/grid
+     * cells.
+     *
+     * Derive it the way the grid cell derives it, or the same option renders
+     * two colours on one screen (objectui#5183): prefer
+     * `getBadgeHexAppearance(color)` from `@object-ui/fields` and use its
+     * `className` — passing its `colorStyle` too — and fall back to
+     * `getBadgeColorClasses(color, value)` only when it returns `undefined`.
+     */
+    colorClass?: string;
+    /**
+     * Inline style accompanying `colorClass`. **Required whenever the class
+     * string came from `getBadgeHexAppearance`** — that className reads CSS
+     * custom properties which only this style declares, so a badge carrying
+     * the class without the style references undefined variables. Pass the
+     * helper's `style` verbatim; leave unset on the palette-family path.
+     */
+    colorStyle?: React.CSSProperties;
+  }>;
   /**
-   * Column title
+   * Synthesized card subtitle (e.g. "Account: Acme · Amount: $150K"). Rendered
+   * in preference to `description` so we don't have to overwrite the record's
+   * real `description` field — which would corrupt detail-view and edit-form
+   * displays once a card is opened.
+   *
+   * Read by `KanbanImpl`; absent on a board that renders plain descriptions.
    */
+  cardSubtitle?: string;
+  /**
+   * Structured per-field cells. When provided, the card body renders each
+   * field via the unified `@object-ui/fields` cell-renderer pipeline (same
+   * as Grid/Gallery), so lookup/user/email/url/phone/boolean/etc. fields
+   * keep their semantic styling instead of being flattened to a text join.
+   *
+   * Takes precedence over `cardSubtitle` / `description` when present.
+   */
+  cardFieldCells?: Array<{ field: string; label?: string; node: React.ReactNode }>;
+  /**
+   * Resolved cover-image URL for the card, derived from the board's
+   * `coverImageField`. Read by both board implementations.
+   */
+  coverImage?: string;
+  [key: string]: any;
+}
+
+/**
+ * Kanban column — a lane of the registered `'kanban'` renderer.
+ */
+export interface KanbanColumn {
+  id: string;
   title: string;
   /**
    * Cards in this column.
@@ -62,115 +127,291 @@ export interface DeclarativeKanbanColumn {
    * document writes: `KanbanImpl` (12 lines), `KanbanEnhanced` (8) and
    * `bucketCardsIntoColumns` all read `column.cards`, and the two catalog
    * entries, the plugin docs and `content/docs/api/schema-reference.md` all
-   * author it. This member was spelled `items` until objectui#6939 — a
-   * spelling with zero read sites, which made every authored board fail
-   * `safeValidateSchema` while rendering correctly (objectui#6318's bucket).
+   * author it. The retired declarative face spelled this `items` until
+   * objectui#6939 — a spelling with zero read sites, which made every authored
+   * board fail `safeValidateSchema` while rendering correctly (objectui#6318's
+   * bucket).
    */
-  cards: DeclarativeKanbanCard[];
+  cards: KanbanCard[];
   /**
-   * Column color/variant
-   */
-  color?: string;
-  /**
-   * Maximum number of cards allowed
+   * WIP limit — the card count at which the lane warns. Never reaches the
+   * query; the board's fetch window is {@link KanbanSchema.limit}.
    */
   limit?: number;
+  className?: string;
   /**
-   * Whether column is collapsed
+   * Whether the lane renders collapsed. Honoured by `KanbanEnhanced` (the
+   * implementation that ships column collapsing); the plain board ignores it.
    */
   collapsed?: boolean;
+  /**
+   * RETIRED with the declarative face (objectui#7664, ADR-0049) — `color` was a
+   * `DeclarativeKanbanColumn` member, and no registered board reads a column
+   * colour (measured: zero `column.color` read sites across `KanbanImpl`,
+   * `KanbanEnhanced`, `ObjectKanban`).
+   *
+   * A tombstone rather than a plain removal on BOTH prongs of the
+   * discriminator the precedent changesets state (objectui#5941, #7526; the
+   * one-line form is under correction as objectui#7678) — a tombstone exists
+   * (1) to steer authors to a named live replacement KEY, or (2) to keep loud a
+   * key the docs taught as working:
+   *
+   *   - prong 1: `className` is that live replacement — style a lane through
+   *     it;
+   *   - prong 2: `content/docs/api/schema-reference.md` taught this key as
+   *     working. Before this card its kanban example authored a `color` on
+   *     every one of its three columns (`"color": "#6366f1"` and two more) and
+   *     its `columns` row read "each with `id`, `title`, `color`, and `cards`".
+   *
+   * ⚠️ The hazard prong 2 guards here is a SILENT STRIP, not a silent keep:
+   * `KanbanColumn` does not extend {@link BaseSchema}, so its mirror is a plain
+   * (non-passthrough) object. Measured on the built mirror: an undeclared
+   * column key is accepted and dropped from the parsed output, while this
+   * tombstone refuses `color` by name. A board that has always authored lane
+   * colours therefore gets told, instead of quietly losing them.
+   * @deprecated Not part of this contract — the value was inert.
+   */
+  color?: never;
 }
 
 /**
- * Kanban card
+ * Kanban Board component schema — the `'kanban'` arm of {@link ComplexSchema}
+ * and the face `ObjectKanbanRenderer` (registered for `'kanban'` and
+ * `'object-kanban'`) consumes; `KanbanRenderer` (`'kanban-ui'`) and the
+ * `'kanban-enhanced'` registration read the same keys off `schema`.
+ *
+ * Renders a drag-and-drop kanban board for task management: either bound to
+ * an object (`objectName` + `groupBy`, lanes materialised from the group
+ * field's options) or authored statically (`columns` carrying their `cards`).
  */
-export interface DeclarativeKanbanCard {
-  /**
-   * Unique card identifier
-   */
-  id: string;
-  /**
-   * Card title
-   */
-  title: string;
-  /**
-   * Card description
-   */
-  description?: string;
-  /**
-   * Card labels/tags
-   */
-  labels?: string[];
-  /**
-   * Card assignees
-   */
-  assignees?: string[];
-  /**
-   * Card due date
-   */
-  dueDate?: string | Date;
-  /**
-   * Card priority
-   */
-  priority?: 'low' | 'medium' | 'high' | 'critical';
-  /**
-   * Custom card content
-   */
-  content?: SchemaNode | SchemaNode[];
-  /**
-   * Additional card data
-   */
-  data?: any;
-}
-
-/**
- * Kanban board component
- */
-export interface DeclarativeKanbanSchema extends BaseSchema {
+export interface KanbanSchema extends BaseSchema {
   type: 'kanban';
+
   /**
-   * Kanban columns
+   * Object name to fetch data from.
    */
-  columns: DeclarativeKanbanColumn[];
+  objectName?: string;
+
   /**
-   * Enable drag and drop
-   * @default true
+   * Field to group records by (maps to column IDs).
    */
-  draggable?: boolean;
+  groupBy?: string;
+
   /**
-   * Card move handler
+   * Field for swimlane rows (2D grouping). When set, cards are grouped
+   * vertically by `groupBy` (columns) and horizontally by `swimlaneField` (rows).
+   */
+  swimlaneField?: string;
+
+  /**
+   * Field to use as the card title.
+   */
+  cardTitle?: string;
+
+  /**
+   * Fields to display on the card.
+   */
+  cardFields?: string[];
+
+  /**
+   * Static data or bound data. Stays a raw-row input: objectui#7651 (a
+   * record-source ladder for the board) was ruled B and closed not_planned.
+   */
+  data?: any[];
+
+  /**
+   * Row cap for the fetch. Defaults to `DEFAULT_KANBAN_LIMIT` (100); a board
+   * renders every fetched record into a lane and has no pagination control, so
+   * this is the author's window rather than a page size. A bound `dataSource`
+   * writes it here too — the binding's own `limit`, or the named view's
+   * `pagination.pageSize`.
+   *
+   * Not to be confused with {@link KanbanColumn.limit}, one level down: that is
+   * a lane's WIP limit (the card count at which the lane warns) and never
+   * reaches the query.
+   */
+  limit?: number;
+
+  /**
+   * Array of columns to display in the kanban board.
+   * Each column contains an array of cards.
+   */
+  columns?: KanbanColumn[];
+
+  /**
+   * Callback function when a card is moved between columns or reordered.
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because
+   * `KanbanRenderer` forwards it (`onCardMove={schema.onCardMove}`); the
+   * object-bound board (`ObjectKanban`) supplies its own persisting handler.
+   */
+  onCardMove?: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => void;
+
+  /**
+   * Callback function when a card is clicked.
    *
    * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
    * metadata: JSON has no function value, so the zod twin refuses this key by
    * name and points at the node-type spelling. Kept callable here because it is
-   * forwarded by `plugin-kanban` (`onCardMove={schema.onCardMove}`).
+   * read on every channel measured (objectui#7664, the contract review of
+   * PR #7743):
+   *
+   *   - `KanbanRenderer` forwards it (`onCardClick={schema.onCardClick}`) in the
+   *     same block as {@link KanbanSchema.onCardMove} and
+   *     {@link KanbanSchema.onQuickAdd};
+   *   - on the `'kanban'` and `'object-kanban'` keys `ObjectKanban` substitutes
+   *     its own function — and substitutes `onCardMove` in the very same object
+   *     literal, so that reading retires both keys or neither;
+   *   - and its substitute CALLS the authored handler: `ObjectKanban` declares
+   *     an `onCardClick` PROP (`onCardMove` has none), which `SchemaRenderer`
+   *     supplies by spreading every non-metadata schema key as a React prop.
+   *
+   * ⛔ Do not "simplify" this back into a deletion. `BaseSchema` is
+   * `.passthrough()`, so removing the key does not refuse it — it stops being
+   * judged and the value is kept, which is how the first cut of objectui#7664
+   * turned a refused key into an accepted one with every ratchet green.
+   * `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx` derives the
+   * forwarded key set from the read site and goes red on that deletion.
+   *
+   * The event is `unknown` rather than a mouse event because this package
+   * declares zero dependencies and has no React types; `KanbanImpl` narrows it
+   * to `React.MouseEvent` at the call site.
    */
-  onCardMove?: (cardId: string, fromColumn: string, toColumn: string, position: number) => void;
+  onCardClick?: (card: KanbanCard, event?: unknown) => void;
+
   /**
-   * Card click handler
+   * Optional CSS class name to apply custom styling.
+   */
+  className?: string;
+
+  /**
+   * Enable Quick Add button at the bottom of each column.
+   * When true, a "+" button appears allowing inline card creation.
+   * @default false
+   */
+  quickAdd?: boolean;
+
+  /**
+   * Callback when a new card is created via Quick Add.
    *
    * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
    * metadata: JSON has no function value, so the zod twin refuses this key by
-   * name and points at the node-type spelling. Kept callable here because it is
-   * forwarded by `plugin-kanban` (`onCardClick={schema.onCardClick}`).
+   * name and points at the node-type spelling. Kept callable here because
+   * `KanbanRenderer` forwards it (`onQuickAdd={schema.onQuickAdd}`), and
+   * `ObjectKanban` spreads the authored schema into that renderer.
    */
-  onCardClick?: (card: DeclarativeKanbanCard) => void;
+  onQuickAdd?: (columnId: string, title: string) => void;
+
+  /**
+   * Field name to use as cover image on cards.
+   * The field value should be a URL string or file object with a `url` property.
+   */
+  coverImageField?: string;
+
+  /**
+   * Allow columns to be collapsed/expanded.
+   * @default false
+   */
+  allowCollapse?: boolean;
+
+  /**
+   * Conditional formatting rules for card coloring. Accepts the native
+   * `{ field, operator, value }` shape and the spec `{ condition, style }` CEL
+   * shape (issue #1584).
+   */
+  conditionalFormatting?: KanbanConditionalFormattingRule[];
+
+  /**
+   * Predefined card templates for quick-add.
+   * Each template pre-fills the quick-add form with default values.
+   */
+  cardTemplates?: CardTemplate[];
+
+  /**
+   * Custom column width configuration.
+   * Supports per-column overrides with min/max constraints.
+   */
+  columnWidths?: ColumnWidthConfig;
+
+  /**
+   * Grouping configuration from ListView.
+   * When set, the first grouping field is used as swimlaneField fallback.
+   */
+  grouping?: GroupingConfig;
+
+  /**
+   * RETIRED with the declarative face (objectui#7664, ADR-0049) — `draggable`
+   * was a `DeclarativeKanbanSchema` member and no registered board reads it
+   * (measured: zero `draggable` read sites in `@object-ui/plugin-kanban`;
+   * drag-and-drop is always on).
+   *
+   * A tombstone rather than a plain removal on PRONG 2 of the discriminator the
+   * precedent changesets state (objectui#5941, #7526; the one-line form is
+   * under correction as objectui#7678) — a tombstone exists (1) to steer
+   * authors to a named live replacement KEY, or (2) to keep loud a key the docs
+   * taught as working. Prong 1 does not apply: drag-and-drop is unconditional,
+   * so there is no replacement key to name, and the remedy is to delete the
+   * member. Prong 2 carries it: `content/docs/api/schema-reference.md` taught
+   * this key as working — before this card its kanban example opened with
+   * `"draggable": true` and its property table read "`draggable` | `boolean` |
+   * Enable drag-and-drop between columns."
+   *
+   * ⚠️ Inertness is why the key is retired, not why it is tombstoned. A key
+   * this documented must be refused by NAME rather than dropped: {@link
+   * BaseSchema} is `.passthrough()`, so dropping it from the mirror would leave
+   * a document naming it silently accepted with the value kept — the failure
+   * this card's own first cut shipped at {@link KanbanSchema.onCardClick}.
+   * @deprecated Not part of this contract — the value was inert.
+   */
+  draggable?: never;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
-   * `kanban` renderer takes `({ schema })` and never reads it. The zod twin
-   * refuses it by name; author behaviour as a node type (`{ "type": "toast" }`,
-   * an `action:button` node) instead.
+   * `kanban` renderer takes `({ schema })` and never reads it. Carried over
+   * from the retired declarative face so the successor arm under the same
+   * `'kanban'` key keeps refusing the spelling by name; author behaviour as a
+   * node type (`{ "type": "toast" }`, an `action:button` node) instead.
    * @deprecated Not part of this contract — the value was inert.
    */
   onColumnAdd?: never;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
-   * `kanban` renderer takes `({ schema })` and never reads it. The zod twin
-   * refuses it by name; author behaviour as a node type (`{ "type": "toast" }`,
-   * an `action:button` node) instead.
+   * `kanban` renderer takes `({ schema })` and never reads it. Carried over
+   * from the retired declarative face so the successor arm under the same
+   * `'kanban'` key keeps refusing the spelling by name; author behaviour as a
+   * node type (`{ "type": "toast" }`, an `action:button` node) instead.
    * @deprecated Not part of this contract — the value was inert.
    */
   onCardAdd?: never;
+}
+
+/**
+ * A predefined card template with pre-filled field values.
+ */
+export interface CardTemplate {
+  /** Unique template identifier */
+  id: string;
+  /** Human-readable template name */
+  name: string;
+  /** Optional Lucide icon name */
+  icon?: string;
+  /** Pre-filled field values */
+  values: Record<string, any>;
+}
+
+/**
+ * Configuration for custom column widths.
+ */
+export interface ColumnWidthConfig {
+  /** Default column width in pixels */
+  defaultWidth?: number;
+  /** Minimum column width in pixels */
+  minWidth?: number;
+  /** Maximum column width in pixels */
+  maxWidth?: number;
+  /** Per-column width overrides keyed by column ID */
+  overrides?: Record<string, number>;
 }
 
 /**
@@ -718,7 +959,73 @@ export interface ChatToolInvocation {
 }
 
 /**
- * Chatbot component
+ * Chatbot component — the authoring face of the
+ * `ComponentRegistry.register('chatbot', ...)` registration in
+ * `packages/plugin-chatbot/src/renderer.tsx` (objectui#7655).
+ *
+ * ## Six ADR-0049 retirement tombstones (objectui#7703)
+ *
+ * `loading`, `showAvatars`, `userAvatar`, `assistantAvatar`, `markdown` and
+ * `height` are `?: never` below, each paired with a `retirementTombstone()`
+ * arm on the Zod twin (`zod/complex.zod.ts`). They were declared here,
+ * mirrored there, and read by NO registration — a published type teaching six
+ * knobs that did nothing.
+ *
+ * The instrument, re-measured on this branch's base rather than inherited
+ * from the card: one `schema.KEY` count per `ComponentRegistry.register(...)`
+ * body of `renderer.tsx`, the file split at the three register calls
+ * (`chatbot` / `chatbot-enhanced` / `chatbot-floating`). All six read
+ * 0 / 0 / 0. Lit controls on the same instrument in the same pass —
+ * `placeholder` 1 / 1 / 1, `messages` 1 / 1 / 1, `userAvatarUrl` 1 / 1 / 1,
+ * `maxHeight` 1 / 1 / 0, `floatingConfig` 0 / 0 / 1, `processVisibility`
+ * 0 / 1 / 0 — so the zeros are readings, not a blind grep.
+ *
+ * The named-read census is now the WHOLE channel. It was not always: the
+ * `chatbot-floating` registration used to end its `<FloatingChatbot>` element
+ * with a raw `{...props}` spread, which handed the panel's `<ChatbotEnhanced>`
+ * every authored key unfiltered — and that component HAS a `showAvatars` prop,
+ * so the key was live there by accident. objectui#7708 ruled FENCE: the spread
+ * is filtered through `toDomProps` and moved to the head of the element, the
+ * shape the two sibling registrations already used. ⇒ `showAvatars` is a key
+ * the FENCE turned dark, not a key nothing ever read; the other five were live
+ * on no channel at any time (`loading`, `userAvatar`, `assistantAvatar`,
+ * `markdown` and `height` are not `ChatbotEnhancedProps` members either —
+ * markdown exists there only as `enableMarkdown` — so the spread had nothing
+ * to land them on).
+ *
+ * ⚠️ `processVisibility` is deliberately NOT part of this retirement:
+ * `chatbot-enhanced` reads it (0 / 1 / 0), and objectui#7655 left the member
+ * here exactly as it was.
+ *
+ * ## Why tombstones and not deletions — the mirror decides it here
+ *
+ * All six HAVE a Zod arm, so deleting the declaration would trade one silent
+ * no-op for another: `BaseSchema` is `.passthrough()` on the Zod side and
+ * carries a `[key: string]: any` index signature on the TS side, so an
+ * UNDECLARED key is not refused, it is KEPT. That is the hazard the two-prong
+ * discriminator leaves to the carrier — where there is no mirror there is "no
+ * silent-strip hazard for prong 2 to guard" (`mobile.ts`, objectui#5941 /
+ * #7526 / #7678: a tombstone exists to steer authors to a named live
+ * replacement KEY, or to keep loud a key the docs taught as working). Here
+ * there IS a mirror to host the refusal, and prong 1 holds by the letter for
+ * four of the six — `userAvatar` → `userAvatarUrl`, `assistantAvatar` →
+ * `assistantAvatarUrl`, `height` → `maxHeight`, `markdown` →
+ * `enableMarkdown` on a `chatbot-enhanced` node. Each member's own comment
+ * names its replacement, or says there is none.
+ *
+ * ## Why not ENFORCE, decided per key
+ *
+ * The other arm of enforce-or-remove was taken key by key and refused each
+ * time. `<Chatbot>` — the component THIS registration renders
+ * (`plugin-chatbot/src/index.tsx`) — declares `messages`, `placeholder`,
+ * `onSendMessage`, `disabled`, `showTimestamp`, `userAvatarUrl`,
+ * `userAvatarFallback`, `assistantAvatarUrl`, `assistantAvatarFallback` and
+ * `maxHeight`, and not one of the six. Enforcing any of them would mean
+ * growing a component prop (a feature, not a retirement) or wiring a SECOND
+ * spelling of a key that already works — the N dialects AGENTS.md #0.1
+ * forbids. Per-key argument in each member's comment.
+ *
+ * Pinned in `__tests__/chatbot-dark-keys-retired-7703.test.ts`.
  */
 export interface ChatbotSchema extends BaseSchema {
   type: 'chatbot';
@@ -732,9 +1039,27 @@ export interface ChatbotSchema extends BaseSchema {
    */
   placeholder?: string;
   /**
-   * Whether chat is loading (thinking)
+   * ADR-0049 RETIREMENT TOMBSTONE — `loading` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * Chat progress is RUNTIME state, not authorable metadata. The `chatbot`
+   * registration derives it from `useObjectChat` as `isLoading` and spends it
+   * on `disabled={hostDisabled || isLoading}`; `<Chatbot>` declares no
+   * `loading` prop for an authored value to land on. So `loading: true` never
+   * showed a spinner and `loading: false` never hid one.
+   *
+   * ENFORCE was refused here on the classification, not only on the missing
+   * prop: an authored boolean would be a static declaration of a value the
+   * chat runtime owns and updates per token — it would fight the runtime, not
+   * configure it (AGENTS.md #8: state that a refresh must survive never lives
+   * in metadata that cannot see the refresh).
+   *
+   * There is NO replacement key: nothing authorable selects this. Delete it.
+   *
+   * @deprecated Not part of this contract — the value was inert. Loading is
+   * derived from the chat runtime.
    */
-  loading?: boolean;
+  loading?: never;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
    * `chatbot` renderer wires its own `handleSendMessage` and `toDomProps` drops
@@ -744,32 +1069,111 @@ export interface ChatbotSchema extends BaseSchema {
    */
   onSendMessage?: never;
   /**
-   * Show avatars
-   * @default true
+   * ADR-0049 RETIREMENT TOMBSTONE — `showAvatars` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * ⭐ The one key of the six whose provenance is a FENCE, not an absence.
+   * `<ChatbotEnhanced>` really does have a `showAvatars` prop, and until
+   * objectui#7708 the `chatbot-floating` registration's raw trailing
+   * `{...props}` spread delivered an authored value straight to it — measured
+   * live through the real host. That ruling was FENCE: the spread now goes
+   * through `toDomProps` at the head of the element, so the key is dark on all
+   * three registrations by ruling. It was never live on a `chatbot` node: no
+   * registration forwards it by name, and this one renders `<Chatbot>`, which
+   * has no such prop — the card's own counter-example, re-confirmed here.
+   *
+   * ENFORCE was refused: on a `chatbot` node it has no target to forward to,
+   * and re-declaring it on the two faces that CAN reach `<ChatbotEnhanced>`
+   * would re-open by declaration exactly the channel objectui#7708 closed by
+   * fence, one card earlier. `@default true` was published prose only — the
+   * plain `<Chatbot>` renders an avatar beside every message unconditionally,
+   * with no gate, and `<ChatbotEnhanced>`'s own prop defaults to `false`.
+   *
+   * There is no replacement KEY. The avatar IMAGES are `userAvatarUrl` /
+   * `assistantAvatarUrl` and their `*Fallback` siblings, which all three
+   * registrations read; delete this one.
+   *
+   * @deprecated Not part of this contract — the value was inert on a `chatbot`
+   * node and is dark everywhere since objectui#7708.
    */
-  showAvatars?: boolean;
+  showAvatars?: never;
   /**
-   * User avatar
+   * ADR-0049 RETIREMENT TOMBSTONE — `userAvatar` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * Write **`userAvatarUrl`** (with `userAvatarFallback` for the text shown
+   * while it loads or fails) — the live spelling, read 1 / 1 / 1 and declared
+   * on all three faces through {@link ChatbotSharedKey}. `userAvatar` has zero
+   * word-boundary hits anywhere in `packages/plugin-chatbot/src`: not a stale
+   * read, a spelling no code ever had.
+   *
+   * ENFORCE was refused: wiring it would give one avatar image TWO authorable
+   * spellings, the second de-facto contract AGENTS.md #0.1 exists to stop.
+   *
+   * @deprecated Not part of this contract — the value was inert. Write
+   * `userAvatarUrl`.
    */
-  userAvatar?: string;
+  userAvatar?: never;
   /**
-   * Assistant avatar
+   * ADR-0049 RETIREMENT TOMBSTONE — `assistantAvatar` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * Write **`assistantAvatarUrl`** (with `assistantAvatarFallback`) — the live
+   * spelling, read 1 / 1 / 1 and declared on all three faces through
+   * {@link ChatbotSharedKey}. `assistantAvatar` has zero word-boundary hits
+   * anywhere in `packages/plugin-chatbot/src`.
+   *
+   * ENFORCE was refused for the same reason as `userAvatar`: a second
+   * authorable spelling of one image is a second contract.
+   *
+   * @deprecated Not part of this contract — the value was inert. Write
+   * `assistantAvatarUrl`.
    */
-  assistantAvatar?: string;
+  assistantAvatar?: never;
   /**
-   * Enable markdown rendering
-   * @default true
+   * ADR-0049 RETIREMENT TOMBSTONE — `markdown` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * The `chatbot` node renders `<Chatbot>`, which has no markdown path at all:
+   * it prints message content as text, so there was never a renderer for this
+   * switch to reach. Markdown is a `chatbot-enhanced` / `chatbot-floating`
+   * capability, where the live spelling is **`enableMarkdown`** on
+   * {@link ChatbotEnhancedSchema} / {@link ChatbotFloatingSchema} (read
+   * 0 / 1 / 1). `markdown` is not a `ChatbotEnhancedProps` member either.
+   *
+   * ENFORCE was refused twice over: on this node it would mean building a
+   * markdown renderer into `<Chatbot>` (a feature), and on the other two it
+   * would be a second spelling of `enableMarkdown`. `@default true` was
+   * published prose the plain component never honoured.
+   *
+   * @deprecated Not part of this contract — the value was inert. Author
+   * `type: 'chatbot-enhanced'` with `enableMarkdown` instead.
    */
-  markdown?: boolean;
+  markdown?: never;
   /**
    * How much agent reasoning/tool detail to show.
    * @default 'summary'
    */
   processVisibility?: 'hidden' | 'summary' | 'debug';
   /**
-   * Chat height
+   * ADR-0049 RETIREMENT TOMBSTONE — `height` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * Write **`maxHeight`** (a CSS length string, default `'500px'`) — the live
+   * spelling, read 1 / 1 / 0 and forwarded to `<Chatbot>`'s own `maxHeight`
+   * prop. On a `chatbot-floating` node neither key applies: size that panel
+   * with `floatingConfig.panelHeight`, a NUMBER of pixels, which is what the
+   * panel reads.
+   *
+   * ENFORCE was refused: `<Chatbot>` has no `height` prop, and adding one
+   * beside the `maxHeight` it already forwards would publish two authorable
+   * spellings for one dimension — with a `string | number` union that does not
+   * even match the live key's `string`.
+   *
+   * @deprecated Not part of this contract — the value was inert. Write
+   * `maxHeight`, or `floatingConfig.panelHeight` on a floating node.
    */
-  height?: string | number;
+  height?: never;
 
   // --- AI / service-ai integration fields ---
 
@@ -904,14 +1308,83 @@ export interface ChatbotSchema extends BaseSchema {
    */
   onSend?: (content: string, messages: ChatMessage[]) => void;
 
-  // --- Floating / FAB display mode ---
+  // --- Floating / FAB configuration ---
 
   /**
-   * Display mode for the chatbot.
-   * - `'inline'` (default): Embedded in the page flow.
-   * - `'floating'`: Rendered as a floating action button (FAB) that opens a panel overlay.
+   * ADR-0049 RETIREMENT TOMBSTONE — `displayMode` (objectui#7654, maintainer
+   * ruling B, 2026-09-05). Write the node `type` instead: `'chatbot-floating'`
+   * for the trigger-and-panel presentation, `'chatbot'` / `'chatbot-enhanced'`
+   * for an inline one. The node's `type` is the one selector of presentation;
+   * this key was a second spelling of that choice that no renderer has ever
+   * read.
+   *
+   * What was measured, on the retiring PR's base: `displayMode` was declared
+   * here and on {@link ChatbotFloatingSchema}, offered as a "Display Mode"
+   * control in the `chatbot-floating` registration's `inputs`, and seeded as
+   * `'floating'` by that registration's `defaultProps` — and read by nothing.
+   * `chatbot-floating` renders `<FloatingChatbot>` unconditionally and
+   * `chatbot` never looked at the key, so `'floating'` on a `chatbot` node
+   * produced no trigger and `'inline'` on a `chatbot-floating` node changed
+   * nothing. A whole-repo `git grep` census over tracked files, build output
+   * excluded, returned those sites, the doc comments and ledger entries beside
+   * them, one historical CHANGELOG line and two unrelated `displayMode` props
+   * (`GridField`, `MasterDetailForm`); the same pass over `floatingConfig`, a
+   * key that IS read, returned 79 lines, so the instrument was not blind. The
+   * control and the seed are removed in the same change; the restatement of
+   * that control is this tombstone plus the release note (objectui#7070: a
+   * control is restated, never deleted into a vacuum).
+   *
+   * ## Why a tombstone — discriminator prong 2 — and why it is loud-vs-silent here
+   *
+   * A `?: never` tombstone is available only on a surviving carrier
+   * (`ChatbotSchema` survives) and is used when either prong of this package's
+   * discriminator holds: it steers authors to a named live replacement KEY,
+   * or it keeps loud a key the docs taught as working. Prong 2 holds: the key
+   * was advertised in the 3.3.0 release record (`CHANGELOG.md:578`, "Extended
+   * `ChatbotSchema` with `displayMode` (`'inline' | 'floating'`) …") and its
+   * published comment told authors it selected the presentation. Prong 1 is
+   * not met by the letter — the replacement is the discriminant `type`, not a
+   * new key — which is why the guidance above names `type`.
+   *
+   * On a carrier extending {@link BaseSchema} — every component schema in this
+   * package — deleting an optional member is SILENT in every value shape,
+   * because the `[key: string]: any` index signature defeats both
+   * excess-property checking and the weak-type check. Measured on THIS member
+   * with `tsc -p tsconfig.test.json`, a no-index-signature control carrier
+   * (`FloatingChatbotConfig`) lit in the same run (TS2353 on a fresh undeclared
+   * key, TS2559 on a lone-key widened value):
+   *
+   *   | route      | fresh `'floating'` | fresh `'bogus'` | widened `'floating'` |
+   *   |------------|--------------------|-----------------|----------------------|
+   *   | declared   | clean              | TS2322          | clean                |
+   *   | DELETED    | clean              | clean           | clean                |
+   *   | TOMBSTONED | TS2322             | TS2322          | TS2322               |
+   *
+   * Deleted, the member reads as `any` through the index signature and even a
+   * wrong-typed value goes quiet. Tombstoned, PRESENCE with any value is a
+   * compile error — a channel deletion cannot produce on this carrier at all:
+   * on a `BaseSchema` carrier the two routes are loud-vs-silent, not
+   * louder-vs-quieter. Pinned, the deleted row included as a live control, in
+   * `__tests__/chatbot-display-mode-retired.test.ts`.
+   *
+   * ## Runtime: unchanged, deliberately — zero validation before and after
+   *
+   * There is NO `retirementTombstone()` half. `displayMode` has never had a
+   * Zod arm: it sits in the `UnmirroredDeclared` ledger for both
+   * `complex.zod.ts#ChatbotSchema` and `#ChatbotFloatingSchema`
+   * (`__tests__/zod-mirror-parity.test.ts`), and `BaseSchema` is
+   * `.passthrough()`, so a stored document carrying `displayMode: 'floating'`
+   * — every node the designer ever created — parsed green before this change
+   * and parses green after it, and the value is dropped at render time as it
+   * always was. Minting an arm to refuse it would be the declared-but-
+   * unmirrored axis (objectui#6152); the retirement test pins both twins'
+   * shapes as a tripwire so that whoever mints the mirror adds the
+   * `retirementTombstone()` half at that time.
+   *
+   * @deprecated Not part of this contract — the value was inert. The node
+   * `type` selects the presentation.
    */
-  displayMode?: 'inline' | 'floating';
+  displayMode?: never;
 
   /**
    * Configuration for the floating action button and the panel it opens —
@@ -930,8 +1403,9 @@ export interface ChatbotSchema extends BaseSchema {
  * NAMED `schema.KEY` read in each of the three `ComponentRegistry.register(...)`
  * bodies of `packages/plugin-chatbot/src/renderer.tsx`, forwarded into
  * `useObjectChat` or onto the rendered component. (Named reads are the
- * instrument; the `chatbot-floating` registration also has an unfiltered
- * props spread — see {@link ChatbotFloatingSchema}.) The instrument was lit by
+ * instrument; the `chatbot-floating` registration also HAD an unfiltered
+ * props spread on this census's base — fenced since, objectui#7708; see
+ * {@link ChatbotFloatingSchema}.) The instrument was lit by
  * keys that are NOT shared — `processVisibility` read 0 / 1 / 0 across
  * `chatbot` / `chatbot-enhanced` / `chatbot-floating` and `floatingConfig`
  * 0 / 0 / 1 — so a zero in that census is a reading, not a blind grep.
@@ -1053,8 +1527,9 @@ export interface ChatbotEnhancedSchema
  *   - `enableMarkdown`, `enableFileUpload` and the `onClear` runtime slot,
  *     forwarded into the panel's `<ChatbotEnhanced>`;
  *   - `floatingConfig`, the trigger and panel geometry
- *     ({@link FloatingChatbotConfig}), and `displayMode` — both ALSO declared
- *     on {@link ChatbotSchema}, unchanged there; see each member's comment.
+ *     ({@link FloatingChatbotConfig}) — ALSO declared on {@link ChatbotSchema},
+ *     unchanged there — and `displayMode`, a `?: never` tombstone on both
+ *     faces since objectui#7654; see each member's comment.
  *
  * NOT declared, on purpose: `maxHeight` (the panel pins its inner chat to
  * `100%` of `floatingConfig.panelHeight` AFTER any forwarded value, so an
@@ -1063,17 +1538,17 @@ export interface ChatbotEnhancedSchema
  * members no registration reads by name. `disabled` / `className` are
  * inherited from {@link BaseSchema}, as on the two sibling faces.
  *
- * ⚠️ The named-read census is not the only channel. This registration ends
- * its `<FloatingChatbot>` element with a raw `{...props}` spread — every
- * authored key `SchemaRenderer` forwards, unfiltered — and the panel is a
- * `<ChatbotEnhanced>`, so an authored `processVisibility`, `surface` or
- * `showAvatars` DOES reach it today (measured through the real host: each
- * lights its marker on a `chatbot-floating` node and stays dark without the
- * key, while `chatbot-enhanced`, whose spread is `toDomProps`-filtered, keeps
- * `showAvatars` dark). That channel is accidental, not contract: declaring
- * the three here would fossilise it (AGENTS.md #0.1), and fencing it is a
- * behaviour change with its own review. Recorded on its own card,
- * objectui#7708; this face neither declares nor promises it.
+ * The named-read census used to not be the only channel: this registration
+ * ended its `<FloatingChatbot>` element with a raw `{...props}` spread —
+ * every authored key `SchemaRenderer` forwards, unfiltered — and the panel
+ * is a `<ChatbotEnhanced>`, so an authored `processVisibility`, `surface` or
+ * `showAvatars` reached it (measured through the real host, objectui#7708).
+ * That channel was accidental, not contract, and is now CLOSED: the spread
+ * is fenced through `toDomProps` and moved to the head of the element, the
+ * same shape the two sibling registrations already use, so this face's
+ * declared set is now also its delivered set. `processVisibility` and
+ * `surface` are dark on `chatbot-floating` on purpose, same as `showAvatars`
+ * above — author them on `chatbot-enhanced` instead.
  */
 export interface ChatbotFloatingSchema
   extends BaseSchema,
@@ -1103,22 +1578,19 @@ export interface ChatbotFloatingSchema
    */
   onClear?: () => void;
   /**
-   * Display mode for the chatbot.
-   * - `'inline'` (default): Embedded in the page flow.
-   * - `'floating'`: Rendered as a floating action button (FAB) that opens a panel overlay.
-   *
-   * ⚠️ RULED RETIRED — objectui#7654, maintainer ruling B (2026-09-05): the
-   * node's own `type` is the one selector of presentation, and this key is a
-   * second spelling of that choice that no renderer has ever read (measured
-   * there and re-measured here: declared, offered as a designer control in the
-   * `chatbot-floating` registration's `inputs`, seeded by its `defaultProps`,
-   * read by nothing). The retirement — `?: never` tombstone, control and seed
-   * removed — executes in that card's own PR. objectui#7655 declared the key
-   * here with the same three lines {@link ChatbotSchema} still carries, so
-   * that PR finds the member on both faces exactly as ruled; nothing was
-   * retired, tombstoned, mirrored or made live here.
+   * ADR-0049 RETIREMENT TOMBSTONE — the same `displayMode` retirement as
+   * {@link ChatbotSchema.displayMode} (objectui#7654, maintainer ruling B,
+   * 2026-09-05); the rationale, the measurements and the runtime note live
+   * there, once. Declared here as well because objectui#7655 put the member on
+   * this face with `ChatbotSchema`'s own three lines so the retirement would
+   * find it on both faces — and because this is the face of the one
+   * registration that offered the control: a `chatbot-floating` node IS the
+   * floating presentation, so there is nothing left for this key to select.
+   * `type: 'chatbot-floating'` is the whole spelling.
+   * @deprecated Not part of this contract — the value was inert. The node
+   * `type` selects the presentation.
    */
-  displayMode?: 'inline' | 'floating';
+  displayMode?: never;
   /**
    * Configuration for the floating action button and the panel it opens —
    * read by `chatbot-floating` alone and forwarded to `<FloatingChatbot>`.
@@ -1504,7 +1976,7 @@ export interface DashboardComponentSchema extends BaseSchema {
  * Union type of all complex schemas
  */
 export type ComplexSchema =
-  | DeclarativeKanbanSchema
+  | KanbanSchema
   | CalendarViewSchema
   | FilterBuilderSchema
   | CarouselSchema

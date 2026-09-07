@@ -94,7 +94,7 @@ const schema = {
   title: 'Welcome',
   body: {
     type: 'text',
-    value: 'Hello from Object UI!'
+    content: 'Hello from Object UI!'
   }
 }
 

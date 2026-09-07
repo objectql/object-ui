@@ -39,12 +39,14 @@ import { MetadataCtx } from '@object-ui/react';
 // the composer/empty-state semantics rather than to a literal string.
 import { DETAIL_DEFAULT_TRANSLATIONS } from '@object-ui/plugin-detail';
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'Ada', image: null }, activeOrganization: null }),
   createAuthenticatedFetch: () => vi.fn(),
 }));
 
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useRecordPresence: () => ({ viewers: [], others: [] }),
   PresenceAvatars: () => null,
 }));

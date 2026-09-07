@@ -110,21 +110,19 @@ ComponentRegistry.register('dropdown-menu',
     namespace: 'ui',
     label: 'Dropdown Menu',
     inputs: [
-      { name: 'label', type: 'string', label: 'Menu Label' },
-       { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'], label: 'Side' },
-      { name: 'align', type: 'enum', enum: ['start', 'center', 'end'], label: 'Align' },
+      { name: 'label', type: 'string' },
+       { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'] },
+      { name: 'align', type: 'enum', enum: ['start', 'center', 'end'] },
        { 
         name: 'trigger', 
-        type: 'slot', 
-        label: 'Trigger' 
-      },
+        type: 'slot'      },
       {
         name: 'items',
         type: 'array',
-        label: 'Items',
+        
         description: 'Recursive structure: a command item { label, icon, shortcut, disabled, onClick, children: [] } or a divider { separator: true }. `icon` is a kebab-case Lucide icon name resolved against lucide\'s runtime `icons` record; an unknown or retired spelling renders no glyph.'
       },
-      { name: 'className', type: 'string', label: 'Content CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       trigger: [{ type: 'button', label: 'Menu', variant: 'outline' }],

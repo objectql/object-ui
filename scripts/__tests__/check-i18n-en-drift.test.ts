@@ -59,8 +59,9 @@ const tempRoots: string[] = [];
  * A COMPUTED dynamic import on purpose. A static specifier would pull a
  * 3.2k-line package source into `tsconfig.scripts.json`'s program, and that
  * project's position in `ci.yml` rests on the premise that it reads nothing
- * outside `scripts/` — pinned by `scripts-type-check.test.ts`, whose regex looks
- * for workspace-package specifiers and would not have caught a relative one.
+ * outside `scripts/` — pinned by `scripts-type-check.test.ts`, whose AST walk
+ * reports only workspace-package specifiers and would not have caught a
+ * relative one.
  * `check-i18n-call-site-keys.test.ts` reads the same pack the same way, for the
  * same reason.
  */

@@ -25,16 +25,18 @@ npm install @object-ui/auth
 ## Quick Start
 
 ```tsx
-import { AuthProvider, useAuth, AuthGuard } from '@object-ui/auth';
-import { createAuthClient } from '@object-ui/auth';
+import type { ReactNode } from 'react';
+import { AuthProvider, AuthGuard, createAuthClient, useAuth } from '@object-ui/auth';
 
-const authClient = createAuthClient({
-  baseURL: 'https://api.example.com/auth',
-});
+// Your app supplies the sign-in page shown to unauthenticated visitors.
+declare const LoginPage: () => ReactNode;
+
+const authUrl = 'https://api.example.com/auth';
+const authClient = createAuthClient({ baseURL: authUrl });
 
 function App() {
   return (
-    <AuthProvider client={authClient}>
+    <AuthProvider authUrl={authUrl} client={authClient}>
       <AuthGuard fallback={<LoginPage />}>
         <Dashboard />
       </AuthGuard>
@@ -57,12 +59,21 @@ function Dashboard() {
 
 ### AuthProvider
 
-Wraps your application with authentication context:
+Wraps your application with authentication context. `authUrl` is **required**;
+`client` is optional, and when you pass one it is used instead of the client
+`AuthProvider` would otherwise build from `authUrl`:
 
 ```tsx
-<AuthProvider client={authClient}>
+import type { ReactNode } from 'react';
+import { AuthProvider } from '@object-ui/auth';
+import type { AuthClient } from '@object-ui/auth';
+
+declare const authClient: AuthClient;
+declare const App: () => ReactNode;
+
+<AuthProvider authUrl="/api/v1/auth" client={authClient}>
   <App />
-</AuthProvider>
+</AuthProvider>;
 ```
 
 ### useAuth
@@ -70,6 +81,8 @@ Wraps your application with authentication context:
 Hook for accessing auth state and methods:
 
 ```tsx
+import { useAuth } from '@object-ui/auth';
+
 const {
   user,
   session,
@@ -100,9 +113,14 @@ const {
 Protects children from unauthenticated access:
 
 ```tsx
+import type { ReactNode } from 'react';
+import { AuthGuard, LoginForm } from '@object-ui/auth';
+
+declare const ProtectedContent: () => ReactNode;
+
 <AuthGuard fallback={<LoginForm />}>
   <ProtectedContent />
-</AuthGuard>
+</AuthGuard>;
 ```
 
 ### LoginForm / RegisterForm / ForgotPasswordForm
@@ -110,9 +128,13 @@ Protects children from unauthenticated access:
 Pre-built authentication form components:
 
 ```tsx
-<LoginForm onSuccess={() => navigate('/dashboard')} />
-<RegisterForm onSuccess={() => navigate('/welcome')} />
-<ForgotPasswordForm onSuccess={() => navigate('/check-email')} />
+import { ForgotPasswordForm, LoginForm, RegisterForm } from '@object-ui/auth';
+
+declare const navigate: (to: string) => void;
+
+<LoginForm onSuccess={() => navigate('/dashboard')} />;
+<RegisterForm onSuccess={() => navigate('/welcome')} />;
+<ForgotPasswordForm onSuccess={() => navigate('/check-email')} />;
 ```
 
 ### UserMenu
@@ -120,7 +142,9 @@ Pre-built authentication form components:
 Displays current user info with avatar and sign-out:
 
 ```tsx
-<UserMenu />
+import { UserMenu } from '@object-ui/auth';
+
+<UserMenu />;
 ```
 
 ### createAuthenticatedFetch
@@ -129,6 +153,8 @@ Creates a fetch wrapper that injects the stored Bearer token (plus
 `X-Tenant-ID` and `Accept-Language`) into API requests:
 
 ```tsx
+import { createAuthenticatedFetch } from '@object-ui/auth';
+
 const authedFetch = createAuthenticatedFetch();
 
 // For fetches whose target URL comes from view metadata (`provider: 'api'`
@@ -325,12 +351,15 @@ not a gap.
 
 Preview mode allows visitors (e.g. marketplace customers) to explore the platform without registering or logging in. The `AuthProvider` auto-authenticates with a simulated user identity and bypasses login/registration screens.
 
-This feature aligns with the `PreviewModeConfig` from `@objectstack/spec/kernel` ([spec PR #676](https://github.com/objectstack-ai/spec/pull/676)).
+This capability is host-supplied and has no `@objectstack/spec` anchor. It aligned with `PreviewModeConfig` from `@objectstack/spec/kernel` until that symbol was retired upstream (objectstack#11846), which removed it together with the `RuntimeMode` value `'preview'`; the spec this package resolves no longer exports it. The `previewMode` prop below is unaffected — it is the host's to supply, and always was.
 
 ### Usage
 
 ```tsx
+import type { ReactNode } from 'react';
 import { AuthProvider, PreviewBanner } from '@object-ui/auth';
+
+declare const Dashboard: () => ReactNode;
 
 function App() {
   return (
@@ -377,6 +406,8 @@ import { PreviewBanner } from '@object-ui/auth';
 Use the `useAuth` hook to check if the app is in preview mode:
 
 ```tsx
+import { useAuth } from '@object-ui/auth';
+
 function MyComponent() {
   const { isPreviewMode, previewMode } = useAuth();
 

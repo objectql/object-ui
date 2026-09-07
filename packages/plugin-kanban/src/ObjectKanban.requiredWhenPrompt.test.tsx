@@ -68,7 +68,7 @@ import { render, screen, within, act, cleanup, waitFor, fireEvent } from '@testi
 import '@testing-library/jest-dom';
 import { registerAllFields } from '@object-ui/fields';
 import { toast } from '@object-ui/components';
-import type { DataSource } from '@object-ui/types';
+import type { DataSource, ObjectKanbanSchema } from '@object-ui/types';
 import { ObjectKanban } from './ObjectKanban';
 
 // Pay the board's lazy chunk at import time rather than racing it against a
@@ -127,7 +127,7 @@ const schema = {
     { id: 'negotiation', title: 'Negotiation' },
     { id: 'closed_won', title: 'Closed Won' },
   ],
-} as never;
+} satisfies ObjectKanbanSchema;
 
 const records = (winReason: unknown = null) => [
   { id: 'o1', name: DEAL, stage: 'negotiation', win_reason: winReason },

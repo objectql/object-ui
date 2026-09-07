@@ -63,7 +63,7 @@
  * 3. **Replacing the spec's refusal with a local hand-written sentence**: **18 red
  *    overall** — 14 in `submitRedirect.test.ts` (every one of the 13 refusal
  *    families, plus the external-alternative case) and the 2 refusal tests in
- *    each component file, on their `RELATIVE path only` / `#7496` /
+ *    each component file, on their `RELATIVE path only` / ruling-citation /
  *    `protocol-relative` assertions. That is the load-bearing probe: the sentence
  *    on screen is provably the live schema parse's, not a local string.
  * 4. **Deleting the `encodeURIComponent`**: **10 red** — `escapes an interpolated
@@ -190,6 +190,40 @@ describe('ObjectForm redirect — an in-contract destination is followed', () =>
   });
 });
 
+/**
+ * A refusal CITES THE RULING it comes from, in either spelling the spec uses.
+ *
+ * This is the assertion that proves the sentence on screen is the live schema
+ * parse's and not a local hand-written string (mutation probe 3 below). It was
+ * spelled `toContain('#7496')` and pinned the citation FORM: `@objectstack/spec`
+ * 17.3.0 restated the same provenance as `(ruled 2026-08-11)`, so the token
+ * vanished while the refusal, its reasoning and its prescription all stayed.
+ * ⛔ Not re-pinned to the new prose verbatim — that moves the brittleness
+ * instead of removing it.
+ *
+ * ## ⚠️ Why there is no bare `#\d{3,}` alternative any more
+ *
+ * The first spelling of this regex was
+ * `/\(ruled \d{4}-\d{2}-\d{2}\)|#\d{3,}/` — two alternatives, to admit
+ * either form upstream uses. The loose half discriminated NOTHING
+ * (objectui#7122 contract review): this repo's own hand-written messages
+ * routinely cite `objectui#NNNN`, so a locally authored sentence satisfied it,
+ * and telling those two apart is this assertion's entire job. Only the
+ * `(ruled …)` half was ever load-bearing.
+ *
+ * It was also unnecessary, which is the measurement that settled it. Both
+ * spellings, read off the installed artifacts rather than recalled:
+ *
+ *   17.2.0  "… and this is an absolute URL (ruled 2026-08-11 on #7496)."
+ *   17.3.0  "… and this is an absolute URL (ruled 2026-08-11)."
+ *
+ * The issue number never appears OUTSIDE that parenthesis, so `(ruled ` + a
+ * date already matched both releases on its own. The optional ` on #NNNN` tail
+ * keeps the 17.2.0 spelling admissible — the two-form latitude the alternative
+ * was added for — without admitting a bare local `#7122`.
+ */
+const CITES_ITS_RULING = /\(ruled \d{4}-\d{2}-\d{2}(?: on #\d{3,})?\)/;
+
 describe('ObjectForm redirect — an out-of-contract destination is refused, not dropped', () => {
   it('refuses a SAME-ORIGIN absolute url and says so on screen (defects 2 + 3)', async () => {
     const ds = makeDS();
@@ -206,7 +240,7 @@ describe('ObjectForm redirect — an out-of-contract destination is refused, not
     // not only a toast that scrolls away, and emphatically not silence.
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('RELATIVE path only');
-    expect(alert.textContent).toContain('#7496');
+    expect(alert.textContent).toMatch(CITES_ITS_RULING);
     expect(vi.mocked(toastError).mock.calls[0][0]).toContain('RELATIVE path only');
 
     // The write SUCCEEDED, so the submitter is told that too — refusing the

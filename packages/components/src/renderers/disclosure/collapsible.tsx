@@ -33,19 +33,15 @@ ComponentRegistry.register('collapsible',
     namespace: 'ui',
     label: 'Collapsible',
     inputs: [
-      { name: 'defaultOpen', type: 'boolean', label: 'Default Open' },
-      { name: 'disabled', type: 'boolean', label: 'Disabled' },
+      { name: 'defaultOpen', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
        { 
         name: 'trigger', 
-        type: 'slot', 
-        label: 'Trigger' 
-      },
+        type: 'slot'      },
       { 
         name: 'content', 
-        type: 'slot', 
-        label: 'Content' 
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        type: 'slot'      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       trigger: [{ type: 'button', label: 'Toggle', variant: 'outline' }],

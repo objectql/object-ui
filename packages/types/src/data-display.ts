@@ -164,6 +164,17 @@ export interface ListSchema extends BaseSchema {
    * @default false
    */
   dense?: boolean;
+  /**
+   * Classes on the wrapper `div` around the title and the list.
+   *
+   * READ SITE: `packages/components/src/renderers/data-display/list.tsx:27` —
+   * `cn("space-y-2", schema.wrapperClass)`. Undeclared until
+   * objectui#7722, surviving only on `BaseSchema`'s index signature: the same
+   * key, on the same class of read, that `CheckboxSchema` (objectui#6938),
+   * `FileUploadSchema` and `FilterBuilderSchema` (objectui#6150) declare.
+   * Distinct from `className`, which the renderer hands to the `ul` / `ol`.
+   */
+  wrapperClass?: string;
 }
 
 /**
@@ -1270,37 +1281,41 @@ export interface TreeNode {
 export interface TreeViewSchema extends BaseSchema {
   type: 'tree-view';
   /**
-   * Tree data — the fallback spelling, read only when
-   * {@link TreeViewSchema.nodes} is absent.
+   * RETIRED (objectui#6951, ADR-0049 enforce-or-remove) — the second spelling
+   * of the tree's one inline-nodes slot, read only as the LAST limb of
+   * `boundData || schema.nodes || schema.data || []`. Maintainer ruling B1
+   * (2026-09-04): retire `data`; `nodes` is the only inline spelling; `nodes`
+   * stays OPTIONAL and no presence refinement is added — a `bind`-only
+   * tree-view (`{ type: 'tree-view', bind: 'treeNodes' }`) is a legal,
+   * rendering document because `bind` is the FIRST source the renderer reads.
    *
-   * READ SITE: `packages/components/src/renderers/data-display/tree-view.tsx:105`
-   * — `const rawNodes = boundData || schema.nodes || schema.data || []`.
-   *
-   * OPTIONAL since objectui#6939. It was REQUIRED, which refused four catalog
-   * entries the renderer draws correctly — a third-choice limb cannot be the
-   * one key a document must carry.
-   *
-   * ⚠️ Kept DECLARED rather than deleted, and the distinction is measured:
-   * {@link BaseSchema} already declares `data?: any` (its zod twin is
-   * `z.any().optional()`), so removing this member would NOT reject the key —
-   * it would admit it unvalidated while the renderer still reads it. Declaring
-   * it optional is the only shape in which `declared` and `enforced` agree.
+   * History: REQUIRED until objectui#6939 / PR #7533 made it optional (it had
+   * refused four catalog entries the renderer draws correctly). That PR kept
+   * it DECLARED because {@link BaseSchema} declares `data?: any` (zod twin
+   * `z.any().optional()`), so deleting the member would ADMIT the key
+   * unvalidated — and that same fact is why this is a tombstone, not a
+   * deletion: `?: never` here beats the inherited `any`, and the zod tombstone
+   * on the extended schema beats the base's `z.any()`; both directions are
+   * pinned in `__tests__/tree-view-data-retired-6951.test.ts`. The renderer no
+   * longer reads it (`tree-view.tsx:105` is `boundData || schema.nodes || []`).
+   * Write `nodes` (or bind the tree with `bind`); the array is unchanged.
+   * @deprecated Not part of this contract — write `nodes`.
    */
-  data?: TreeNode[];
+  data?: never;
   /**
-   * Tree data — the spelling the renderer reads FIRST.
+   * Inline tree nodes — the ONE inline spelling.
    *
-   * READ SITE: `renderers/data-display/tree-view.tsx:105`, the middle limb of
-   * `boundData || schema.nodes || schema.data || []`, so `nodes` WINS over
-   * {@link TreeViewSchema.data} when both are authored (and a `bind`-resolved
-   * value wins over both).
+   * READ SITE: `renderers/data-display/tree-view.tsx:105`, the second limb of
+   * `boundData || schema.nodes || []` — a `bind`-resolved value wins, and
+   * {@link BaseSchema.bind} stays the first-read source, which is why this
+   * member is optional and no "at least one of" rule exists (objectui#6951 B1).
    *
    * Declared by objectui#6150, which deliberately stopped at the declaration:
    * `{ type: 'tree-view', nodes }` only became a LEGAL document at
-   * objectui#6939, the accept-set change that relaxed
-   * {@link TreeViewSchema.data}. The registration's own `inputs` and
-   * `defaultProps` spell it `nodes`, and the four catalog entries ARE those
-   * `defaultProps`.
+   * objectui#6939 (PR #7533), the accept-set change that relaxed the then
+   * required `data`; objectui#6951 retired that `data` spelling outright (the
+   * tombstone above). The registration's own `inputs` and `defaultProps`
+   * spell it `nodes`, and the four catalog entries ARE those `defaultProps`.
    */
   nodes?: TreeNode[];
   /**
@@ -1499,38 +1514,46 @@ export interface ChartDataSeries {
    */
   variant?: 'primary' | 'comparison';
   /**
-   * Stroke and fill opacity. Read by `num()` (`normalizeChartSchema.ts:248`
+   * Stroke and fill opacity. Read by `num()` (`normalizeChartSchema.ts:365`
    * — any finite number; the mirror refuses `NaN`, `Infinity` and strings the
-   * same way) and applied at `AdvancedChartImpl.tsx:94-95` inside
-   * `comparisonStyle`, where it overrides the comparison overlay's per-family
-   * default (objectui#7546). Declared as the read's own domain: the spec's
-   * `ChartSeries.opacity` bounds it to 0–1, a bound the renderer does not
-   * enforce (SVG clamps at paint, nothing is dropped), so the mirror does not
-   * refuse an out-of-range value either.
+   * same way) and applied by `seriesStyle` (`AdvancedChartImpl.tsx:114-115`),
+   * which hands it to EVERY mark family: `fillOpacity` on a Bar or Scatter
+   * mark, `strokeOpacity` on a Line mark, both on an Area mark (objectui#7546).
+   * Declared as the read's own domain: the spec's `ChartSeries.opacity` bounds
+   * it to 0–1, a bound the renderer does not enforce (SVG clamps at paint,
+   * nothing is dropped), so the mirror does not refuse an out-of-range value
+   * either.
    *
-   * ⚠️ Today the renderer honours it ONLY on a `variant: 'comparison'` series —
-   * `comparisonStyle` returns `null` for any other variant, so on a primary
-   * series the value is read and unused. On a comparison series it reaches
-   * EVERY mark family: `fillOpacity` on a Bar (`:1911`, `:2037`) or Scatter
-   * (`:1832`) mark, `strokeOpacity` on a Line mark (`:1898`, `:2048`), both on
-   * an Area mark (`:1905`, `:2056`). The spec declares it as an unconditional
-   * override, so the primary-series half is a renderer gap (objectui#7698),
-   * not a reason to narrow this face.
+   * UNCONDITIONAL, as the spec declares it: it applies whatever the series'
+   * `variant`. It used to be honoured only on a `variant: 'comparison'` series
+   * — `comparisonStyle` returned `null` for any other variant, so elsewhere the
+   * value was read and then discarded — and objectui#7698 closed that in the
+   * RENDERER rather than by narrowing this face to match (AGENTS.md #0.1).
+   * What is still gated on `variant: 'comparison'` is the DEFAULT this key
+   * overrides: the muted treatment a comparison overlay gets when it carries
+   * no `opacity` of its own.
    */
   opacity?: number;
   /**
    * SVG `stroke-dasharray` override, e.g. `"4 4"` for a dashed line
-   * (`normalizeChartSchema.ts:250`; read at `AdvancedChartImpl.tsx:96`)
-   * (objectui#7546).
+   * (`normalizeChartSchema.ts:367`; applied by `seriesStyle`,
+   * `AdvancedChartImpl.tsx:116`) (objectui#7546).
    *
-   * ⚠️ Narrower condition than {@link ChartDataSeries.opacity}: today it is
-   * honoured only on a `variant: 'comparison'` series AND only on a mark with
-   * a stroke to dash — a Line (`:1898`, `:2048`) or Area (`:1905`, `:2056`)
-   * mark, whether from the chart's `chartType` or a per-series `type`
-   * override. `comparisonStyle` returns the authored value for every family,
-   * but a Bar (`:1911`, `:2037`) or Scatter (`:1832`) mark passes
-   * `fillOpacity` only and drops `strokeDasharray` (and `strokeOpacity`); on
-   * a primary series of any family it is read and unused (objectui#7698).
+   * UNCONDITIONAL, as the spec declares it, and reaching every mark family —
+   * but only a STROKED mark shows a dash, and this renderer strokes Line and
+   * Area marks, so on a Bar or Scatter mark the value reaches the DOM and
+   * paints nothing. That is the mark's own geometry, not a condition on the
+   * key, and it is the one asymmetry with {@link ChartDataSeries.opacity},
+   * which paints on every family.
+   *
+   * TWO gaps used to narrow it, and objectui#7698 closed both: the
+   * `variant: 'comparison'` guard that discarded it on a primary series, and
+   * the Bar and Scatter marks, which passed `fillOpacity` only and dropped
+   * `strokeDasharray` (and `strokeOpacity`) even where a comparison series had
+   * authored one — so a fix aimed at the guard alone would have left this key
+   * broken on those two families. What is still gated on
+   * `variant: 'comparison'` is the DEFAULT it overrides: the overlay's `'4 4'`
+   * dash on a Line or Area mark.
    */
   dashArray?: string;
   /**
@@ -1546,16 +1569,45 @@ export interface ChartDataSeries {
    * carries the same union (objectui#7546).
    */
   yAxis?: 'left' | 'right';
-  // ⛔ NOT declared: `chartType`. It is the first limb of `normalizeSeries`'
-  // `str(raw.chartType) ?? str(raw.type)` (`normalizeChartSchema.ts:244`), but
-  // it is the renderer's INTERNAL spelling of `type` above, the spec's
-  // `ChartSeriesSchema` lists it as an alias of `type` and refuses it by name
-  // (`@objectstack/spec` `ui/chart.zod.ts:231`), and no document, fixture or
-  // designer input on this face writes it (objectui#7546 — measured with lit
-  // controls). Declaring it would mint a second writable name for one override;
-  // its shape — a named alias refusal like the spec's, or a fold — is a contract
-  // decision for its own card. Until then the mirror still strips it, and
-  // `__tests__/chart-series-keys-7546.test.ts` pins that gap so it stays visible.
+  /**
+   * NOT A KEY OF THIS SERIES — a named ALIAS REFUSAL pointing at {@link type}
+   * (objectui#7694; `domain:ui` PM ruling on objectui#7546 and the contract
+   * review of PR #7684: option A, the posture `@objectstack/spec` takes).
+   *
+   * `chartType` is the renderer's INTERNAL spelling of the declared `type`: the
+   * first limb of `normalizeSeries`' `str(raw.chartType) ?? str(raw.type)`
+   * (`normalizeChartSchema.ts:244`), written only by the internal-shape
+   * producers that hand `dataKey`-shaped arrays straight to `ChartRenderer`
+   * (`ObjectChart.tsx`, `DatasetWidget.tsx`; `core/utils/chart-presentation.ts`
+   * translates authored `type` INTO it) — and by no author. Re-measured at
+   * implementation time, series-level, with lit controls
+   * (`dataKey` / `name` / `type` / `color`): docs 0 (controls 10 / 11 / 2 / 2),
+   * fixtures 0 (3 / 2 / 0 / 2), designer inputs 0 (the `chart` registration's
+   * `series` is one `code` input), src literals 0 (13 / 3 / 1 / 0), tests 9
+   * (70 / 48 / 11 / 8 — every one an internal-shape array that never meets the
+   * mirror). Limb ablation over 304 files / 5817 tests: deleting
+   * `str(raw.chartType) ??` left all green; deleting `?? str(raw.type)` went
+   * 2 red. The card's readings, re-taken, agree.
+   *
+   * The spec's `ChartSeriesSchema` lists `chartType` in its alias map as a
+   * spelling of `type` and refuses it by name — "Did you mean `chartType` →
+   * `type`?" — and this face answers with the same sentence
+   * (`aliasKeyRefusal()` in `zod/tombstone.zod.ts`). The two alternatives were
+   * ruled out: FOLDING it onto `type` would let the alias overwrite the
+   * canonical key when both are written (the renderer reads `chartType` FIRST,
+   * inverting objectui#7113's precedence rule), and DECLARING it as a second
+   * writable name would mint the N-dialects hazard of AGENTS.md #0.1 against
+   * the spec's own alias map.
+   *
+   * Until this declaration the non-strict Zod mirror STRIPPED the key in
+   * silence: `{ name: 'x', chartType: 'line' }` parsed green to `{ name: 'x' }`
+   * and the series drew in the chart's family — precisely what the author was
+   * overriding. Now the mirror refuses it by name and this `?: never` is a
+   * `tsc` error at the authoring site. Write {@link type}. The renderer's own
+   * read of the internal spelling is untouched — a reader decision, not this
+   * declaration's.
+   */
+  chartType?: never;
 }
 
 /**

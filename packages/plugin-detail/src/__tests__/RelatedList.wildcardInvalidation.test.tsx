@@ -122,6 +122,12 @@ describe("RelatedList — legacy related-changed listener and '*' (objectui#3460
     const ds = makeDataSource();
     renderRelated(ds);
     await waitFor(() => expect(ds.find).toHaveBeenCalledTimes(1));
+    // The gate above settles the CALL; the closing assertion reads the VALUE
+    // that call produces. Settle it here, before the foreign events go out, so
+    // "still line-1" is a statement about the guard rather than about rows that
+    // had not landed yet — measured red at that line under a 50ms fetch
+    // deferral (objectui#7579).
+    await waitFor(() => expect(h.schema?.data?.[0]?.id).toBe('line-1'));
 
     dispatchRelatedChanged({ objectName: 'crm_contact' });
     dispatchRelatedChanged({ objectName: 'mes_work_order' });

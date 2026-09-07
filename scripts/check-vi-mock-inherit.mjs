@@ -82,8 +82,8 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is exactly one, and the reason is
- * measured rather than chosen. Running this file's classifier over all 1,499
+ * actually been SWEPT to zero. Today that is eighteen, and each joined by sweep
+ * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
  *     covered set = @object-ui/react (swept by PR #6847)  ->    1 frozen
@@ -93,7 +93,734 @@
  * at 25 and `@object-ui/components` at 22. Import breadth does not separate them
  * either -- `@object-ui/react` is THIRD by measured import count (576 imports
  * across 552 files), behind `@object-ui/core` and `@object-ui/types` -- so there
- * is no threshold to derive and no honest way to widen the set today.
+ * was no threshold to derive and no honest way to widen the set that day.
+ *
+ * ⚠️ Those per-specifier figures were taken with the FIRST-ANGLE-BRACKET
+ * generic this file carried until objectui#7337, which mis-read a nested
+ * `vi.importActual` generic and over-reported `frozen`; re-derive before acting
+ * on any of them. `@object-ui/i18n` was the second member, swept and added by
+ * objectui#7337 -- 92 judged call sites, 92 inheriting, 0 frozen at the flip,
+ * with the all-specifier population moving 315 -> 314 frozen and no site moving
+ * the other way.
+ *
+ * The next three members joined together as objectui#6892's first slice, the
+ * three specifiers the worklist's triage named as the flow-proving start
+ * because each carried exactly ONE frozen factory. Re-derived on `eeda78a780`
+ * with the fixed classifier -- ⛔ never from the worklist's own table, which
+ * predates both the recogniser fix and the `@object-ui/i18n` flip:
+ *
+ *     @object-ui/plugin-markdown    1 judged, 0 inheriting, 1 frozen -> 0
+ *     @object-ui/data-objectstack   1 judged, 0 inheriting, 1 frozen -> 0
+ *     @object-ui/plugin-report      1 judged, 0 inheriting, 1 frozen -> 0
+ *
+ * with the all-specifier population over the 22 specifiers any `vi.mock` call
+ * site in the tree names moving 318 -> 315 frozen, and no site moving the other
+ * way.
+ *
+ * The next two joined as objectui#6892's SECOND slice, re-derived on
+ * `689127723` by the same method -- `scan()` imported with `covered` set to
+ * every workspace specifier the tree names, so the constant below was never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-charts      1 judged, 0 inheriting, 1 frozen -> 0
+ *     @object-ui/plugin-dashboard   3 judged, 0 inheriting, 3 frozen -> 0
+ *
+ * with the same population moving 315 -> 311 frozen and, again, no site moving
+ * the other way. `@object-ui/plugin-charts` never appeared on the worklist's
+ * table at all, and the reason is a THIRD way that table goes stale, distinct
+ * from both the recogniser fix and the sweeps: its only call site did not yet
+ * exist. `ObjectView.chartConfigForward-7891.test.tsx` was ADDED by `38158c6bb`
+ * (2026-09-06), a week AFTER the `9ce20233f` snapshot (2026-08-30) -- verified
+ * by `git cat-file -e 9ce20233f:PATH` against a control path that resolves at
+ * the same commit. So the population GROWS while the worklist is being worked,
+ * and a slice scoped from the table alone would have missed this specifier
+ * entirely. Re-derive per slice; never inherit.
+ *
+ * `@object-ui/auth` joined as objectui#6892's THIRD slice -- the largest block
+ * on the worklist by a factor of three -- re-derived on `06761b351` by the same
+ * `scan()` method, the constant below again never widened-and-reverted:
+ *
+ *     @object-ui/auth             135 judged, 33 inheriting, 102 frozen -> 0
+ *
+ * with the same population moving 311 -> 209 frozen and no site moving the
+ * other way -- both figures measured on `06761b351`, the base this sweep was
+ * derived and converted on. On the merged head the population reads 211 over
+ * 643 judged, and the delta is NOT this sweep: merging `origin/main` mid-slice
+ * brought in two new frozen sites (`@object-ui/plugin-form`, `@object-ui/plugin-grid`)
+ * and one new inheriting `@object-ui/react` site, all landed by other PRs
+ * while this one was being verified. That is the growth warning above,
+ * observed a second time inside a single slice; `@object-ui/auth` stayed at 0.
+ *
+ * ⭐ That slice paid for one measurement worth keeping here, because
+ * it is the question every REMAINING slice has to ask and the answer is not
+ * uniform: **what does inheriting actually RUN?** Converting freezes to
+ * inheritance loads the real barrel in every converted file, so a barrel with
+ * module-scope side effects has those effects restored in all of them at once.
+ * Slice 2's two barrels each made 8 module-scope `ComponentRegistry.register`
+ * calls, absorbed in four files. `packages/auth/src` was measured before any
+ * conversion, by walking its 22-module static import graph and classifying
+ * every top-level statement: 8 module-scope initialisers, ALL pure in-memory
+ * allocation (two `Set`s of literal strings, an `Object.values`, a `Set` over
+ * it, `createContext(null)` plus its `displayName`, an empty listener `Set`,
+ * one alias), and ZERO registrations, timers, globals, `fetch` or
+ * side-effect-only imports. Inert -- so 102 files inherit it for free. ⛔ Do
+ * not generalise that verdict to the next barrel; take the measurement. The
+ * remaining 209 stay on objectui#6892, `@object-ui/collaboration` (33) and
+ * `@object-ui/plugin-form` (30) next by yield and `@object-ui/app-shell` (23)
+ * only after objectui#6580.
+ *
+ * `@object-ui/collaboration` joined as objectui#6892's FOURTH slice, re-derived
+ * on `0caacca37` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/collaboration     33 judged, 0 inheriting, 33 frozen -> 0
+ *
+ * with the population moving 211 -> 178 frozen over 643 judged and no site
+ * moving the other way -- every other one of the 21 rows byte-identical between
+ * the two runs. All 33 sites sit under `packages/app-shell` and all 33 are ONE
+ * syntactic shape (the multi-line object-literal arrow), so this slice needed
+ * none of the three-shape handling `@object-ui/auth` did.
+ *
+ * STEP 0 was taken again rather than inherited, and it differs from auth's in
+ * the EVIDENCE available, not in the verdict. `packages/collaboration` is a
+ * presence/realtime package -- `useRealtimeSubscription`, `usePresence`,
+ * `PresenceProvider` -- which is exactly why the walk was the point rather than
+ * a formality. Its 11-module static import graph from `index.ts` holds 11
+ * module-scope initialisers, ALL pure in-memory allocation: two `let` counters
+ * at 0, four style/label object literals, the `COLLAB_DEFAULT_TRANSLATIONS`
+ * map, one `createSafeTranslation(...)` call that only closes over that map and
+ * returns a hook, an empty `NOOP_SOURCE` object, and `React.createContext` of
+ * it. Every `WebSocket`, `setTimeout` and `window.addEventListener` in the
+ * package is indented inside a hook body, and the only RUNTIME workspace import
+ * is `@object-ui/i18n` -- already covered by this gate and already loaded in
+ * these tests. Inert, so 33 files inherit it for free.
+ *
+ * ⚠️ What auth had and this slice did NOT is the free confirmation. auth had 33
+ * of its 135 sites already inheriting on `main`, which proved the real barrel
+ * loads in that test environment before anything was converted;
+ * `@object-ui/collaboration` had ZERO -- no test in the tree loaded the real
+ * barrel at runtime. So the confirmation here is the suite run itself, which is
+ * weaker evidence than a pre-existing green site, and is recorded as such. A
+ * later slice on a specifier with 0 inheriting sites should expect the same and
+ * budget the full suite accordingly.
+ *
+ * `@object-ui/plugin-form` joined as objectui#6892's FIFTH slice, re-derived
+ * on `d5c1f527e` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-form       32 judged, 1 inheriting, 31 frozen -> 0
+ *
+ * with the population moving 178 -> 147 frozen over 643 judged and no site
+ * moving the other way -- every other one of the 21 rows byte-identical between
+ * the two runs. Merging `origin/main` mid-slice then brought in a THIRTY-SECOND
+ * frozen site on this same specifier (`plugin-view`'s
+ * `ObjectView.expandFls-7429.test.tsx` -- landed by objectui#7429), swept in the
+ * same PR: on the merged head the specifier reads 33 judged, 33 inheriting, 0
+ * frozen and the population reads 148 over 654. That is the growth warning
+ * above firing for the THIRD consecutive slice, and it is the reason the
+ * constant may only be widened by a run of this gate on the tree that ships,
+ * never by the derivation taken on the base.
+ *
+ * This is the first slice whose sites span THREE owning packages
+ * (20 under `packages/plugin-view`, 8 under `packages/app-shell`, 4 under
+ * `packages/plugin-designer`) and the first to meet a THIRD syntactic shape:
+ * four `plugin-designer` sites delegated the whole factory to a shared manual
+ * mock module (`() => import('./__mocks__/plugin-form')`), which inherits
+ * nothing. Those become an async factory that spreads the real barrel FIRST and
+ * the manual mock module SECOND, so the hand-written `ModalForm` / `DrawerForm`
+ * still win and every other export is the real one.
+ *
+ * STEP 0 was taken again rather than inherited, and here it found what the two
+ * previous barrels did not: `packages/plugin-form/src` is NOT inert. Its
+ * 28-module static import graph from `index.tsx` holds 75 module-scope
+ * statements, and six of them are `ComponentRegistry.register(...)` calls in
+ * the barrel itself (`object-form`, `form`, `embeddable-form`,
+ * `form-analytics`, `object-master-detail-form`, `line_items`). The slice
+ * proceeded anyway, and the reason is the class of the effect rather than its
+ * absence: `register()` is a `Map.set` into an in-memory registry plus a
+ * `console.warn` on the un-namespaced spelling, all six pass a namespace, and
+ * this is the same effect slice 2 absorbed for `plugin-charts` and
+ * `plugin-dashboard`. The other 69 statements are pure allocation -- `Set`s of
+ * literal strings, style and threshold literals, one regular expression, four
+ * `createSafeTranslation(...)` factory calls (already measured pure by slice 3)
+ * and four `elementDataSourceBlock(...)` marks into a module-level `Set` in
+ * `@object-ui/core`. ZERO timers, globals, storage, `fetch`, connections, and
+ * zero side-effect-only imports; two column-anchored greps over all 28 modules
+ * agree with the walk exactly. The registry question the ruling asks was also
+ * answered on the CONSUMING side: of the 31 converted files exactly one names
+ * `ComponentRegistry` at all, and it READS one entry (`get('object-view')`)
+ * rather than asserting emptiness or a count, so no converted assertion can be
+ * broken by the six new entries.
+ *
+ * ⭐ Unlike `@object-ui/collaboration`, this specifier DID have the free
+ * confirmation: `packages/app-shell/src/views/studio-design/StudioDesignSurface.formFields.test.tsx`
+ * already inherited the real barrel on `main` and passed, so the real module
+ * was known to load in that environment before anything was converted.
+ *
+ * `@object-ui/components` joined as objectui#6892's SIXTH slice, re-derived on
+ * `336a9eb8a` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/components        47 judged, 20 inheriting, 27 frozen -> 0
+ *
+ * with the population moving 150 -> 123 frozen over 659 judged and no site
+ * moving the other way -- every other one of the 21 rows byte-identical between
+ * the two runs. The 27 sites sit in three owning packages (24 under
+ * `packages/app-shell`, 2 under `packages/plugin-detail`, 1 under
+ * `packages/plugin-timeline`) and in three syntactic shapes: 16 object-literal
+ * arrows, 6 block-bodied arrows with a `return`, and 5 that were ALREADY
+ * `async` and still frozen -- they awaited something OTHER than the module
+ * under mock (React, or one deep-relative source module) and returned a
+ * hand-listed object, which is the shape a name-matching gate would wave
+ * through and this one does not.
+ *
+ * STEP 0 was taken again rather than inherited, and this barrel is the largest
+ * yet measured: 205 modules and 1173 module-scope statements reached from
+ * `packages/components/src/index.ts`. It is NOT inert, and it was not expected
+ * to be -- objectui#7837 had already counted the registrations. What decided
+ * the slice is the CLASS of the effect, measured three ways. Statically: 112
+ * module-scope `ComponentRegistry.register(...)` call sites, every one of them
+ * carrying a namespace (`ui` 85, `element` 10, `page` 7, `action` 5, plus the
+ * loop-driven `protocol-placeholder` marks), so the deprecation `console.warn`
+ * in `register()` cannot fire; `register()` itself is a `Map.set` plus that
+ * warn plus a `notify()` over a listener `Set` that is empty at import time.
+ * Beyond registration there is exactly ONE non-allocation statement in the
+ * whole graph -- `hooks/related-count-store.ts` calls `subscribeDataChanges`,
+ * which `packages/react/src/data-invalidation.ts` implements as a `Set.add`
+ * into a module-level listener set: no timer, no window listener, no request.
+ * Two column-anchored greps over all 205 modules agree: the
+ * timers/globals/storage/network/DOM grep matches nothing, and the
+ * IDENT.method grep returns the register lines and nothing else. Empirically:
+ * importing the real barrel in the happy-dom environment registers 295 keys
+ * over 159 `register()` calls and emits ZERO `console.warn` and ZERO
+ * `console.error`. The consuming side was checked for the failure class the
+ * worklist names -- of the 27 converted files NONE names `ComponentRegistry`
+ * at all, and the six `console.warn` spies among them are all installed inside
+ * `it(...)` bodies (after import) AND filter by message content, so no
+ * assertion can see a registration.
+ *
+ * ⚠️ The ONE side-effect import in the barrel is a CSS import
+ * (`./sidebar-fixes.css`, plain CSS by construction -- the barrel's own comment
+ * explains why the Tailwind entry is deliberately NOT imported there). The root
+ * Vitest config declares no `css` option, so CSS is not processed and the
+ * import is inert in jsdom. That is corroborated rather than argued: 20 sites
+ * on this specifier already inherited the real barrel on `main` and passed, 8
+ * of them in `packages/app-shell` under the LIGHT `dom` project -- the free
+ * confirmation slice 4 did not have.
+ *
+ * ⭐ This slice is the first where inheriting made converted files DIE during
+ * collection, which is the failure this whole worklist exists to describe,
+ * observed from the other side. 15 of the 27 died at once, all on one cause:
+ * the real barrel reaches `notifications/severity.ts`, which reads four icons
+ * from `lucide-react` AT MODULE SCOPE into a `const` -- and those 15 files
+ * carried their own frozen `lucide-react` factory that had never listed them.
+ * Nothing in product source was touched: the repair is the neighbouring
+ * FACTORY, converted to the same inheriting form (spread the real module
+ * first, keep every hand-written icon stub after it), which is why a frozen
+ * third-party factory can be the thing that blocks a workspace-specifier
+ * sweep even though this gate never judges it.
+ *
+ * ⚠️ Inheriting is NOT free here, and the cost is recorded rather than
+ * absorbed silently. The `dom`/`dom-heavy` project split exists precisely to
+ * keep this package's graph out of the light project's setup, so a converted
+ * file now pulls it through its own imports instead. Measured on one app-shell
+ * file, twice each: 6.17s / 5.97s frozen, 8.72s / 9.36s inheriting both the
+ * barrel and `lucide-react`. See the slice's pull request for the whole-package
+ * figure.
+ *
+ * `@object-ui/plugin-grid` joined as objectui#6892's SEVENTH slice, re-derived
+ * on `21d7989fb` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-grid       25 judged, 0 inheriting, 25 frozen -> 0
+ *
+ * with the population moving 123 -> 98 frozen over 659 judged and no site
+ * moving the other way -- every other one of the 21 rows byte-identical between
+ * the two runs. The 25 sites sit in two owning packages (21 under
+ * `packages/plugin-view`, 4 under `packages/plugin-designer`) and in two
+ * syntactic shapes: 21 object-literal arrows -- 15 of them the SAME single line
+ * byte-for-byte -- and the 4 designer sites delegating the whole factory to a
+ * shared manual mock module, the shape slice 5 first met.
+ *
+ * STEP 0 was taken again rather than inherited, and this graph is the largest
+ * yet measured on this worklist: 560 modules and 1421 module-scope statements
+ * reached from `packages/plugin-grid/src/index.tsx` -- larger than slice 6's
+ * barrel because this one reaches `@object-ui/components`, `@object-ui/fields`,
+ * `@object-ui/react`, `@object-ui/core`, `@object-ui/permissions`,
+ * `@object-ui/mobile` and `@object-ui/i18n`. It is NOT inert, and the slice
+ * proceeded on the CLASS of the effect. Statically: 114 module-scope
+ * `ComponentRegistry.register(...)` call sites, every one carrying a namespace
+ * (`ui` 89, `element` 10, `page` 7, `action` 5, `plugin-grid` 2, `view` 1 --
+ * the five in `renderers/layout/page.tsx` that read as bare carry `ui` through
+ * the spread `pageMeta` constant), so the deprecation `console.warn` in
+ * `register()` cannot fire. THREE effects this worklist had not met before, all
+ * in `packages/fields/src/index.tsx` and all the same benign class: five
+ * `registerFieldRenderer(...)` calls that are a `Map.set` into a module-level
+ * registry, one `setCellRendererResolver(...)` that assigns a module-level
+ * `let`, and `registerAllFields()`, which loops the widget map into
+ * `ComponentRegistry.register` under the `field` namespace. Beyond registration
+ * the graph holds only allocation -- 171 `React.forwardRef`, 94 `new Set`, 21
+ * `createContext`, 15 `Object.freeze`, 14 `new Map`, 13 `cva`, 10
+ * `createDiscardProofCache` (a `new WeakMap` plus a closure) and nine
+ * module-scope `new` singletons whose constructors were READ and assign fields
+ * only (`UndoManager`'s `localStorage` path is a method nothing calls at import).
+ * ZERO timers, globals, storage, `fetch` or connections. Empirically: importing
+ * the real barrel under happy-dom moves `ComponentRegistry.getAllTypes()` from
+ * 0 to 375 keys, exports 20 names, and emits ZERO `console.warn` and ZERO
+ * `console.error`.
+ *
+ * ⚠️ Two column-anchored greps corroborate the walk with ONE disagreement worth
+ * recording, because it is the grep that is wrong: four `self.addEventListener`
+ * lines match at column 0 in `packages/mobile/src/serviceWorkerSource.ts`, and
+ * all four sit INSIDE the template literal that module returns as generated
+ * service-worker SOURCE. They are never executed by importing anything. The AST
+ * walk does not report them; a column-anchored grep cannot see template-literal
+ * nesting. Prefer the parser, and record the disagreement rather than the
+ * quieter number.
+ *
+ * The consuming side was checked for the failure class the worklist names: of
+ * the 25 converted files exactly ONE names `ComponentRegistry` at all, and it
+ * READS one entry -- `get('object-view')`, a key `packages/plugin-view`'s own
+ * index registers, not one this barrel claims -- rather than asserting
+ * emptiness or a count. Not one of the 25 installs a `console.warn` or
+ * `console.error` spy. So no converted assertion can be broken by the 375 keys.
+ *
+ * ⚠️ Like `@object-ui/collaboration`, this specifier had ZERO already-inheriting
+ * sites, so there was no free confirmation -- the suite runs themselves are the
+ * evidence, and that is weaker than a pre-existing green site.
+ *
+ * ⭐ The collection-death failure class slice 6 met did NOT fire here, and the
+ * reason is worth carrying rather than reading as luck. Every one of the 25
+ * files carries neighbouring factories -- 25 on `@object-ui/plugin-form`, 21 on
+ * `@object-ui/react`, one on `@object-ui/permissions` -- and ALL of them were
+ * already inheriting, swept by slices 3, 5 and 6 or written that way. There is
+ * not a single frozen THIRD-PARTY factory in the 25. Slice 6's 15 deaths came
+ * from frozen `lucide-react` neighbours; a specifier whose sites have none
+ * inherits cleanly. Check the neighbours before budgeting for the repair.
+ *
+ * ⚠️ Cost, measured the same way slice 6 measured it -- one converted
+ * `plugin-view` file, twice each: 9.53s / 8.37s frozen, 10.17s / 9.91s
+ * inheriting. The ~1.1s marginal cost is far below slice 6's ~3s, and for a
+ * structural reason: these files ALREADY inherit the real `@object-ui/react`
+ * and `@object-ui/plugin-form` barrels, whose graphs already pull
+ * `@object-ui/components`. Inheriting a barrel is cheap once its own
+ * dependencies are already loaded in that file.
+ *
+ * `@object-ui/permissions` joined as objectui#6892's EIGHTH slice, re-derived
+ * on `571b4870d` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/permissions       48 judged, 24 inheriting, 24 frozen -> 0
+ *
+ * with the population moving 98 -> 74 frozen over 659 judged and no site moving
+ * the other way -- every other one of the 21 rows byte-identical between the
+ * two runs. The 24 frozen sites sit in four owning packages (17 under
+ * `packages/app-shell`, 4 under `packages/plugin-grid`, 2 under
+ * `packages/plugin-detail`, 1 under `packages/plugin-form`) and in two
+ * syntactic shapes: 23 zero-parameter object-literal arrows and one that was
+ * ALREADY `async` and still frozen -- it awaited `react`, not the module under
+ * mock, which is the shape a name-matching gate waves through.
+ *
+ * STEP 0 was taken again rather than inherited, and this barrel is the SMALLEST
+ * yet measured on this worklist and the first to come back genuinely INERT
+ * since `@object-ui/collaboration`: 27 modules and 422 module-scope statements
+ * reached from `packages/permissions/src/index.ts` -- the package plus
+ * `@object-ui/types`, and nothing else in the workspace. It is a 43-line
+ * re-export-only barrel, and a verdict on one of those is NOT free: what it
+ * re-exports is what runs. Of the 422 statements exactly 18 execute anything,
+ * and every one is allocation: ten `createDiscardProofCache()` calls (a
+ * `new WeakMap` plus a returned closure -- read at the definition, not
+ * assumed), one `createContext(null)` with its `displayName` assignment, three
+ * `new Set` of literals, one `Object.freeze` of a literal, one `new WeakMap`,
+ * and one `Symbol.for('objectui.inflightGet')`. That last one is the only
+ * effect that leaves the module, and it is the global SYMBOL REGISTRY rather
+ * than a global property: interning is idempotent, stores no value, and the
+ * empirical run confirms it puts nothing on `globalThis` (the probe's own
+ * `getOwnPropertySymbols(globalThis)` does not contain it). ZERO
+ * `ComponentRegistry.register` calls -- the first swept barrel with none --
+ * ZERO timers, globals, storage, `fetch`, connections, side-effect-only
+ * imports and CSS. Two column-anchored greps over all 27 modules agree with the
+ * walk EXACTLY, with no disagreement to record this time. Empirically:
+ * importing the real barrel under happy-dom in the light `dom` project exports
+ * 7 names, costs ~0.47s and emits ZERO `console.warn` and ZERO `console.error`.
+ *
+ * ⭐ The free confirmation is back, and it is the strongest this worklist has
+ * had: 24 of the 48 sites -- exactly half, spread over TWELVE packages --
+ * already inherited the real barrel on `main` and passed, so the real module
+ * was known to load in the environment before anything was converted. All 48
+ * sites are `.test.tsx` and NONE is in `heavyDomTests`, so all 48 run in the
+ * single light `dom` project and one environment is the whole answer.
+ *
+ * ⭐ Slice 6's collection-death class did NOT fire, and the neighbour reading
+ * says why in advance rather than after the fact. The 24 files carry 8 frozen
+ * `sonner` factories and 7 frozen `@object-ui/plugin-list` ones -- the exact
+ * shape that killed 15 files in slice 6 -- but this barrel's graph reaches
+ * NEITHER, because it reaches nothing beyond `@object-ui/types`, `react` and
+ * `@objectstack/spec`. A frozen neighbour is dangerous only when the newly-real
+ * module's graph reaches it; walk the graph, then read the neighbours against
+ * it.
+ *
+ * `@object-ui/plugin-detail` joined as objectui#6892's NINTH slice, re-derived
+ * on `310c0ab19` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-detail     17 judged, 4 inheriting, 13 frozen -> 0
+ *
+ * with the population moving 74 -> 61 frozen over 659 judged and no site moving
+ * the other way. The 13 frozen sites sit in three owning packages (8 under
+ * `packages/plugin-gantt`, 4 under `packages/plugin-calendar`, 1 under
+ * `packages/plugin-tree`) and in ONE syntactic shape -- all 13 are
+ * zero-parameter object-literal arrows, the most uniform surface this worklist
+ * has swept.
+ *
+ * ⭐ The import-cost reading this slice owed, and why an isolated probe would
+ * have answered it WRONG. Both `vitest.config.mts` and `apps/console`'s config
+ * alias this specifier to `packages/plugin-detail/src`, so `importOriginal`
+ * transforms the barrel's graph on demand -- and that graph is the LARGEST this
+ * worklist has walked: 564 modules and 6,181 module-scope statements, carrying
+ * 127 `ComponentRegistry.register` calls and 99 bare side-effect imports, the
+ * latter almost entirely the `@object-ui/components` renderer cascade. Timed
+ * COLD in an otherwise-empty test file, `importOriginal` of this barrel costs a
+ * median of 8.8s (8815ms / 8646ms / 8827ms) -- squarely in objectui#6580's
+ * ~10s `@object-ui/app-shell` range, which the dispatch defined as a STOP.
+ *
+ * ⛔ That number is an ARTEFACT of the empty file, and acting on it would have
+ * stopped a free conversion. Measured on the REAL files instead -- the only
+ * measurement that decides anything -- the marginal cost is roughly zero:
+ * gantt 9.81s frozen -> 9.73s inheriting, tree 9.65s -> 9.84s, calendar 9.32s
+ * -> 10.32s, i.e. -0.1s to +1.0s per file, the `@object-ui/plugin-grid` range
+ * and not objectui#6580's. The mechanism is a SUBSET relation, and it is
+ * measured rather than argued: every one of these 13 files already imports
+ * `@object-ui/react` and its own view component (`./ObjectGantt` and friends)
+ * at module scope, and those two together reach 572 modules -- a strict
+ * SUPERSET of the barrel's 564, with `comm -23` reporting exactly ZERO modules
+ * that inheriting adds. `importOriginal` here resolves an already-resident
+ * graph; it loads nothing new.
+ *
+ * ⇒ CARRY-FORWARD, and it generalises past this specifier: a barrel's import
+ * cost is NOT a property of the barrel. Measure it in the files that will pay
+ * it, against what they already load, and never from a probe that imports the
+ * barrel alone -- the probe answers "what does this graph cost from cold",
+ * which is the wrong question whenever the consuming file already holds it.
+ *
+ * The neighbours in these 13 files are 7 frozen `sonner` factories plus 12
+ * local whole-module replacements (`./GanttView` 8, `./CalendarView` 4), all
+ * out of scope by construction, and slice 6's collection-death class again did
+ * not fire: this barrel's graph reaches neither `sonner` nor those local
+ * modules. ZERO neighbouring repairs.
+ *
+ * `@object-ui/plugin-chatbot` joined as objectui#6892's TENTH slice, re-derived
+ * on `97b0177e1` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-chatbot    16 judged, 5 inheriting, 11 frozen -> 0
+ *
+ * with the population moving 61 -> 50 frozen over 659 judged and no site moving
+ * the other way -- a diff of the two per-specifier tables with the
+ * `@object-ui/plugin-chatbot` row removed is EMPTY. All 16 sites sit under
+ * `packages/app-shell` and all 11 frozen ones are ONE syntactic shape (the
+ * zero-parameter object-literal arrow), each hand-listing one to three names
+ * from a 48-export barrel.
+ *
+ * STEP 0 was taken again rather than inherited: 454 modules and 5,238
+ * module-scope statements reached from `packages/plugin-chatbot/src/index.tsx`,
+ * over eight workspace packages (`components` 206, `core` 95, `react` 64,
+ * `plugin-chatbot` 33, `i18n` 27, `types` 17, `sdui-parser` 8,
+ * `data-objectstack` 5). NOT inert, and the slice proceeded on the CLASS of the
+ * effect: 114 module-scope `ComponentRegistry.register(...)` calls, and ZERO of
+ * them are bare. Every one carries a namespace (`ui` 89, `element` 10, `page` 7,
+ * `action` 5, `plugin-chatbot` 3); the five rows in `renderers/layout/page.tsx`
+ * that READ as bare carry `ui` through the spread `pageMeta` constant, so the
+ * deprecation `console.warn` in `register()` cannot fire. ⚠️ Slice 9's REPORT
+ * called those five bare, and slice 10's dispatch inherited the claim; slice 7's
+ * record above had them right. Read the third argument, not the key -- the
+ * namespace never appears in the registered string. Empirically: importing
+ * the real barrel under happy-dom exports 48 names, moves
+ * `ComponentRegistry.getAllTypes()` from 0 to 301 keys, and emits ZERO
+ * `console.warn` and ZERO `console.error`.
+ *
+ * ⭐ This is the first slice whose files span TWO vitest projects, and checking
+ * that mattered. Fifteen of the sixteen sites run in the light `dom` project;
+ * `packages/app-shell/src/layout/__tests__/ChatDock.test.tsx` is in
+ * `heavyDomTests` and runs in `dom-heavy`, and
+ * `packages/app-shell/src/hooks/__tests__/useAiSurface.test.ts` is a `.test.ts`
+ * that reaches `dom` only through `domTsTests`. The isolated cold import differs
+ * by an order of magnitude between the two projects -- a median 5.82s under
+ * `dom` against 0.66s under `dom-heavy`, because that project's heavy setup has
+ * already loaded 391 of the registry's keys before the barrel is asked for.
+ *
+ * ⚠️ The per-file marginal cost here is BIMODAL, and it is the first counter-
+ * example to slice 9's carry-forward reading as uniform. Ten of the eleven files
+ * already reach 422 of the barrel's 454 modules at module scope, so inheriting
+ * adds 32 modules and costs +0.4s to +0.8s -- slice 9's range. The eleventh
+ * (the `useAiSurface` hook spec) reaches ZERO of the 454: it is a four-test file
+ * whose only route to the barrel is the mock itself, so inheriting adds all 454
+ * modules plus 58 external leaves and the file goes 0.68s -> 7.77s, an 11.4x
+ * marginal cost squarely inside objectui#6580's STOP band. What settled the
+ * slice is the number CI actually pays, measured over the eleven files as ONE
+ * invocation: 25.6s frozen -> 28.6s inheriting, +2.7s for the whole slice with
+ * 64/64 tests green in both states. ⇒ CARRY-FORWARD, sharpening slice 9's: take
+ * the marginal per FILE, but decide on the AGGREGATE -- a lone cold file can sit
+ * in the STOP band while the population it belongs to costs a tenth of it, and
+ * stopping on the per-file number alone would have forfeited ten free
+ * conversions and left the specifier permanently outside this list, since there
+ * is deliberately no per-file exception ledger.
+ *
+ * The neighbour reading found ZERO repairs owed and said so in advance: the
+ * eleven files carry 11 already-inheriting `@object-ui/auth` factories, 8
+ * already-inheriting `@object-ui/i18n` ones, 6 frozen `react-router-dom` ones
+ * (third-party, out of scope by construction) and 24 local whole-module
+ * replacements. Slice 6's collection-death class needed a frozen neighbour the
+ * newly-real graph REACHES: this barrel's graph reaches `i18n` (already
+ * inheriting) and NOT `react-router-dom`, and not one of the sixteen files
+ * carries a frozen `lucide-react` factory even though the graph reads
+ * `lucide-react` 71 times.
+ *
+ * ⭐ The free confirmation is present: 5 of the 16 sites already inherited the
+ * real barrel on `main` and passed, all of them in the light `dom` project.
+ *
+ * `@object-ui/plugin-designer` joined as objectui#6892's ELEVENTH slice,
+ * re-derived on `ecf8e726e` by the same `scan()` method, the constant below
+ * again never widened-and-reverted:
+ *
+ *     @object-ui/plugin-designer   10 judged, 0 inheriting, 10 frozen -> 0
+ *
+ * with the population moving 50 -> 40 frozen over 659 judged and no site moving
+ * the other way. The 10 sites are an `AppContent.*` SIBLING FAMILY in one
+ * syntactic shape -- the zero-parameter object-literal arrow, each hand-listing
+ * the same three of the barrel's 29 exports -- and this is the first slice on
+ * this worklist to reach OUTSIDE `packages/`: nine sit under
+ * `packages/app-shell` and one under `apps/console`, which runs in its own
+ * merged vitest project rather than in the root config's.
+ *
+ * STEP 0 was taken again rather than inherited: 619 modules and 6,825
+ * module-scope statements reached from `packages/plugin-designer/src/index.tsx`
+ * over fourteen workspace packages (`components` 206, `core` 95, `fields` 77,
+ * `react` 64, `plugin-grid` 31, `plugin-designer` 29, `plugin-form` 28, `i18n`
+ * 27, `types` 18, `mobile` 16, `permissions` 10, `sdui-parser` 8,
+ * `data-objectstack` 5, `providers` 5). NOT inert, and the slice proceeded on
+ * the CLASS of the effect: 130 module-scope `ComponentRegistry.register(...)`
+ * calls, ZERO of them bare. Every one carries a namespace (`ui` 89, `element`
+ * 10, `page` 7, `action` 5, `plugin-form` 4, `plugin-designer` 10, `plugin-grid`
+ * 2, `view` 2, `record` 1); the five rows in the `page.tsx` renderer that READ
+ * as bare carry `ui` through the spread `pageMeta` constant, so the deprecation
+ * `console.warn` in `register()` cannot fire. The remaining effects are the
+ * benign registration class slice 7 already measured in `packages/fields`: five
+ * `registerFieldRenderer(...)` map writes, one `setCellRendererResolver(...)`
+ * assignment and `registerAllFields()`. One CSS import, inert (the root config
+ * declares no `css` option). Empirically, importing the real barrel emits ZERO
+ * `console.warn` and ZERO `console.error` in BOTH projects and exports 29 names.
+ *
+ * ⭐ The import cost was taken in both projects the sites run in, and the two
+ * differ by an order of magnitude for the same reason slice 10 recorded: under
+ * the light `dom` project the isolated cold import costs a median 6.89s and
+ * moves the registry 0 -> 405 keys; under the console project, whose merged
+ * config uses the HEAVY dom setup, it costs a median 0.54s and moves the
+ * registry 391 -> 421. Neither number decides anything on its own. The marginal
+ * cost measured in the files that pay it is uniform and small -- an app-shell
+ * file 9.19s frozen -> 9.55s inheriting, the console file 18.84s -> 19.22s --
+ * and the aggregate over the ten files as ONE invocation is +3.6s on a ~36s
+ * median (four frozen runs against five inheriting ones, two of them
+ * interleaved A/B), i.e. inside the noise band of a shared box and nowhere near
+ * objectui#6580's STOP band. The mechanism is measured, not argued: every one
+ * of the ten files ALREADY holds 590 of the barrel's 619 modules at module
+ * scope, so inheriting adds exactly the 29 modules of the designer package
+ * itself.
+ *
+ * ⚠️ This slice met a failure mode the worklist had not met before, and it is
+ * NOT slice 6's collection death: two of the ten went red on LOAD TIMING. The
+ * console shell reaches `CreateAppPage` only through
+ * `React.lazy(() => import('@object-ui/plugin-designer'))`, so an inheriting
+ * factory first runs when that lazy boundary resolves -- inside the RTL
+ * `findBy` budget of the two files that assert on the rendered designer page.
+ * Alone they pass; in the ten-file invocation the transform pipeline is
+ * saturated and the 29 added modules do not fit in 1000ms, so the assertion
+ * fails while the shell is still booting. The repair is the one AGENTS.md
+ * prescribes for an unbounded module load counted against a bounded window --
+ * a module-scope `import '@object-ui/plugin-designer'` in those two files,
+ * which moves the cost into the import phase where no timeout applies. No
+ * assertion was touched. ⇒ CARRY-FORWARD: a specifier reached only through
+ * `React.lazy` defers the whole inheritance cost into a test's assertion
+ * window, so budget the timing check on the AGGREGATE invocation and never on
+ * the per-file run, which cannot see it.
+ *
+ * The neighbour reading found ZERO repairs owed and said so in advance: across
+ * the ten files every workspace neighbour already inherits (10 `@object-ui/auth`
+ * sites, 10 `@object-ui/i18n`, 8 `@object-ui/react`, 1 `@object-ui/plugin-form`)
+ * and there is not one third-party factory in the family at all -- so the frozen
+ * `lucide-react` neighbour that killed 15 files in slice 6 cannot exist here,
+ * even though this barrel's graph reads `lucide-react` 106 times. The remaining
+ * neighbours are 39 local whole-module replacements, out of scope by
+ * construction. No file among the ten mocks `@object-ui/app-shell`, so the
+ * parked specifier stays parked.
+ *
+ * ⚠️ Like slices 4 and 7, this specifier had ZERO already-inheriting sites, so
+ * there was no free confirmation -- the suite runs themselves are the evidence.
+ *
+ * `@object-ui/plugin-list` joined as objectui#6892's TWELFTH slice, re-derived
+ * on `190cd07b3` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-list       10 judged, 1 inheriting, 9 frozen -> 0
+ *
+ * with the population moving 40 -> 31 frozen over 660 judged and no site moving
+ * the other way -- a diff of the two per-specifier tables with the
+ * `@object-ui/plugin-list` row removed is EMPTY. All 10 sites are an
+ * `ObjectView` / `InterfaceListPage` / `ObjectDataPage` SIBLING FAMILY in one
+ * directory (`packages/app-shell/src/views`), and the 9 frozen ones come in
+ * THREE shapes rather than the single one the previous slice met: four
+ * one-line object-literal arrows returning a null-rendering `ListView`, three
+ * multi-line ones whose double captures `props.schema` and returns null, and
+ * two whose double renders a JSX probe element. Each hand-listed exactly ONE
+ * of the barrel's twelve exports.
+ *
+ * STEP 0 was taken again rather than inherited: 539 modules and 5,777
+ * module-scope statements reached from `packages/plugin-list/src/index.tsx`
+ * over twelve workspace packages (`components` 206, `core` 95, `fields` 77,
+ * `react` 64, `i18n` 27, `types` 17, `mobile` 16, `permissions` 10,
+ * `plugin-list` 8, `sdui-parser` 8, `data-objectstack` 6, `providers` 5). NOT
+ * inert, and the slice proceeded on the CLASS of the effect: 115 module-scope
+ * `ComponentRegistry.register(...)` calls, ZERO of them bare -- `ui` 85,
+ * `element` 10, `page` 7, `action` 5, `plugin-list` 2, `view` 1, plus the five
+ * rows in the `page.tsx` renderer that READ as bare and carry `ui` through the
+ * spread `pageMeta` constant. Beyond registration the graph holds only
+ * allocation: 173 `React.forwardRef`, 84 `new Set`, 21 `createContext`, 16
+ * `Object.freeze`, 13 `new Map`, 13 `cva`, 13 `createSafeTranslation`, 10
+ * `createDiscardProofCache`, five `registerFieldRenderer` map writes, one
+ * `setCellRendererResolver` assignment and `registerAllFields()` -- the benign
+ * `packages/fields` class slice 7 measured. An AST walk that STOPS at every
+ * function-like boundary reports ZERO timers, globals, storage, `fetch` and
+ * connections at import time; 98 bare side-effect imports (the
+ * `@object-ui/components` renderer cascade) and one CSS import, inert because
+ * the root config declares no `css` option. Empirically, importing the real
+ * barrel under the light `dom` project exports 12 names, moves
+ * `ComponentRegistry.getAllTypes()` from 0 to 375 keys and emits ZERO
+ * `console.warn` and ZERO `console.error`.
+ *
+ * ⭐ The cost was decided on the AGGREGATE, per slice 10's carry-forward, and
+ * the per-file number could not have decided it either way. The isolated cold
+ * import under the light `dom` project costs a median 6.2s, but every one of
+ * the ten files already holds 515 to 539 of the barrel's 539 modules at module
+ * scope -- the three view components under test each import `ListView` from
+ * this specifier, and their own graphs pull the rest -- so inheriting adds only
+ * 8 modules in seven files and 24 in the other two. Measured: an
+ * `InterfaceListPage` file 9.58s frozen -> 9.98s inheriting, an `ObjectView`
+ * one 10.26s -> 10.86s, an `ObjectDataPage` one 9.02s -> 8.85s, and the ten
+ * files as ONE invocation, taken as an interleaved A/B against the committed
+ * tree because the box drifts by ten seconds across an hour: -1.0s and +2.3s
+ * on the two pairs, i.e. inside the noise band and nowhere near objectui#6580's
+ * STOP band, with 113/113 green in both states.
+ *
+ * ⚠️ This barrel's graph DOES reach `sonner`, and seven of the ten files carry
+ * a frozen `sonner` factory -- the exact pairing that killed 15 files in slice
+ * 6. It is benign here for a reason worth writing down, because the neighbour
+ * rule as stated ("dangerous only when the newly-real graph reaches it") would
+ * have predicted a repair: the two renderer modules that import `sonner` read
+ * `toast.success` and friends only INSIDE their click handlers, and
+ * `components/src/ui/sonner.tsx` re-exports `toast` at module scope but
+ * dereferences `Toaster` only inside a component body. The frozen factories all
+ * provide `toast`. So the sharper rule is: a frozen neighbour is dangerous when
+ * the newly-real graph reads a MISSING BINDING from it AT MODULE SCOPE -- reach
+ * alone is necessary, not sufficient. The two `react-router-dom` factories are
+ * safe by reach (no module in the graph imports it). ZERO neighbouring repairs,
+ * predicted in advance from the walk and then confirmed by the runs.
+ *
+ * ⭐ The free confirmation is present, and it is the strongest kind for this
+ * pairing: one of the ten sites already inherited the real barrel on `main`,
+ * passed, and carries a frozen `sonner` neighbour of its own -- so the real
+ * barrel was known to load in the light `dom` project alongside that neighbour
+ * before anything was converted. No `React.lazy` or dynamic `import()` of this
+ * specifier exists anywhere in the tree, so slice 11's deferred-cost class
+ * could not fire and no module-scope import was owed in any file.
+ *
+ * `@object-ui/fields` joined as objectui#6892's THIRTEENTH slice, re-derived on
+ * `340489334` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/fields            10 judged, 2 inheriting, 8 frozen -> 0
+ *
+ * with the population moving 31 -> 23 frozen over 660 judged and no site moving
+ * the other way -- a diff of the two per-specifier tables with the
+ * `@object-ui/fields` row removed is EMPTY. All 8 frozen sites sit under
+ * `packages/app-shell/src/views/metadata-admin` -- three across the
+ * `AccessExplainPanel` and `AssignedUsersSection` specs, three in the
+ * `PermissionMatrixEditor` family and two under `inspectors` -- and all 8 are
+ * ONE syntactic shape -- the zero-parameter object-literal arrow -- carrying
+ * THREE double families: a null-rendering `RecordPickerDialog` in three files,
+ * a `CapabilityMultiSelectField` JSX probe paired with a `parseCapabilityNames`
+ * function double in three, and a `LookupField` JSX probe in two. Each
+ * hand-listed one or two of the barrel's 140 exports.
+ *
+ * STEP 0 was taken again rather than inherited: 504 modules and 5,455
+ * module-scope statements reached from `packages/fields/src/index.tsx` over
+ * nine workspace packages (`components` 205, `core` 95, `fields` 77, `react`
+ * 64, `i18n` 27, `types` 17, `sdui-parser` 8, `data-objectstack` 6,
+ * `providers` 5). NOT inert, and the slice proceeded on the CLASS of the
+ * effect: 112 module-scope `ComponentRegistry.register(...)` calls, ZERO of
+ * them bare -- `ui` 90, `element` 10, `page` 7, `action` 5, with the
+ * `page.tsx` renderer's five rows carrying `ui` through the spread `pageMeta`
+ * constant, so the deprecation `console.warn` in `register()` cannot fire. The
+ * barrel's OWN module-scope effects are the benign `packages/fields` class
+ * slice 7 measured, confirmed rather than inherited: five `registerFieldRenderer`
+ * map writes, one `setCellRendererResolver` assignment and `registerAllFields()`,
+ * which loops the widget map into `ComponentRegistry.register` under the `field`
+ * namespace wrapping a `React.lazy` loader -- so registering a widget does not
+ * LOAD it. Beyond registration the graph holds only allocation: 171
+ * `React.forwardRef`, 81 `new Set`, 30 `createContext`, 14 `Object.freeze`, 13
+ * `new Map`, 13 `cva`, 11 `createSafeTranslation`, four `Symbol.for` and one
+ * `subscribeDataChanges` (a `Set.add` into a module-level listener set). An AST
+ * walk that STOPS at every function-like boundary reports ZERO timers, globals,
+ * storage, `fetch` and connections at import time; 98 bare side-effect imports
+ * (the `@object-ui/components` renderer cascade) and one CSS import, inert
+ * because the root config declares no `css` option. Empirically, importing the
+ * real barrel under the light `dom` project exports 140 names, moves
+ * `ComponentRegistry.getAllTypes()` from 0 to 370 keys and emits ZERO
+ * `console.warn` and ZERO `console.error`.
+ *
+ * ⭐ This slice's sites span TWO projects and the two answer the cost question
+ * in OPPOSITE ways, so taking only one would have been useless. Eight run in
+ * the light `dom` project, where the isolated cold import costs a median 5.8s;
+ * the other two are in `heavyDomTests` and run in `dom-heavy`, whose setup
+ * ALREADY imports this very barrel at module scope -- there the isolated
+ * "cold" import measures 0 ms and leaves the registry unmoved at 391 keys,
+ * because the module is resident before any test file is transformed. That is
+ * the strongest form of the free confirmation this worklist has had for a
+ * specifier: for two of the eight, inheriting cannot cost anything at all.
+ * Statically the eight already hold 352 to 422 of the barrel's 504 modules, so
+ * inheriting adds 82 to 152; measured in the files that pay it the marginal is
+ * -0.29s (the `dom-heavy` one), +0.05s and +0.94s, and the ten files as ONE
+ * invocation, taken as an interleaved A/B against the committed tree, read
+ * +0.50s and +0.65s on a ~25.4s aggregate -- about 2%, inside the noise band
+ * and nowhere near objectui#6580's STOP band, with 58/58 green in every state.
+ *
+ * ⚠️ Slice 11's deferred-cost class was checked and is ABSENT for this
+ * specifier: the only `import('@object-ui/fields')` anywhere in the tree is a
+ * TYPE position (`typeof import(...)`) inside an already-inheriting factory, so
+ * no consuming module reaches this barrel through `React.lazy`. The two
+ * module-scope `React.lazy` calls the graph does contain are INSIDE the package
+ * and load package-local widget modules, which the real barrel resolves itself;
+ * neither defers anything across a converted file's assertion window. No
+ * module-scope import repair was owed, and none was made.
+ *
+ * The neighbour reading found ZERO repairs owed and said so in advance from the
+ * walk. Across the ten files there is not ONE third-party factory -- so the
+ * frozen `lucide-react` neighbour that killed 15 files in slice 6 cannot exist
+ * here, even though this barrel's graph reads `lucide-react` 76 times and
+ * reaches `sonner`. Every workspace neighbour already inherits (four
+ * `@object-ui/react` sites, one `@object-ui/auth`), and two of the four
+ * `@object-ui/react` ones already provide `subscribeDataChanges` explicitly --
+ * the one binding this graph reads from that specifier at module scope, which
+ * is slice 12's sharpened rule satisfied before the fact rather than by luck.
+ * The remaining nine neighbours are local whole-module replacements, out of
+ * scope by construction and safe by REACH: this barrel's graph reaches nothing
+ * under `packages/app-shell`. No file among the ten mocks `@object-ui/app-shell`,
+ * so the parked specifier stays parked.
+ *
+ * The remaining 23 stay on objectui#6892, and they are now ONE specifier:
+ * `@object-ui/app-shell` (23, ALL frozen, PARKED under objectui#8173 --
+ * objectui#6892 and the closed objectui#6580 point opposite ways on that one
+ * specifier and a seat does not decide it). Every other workspace specifier any
+ * `vi.mock` call site in this tree names is covered and reads zero frozen.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -135,32 +862,35 @@
  * the shared `js-comment-mask.mjs`, exactly as the sibling gate does it, and
  * for the same reasons (this file's own header quotes the defect in prose).
  *
- * ## `js-comment-mask` reads a JSX closing tag as a regex literal
+ * ## `js-comment-mask` USED to read a JSX closing tag as a regex literal
  *
- * The shared masker decides a `/` opens a regex when the preceding character is
- * not a value. In `</div>` the preceding character is `<`, so it opens a
- * PHANTOM regex that runs to the end of the line and swallows whatever is
+ * Kept as measured history: it is why the shared module was fixed, and the two
+ * behavioural cases in this gate's test still pin the outcome.
+ *
+ * The shared masker decided a `/` opens a regex when the preceding character is
+ * not a value. In `</div>` the preceding character is `<`, so it opened a
+ * PHANTOM regex that ran to the end of the line and swallowed whatever was
  * there -- including the `)` that closes a `vi.mock` call.
  *
- * That is not hypothetical here: measured on this tree, SEVEN `vi.mock` call
- * sites in five files could not have their argument list delimited at all
- * because of it, one of them a covered `@object-ui/react` site
+ * That was not hypothetical here: measured on this tree at the time, SEVEN
+ * `vi.mock` call sites in five files could not have their argument list
+ * delimited at all because of it, one of them a covered `@object-ui/react` site
  * (`plugin-dashboard/src/__tests__/ObjectDataTable.cells.test.tsx`). The sibling
  * gate never noticed because it only reads the specifier; this gate reads the
- * factory BODY, so it cannot.
+ * factory BODY, so it could not.
  *
- * `deJsxClosingTags` neutralises it, and the shape of the fix is what keeps it
- * safe: a JSX closing tag is rewritten to the SAME NUMBER OF BYTES
- * (`</div>` -> `<____>`) before masking, so every offset the mask returns still
- * indexes the original source, and the only bytes that change are slashes that
- * cannot be part of a spread, an identifier, or a specifier. A `</` inside a
- * string or a regex is rewritten too and does not matter: it is literal content
- * either way, and its quotes are untouched, so nothing structural moves.
- * Measured: the seven unreadable sites become zero, and no site changes verdict.
- *
- * This is a LOCAL workaround in this gate, not a change to the shared masker --
- * that module is used by many gates and its JSX behaviour is filed separately
- * as objectui#6891.
+ * This gate carried a LOCAL workaround for it -- `deJsxClosingTags`, a
+ * length-preserving rewrite of every closing tag applied before masking. The
+ * shared masker itself was then fixed by objectui#6891 (CLOSED, PR #7880),
+ * which taught `scanSource` that a `/` whose immediately preceding byte is `<`
+ * opens nothing. Re-measured on the fixed masker, the raw source with the
+ * rewrite NOT applied has ZERO undelimitable sites and the gate's verdict is
+ * byte-identical either way, so the workaround was retired by objectui#7883.
+ * ⛔ That is not "the masker is correct on JSX": objectui#6891 closed only the
+ * `<` `/` half. A `/` after `}` or `>` -- a self-closing tag, a `/` in JSX text
+ * -- still opens a phantom; that half is objectui#7882 and is still open. The
+ * retired rewrite never covered it either (its pattern matched closing tags
+ * only), which is why removing it lost no coverage.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -174,7 +904,26 @@ import { blank, scanSource } from './js-comment-mask.mjs';
  * The workspace packages this gate judges. GROW-ONLY, and a specifier joins it
  * only after its frozen factories have been swept to zero -- see "Scope" above.
  */
-export const COVERED_SPECIFIERS = Object.freeze(['@object-ui/react']);
+export const COVERED_SPECIFIERS = Object.freeze([
+  '@object-ui/react',
+  '@object-ui/i18n',
+  '@object-ui/plugin-markdown',
+  '@object-ui/data-objectstack',
+  '@object-ui/plugin-report',
+  '@object-ui/plugin-charts',
+  '@object-ui/plugin-dashboard',
+  '@object-ui/auth',
+  '@object-ui/collaboration',
+  '@object-ui/plugin-form',
+  '@object-ui/components',
+  '@object-ui/plugin-grid',
+  '@object-ui/permissions',
+  '@object-ui/plugin-detail',
+  '@object-ui/plugin-chatbot',
+  '@object-ui/plugin-designer',
+  '@object-ui/plugin-list',
+  '@object-ui/fields',
+]);
 
 /** Files the walk reads at all. */
 const SOURCE_FILE_RE = /\.[cm]?[jt]sx?$/;
@@ -203,18 +952,6 @@ export const FLOORS = Object.freeze({
   testFiles: 1000,
   covered: 50,
 });
-
-/** A JSX closing tag: `</div>`, `</Foo.Bar>`, `</>`. */
-const JSX_CLOSING_TAG = /<\/([A-Za-z_$][\w$.:-]*)?\s*>/g;
-
-/**
- * `source` with the slash of every JSX closing tag replaced, PRESERVING LENGTH,
- * so offsets from the mask still index the original. See the header section on
- * `js-comment-mask` for the measurement that made this necessary.
- */
-export function deJsxClosingTags(source) {
-  return source.replace(JSX_CLOSING_TAG, (m) => `<${'_'.repeat(m.length - 2)}>`);
-}
 
 /** 1-based line number of `offset` in `source`. */
 function lineOf(source, offset) {
@@ -312,6 +1049,64 @@ function readInitialiser(body, from) {
 const OBTAIN_TOKEN = '__OBTAINED_ORIGINAL__';
 
 /**
+ * Every `vi.importActual(<specifier>)` in `text`, as `[start, end)` spans.
+ *
+ * Deliberately NOT one regular expression. The optional generic argument
+ * NESTS -- `vi.importActual<Record<string, unknown>>('@object-ui/i18n')` is
+ * the spelling four factories in this tree write -- and the `<[^>]*>` this
+ * replaces stopped at the FIRST `>`: it consumed `<Record<string, unknown>`
+ * and then failed against the `>` that follows, so the whole call went
+ * unrecognised and the factory was reported as one that "never obtains the
+ * real module" -- on code that obtains it and spreads it.
+ *
+ * That is the failure this gate's header rules out by name: a recogniser that
+ * calls correct code broken gets the gate deleted rather than fixed. Measured
+ * on this tree at the time of the fix, with `@object-ui/i18n` as the covered
+ * specifier, 35 frozen became 31, and each of the four that moved spreads a
+ * binding initialised from this call (objectui#7337). Nothing moves the other
+ * way: this only ever ADDS a way to recognise the obtain, so no site that read
+ * `inherits` can start reading `frozen`.
+ *
+ * Angle brackets are scanned BALANCED. Anything that does not parse as the
+ * exact call shape is skipped, so the worst case for an unforeseen spelling is
+ * the verdict the regex already gave.
+ */
+export function importActualSpans(text, specifier) {
+  const spans = [];
+  const head = /\bvi\s*\.\s*importActual\s*/g;
+  let m;
+  while ((m = head.exec(text)) !== null) {
+    let i = m.index + m[0].length;
+    if (text[i] === '<') {
+      let depth = 0;
+      for (; i < text.length; i++) {
+        if (text[i] === '<') depth++;
+        else if (text[i] === '>' && --depth === 0) {
+          i++;
+          break;
+        }
+      }
+      if (depth !== 0) continue; // unbalanced -- not a call this gate can read
+      while (/\s/.test(text[i] ?? '')) i++;
+    }
+    if (text[i] !== '(') continue;
+    i++;
+    while (/\s/.test(text[i] ?? '')) i++;
+    const quote = text[i];
+    if (quote !== "'" && quote !== '"' && quote !== '`') continue;
+    if (text.slice(i + 1, i + 1 + specifier.length) !== specifier) continue;
+    let j = i + 1 + specifier.length;
+    if (text[j] !== quote) continue;
+    j++;
+    while (/\s/.test(text[j] ?? '')) j++;
+    if (text[j] !== ')') continue;
+    spans.push([m.index, j + 1]);
+    head.lastIndex = j + 1;
+  }
+  return spans;
+}
+
+/**
  * Read the head of a factory argument: its parameter names, and where its body
  * starts. Returns `null` when the argument is not a function literal at all.
  */
@@ -363,26 +1158,16 @@ export function classifyFactory(masked, literal, start, end, specifier) {
   // then blank literal content -- in that order, because the specifier the
   // first pass matches on IS literal content.
   const bodyStart = head.bodyStart;
-  const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const importActualRe = new RegExp(
-    `\\bvi\\s*\\.\\s*importActual\\s*(?:<[^>]*>)?\\s*\\(\\s*(['"\`])${escaped}\\1\\s*\\)`,
-    'g',
-  );
 
   let body = '';
   for (let i = bodyStart; i < end; i++) body += literal[i] ? ' ' : masked[i];
   // ...but the importActual specifier has to survive the blanking to be
   // matched, so run that pass over the un-blanked body and pad to length.
   const rawBody = masked.slice(bodyStart, end);
-  let obtainedViaImportActual = false;
-  const marks = [];
   let m;
-  importActualRe.lastIndex = 0;
-  while ((m = importActualRe.exec(rawBody)) !== null) {
-    if (literal[bodyStart + m.index]) continue; // the call itself is quoted
-    obtainedViaImportActual = true;
-    marks.push([m.index, m.index + m[0].length]);
-  }
+  // A call whose own `vi` token sits inside a string literal is prose, not code.
+  const marks = importActualSpans(rawBody, specifier).filter(([from]) => !literal[bodyStart + from]);
+  const obtainedViaImportActual = marks.length > 0;
   for (const [from, to] of marks) {
     body = body.slice(0, from) + OBTAIN_TOKEN.padEnd(to - from, ' ') + body.slice(to);
   }
@@ -456,9 +1241,8 @@ export function classifyFactory(masked, literal, start, end, specifier) {
  * for the instance that made this distinction necessary).
  */
 export function findCallSites(source, { covered = COVERED_SPECIFIERS } = {}) {
-  const dejsxed = deJsxClosingTags(source);
-  const { comment, literal } = scanSource(dejsxed);
-  const masked = blank(dejsxed, comment);
+  const { comment, literal } = scanSource(source);
+  const masked = blank(source, comment);
   const coveredSet = new Set(covered);
 
   const sites = [];

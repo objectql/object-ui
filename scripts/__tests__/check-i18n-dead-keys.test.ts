@@ -29,12 +29,17 @@ import { propertyChainProbe, sweep, textFootprint } from '../check-i18n-dead-key
 const tempRoots: string[] = [];
 
 /**
- * Interpolated into the fixture SOURCES below rather than written out —
- * `scripts-type-check.test.ts` greps this directory for import statements
- * naming a workspace package, to pin that `scripts/` needs no workspace
- * build, and its regex cannot tell a string literal (or a template literal's
- * static text) from a real import statement. Same reason
- * `check-i18n-call-site-keys.test.ts` does this for the same specifier.
+ * The workspace specifier the fixture SOURCES below import, in a constant so
+ * this suite and `check-i18n-call-site-keys.test.ts` spell it one way.
+ *
+ * It is NOT held here to keep the specifier away from a text-level scan, which
+ * is what this comment used to say. That reason expired:
+ * `workspaceImportSpecifiers()` in `scripts-type-check.test.ts` reads import
+ * edges from the AST, so a specifier sitting in a string or a template
+ * literal's static text is not an edge to it — that function's docstring is the
+ * authoritative account, and a `describe` block beside it pins the
+ * string-literal case directly. Writing these fixtures out plainly would be
+ * green; the constant is kept for one spelling, not for concealment.
  */
 const I18N_PKG = '@object-ui/i18n';
 
@@ -399,6 +404,48 @@ describe('both control groups from the card, measured on THIS repository (object
     // pick a still-reader-less sibling, never to loosen the assertion.
     const found = textFootprint(repoRoot, READ_BY_NOBODY);
     for (const k of READ_BY_NOBODY) expect(found.get(k), `${k} must have no reader`).toEqual([]);
+  });
+});
+
+describe('the key-builder leg reaches the sweep end to end (objectui#7592)', () => {
+  // The class the property-chain leg does NOT cover: the consumer never spells
+  // the key AND never calls t() — it builds the key in a helper and hands it to
+  // a translator it was given as a value. Before the key-builder leg all three
+  // legs were blind at once and every member of the family landed in CONFIRMED,
+  // the tier this file's header discusses deleting from.
+  const EN_TOOLS = `const en = {
+  chatbot: { tool: { apply_edit: 'Apply edit', list_objects: 'List objects' } },
+  orphan: { group: { leaf: 'Nobody reads this' } },
+} as const;
+export default en;
+`;
+  const BUILDER_CONSUMER = `
+export function toolTitleKey(name: string): string {
+  return \`chatbot.tool.\${String(name).trim()}\`;
+}
+export function humanize(name: string, translate?: (k: string, f: string) => string): string {
+  const english = name.replace(/_/g, ' ');
+  return translate ? translate(toolTitleKey(name), english) : english;
+}
+`;
+  const builderRoot = () =>
+    repoWith({
+      'packages/i18n/src/locales/en.ts': EN_TOOLS,
+      'packages/x/src/tool-display.ts': BUILDER_CONSUMER,
+    });
+
+  it('POSITIVE: a helper-built family is no longer a candidate at all', () => {
+    const { confirmed, needsReview } = sweep(builderRoot());
+    const asCandidate = [...confirmed, ...needsReview.map((e: { key: string }) => e.key)].filter((k: string) =>
+      k.startsWith('chatbot.tool.'),
+    );
+    expect(asCandidate, 'a live helper-built key is still being offered for deletion').toEqual([]);
+  });
+
+  it('NEGATIVE: the leg does not hollow out the tier — a key nothing reads is STILL CONFIRMED', () => {
+    // Without this, "no chatbot.tool key is confirmed" would also pass on a
+    // sweep that confirmed nothing at all.
+    expect(sweep(builderRoot()).confirmed).toEqual(['orphan.group.leaf']);
   });
 });
 

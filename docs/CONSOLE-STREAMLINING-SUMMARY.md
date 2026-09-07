@@ -14,10 +14,18 @@ This implementation completed **Phase 1** of the console streamlining project, e
 
 **Components**:
 - `AppShell` - Basic layout container with sidebar/header/footer support
-- `ObjectRenderer` - Renders object views (Grid, Kanban, List, etc.)
-- `DashboardRenderer` - Renders dashboard layouts from schema
-- `PageRenderer` - Renders custom page schemas
-- `FormRenderer` - Renders forms (modal or inline)
+- `ObjectView` - Renders object views (Grid, Kanban, List, etc.); it reads
+  `objectName` from the router (`useParams()`) and takes an `objects` metadata
+  array. For a router-free embed, use `ObjectView` from `@object-ui/plugin-view`.
+- `DashboardView` - Renders a dashboard by name from schema. The dashboard
+  renderer itself, `DashboardRenderer`, is not an app-shell export - it ships
+  from `@object-ui/plugin-dashboard`, and `DashboardView` renders through it.
+- `PageView` - Renders a custom page by name. No package exports a
+  `PageRenderer`: a page body is dispatched through the component registry on
+  the schema node's `type` (`page`, `app`, `utility`, `home`, `record`).
+- `RecordFormPage` - Renders a full-screen create/edit page. No package exports
+  a `FormRenderer`; the exported form renderers are `ObjectForm` (inline) and
+  `ModalForm` (modal), both from `@object-ui/plugin-form`.
 
 **Key Features**:
 - Framework-agnostic (works with React Router, Next.js, Remix, etc.)

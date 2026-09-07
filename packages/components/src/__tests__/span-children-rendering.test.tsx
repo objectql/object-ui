@@ -69,7 +69,7 @@ describe('span renders its canonical child key (#5027)', () => {
     const schema: TextSpanSchema = {
       type: 'span',
       className: 'json-authored',
-      children: [{ type: 'text', value: 'inline from children' }],
+      children: [{ type: 'text', content: 'inline from children' }],
     };
 
     const { container } = render(<SchemaRenderer schema={schema} />);
@@ -83,7 +83,7 @@ describe('span renders its canonical child key (#5027)', () => {
     const schema: TextSpanSchema = {
       type: 'span',
       className: 'single-child',
-      children: { type: 'text', value: 'lone child' },
+      children: { type: 'text', content: 'lone child' },
     };
 
     const { container } = render(<SchemaRenderer schema={schema} />);
@@ -101,7 +101,7 @@ describe('span renders its canonical child key (#5027)', () => {
         schema={{
           type: 'span',
           className: 'alias-probe',
-          body: [{ type: 'text', value: 'must not render' }],
+          body: [{ type: 'text', content: 'must not render' }],
         } as never}
       />,
     );

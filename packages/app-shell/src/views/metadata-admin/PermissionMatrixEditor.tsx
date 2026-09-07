@@ -39,6 +39,7 @@
 
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { stripReadDecorations } from '@objectstack/spec/kernel';
 import {
   Save,
   Loader2,
@@ -450,8 +451,16 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
         // envelope the display baseline comes from, so the writability verdict
         // and the body on screen can never be read from different round trips.
         setCodeIsArtifact(isArtifactBackedLayer(lay));
+        // Read decorations do NOT seed the editor (objectui#8181). `doSave`
+        // below re-bases on a fresh RAW `layered` read, which drops them — but
+        // its `.catch(() => null)` arm falls back to this very body and
+        // spreads it into `client.save`, so a failed layered read used to put
+        // `_diagnostics` / `_draft` on the wire. Strip at the unwrap, which is
+        // the one place the served envelope becomes an editable draft.
         const draftBody = pendingDraft
-          ? (((pendingDraft as any).item ?? pendingDraft) as PermissionSetDraft)
+          ? (stripReadDecorations(
+              (pendingDraft as any).item ?? pendingDraft,
+            ) as PermissionSetDraft)
           : null;
         // Draft wins over the published baseline for display (D6).
         const effective: PermissionSetDraft = (draftBody ?? lay?.effective ??

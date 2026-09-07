@@ -9,28 +9,26 @@ handles *fixed-depth* hierarchies; a tree handles arbitrary depth.)
 
 It registers two component types via the `ComponentRegistry`:
 
-- `object-tree` — the object-bound renderer
-- `tree` — the view-type alias used by `ObjectView` / `ViewSwitcher`
+- `object-tree` — the object-bound renderer, and the one an author selects
+- `tree` — a view-type alias reached only by host composition (see below)
 
 ## Usage
 
+Author an `object-tree` node. Its config keys sit **flat on the node**, and
+`ObjectQLComponentSchema` narrows on `type`, so each one is checked against
+`ObjectTreeSchema`:
+
 ```ts
-// As a view inside an ObjectView
-{
-  type: 'object-view',
+import type { ObjectQLComponentSchema } from '@object-ui/types';
+
+const schema: ObjectQLComponentSchema = {
+  type: 'object-tree',
   objectName: 'business_unit',
-  views: [
-    {
-      type: 'tree',
-      tree: {
-        parentField: 'parent',        // single-parent pointer (auto-detected if omitted)
-        labelField: 'name',           // indented first column
-        fields: ['name', 'manager'],  // additional flat columns
-        defaultExpandedDepth: 1,      // 0 = roots only; omit = expand all
-      },
-    },
-  ],
-}
+  parentField: 'parent',        // single-parent pointer (auto-detected if omitted)
+  labelField: 'name',           // indented first column
+  fields: ['name', 'manager'],  // additional flat columns
+  defaultExpandedDepth: 1,      // 0 = roots only; omit = expand all
+};
 ```
 
 ### Config
@@ -44,6 +42,23 @@ It registers two component types via the `ComponentRegistry`:
 
 Records whose parent is missing (or points outside the result set) are kept as
 roots, so nothing is silently dropped.
+
+### The `tree` view type is host composition, not authoring
+
+`tree` is **not** an authorable view type. Neither `ObjectViewSchema.defaultViewType`
+nor `NamedListView.type` admits it — both are the same seven-value union that stops
+at `map` — so no authored document selects a tree view, and `ObjectViewSchema`
+declares no `views` member at all. The `tree` branch runs only when a **host**
+composes `ObjectView` with a `views` prop, whose entries carry `id` and `label`
+and are typed `ViewType`. That was ruled deliberate on objectui#5321
+(2026-08-20): `tree` and `chart` are recorded as host-composition-only surfaces
+rather than added to the authored unions. The per-view `tree` config block that
+path reads is host config, so it is not documented here as authoring surface.
+
+The live consumer is the console: it passes stored view records to `ObjectView`
+as `views`, and its create-view dialog offers `tree` among the types a console
+user can create. To render a tree from authored metadata, write the
+`object-tree` node above.
 
 ## License
 

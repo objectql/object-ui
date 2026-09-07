@@ -12,10 +12,18 @@ This document describes the refactored architecture that enables third-party sys
 
 **Exports**:
 - `AppShell` - Basic layout container
-- `ObjectRenderer` - Renders object views
-- `DashboardRenderer` - Renders dashboard layouts
-- `PageRenderer` - Renders custom pages
-- `FormRenderer` - Renders forms
+- `ObjectView` - Renders object views; it reads `objectName` from the router
+  (`useParams()`) and takes an `objects` metadata array. For a router-free embed,
+  use `ObjectView` from `@object-ui/plugin-view` instead - see the examples below.
+- `DashboardView` - Renders a dashboard by name. The dashboard renderer itself,
+  `DashboardRenderer`, is not an app-shell export - it ships from
+  `@object-ui/plugin-dashboard`, and `DashboardView` renders through it.
+- `PageView` - Renders a custom page by name. No package exports a
+  `PageRenderer`: a page body is dispatched through the component registry on
+  the schema node's `type` (`page`, `app`, `utility`, `home`, `record`).
+- `RecordFormPage` - Renders a full-screen create/edit page. No package exports
+  a `FormRenderer`; the exported form renderer is `ObjectForm` from
+  `@object-ui/plugin-form`, which this page delegates to.
 
 **Dependencies**: `@object-ui/react`, `@object-ui/components`, `@object-ui/fields`, `@object-ui/layout`
 
@@ -49,10 +57,10 @@ This document describes the refactored architecture that enables third-party sys
 ┌────────────────┴────────────────────────┐
 │  @object-ui/app-shell                   │
 │  - AppShell                             │
-│  - ObjectRenderer                       │
-│  - DashboardRenderer                    │
-│  - PageRenderer                         │
-│  - FormRenderer                         │
+│  - ObjectView                           │
+│  - DashboardView                        │
+│  - PageView                             │
+│  - RecordFormPage                       │
 └────────────────┬────────────────────────┘
                  │
 ┌────────────────┴────────────────────────┐
@@ -151,48 +159,79 @@ Third-Party App
 ### Example 1: Minimal Custom Console
 
 ```tsx
-import { AppShell, ObjectRenderer } from '@object-ui/app-shell';
-import { DataSourceProvider } from '@object-ui/providers';
+import { AppShell } from '@object-ui/app-shell';
+import type { AppShellProps } from '@object-ui/app-shell';
+import { ObjectView } from '@object-ui/plugin-view';
+import { DataSourceProvider, useDataSource } from '@object-ui/providers';
+import type { DataSourceProviderProps } from '@object-ui/providers';
+
+// The two things you bring. Both are typed from the surface these packages
+// ship, so this snippet compiles on its own: `myAPI` is your backend adapter
+// (the "Custom Data Source Interface" section below is the shape it needs at
+// runtime — `DataSourceProvider` declares the prop `any`, so the annotation
+// records where the value goes rather than checking it), and `MySidebar` is
+// your own component, returning whatever `AppShell` accepts for `sidebar`.
+declare const myAPI: DataSourceProviderProps['dataSource'];
+declare function MySidebar(): AppShellProps['sidebar'];
 
 function MyConsole() {
   return (
     <DataSourceProvider dataSource={myAPI}>
       <AppShell sidebar={<MySidebar />}>
-        <ObjectRenderer objectName="contact" />
+        <ContactList />
       </AppShell>
     </DataSourceProvider>
+  );
+}
+
+function ContactList() {
+  const dataSource = useDataSource();
+  return (
+    <ObjectView schema={{ type: 'object-view', objectName: 'contact' }} dataSource={dataSource} />
   );
 }
 ```
 
 ### Example 2: Next.js Integration
 
+`app/layout.tsx`:
+
 ```tsx
-// app/layout.tsx
 import { AppShell } from '@object-ui/app-shell';
+import type { AppShellProps } from '@object-ui/app-shell';
 import { ThemeProvider } from '@object-ui/providers';
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: AppShellProps['children'] }) {
   return (
     <ThemeProvider>
       <AppShell>{children}</AppShell>
     </ThemeProvider>
   );
 }
+```
 
-// app/[object]/page.tsx
-import { ObjectRenderer } from '@object-ui/app-shell';
+`app/[object]/page.tsx`:
 
-export default function Page({ params }) {
-  return <ObjectRenderer objectName={params.object} />;
+```tsx
+import { ObjectView } from '@object-ui/plugin-view';
+import { useDataSource } from '@object-ui/providers';
+
+export default function Page({ params }: { params: { object: string } }) {
+  const dataSource = useDataSource();
+  return <ObjectView schema={{ type: 'object-view', objectName: params.object }} dataSource={dataSource} />;
 }
 ```
 
 ### Example 3: Embedded Widget
 
 ```tsx
-import { ObjectRenderer } from '@object-ui/app-shell';
-import { DataSourceProvider } from '@object-ui/providers';
+import { ObjectView } from '@object-ui/plugin-view';
+import { DataSourceProvider, useDataSource } from '@object-ui/providers';
+import type { DataSourceProviderProps } from '@object-ui/providers';
+
+// Your backend adapter, as in Example 1 — declared here because every block on
+// this page compiles on its own.
+declare const myAPI: DataSourceProviderProps['dataSource'];
 
 function MyExistingApp() {
   return (
@@ -201,12 +240,17 @@ function MyExistingApp() {
 
       {/* Embed ObjectUI widget */}
       <DataSourceProvider dataSource={myAPI}>
-        <ObjectRenderer objectName="contact" />
+        <ContactWidget />
       </DataSourceProvider>
 
       <footer>My App Footer</footer>
     </div>
   );
+}
+
+function ContactWidget() {
+  const dataSource = useDataSource();
+  return <ObjectView schema={{ type: 'object-view', objectName: 'contact' }} dataSource={dataSource} />;
 }
 ```
 
@@ -229,7 +273,9 @@ Example implementation:
 
 ```tsx
 const myDataSource = {
-  async find(objectName, params) {
+  // The parameter types are the ones the interface above declares; spelling
+  // them out is what lets this block be compiled rather than read.
+  async find(objectName: string, params?: any) {
     return fetch(`/api/${objectName}`, {
       method: 'POST',
       body: JSON.stringify(params),

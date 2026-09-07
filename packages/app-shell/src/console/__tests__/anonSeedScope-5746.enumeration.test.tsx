@@ -86,7 +86,44 @@ function record(op: Op['op'], key: string, detail: string) {
 
 let restoreInstrument: (() => void) | null = null;
 
+/**
+ * The instrument below patches `Storage.prototype`, so it can only observe an
+ * operation issued through an object that INHERITS from the same `Storage`.
+ * That is an invariant of the test ENVIRONMENT, and it is not one this file or
+ * the code under test can hold up on its own: from Node 26 the experimental Web
+ * Storage globals are on by default, and Vitest's `populateGlobal` then leaves
+ * `localStorage`/`sessionStorage` pointing at NODE's implementation while
+ * `Storage` itself is happy-dom's (measured, v26.7.0 — objectui#7271).
+ *
+ * When that holds, the patch observes nothing: S0 reports `expected 0 to be
+ * greater than 0` and S1-S6 read "no `@anon` seed was written" off a ledger
+ * that is empty for a reason that has nothing to do with what they measure.
+ * Seven simultaneous zeros invite "the probe is stale, relax it", so this says
+ * the true thing by name instead — and it says it BEFORE the ledger is
+ * consulted, not through it.
+ *
+ * It does NOT replace S0. This catches exactly one cause of blindness, the one
+ * that has actually happened; S0's counter-probe is what catches the rest, and
+ * `expect(writes().length).toBeGreaterThan(0)` still has to hold on its own.
+ */
+function assertStoresAreInstrumentable() {
+  for (const name of ['sessionStorage', 'localStorage'] as const) {
+    const store: unknown = globalThis[name];
+    if (store instanceof Storage) continue;
+    const proto = store == null ? 'n/a' : (Object.getPrototypeOf(store)?.constructor?.name ?? 'null-prototype');
+    throw new Error(
+      `test environment: \`${name}\` is not an instance of the \`Storage\` whose ` +
+        'prototype this file patches, so the instrument would observe NOTHING and ' +
+        'S1-S6 would pass vacuously off an empty ledger. Got ' +
+        `${Object.prototype.toString.call(store)} (prototype ${proto}); node=${process.version}. ` +
+        'The repair belongs in `vitest.setup.base.ts` — NOT in these assertions. ' +
+        'See objectui#7271.',
+    );
+  }
+}
+
 function installInstrument() {
+  assertStoresAreInstrumentable();
   const origSet = Storage.prototype.setItem;
   const origGet = Storage.prototype.getItem;
   const origRemove = Storage.prototype.removeItem;

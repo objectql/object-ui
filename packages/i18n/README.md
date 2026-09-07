@@ -55,9 +55,15 @@ function MyComponent() {
 Wraps your application with i18n context:
 
 ```tsx
+import type { ReactNode } from 'react';
+import { I18nProvider } from '@object-ui/i18n';
+
+// Your app supplies the tree being wrapped.
+declare const App: () => ReactNode;
+
 <I18nProvider config={{ defaultLanguage: 'en', fallbackLanguage: 'en' }}>
   <App />
-</I18nProvider>
+</I18nProvider>;
 ```
 
 #### Language persistence
@@ -75,11 +81,16 @@ app no longer offers (not a built-in pack, not in `config.resources`) is ignored
 translations.
 
 ```tsx
+import type { ReactNode } from 'react';
+import { I18nProvider } from '@object-ui/i18n';
+
+declare const Preview: () => ReactNode;
+
 // Fixed-language surfaces (previews, demos, screenshot harnesses) opt out —
 // they neither restore nor write the preference.
 <I18nProvider config={{ defaultLanguage: 'en' }} persistLanguage={false}>
   <Preview />
-</I18nProvider>
+</I18nProvider>;
 ```
 
 Bringing your own `instance`? Then its bootstrap language is yours to choose —
@@ -91,7 +102,18 @@ Switching through such an instance is still persisted.
 Hook for translations and language management:
 
 ```tsx
-const { t, language, changeLanguage, direction } = useObjectTranslation();
+import { useObjectTranslation } from '@object-ui/i18n';
+
+function LanguageBar() {
+  const { t, language, changeLanguage, direction } = useObjectTranslation();
+
+  return (
+    <div dir={direction}>
+      {t('common.save')} — {language}
+      <button onClick={() => changeLanguage('zh')}>中文</button>
+    </div>
+  );
+}
 ```
 
 ### createI18n
@@ -109,13 +131,19 @@ i18n.t('common.cancel'); // "Abbrechen"
 
 Locale-aware formatting functions:
 
+Each formatter takes the value first and an **options object** second; the
+locale is a field on that object (`DateFormatOptions`, `CurrencyFormatOptions`,
+`NumberFormatOptions`), never a positional argument. `formatRelativeTime` is the
+one exception: it takes the locale directly, and derives the unit from how far
+the date is from now.
+
 ```tsx
 import { formatDate, formatCurrency, formatNumber, formatRelativeTime } from '@object-ui/i18n';
 
-formatDate(new Date(), 'en');            // "Jan 1, 2025"
-formatCurrency(99.99, 'USD', 'en');      // "$99.99"
-formatNumber(1234567, 'de');             // "1.234.567"
-formatRelativeTime(-3, 'days', 'en');    // "3 days ago"
+formatDate(new Date(2025, 0, 1), { locale: 'en' });              // "Jan 1, 2025"
+formatCurrency(99.99, { currency: 'USD', locale: 'en' });        // "$99.99"
+formatNumber(1234567, { locale: 'de' });                         // "1.234.567"
+formatRelativeTime(Date.now() - 3 * 86_400_000, 'en');           // "3 days ago"
 ```
 
 ### Built-in Locales

@@ -474,7 +474,7 @@ export interface BaseSchema {
  * @example
  * ```typescript
  * const nodes: SchemaNode[] = [
- *   { type: 'text', value: 'Hello' },
+ *   { type: 'text', content: 'Hello' },
  *   'Plain string',
  *   { type: 'button', label: 'Click' }
  * ]
@@ -598,14 +598,133 @@ export interface ComponentInput {
   type: ComponentInputControlType | ComponentInputControlType[];
 
   /**
-   * Display label in the editor
+   * The coarse kind(s) of this input's MEMBERS — one level down from `type`
+   * (objectui#8067).
+   *
+   * Meaningful on an input whose `type` declares `array` or `object`, and it
+   * means the same thing on each: the ELEMENTS of the array, and the VALUES of
+   * an object used as a MAP. One kind, or an array of them for a member
+   * contract that is a union, with exactly `type`'s semantics — a member passes
+   * when ANY declared arm accepts it, and a member matching none is reported.
+   *
+   * ## Why the slot exists
+   *
+   * `type: 'array'` says a value is a list and stops there, so a member key
+   * that drifts from the contract is invisible to every layer that reads a
+   * declaration. `page:header.actions` is the measured cost: `@objectstack/spec`
+   * declares `z.array(z.string())` (action IDs), the renderer read the members
+   * as `ActionDef` OBJECTS, and the repo-wide parity gate
+   * (`apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`) stayed
+   * green for the whole life of the drift because it could only compare
+   * top-level key names — the `inputs` side had nothing to compare with. What
+   * finally settled it was a maintainer ruling, and even after the fix the
+   * fact "these are ids" lived only in `description` PROSE. `of: 'string'` is
+   * that same fact, in a form a machine reads.
+   *
+   * ## What it is NOT — and why the 2026-08-17 ceiling is untouched
+   *
+   * `of` is a KIND, exactly like `type`, and it stops one level down. It is NOT
+   * a nested schema: it names no object keys, no element field types, no
+   * per-member `required`. It is deliberately not called `items` / `element` /
+   * `shape`, all of which promise a sub-schema this does not carry.
+   *
+   * It therefore adds NO value-domain slot, so the maintainer ruling quoted on
+   * `type` above — "the coarse arm plus `description` IS the publication face's
+   * expression ceiling today, and SPEC IS THE SOLE JUDGE OF VALUES" — stands
+   * unchanged. `of` extends the one axis that ruling already blessed (a coarse
+   * KIND) to the one position that had no way to state it; it does not reopen
+   * the constraint slots (`min` / `max` / `step`) that ruling deferred, and it
+   * is not the `integer`-style narrowing that ruling declined. `of: 'string'`
+   * says the members are strings; which strings is still spec's question alone.
+   *
+   * ## It has readers on day one — the standard this slot had to meet
+   *
+   * objectui#5905 is the cautionary precedent: five `ComponentInput` keys were
+   * declared and read by NOTHING, and the manifest serializer forwarded six
+   * keys of which it read none. So `of` ships with three readers, all in the
+   * same change that adds it:
+   *
+   *   1. the repo-wide parity gate compares every declared `of` arm against the
+   *      member kind `ComponentPropsMap[type]` actually accepts, and reds on an
+   *      arm the contract refuses — the same one-directional widening question
+   *      the ARM DIRECTION asks of `type` (objectui#4971);
+   *   2. `sdui-parser`'s `validateTree` reports a member whose kind fits no
+   *      declared arm, at the member's own position;
+   *   3. `sdui-parser`'s codegen types the generated `sdui-intrinsics.d.ts`
+   *      surface from it — `string[]` rather than `unknown[]`.
+   *
+   * DECLARE IT ONLY WHERE THE CONTRACT FORCES ONE ANSWER. Every `of` in this
+   * repository was derived by probing `ComponentPropsMap`'s member position
+   * with one value of each coarse kind and taking the result only where exactly
+   * ONE kind was accepted. A member contract that accepts several kinds (spec's
+   * `record:highlights.fields` takes a string OR an object) is left undeclared
+   * on purpose: picking one arm there would be the NARROWING this repo treats
+   * as noise, and picking all of them would advertise shapes the renderer may
+   * not resolve — which is per-block discipline, not a repo-wide derivation.
+   *
+   * @example { name: 'actions', type: 'array', of: 'string' }
+   * @example { name: 'sections', type: 'array', of: 'object' }
    */
-  label?: string;
+  of?: ComponentInputControlType | ComponentInputControlType[];
 
   /**
-   * Default value for new instances
+   * ADR-0049 RETIREMENT TOMBSTONES — `label` / `defaultValue` / `advanced`
+   * (objectui#7493 item ①, objectui#7781; maintainer ruling A of 2026-09-06).
+   * The three keys the manifest serializer does not forward, retired together
+   * on both faces in the shape the five tombstones at the bottom of this block
+   * established (objectui#5905): `?: never` here, so authoring one is a `tsc`
+   * error at the registration site, and `retirementTombstone()` on the Zod
+   * twin (`zod/base.zod.ts` `ComponentInputSchema`), so an authored value is a
+   * NAMED parse refusal carrying its own remedy. Deleting the members outright
+   * was measured and NOT taken: the mirror is a non-strict `z.object`, and on
+   * the built face an undeclared key parses green and is silently STRIPPED —
+   * one silent no-op traded for another.
+   *
+   * What was measured (re-measured on the retiring PR's merge-base, not
+   * inherited from the cards): every non-test consumer of
+   * `ComponentMeta.inputs` was enumerated and none reads any of the three —
+   * the serializer (`packages/sdui-parser/src/index.ts`) forwards a fixed key
+   * list per input, `of` included since objectui#8067 (`name`, `type`, `of`,
+   * `required`, `enum`, `binding`, `description`), its boundary type has no slot for these, the registry's
+   * data-source seam reads `name` only, and neither the designer nor the
+   * app-shell inspectors consult registry `inputs` at all. The one
+   * non-test touch was a WRITE (`WidgetRegistry` copying the widget-manifest
+   * values across), deleted with this retirement. A depth-1 bracket-balanced
+   * census over every `inputs:` array in the repository counted the
+   * authorship: `label` 908, `defaultValue` 245, `advanced` 9 — against
+   * `name` 951 and `type` 951 in the same pass over the same regions, so the
+   * instrument was not blind. Written on nearly every registration, read by
+   * nothing. Authorship from OUTSIDE the repository is not measurable from here
+   * (the objectui#5674 limit); converting such a write from a silent drop into
+   * a named refusal is what the tombstones buy.
+   *
+   * What an author writes instead: NOTHING. An input is identified by its
+   * `name` on every path that reaches it, and no consumer ever rendered a
+   * label for it; the renderer's own fallback read IS the default, and the
+   * place to tell an author about it is `description`, which is published;
+   * and no designer surface ever hid an "advanced" input. Options B (tighten
+   * `defaultValue` to `unknown` — closes no error class), C (teach the
+   * serializer to forward the keys — refused on record for `inputType` in
+   * objectui#5905: a write nothing reads is not demand for a feature) and D
+   * (keep as documentation) were each ruled out.
+   *
+   * RETIRED (objectui#7493, ADR-0049) — never read, and never published. Delete
+   * the key; the input's `name` is what every consumer identifies it by.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  defaultValue?: any;
+  label?: never;
+
+  /**
+   * RETIRED (objectui#7493, ADR-0049) — never read, and never published: the
+   * manifest serializer forwards a fixed key list and this is not one of them, and no
+   * renderer, registry or designer surface ever read a declared default. Delete
+   * the key; the renderer's own fallback read is the default, and `description`
+   * — which IS published — is where to state it for an author. The 245 values
+   * this carried were shadow copies of renderer fallbacks that only test pins
+   * ever compared; those pins now read the renderer's ACTUAL default.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
+   */
+  defaultValue?: never;
 
   /**
    * Whether this property is required
@@ -623,13 +742,18 @@ export interface ComponentInput {
   description?: string;
 
   /**
-   * Whether this is an advanced/expert option
+   * RETIRED (objectui#7493 / objectui#7781, ADR-0049) — never read, and never
+   * published: the manifest serializer forwards a fixed key list and this is
+   * not one of them, and no designer surface ever hid an "advanced" input (nine
+   * registrations wrote it; nothing consumed it). Delete the key; there is
+   * nothing to write instead.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  advanced?: boolean;
+  advanced?: never;
 
   /**
    * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
-   * manifest serializer forwards six keys and this is not one of them. Put the
+   * manifest serializer forwards a fixed key list and this is not one of them. Put the
    * control hint in `description`, which IS published.
    *
    * The LAST of the five to be retired, and by its own ruling, because its
@@ -669,8 +793,9 @@ export interface ComponentInput {
    *
    * What was measured (objectui#5905, re-measured on the merge-base of the
    * retiring PR): no consumer reads any of the four, and the manifest
-   * serializer (`packages/sdui-parser/src/index.ts`) forwards exactly six keys
-   * per input — `name`, `type`, `required`, `enum`, `binding`, `description` —
+   * serializer (`packages/sdui-parser/src/index.ts`) forwards a fixed key list
+   * per input — `name`, `type`, `of`, `required`, `enum`, `binding`,
+   * `description`, the last of them added by objectui#8067 —
    * so a value authored here could not reach the published
    * `sdui.manifest.json` even in principle. A structural census over every
    * `inputs:` array in the repository found ZERO authoring sites for the four
@@ -691,28 +816,28 @@ export interface ComponentInput {
    * silence let through) is still the route back.
    *
    * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
-   * manifest serializer forwards six keys and this is not one of them. Spell
+   * manifest serializer forwards a fixed key list and this is not one of them. Spell
    * the numeric domain out in `description`, which IS published.
    * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
   min?: never;
   /**
    * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
-   * manifest serializer forwards six keys and this is not one of them. Spell
+   * manifest serializer forwards a fixed key list and this is not one of them. Spell
    * the numeric domain out in `description`, which IS published.
    * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
   max?: never;
   /**
    * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
-   * manifest serializer forwards six keys and this is not one of them. Spell
+   * manifest serializer forwards a fixed key list and this is not one of them. Spell
    * the numeric domain out in `description`, which IS published.
    * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
   step?: never;
   /**
    * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
-   * manifest serializer forwards six keys and this is not one of them. Put the
+   * manifest serializer forwards a fixed key list and this is not one of them. Put the
    * hint in `description`, which IS published. `BaseSchema.placeholder` — the
    * node-level prop a renderer does read — is a DIFFERENT key and is
    * unaffected.

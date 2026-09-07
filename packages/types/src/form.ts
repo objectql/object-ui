@@ -199,6 +199,17 @@ export interface TextareaSchema extends BaseSchema {
    */
   error?: string;
   /**
+   * Classes on the wrapper `div` around the textarea and its label.
+   *
+   * READ SITE: `packages/components/src/renderers/form/textarea.tsx:37` —
+   * `cn("grid w-full gap-1.5", schema.wrapperClass)`. Undeclared until
+   * objectui#7722, surviving only on `BaseSchema`'s index signature: the same
+   * key, on the same class of read, that `CheckboxSchema` (objectui#6938),
+   * `FileUploadSchema` and `FilterBuilderSchema` (objectui#6150) declare.
+   * Distinct from `className`, which the renderer hands to the inner control.
+   */
+  wrapperClass?: string;
+  /**
    * Change handler
    *
    * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
@@ -255,6 +266,17 @@ export interface SelectSchema extends BaseSchema {
    * Error message
    */
   error?: string;
+  /**
+   * Classes on the wrapper `div` around the trigger and its label.
+   *
+   * READ SITE: `packages/components/src/renderers/form/select.tsx:45` —
+   * `cn("grid w-full items-center gap-1.5", schema.wrapperClass)`. Undeclared until
+   * objectui#7722, surviving only on `BaseSchema`'s index signature: the same
+   * key, on the same class of read, that `CheckboxSchema` (objectui#6938),
+   * `FileUploadSchema` and `FilterBuilderSchema` (objectui#6150) declare.
+   * Distinct from `className`, which the renderer hands to the inner control.
+   */
+  wrapperClass?: string;
   /**
    * Change handler. Receives the AUTHORED option value — a numeric/boolean
    * option arrives with its type intact (#3090), not stringified by the
@@ -460,6 +482,17 @@ export interface SwitchSchema extends BaseSchema {
    * Help text or description
    */
   description?: string;
+  /**
+   * Classes on the wrapper `div` around the switch and its label.
+   *
+   * READ SITE: `packages/components/src/renderers/form/switch.tsx:26` —
+   * `` `flex items-center space-x-2 ${schema.wrapperClass || ''}` ``. Undeclared until
+   * objectui#7722, surviving only on `BaseSchema`'s index signature: the same
+   * key, on the same class of read, that `CheckboxSchema` (objectui#6938),
+   * `FileUploadSchema` and `FilterBuilderSchema` (objectui#6150) declare.
+   * Distinct from `className`, which the renderer hands to the inner control.
+   */
+  wrapperClass?: string;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
    * `switch` renderer forwards only `toFormControlDomProps`'s whitelist, which
@@ -673,6 +706,17 @@ export interface DatePickerSchema extends BaseSchema {
    * Error message
    */
   error?: string;
+  /**
+   * Classes on the wrapper `div` around the popover trigger and its label.
+   *
+   * READ SITE: `packages/components/src/renderers/form/date-picker.tsx:35` —
+   * `` `grid w-full max-w-sm items-center gap-1.5 ${schema.wrapperClass || ''}` ``. Undeclared until
+   * objectui#7722, surviving only on `BaseSchema`'s index signature: the same
+   * key, on the same class of read, that `CheckboxSchema` (objectui#6938),
+   * `FileUploadSchema` and `FilterBuilderSchema` (objectui#6150) declare.
+   * Distinct from `className`, which the renderer hands to the inner control.
+   */
+  wrapperClass?: string;
   /**
    * Change handler
    *

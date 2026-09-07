@@ -45,6 +45,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import type { ObjectKanbanSchema } from '@object-ui/types';
 import { ObjectKanban } from './ObjectKanban';
 
 // Pay the board's lazy chunk at import time, not inside a `findBy` budget
@@ -84,7 +85,7 @@ async function openDrawer(navigation?: Record<string, unknown>) {
         columns: [{ id: 'todo', title: 'To Do' }],
         data: cards,
         ...(navigation ? { navigation } : {}),
-      } as never}
+      } satisfies ObjectKanbanSchema}
     />,
   );
   const card = await screen.findByText('On the board');
@@ -109,12 +110,102 @@ function readPanelWidth(): string {
   return panel!.style.maxWidth;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+ * objectui#7307 — this file's `/api/v1/security/explain` escape, served here.
+ *
+ * Nothing below asks for a security verdict, yet every run opened a REAL TCP
+ * connection to `http://localhost:3000`. Traced with a stack probe on the
+ * network-escape guard's attribution point (measured, not inferred):
+ *
+ *   RecordDetailDrawer (the drawer this file opens)
+ *     -> DetailView            packages/plugin-detail/src/DetailView.tsx:290,296
+ *       -> useRecordEditable   packages/plugin-detail/src/useRecordEditable.ts:76
+ *         -> `const doFetch = apiFetch ?? fetch`      <- the escape
+ *           POST /api/v1/security/explain  (twice per open: edit, then delete)
+ *
+ * The hook reads the host's AUTHENTICATED `apiFetch` off
+ * `SchemaRendererContext` and, with no host supplying one, degrades to the
+ * GLOBAL `fetch` by design — a standalone embed must keep rendering rather than
+ * crash. Under happy-dom that global is a real HTTP client and the document URL
+ * defaults to `http://localhost:3000`, so the relative path resolved to a live
+ * request. The read is best-effort (a network or parse failure leaves the
+ * record editable — fail open), which is why the cases below stayed green while
+ * the request always failed.
+ *
+ * Answered from a RECORDING double — the shape objectui#5225 settled on, carried
+ * by `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx` and
+ * by this batch's sibling
+ * `packages/plugin-calendar/src/ObjectCalendar.navWidthDefault.test.tsx`.
+ * Deliberately NOT a blanket network stub: it records every URL it is handed
+ * and `afterEach` fails on any URL that is not the explain route, so an escape
+ * to somewhere else reds here instead of vanishing into that `catch`.
+ *
+ * What it answers, and why that changes no assertion here: the permissive
+ * verdict, in the two response shapes the two explain hooks read —
+ * `{ record: { visible } }` for a single `recordId`, and
+ * `{ records: [{ recordId, visible }] }` for a batched `recordIds`. Only the
+ * FIRST is reached from this file (every call measured above comes from
+ * `useRecordEditable`); the batched branch is kept so this router stays
+ * byte-identical to its siblings rather than forking per file.
+ * `useRecordEditable` initialises `allowed` to `true` and its failure path
+ * leaves it there, so `true` and the absent verdict the failing request
+ * produced are the same value at every read site. The drawer's width —
+ * everything this file asserts — is not derived from the verdict at all.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+const EXPLAIN_ROUTE = '/api/v1/security/explain';
+
+/** Every URL this render handed the global `fetch`, in request order. */
+let explainCalls: string[] = [];
+
+/** Serve `POST /api/v1/security/explain` permissively; record everything. */
+function installExplainDouble() {
+  explainCalls = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown, init?: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      explainCalls.push(url);
+      if (url !== EXPLAIN_ROUTE) return { ok: false, status: 404, json: async () => ({}) };
+      let body: { recordId?: unknown; recordIds?: unknown } = {};
+      try {
+        body = JSON.parse(String((init as { body?: unknown } | undefined)?.body ?? '{}'));
+      } catch {
+        /* a non-JSON body is not a request this route can answer */
+      }
+      const recordIds = Array.isArray(body.recordIds) ? body.recordIds : null;
+      return {
+        ok: true,
+        status: 200,
+        json: async () =>
+          recordIds
+            ? { records: recordIds.map((recordId) => ({ recordId, visible: true })) }
+            : { record: { visible: true } },
+      };
+    }),
+  );
+}
+
 describe('kanban drawer width with no declared `navigation` (objectui#6303)', () => {
   beforeEach(() => {
     drawerProps = null;
     try { window.localStorage.clear(); } catch { /* ignore */ }
+    installExplainDouble();
   });
-  afterEach(() => cleanup());
+  afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of vanishing into the hook's best-effort `catch`.
+  expect(explainCalls.filter((url) => url !== EXPLAIN_ROUTE)).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch`. Vitest runs `afterEach` hooks in
+  // reverse registration order, so this file's teardown runs before the root
+  // setup's RTL cleanup: unstubbing first would leave the tree mounted with the
+  // real global back in place, and a verdict effect settling in that window
+  // escapes again (objectui#7439).
+  cleanup();
+  vi.unstubAllGlobals();
+  });
 
   it('half 1: the kanban injects no width of its own (so the drawer default applies)', async () => {
     await openDrawer();

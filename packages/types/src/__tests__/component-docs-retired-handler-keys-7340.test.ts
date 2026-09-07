@@ -58,13 +58,13 @@
  *      the page used. This is the net for doc-LOCAL interface names, which rule
  *      2 cannot resolve by construction (`plugins/*.mdx` document `Overview` /
  *      `Features` / `Properties` blocks with no shipped counterpart).
- *   4. CONTROL — six measured runtime-slot rows are present, callable, and
+ *   4. CONTROL — seven measured runtime-slot rows are present, callable, and
  *      cross-checked against source as NOT `?: never`. This is the
  *      blanket-sweep control: an edit that deleted every `on*` row under
  *      `content/docs` turns these red, and rules 2 and 3 alone would call that
- *      a pass. Two of the six sit on pages this card edited (`input-otp.mdx`
- *      `onChange`, `schema-reference.md` `onCardMove` / `onCardClick`), which
- *      is where an over-broad edit would land first.
+ *      a pass. Four of the seven sit on pages this card edited (`input-otp.mdx`
+ *      `onChange`, `schema-reference.md` `onCardMove` / `onCardClick` /
+ *      `onQuickAdd`), which is where an over-broad edit would land first.
  *   5. PROSE — the reader flags rows, never mentions. Counter-probes feed it a
  *      sentence naming a retired key and a JSON example key and assert neither
  *      becomes a row, because "the retired `onComplete`" in running prose is
@@ -253,8 +253,12 @@ const describeRow = (r: DocRow): string => `${r.page}:${r.line} ${r.owner}.${r.k
 
 /** Runtime-slot rows measured present on this tree — the blanket-sweep control. */
 const CONTROL = [
-  { page: 'api/schema-reference.md', owner: 'DeclarativeKanbanSchema', key: 'onCardMove' },
-  { page: 'api/schema-reference.md', owner: 'DeclarativeKanbanSchema', key: 'onCardClick' },
+  // objectui#7664: the page documents the plugin dialect under `KanbanSchema`
+  // now, whose three runtime slots are `onCardMove` / `onCardClick` /
+  // `onQuickAdd` — the three `KanbanRenderer` forwards off `schema.*`.
+  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onCardMove' },
+  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onCardClick' },
+  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onQuickAdd' },
   { page: 'components/basic/pagination.mdx', owner: 'PaginationSchema', key: 'onPageChange' },
   { page: 'components/data-display/tree-view.mdx', owner: 'TreeViewSchema', key: 'onNodeClick' },
   { page: 'components/form/button.mdx', owner: 'ButtonSchema', key: 'onClick' },
@@ -266,15 +270,20 @@ describe('the retired population is measured off the shipped tree (objectui#7340
     // 22 from objectui#6124; objectui#7344 (the objectui#6182 string-dialect
     // ruling, same shape) added `AppAction.onClick`, `ReportBuilderSchema.onSave`
     // / `.onCancel` and `CRUDDialogSchema.onClose` — a ruled move of the
-    // population, recorded here rather than waved through.
+    // population, recorded here rather than waved through. objectui#7068 added
+    // the legacy `ActionSchema.onSuccess` / `.onFailure` (crud.ts 1 → 3, total
+    // 26 → 28): NOT #6124 handler keys — they carried a callback OBJECT
+    // (`ActionCallback`, deleted), the third meaning of `onSuccess` — but the
+    // same `on*?: never` shape this name-shaped census reads, so the move is
+    // recorded here too (maintainer ruling option 1, 2026-09-05).
     const split: Record<string, number> = {};
     for (const m of RETIRED) split[m.file] = (split[m.file] ?? 0) + 1;
     expect({ total: RETIRED.length, split }).toEqual({
-      total: 26,
+      total: 28,
       split: {
         'app.ts': 1,
         'complex.ts': 4,
-        'crud.ts': 1,
+        'crud.ts': 3,
         'data-display.ts': 4,
         'feedback.ts': 1,
         'form.ts': 8,
@@ -301,6 +310,11 @@ describe('the retired population is measured off the shipped tree (objectui#7340
       'onColumnAdd',
       'onConfirm',
       'onExpandChange',
+      // objectui#7068: the legacy `ActionSchema.onFailure` callback object — no
+      // shipped interface declares an `onFailure` at all any more. `onSuccess`
+      // is NOT here: `UIActionSchema.onSuccess` is LIVE (the spec's navigation
+      // block), so that name stays ambiguous and is resolved by the pair rule.
+      'onFailure',
       'onSave',
       'onSelectChange',
       'onSendMessage',

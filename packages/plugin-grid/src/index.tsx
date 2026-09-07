@@ -213,39 +213,39 @@ export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> =
  * read as back-compat, not advertised as authoring surface.
  */
 const GRID_QUERY_INPUTS: ComponentInput[] = [
-  { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-  { name: 'columns', type: 'array', label: 'Columns', description: 'Columns to show, either field names (`["name", "email"]`) or column objects (`[{ field: "name", label: "Full Name", width: 200 }]`). The canonical spelling — the deprecated `fields` is only read when this is absent.' },
-  { name: 'filter', type: 'array', label: 'Filter', description: 'Filter criteria in JSON-rules form. The canonical spelling — the deprecated `defaultFilters` is only read when this is absent.' },
+  { name: 'objectName', type: 'string', required: true },
+  { name: 'columns', type: 'array', description: 'Columns to show, either field names (`["name", "email"]`) or column objects (`[{ field: "name", label: "Full Name", width: 200 }]`). The canonical spelling — the deprecated `fields` is only read when this is absent.' },
+  { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form. The canonical spelling — the deprecated `defaultFilters` is only read when this is absent.' },
   // ── identity ──────────────────────────────────────────────────────────────
-  { name: 'label', type: 'string', label: 'Label', description: 'Grid label, used as the table caption and as the export file title. The canonical spelling — the deprecated `title` is only read when this is absent.' },
+  { name: 'label', type: 'string', description: 'Grid label, used as the table caption and as the export file title. The canonical spelling — the deprecated `title` is only read when this is absent.' },
   // ── query shaping ─────────────────────────────────────────────────────────
-  { name: 'sort', type: 'array', label: 'Sort', description: 'Initial sort order, `[{ field, order }]`. The canonical spelling — the deprecated single-sort `defaultSort` is only read when this is absent.' },
-  { name: 'pagination', type: 'object', label: 'Pagination', description: 'Pagination config, `{ pageSize, pageSizeOptions, … }`. Its presence is what enables paging; prefer it over the deprecated flat `pageSize` / `showPagination` pair.' },
-  { name: 'searchableFields', type: 'array', label: 'Searchable Fields', description: 'Fields the toolbar search box queries. A non-empty list is what enables search — prefer it over the deprecated boolean `showSearch`, which cannot say WHICH fields to search.' },
-  { name: 'data', type: 'object', label: 'Data Source', description: 'Data source configuration — a `ViewData` object discriminated by `provider`: `{ provider: "object", object }` (what an omitted `data` falls back to, using `objectName`), `{ provider: "api", read, write }`, `{ provider: "value", items: [...] }` for inline rows that bypass the object query, or `{ provider: "schema", schemaId }`. The canonical spelling — the deprecated `staticData` is the array-only shortcut for the `value` provider, so inline rows go under `items` here rather than in a bare array.' },
+  { name: 'sort', type: 'array', description: 'Initial sort order, `[{ field, order }]`. The canonical spelling — the deprecated single-sort `defaultSort` is only read when this is absent.' },
+  { name: 'pagination', type: 'object', description: 'Pagination config, `{ pageSize, pageSizeOptions, … }`. Its presence is what enables paging; prefer it over the deprecated flat `pageSize` / `showPagination` pair.' },
+  { name: 'searchableFields', type: 'array', of: 'string', description: 'Fields the toolbar search box queries. A non-empty list is what enables search — prefer it over the deprecated boolean `showSearch`, which cannot say WHICH fields to search.' },
+  { name: 'data', type: 'object', description: 'Data source configuration — a `ViewData` object discriminated by `provider`: `{ provider: "object", object }` (what an omitted `data` falls back to, using `objectName`), `{ provider: "api", read, write }`, `{ provider: "value", items: [...] }` for inline rows that bypass the object query, or `{ provider: "schema", schemaId }`. The canonical spelling — the deprecated `staticData` is the array-only shortcut for the `value` provider, so inline rows go under `items` here rather than in a bare array.' },
   // ── presentation ──────────────────────────────────────────────────────────
-  { name: 'rowHeight', type: 'enum', label: 'Row Height', enum: ['compact', 'short', 'medium', 'tall', 'extra_tall'], description: 'Row density. An unrecognised value falls back to `compact` rather than erroring.' },
-  { name: 'frozenColumns', type: 'number', label: 'Frozen Columns', description: 'How many leading columns stay pinned while the grid scrolls horizontally.' },
-  { name: 'resizable', type: 'boolean', label: 'Resizable Columns', description: 'Let users drag column borders to resize. The canonical spelling — the deprecated `resizableColumns` is only read when this is absent.' },
-  { name: 'reorderableColumns', type: 'boolean', label: 'Reorderable Columns', description: 'Let users drag columns into a different order.' },
-  { name: 'showColumnTypeIcons', type: 'boolean', label: 'Show Column Type Icons', description: 'Show a field-type icon in each column header. Off by default — the type is usually obvious from the cell content, and the icons compete with the column labels.' },
-  { name: 'rowColor', type: 'object', label: 'Row Color', description: 'Rules that colour whole rows from a field value.' },
-  { name: 'conditionalFormatting', type: 'array', label: 'Conditional Formatting', description: 'Row/cell styling rules. Accepts both the ObjectUI `{ field, operator, value }` form and the spec expression form `{ condition, style }`.' },
+  { name: 'rowHeight', type: 'enum', enum: ['compact', 'short', 'medium', 'tall', 'extra_tall'], description: 'Row density. An unrecognised value falls back to `compact` rather than erroring.' },
+  { name: 'frozenColumns', type: 'number', description: 'How many leading columns stay pinned while the grid scrolls horizontally.' },
+  { name: 'resizable', type: 'boolean', description: 'Let users drag column borders to resize. The canonical spelling — the deprecated `resizableColumns` is only read when this is absent.' },
+  { name: 'reorderableColumns', type: 'boolean', description: 'Let users drag columns into a different order.' },
+  { name: 'showColumnTypeIcons', type: 'boolean', description: 'Show a field-type icon in each column header. Off by default — the type is usually obvious from the cell content, and the icons compete with the column labels.' },
+  { name: 'rowColor', type: 'object', description: 'Rules that colour whole rows from a field value.' },
+  { name: 'conditionalFormatting', type: 'array', description: 'Row/cell styling rules. Accepts both the ObjectUI `{ field, operator, value }` form and the spec expression form `{ condition, style }`.' },
   // ── grouping and roll-ups ─────────────────────────────────────────────────
-  { name: 'grouping', type: 'object', label: 'Grouping', description: 'Group rows by one or more fields into collapsible sections.' },
-  { name: 'aggregations', type: 'array', label: 'Aggregations', description: 'Per-group roll-ups shown in group headers, `[{ field, type: "sum" | "count" | "avg" | "min" | "max" | "count_distinct" }]`. Needs `grouping` to have anything to roll up.' },
+  { name: 'grouping', type: 'object', description: 'Group rows by one or more fields into collapsible sections.' },
+  { name: 'aggregations', type: 'array', description: 'Per-group roll-ups shown in group headers, `[{ field, type: "sum" | "count" | "avg" | "min" | "max" | "count_distinct" }]`. Needs `grouping` to have anything to roll up.' },
   // ── selection and actions ─────────────────────────────────────────────────
-  { name: 'selection', type: 'object', label: 'Selection', description: 'Selection config, `{ type: "none" | "single" | "multiple" }`. The canonical spelling — the deprecated boolean/string `selectable` is only read when this is absent.' },
-  { name: 'rowActions', type: 'array', label: 'Row Actions', description: 'Names of actions offered on each row’s menu.' },
-  { name: 'bulkActions', type: 'array', label: 'Bulk Actions', description: 'Names of actions offered once rows are selected. Needs a multi-row `selection` to be reachable.' },
-  { name: 'batchActions', type: 'array', label: 'Batch Actions (legacy alias)', description: 'Legacy alias of `bulkActions`, and the one the renderer reads FIRST when both are set. Prefer `bulkActions` in new schemas.' },
-  { name: 'bulkActionDefs', type: 'array', label: 'Bulk Action Definitions', description: 'Full inline bulk-action definitions, for actions that are not named entries in the object’s action set. Use `bulkActions` when the action already exists.' },
+  { name: 'selection', type: 'object', description: 'Selection config, `{ type: "none" | "single" | "multiple" }`. The canonical spelling — the deprecated boolean/string `selectable` is only read when this is absent.' },
+  { name: 'rowActions', type: 'array', description: 'Names of actions offered on each row’s menu.' },
+  { name: 'bulkActions', type: 'array', description: 'Names of actions offered once rows are selected. Needs a multi-row `selection` to be reachable.' },
+  { name: 'batchActions', type: 'array', description: 'Legacy alias of `bulkActions`, and the one the renderer reads FIRST when both are set. Prefer `bulkActions` in new schemas.' },
+  { name: 'bulkActionDefs', type: 'array', description: 'Full inline bulk-action definitions, for actions that are not named entries in the object’s action set. Use `bulkActions` when the action already exists.' },
   // ── behaviour ─────────────────────────────────────────────────────────────
-  { name: 'editable', type: 'boolean', label: 'Editable', description: 'Enable inline cell editing (double-click or Enter opens a cell).' },
-  { name: 'singleClickEdit', type: 'boolean', label: 'Single-click Edit', description: 'With `editable`, a single click opens the cell instead of a double-click. Has no effect on a non-editable grid.' },
-  { name: 'navigation', type: 'object', label: 'Navigation', description: 'What a row click does, `{ mode: "page" | "drawer" | "modal" | "split" | "none", … }`.' },
-  { name: 'operations', type: 'object', label: 'Operations', description: 'Toggles for the built-in create/read/update/delete/export/import affordances, e.g. `{ delete: false }`.' },
-  { name: 'exportOptions', type: 'object', label: 'Export Options', description: 'Export config, `{ formats, maxRecords, includeHeaders, fileNamePrefix }`. Needs `operations.export` to be reachable from the toolbar.' },
+  { name: 'editable', type: 'boolean', description: 'Enable inline cell editing (double-click or Enter opens a cell).' },
+  { name: 'singleClickEdit', type: 'boolean', description: 'With `editable`, a single click opens the cell instead of a double-click. Has no effect on a non-editable grid.' },
+  { name: 'navigation', type: 'object', description: 'What a row click does, `{ mode: "page" | "drawer" | "modal" | "split" | "none", … }`.' },
+  { name: 'operations', type: 'object', description: 'Toggles for the built-in create/read/update/delete/export/import affordances, e.g. `{ delete: false }`.' },
+  { name: 'exportOptions', type: 'object', description: 'Export config, `{ formats, maxRecords, includeHeaders, fileNamePrefix }`. Needs `operations.export` to be reachable from the toolbar.' },
 ];
 
 ComponentRegistry.register('object-grid', ObjectGridRenderer, {
@@ -288,8 +288,8 @@ ComponentRegistry.register('import-wizard', ImportWizardRenderer, {
   label: 'Import Wizard',
   category: 'plugin',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'fields', type: 'array', label: 'Fields', required: true },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'fields', type: 'array', required: true },
   ]
 });
 

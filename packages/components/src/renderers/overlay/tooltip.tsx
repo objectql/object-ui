@@ -37,25 +37,21 @@ ComponentRegistry.register('tooltip',
     namespace: 'ui',
     label: 'Tooltip',
     inputs: [
-      { name: 'delayDuration', type: 'number', label: 'Delay Duration', defaultValue: 700 },
-      { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'], label: 'Side' },
-      { name: 'align', type: 'enum', enum: ['start', 'center', 'end'], label: 'Align' },
+      { name: 'delayDuration', type: 'number' },
+      { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'] },
+      { name: 'align', type: 'enum', enum: ['start', 'center', 'end'] },
       { 
         name: 'trigger', 
         type: 'slot', 
-        label: 'Trigger',
       },
       { 
         name: 'content', 
         type: 'string', 
-        label: 'Content Text', 
       },
       { 
         name: 'body', 
-        type: 'slot', 
-        label: 'Rich Content' 
-      },
-      { name: 'className', type: 'string', label: 'Content CSS Class' }
+        type: 'slot'      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       trigger: [{ type: 'button', label: 'Hover me', variant: 'outline' }],

@@ -90,11 +90,15 @@ const RETIRED = {
 
 type RetiredKey = keyof typeof RETIRED;
 
-/** A fully live input — every key here is declared AND forwarded by the serializer. */
+/**
+ * A fully live input — every key here is declared AND forwarded by the serializer.
+ * (`label` used to sit here as a live key; it became a tombstone of the same
+ * shape under objectui#7493 / objectui#7781, pinned in
+ * `component-input-retired-keys-7493.test.ts`.)
+ */
 const LIVE_INPUT = {
   name: 'content',
   type: 'string',
-  label: 'Markdown Content',
   required: true,
   description: 'A positive integer — the contract rejects 0 and fractional values',
 } as const;
@@ -211,7 +215,7 @@ describe('the zod tombstones REFUSE, loudly (objectui#5905)', () => {
     if (!result.success) {
       expect(result.error.issues[0]?.message).toBe(
         'RETIRED (objectui#5905) — `ComponentInput.placeholder` was never read, and never published: '
-        + 'the manifest serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and '
+        + 'the manifest serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and '
         + 'this is not one of them, so an authored value was silently dropped. Delete the key; put the '
         + 'hint in `description`, which IS published. `BaseSchema.placeholder`, the node-level prop, is '
         + 'a DIFFERENT key and is unaffected.',

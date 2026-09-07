@@ -37,7 +37,6 @@
 import { evalFieldPredicate, type FieldRulePredicate } from './fieldRules.js';
 import { ExpressionEvaluator } from './ExpressionEvaluator.js';
 import { toPredicateRecord, type FieldContainerLike } from '../utils/predicate-record.js';
-import { warnNonCanonicalRowSpelling } from './rowPredicateCanon.js';
 
 /**
  * Syntax that only the legacy JS-dialect evaluator understands and that is NOT
@@ -163,7 +162,9 @@ export interface RowPredicateOptions {
   fallback?: boolean;
   /** Extra top-level scope merged alongside the row — e.g. the global predicate
    * scope (`features` / `user` / `app`) a host shell provides. The row wins on
-   * collision: a `record` or `data` key here never shadows the row. */
+   * collision: a `record` key here never shadows the row. Every OTHER key —
+   * a host's own `data` included — reaches the predicate as the host's own
+   * (objectui#5741: `data` no longer names the row on a record surface). */
   scope?: Record<string, unknown>;
   /** When true, log a one-time warning if a *present* predicate faults. */
   warnOnError?: boolean;
@@ -171,16 +172,16 @@ export interface RowPredicateOptions {
   label?: string;
   /**
    * This surface has **no row of its own** — bind NOTHING for the row instead
-   * of binding an empty one, so a `record` / `data` the HOST SCOPE carries
-   * survives to the predicate (objectui#4640).
+   * of binding an empty one, so a `record` the HOST SCOPE carries survives to
+   * the predicate (objectui#4640).
    *
    * The default (`false`) is this function's whole subject rule: the row is
-   * pinned over the scope, on both dialect paths, so `record` / `data` always
-   * name THIS row even when the host scope carries keys of those names
+   * pinned over the scope as `record`, on both dialect paths, so `record`
+   * always names THIS row even when the host scope carries a key of that name
    * (objectui#3796). That is right for every row surface — and exactly wrong
    * for a surface that has no row, because the pin then writes an EMPTY
-   * `record` / `data` over the host's real ones and every `record.*` predicate
-   * faults with "No such key". "This surface has no row of its own" and "this
+   * `record` over the host's real one and every `record.*` predicate faults
+   * with "No such key". "This surface has no row of its own" and "this
    * surface's row is empty" are different facts; only the latter is entitled to
    * shadow the scope. Same distinction, same words, as `usePredicateRecordContext`
    * in `@object-ui/react` (objectui#4075) — which is the BINDING half of this
@@ -205,32 +206,37 @@ export interface RowPredicateOptions {
 
 /**
  * Evaluate a single boolean predicate against a row record on the canonical CEL
- * engine (with a legacy-dialect fallback — see the module note). The row's
- * fields are bound three ways so every authoring convention resolves:
- * `record.status`, bare `status` (row-action shorthand), and `data.status`.
+ * engine (with a legacy-dialect fallback — see the module note). The row is
+ * bound ONE way: as `record.*` — **the canon** (maintainer ruling 2026-08-20 on
+ * objectui#5330, option B; Phase 2 executed by objectui#5741).
  *
- * ⚠️ Those three are NOT peers, and this doc comment used to read as though
- * they were. **The canon is `record.*`** (maintainer ruling 2026-08-20 on
- * objectui#5330, option B); the other two are client tolerances in a
- * deprecation window, kept because stored metadata carries them and warned
- * about — from the CEL path below — by `warnNonCanonicalRowSpelling`. The
- * server accepts `record.*` and NOTHING else: measured on
- * `@objectstack/formula@17.1.0`, `buildScope({ record })` mounts exactly
- * `['record']`, so a bare field faults `Unknown variable: status` there and a
- * `data.*` predicate faults `Unknown variable: data`. See
- * {@link ./rowPredicateCanon.ts} for the full measurement, for why `data.*` is
- * the dangerous one (it is silently ACCEPTED by the server's authoring oracle
- * and still binds nothing at runtime), and for why the deprecation is scoped to
- * this runtime layer rather than declared platform-wide (`data` is the
- * canonical root of a metadata-editing form — ADR-0089 D3).
+ * Until Phase 2 the row was also bound as bare fields (`status`, the row-action
+ * shorthand) and as `data.*`, and Phase 1 (PR #5737) warned once per
+ * non-canonical spelling. Both bindings and that warning are gone. A bare-field
+ * or `data.*` predicate on a record surface now FAULTS here exactly as it always
+ * did on the server — measured on `@objectstack/formula@17.1.0`,
+ * `buildScope({ record })` mounts exactly `['record']`, so a bare field faults
+ * `Unknown variable: status` and `data.*` faults `Unknown variable: data` — and
+ * takes this function's EXISTING fault policy: the caller's `fallback`, reported
+ * once by `warnEvalError` (when `warnOnError` is set) or by the canonical
+ * helper's own one-time warning, either of which names the unknown variable.
+ * Nothing detects a retired spelling on this path; it is simply unbound. The
+ * same holds on the legacy `${…}` path below — one scope shape per surface,
+ * both dialects — so `${data.x}` / `${x}` strings on a row surface fault there
+ * too, and land in the same fallback / warning.
  *
- * ⛔ No spelling is removed from the binding, and none may be before a
- * stored-metadata survey sizes the window — that is part of the same ruling.
+ * The retirement is scoped to the RUNTIME RECORD layer. `data` is the canonical
+ * root one layer over, in a metadata-editing form (ADR-0089 D3,
+ * `CANONICAL_ROOT_BY_LAYER` = `{ runtime: 'record', metadata: 'data' }`), and
+ * that layer evaluates through its own entry (`app-shell`'s metadata-admin
+ * `predicate.ts`), never through this one. See {@link ./rowPredicateCanon.ts}
+ * for the canon statement, the server measurement and the offline detector.
  *
- * The optional `scope` (host predicate scope) is bound
- * alongside so `features.*` / `user.*` predicates keep working — but the row is
- * the subject: `record` and `data` always name THIS row, on both dialect paths,
- * even when the host scope carries keys of those names (objectui#3796).
+ * The optional `scope` (host predicate scope) is bound alongside so
+ * `features.*` / `user.*` predicates keep working — but the row is the subject:
+ * `record` always names THIS row, on both dialect paths, even when the host
+ * scope carries a key of that name (objectui#3796). Every OTHER host key —
+ * a host's own `data` included — reaches the predicate as the host's own.
  *
  * A caller with no row at all passes {@link RowPredicateOptions.rowless}, and
  * then nothing is bound over the scope — see that option for why an absent row
@@ -253,24 +259,26 @@ export function evalRowPredicate(
   const rowObj = opts.rowless
     ? {}
     : toPredicateRecord(row && typeof row === 'object' ? row : {}, opts.fields);
-  // Bare fields + `data.*` + `record.*` + the host scope, all top-level.
+  // `record.*` + the host scope, all top-level. The row is bound ONE way
+  // (objectui#5741, Phase 2 of the objectui#5330 canon): no bare-field spread
+  // and no `data` — a predicate spelled either way is simply unbound here and
+  // faults, on both dialect paths, exactly as it does on the server.
   //
-  // `data` AND `record` are pinned AFTER the spread, so a host scope that
-  // happens to carry either key is background and the ROW stays the subject of
-  // this function — on BOTH dialect paths. `data` always had that protection;
-  // `record` did not, and relied instead on each engine's own binding, which
-  // disagreed: the legacy evaluator re-pinned `record` (row won) while the CEL
-  // engine takes `extra` over its `record` binding (host scope won). Same
-  // function, same predicate text, opposite subjects — decided by whether the
-  // string happens to contain `===`/`${…}`, which no author is choosing
-  // deliberately (objectui#3796). Pinning here fixes both paths at the merge,
+  // `record` is pinned AFTER the spread, so a host scope that happens to carry
+  // that key is background and the ROW stays the subject of this function — on
+  // BOTH dialect paths. Before objectui#3796 it relied instead on each engine's
+  // own binding, which disagreed: the legacy evaluator re-pinned `record` (row
+  // won) while the CEL engine takes `extra` over its `record` binding (host
+  // scope won). Same function, same predicate text, opposite subjects — decided
+  // by whether the string happens to contain `===`/`${…}`, which no author is
+  // choosing deliberately. Pinning here fixes both paths at the merge,
   // independently of either engine's precedence.
   //
   // …UNLESS the caller has no row (`rowless`), in which case there is nothing
-  // to pin and the host scope keeps its own `record` / `data` — see the option.
+  // to pin and the host scope keeps its own `record` — see the option.
   const scope = opts.rowless
     ? { ...(opts.scope ?? {}) }
-    : { ...(opts.scope ?? {}), ...rowObj, data: rowObj, record: rowObj };
+    : { ...(opts.scope ?? {}), record: rowObj };
 
   // The predicate TEXT for diagnostics: a bare string is itself, an envelope is
   // its `source`. Reported separately from `source` above, which is `undefined`
@@ -307,17 +315,14 @@ export function evalRowPredicate(
     }
   }
 
-  // CEL path — everything reaching here is CEL, which is what makes this the
-  // right place for the objectui#5330 spelling warning: in the legacy `${…}`
-  // dialect above, `data.*` is the NORMAL spelling, so reporting it there would
-  // be a false positive on every legacy predicate. `data` names THIS row unless
-  // the caller is `rowless` (then the host scope keeps its own — see the
-  // option), which is exactly the condition the detector needs.
-  if (predicateText !== '(expression)') {
-    warnNonCanonicalRowSpelling(predicateText, rowObj, !opts.rowless, opts.label);
-  }
-
-  // CEL path. The fault-aware `evalCel` costs two evaluations (to tell a fault
+  // CEL path — everything reaching here is CEL. No spelling detector runs here
+  // (objectui#5741 removed the Phase-1 warning with the bindings): a retired
+  // bare-field / `data.*` spelling is unbound above and faults in the engine
+  // like any other unknown variable, and the fault report below is what names
+  // it. `detectNonCanonicalRowSpelling` stays exported for OFFLINE sweeps of
+  // authored metadata, not for this hot path.
+  //
+  // The fault-aware `evalCel` costs two evaluations (to tell a fault
   // from a genuine `false`), so only pay it when a caller wants the labelled
   // fail-closed warning — the formatting hot path takes the single-eval fast
   // route. Since #5149 the fast route is no longer silent either: the

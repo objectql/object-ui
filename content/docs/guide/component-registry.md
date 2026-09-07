@@ -127,8 +127,8 @@ ComponentRegistry.register('my-component', MyComponent, {
   category: 'Custom',
   icon: 'component-icon',
   inputs: [
-    { name: 'title', type: 'string', label: 'Title' },
-    { name: 'content', type: 'string', label: 'Content' }
+    { name: 'title', type: 'string' },
+    { name: 'content', type: 'string' }
   ]
 })
 ```
@@ -434,11 +434,11 @@ ComponentRegistry.register('rating', RatingComponent, {
   category: 'Form',
   labelling: 'group',
   inputs: [
-    { name: 'name', type: 'string', label: 'Name', required: true },
-    { name: 'label', type: 'string', label: 'Label' },
-    { name: 'maxStars', type: 'number', label: 'Max stars', defaultValue: 5 },
-    { name: 'required', type: 'boolean', label: 'Required' },
-    { name: 'disabled', type: 'boolean', label: 'Disabled' }
+    { name: 'name', type: 'string', required: true },
+    { name: 'label', type: 'string' },
+    { name: 'maxStars', type: 'number', description: 'Defaults to 5 — the renderer\'s own fallback' },
+    { name: 'required', type: 'boolean' },
+    { name: 'disabled', type: 'boolean' }
   ]
 })
 

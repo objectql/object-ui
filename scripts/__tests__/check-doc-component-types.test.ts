@@ -45,6 +45,61 @@ import { blank, scanSource } from '../js-comment-mask.mjs';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SCRIPT = 'scripts/check-doc-component-types.mjs';
 
+/**
+ * A numeral that qualifies a document-population noun, as `match: text`.
+ *
+ * Lifted to module scope by objectui#7914 so the pin below and its positive
+ * control read ONE definition of the rule. Two copies of the same rule inside
+ * one file is a defect this repository has paid for repeatedly; the pattern
+ * itself is unchanged, character for character, from what this pin carried
+ * inline (objectui#7888) and from the third copy in
+ * `check-links-workflow.test.ts` (objectui#7825). WHY it is narrow exactly here
+ * — the two intervening words, the negative lookbehind that rules out issue
+ * references — is argued at the pin, and deliberately not restated here.
+ *
+ * A fresh `RegExp` per call: `lastIndex` on a shared global literal is exactly
+ * the kind of state that makes the second caller in a run measure something
+ * different from the first.
+ */
+const POPULATION_COUNT =
+  /(?<![#\w.])\d+(?:,\d{3})*\s+(?:[A-Za-z][\w-]*\s+){0,2}`?(?:\.mdx|\.md|documents?|pages?|docs?|files?)\b/i;
+
+function documentCounts(text: string): string[] {
+  return [...text.matchAll(new RegExp(POPULATION_COUNT.source, 'gi'))].map((m) => m[0].replace(/\s+/g, ' ').trim());
+}
+
+/**
+ * The workflow header's comment prose, as the count pin reads it.
+ *
+ * Lifted to module scope by objectui#7901 for the same reason objectui#7914
+ * lifted the pattern: the pin below and the emptiness control beside it must
+ * read ONE extraction, or the control demonstrates a surface the pin does not
+ * have. The extraction itself is unchanged, character for character, from what
+ * the pin carried inline.
+ */
+function headerComments(yaml: string): string {
+  return yaml
+    .split('\n')
+    .filter((line) => /^\s*#/.test(line))
+    .join('\n');
+}
+
+/**
+ * The floor the extracted header must clear before an empty count list means
+ * anything — carried from the third copy of this pin
+ * (`check-links-workflow.test.ts`, objectui#7825), which has asserted it since
+ * that copy was written and which both twins were missing (objectui#7901).
+ *
+ * Why a floor at all: `documentCounts('')` is `[]`. A header this extraction has
+ * stopped reading — the workflow renamed or deleted, its comment markers
+ * changed, the path moved — therefore satisfies the pin perfectly, and the pin
+ * reports a clean surface it never read. The floor is what makes "no counts
+ * here" a reading rather than the absence of one. It is the same claim the
+ * scan-collapse pins in this file already make about the document walk, applied
+ * to the one surface that had none.
+ */
+const MIN_HEADER_PROSE = 400;
+
 interface Finding {
   reason: string;
   site: string;
@@ -87,12 +142,14 @@ describe('the registered-key universe is derived from the registration calls', (
         'packages/demo/src/index.tsx',
         [
           // No import of a workspace package here, not even as fixture TEXT.
-          // `scripts-type-check.test.ts` greps this project's files for the
-          // `from '<at>object-ui/…'` shape to pin the claim that
-          // `pnpm type-check:scripts` needs no build, and that grep cannot tell a
-          // string literal — or a comment quoting one — from a real import. The
-          // fixture does not need the import line: the derivation reads the
+          // The fixture does not need the import line: the derivation reads the
           // register CALL, not what the file imports.
+          //
+          // (This used to say the line was omitted because
+          // `scripts-type-check.test.ts` matched the `from '@object-ui/...'`
+          // shape in the file's TEXT. It reads import edges from the AST now —
+          // see `workspaceImportSpecifiers()` there — so the omission is a
+          // choice about this fixture, not a constraint a sibling gate imposes.)
           "ComponentRegistry.register('object-grid', Renderer, {",
           "  namespace: 'plugin-grid',",
           "  label: 'Object Grid',",
@@ -873,6 +930,172 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
 
     expect(seen.size, 'the import walk read only the gate itself — it followed nothing').toBeGreaterThan(1);
     expect(external, `the gate's import graph reaches a package, so it needs an install: ${external}`).toEqual([]);
+  });
+
+  /**
+   * objectui#7448. The header of this workflow described its scan surface as
+   * "184 pages (144 `.mdx` + 40 `.md`)". Every part of that had drifted by the
+   * time the card was worked — the gate's own verdict line reported 188 doc
+   * files, and the `.md` half of the split was four short — and NO check went
+   * red over the whole distance, because nothing fails on a stale number written
+   * in a comment. That is the same lesson `UNGATED_DOCS`'s header in
+   * `check-doc-snippet-types.mjs` records after both halves of its own copied
+   * count went stale ("a pointer to the list now rather than a copy of its
+   * length").
+   *
+   * Changing 184 to 188 would only have restarted that clock. This is what makes
+   * the class fail loudly instead: the header may state the population — which
+   * trees, which extensions — but never count it. `doc-fence-languages.yml`
+   * carries the twin of this pin in its own test file; one gate, one home, so
+   * each workflow's header is asserted beside its own gate rather than in a
+   * shared sweep that would own neither.
+   *
+   * Deliberately narrow, and narrow in the same place as the other two copies:
+   * a numeral qualifying a document-population noun, with at most two words
+   * allowed to sit between the two. Issue references (ruled out at the pattern
+   * level by the negative lookbehind, not by luck), `node-version`,
+   * `timeout-minutes` and "the fifth instance of the shape" are all numbers
+   * this header legitimately carries, and
+   * none of them rots when a page is added or deleted. It also means the header
+   * must not quote another header's stale literal verbatim — this pin cannot
+   * tell a quotation from a claim, and refusing both is the safe direction for a
+   * check on prose accuracy.
+   *
+   * ⭐ Those two intervening words are objectui#7888, and they are the sentence
+   * above implemented rather than a new rule. This pin and its twin in
+   * `check-doc-fence-languages.test.ts` both said "a numeral DIRECTLY
+   * qualifying" and both coded it as strict adjacency, so a single adjective
+   * defeated them. Measured: run verbatim over `check-links.yml`'s header as it
+   * stood on `origin/main` at `83fe6e741` — a header carrying TWO live drifted
+   * counts — the adjacent-only pattern reported ONE of them. It found the
+   * sentence about the files the published site is built from, and scored the
+   * one reading "holds 15 INTERNAL documents" clean — which was the count that
+   * had drifted furthest (15 against a measured 17), because an adjective sat
+   * between the numeral and the noun. The pattern below is the third copy's,
+   * carried here verbatim (objectui#7825, PR objectui#7885,
+   * `check-links-workflow.test.ts`), with the noun set unchanged; the word
+   * DIRECTLY is gone from the sentence above because keeping it would only have
+   * inverted the same gap between what this pin claims and what it does.
+   *
+   * Both twin headers were clean under BOTH patterns when this was carried
+   * across, so this closes a proven hole rather than a live violation.
+   */
+  it('its header states the population and never counts it — no count can rot here', () => {
+    const header = headerComments(fs.readFileSync(workflowPath, 'utf8'));
+
+    // objectui#7901 — the floor first, or the assertion below is vacuous. The
+    // count half cannot distinguish a header that carries no counts from a
+    // header this pin has stopped reading; both score `[]`. Measured when this
+    // was added, so it is latent rather than live: the extraction returned 4514
+    // characters from this header, 11.3 times the floor.
+    expect(
+      header.length,
+      'doc-component-types.yml: the header prose this pin reads came back empty or near-empty, so it asserted over nothing',
+    ).toBeGreaterThan(MIN_HEADER_PROSE);
+
+    const counts = documentCounts(header);
+    expect(
+      counts,
+      `doc-component-types.yml's header states a page count (${counts.join(', ')}). Nothing fails when ` +
+        'it drifts, so it will. State the population — or point at the gate\u2019s own verdict line, which ' +
+        'prints the live figure on every run — instead of copying a number into a comment (objectui#7448).',
+    ).toEqual([]);
+  });
+
+  /**
+   * The positive control for the pin above — objectui#7914.
+   *
+   * A pin that cannot fail is not a pin, and this repository has shipped one
+   * with zero demonstrated power before (objectui#7466: 0/32 on the broken tree
+   * AND 0/32 on the fixed one). This header carries no count today, so the pin
+   * above asserts `[] toEqual []` — and would assert exactly that if the pattern
+   * were deleted, reversed, or narrowed back to adjacency. Nothing in this file
+   * exercised the claim, which is why objectui#7888 had to demonstrate its own
+   * widening out of band, in a pull request description this repository does not
+   * hold. The shapes that actually rotted are fixtured here as POSITIVES rather
+   * than trusted to a reading of the regex. The block is carried from the third
+   * copy's control in `check-links-workflow.test.ts`, which has held this shape
+   * since objectui#7825 — one shape, three homes, so none of them may drift.
+   *
+   * The first entry is this header's own pre-fix sentence, verbatim; two more
+   * are what its twin and the third copy said. `15 INTERNAL documents` is the
+   * direction objectui#7888 turned on, and it is measured, not assumed: run over
+   * that line, the adjacency-only pattern this pin used to carry returns `[]`,
+   * because one adjective sat between the numeral and the noun.
+   *
+   * ⭐ One entry states a number that is CORRECT TODAY — this gate's own verdict
+   * line reported `Scanned 188 doc file(s)` on the day this control was written.
+   * It is rejected anyway, and that is the entire point: the rule governs the
+   * WRITING, not one wrong figure. A control that only rejected stale numbers
+   * would wave the same trap through on the day the number happens to be right,
+   * which is precisely the day it starts rotting again.
+   *
+   * The negatives are numbers this header legitimately carries. The first is a
+   * MEASURED false positive of the pre-objectui#7888 pattern: run over
+   * `#7448 documents the rule`, it returned `["7448 documents"]` — an issue
+   * reference read as a page count. The negative lookbehind rules that out at the
+   * pattern level now, and this fixture is what keeps it ruled out.
+   */
+  it('the count pin fires on the shapes that rotted, and on none of the numbers a header may keep', () => {
+    const rotted = [
+      '184 pages (144 `.mdx` + 40 `.md`)',
+      'Scanned 188 doc file(s) (.mdx + .md)',
+      'the same 222 documents `check-doc-snippet-types` covers',
+      'the repo-root `docs/**`, which holds 15 INTERNAL documents (ADRs, audits), while',
+      'the 183 files the published site is built from live in `content/docs/**`',
+      'roughly 1,204 markdown files under the two trees',
+    ];
+    for (const line of rotted) {
+      expect(documentCounts(line), `doc-component-types.yml's count pin must fire on: ${line}`).not.toEqual([]);
+    }
+
+    const legitimate = [
+      '#7448 documents the rule this gate enforces',
+      'objectui#5342 documents the `.md` widening',
+      '#3213 to #3448 spent inside the `ci.yml` docs job',
+      'objectui#4786 `stats-card`, objectui#4796 `plugin:grid`',
+      'this is the fifth instance of the shape in this repo',
+      'OBJUI-001 is the renderer error code',
+      '889 `type` literal(s) against 658 registered key(s)',
+      'node-version: 22',
+      'timeout-minutes: 10',
+      'the ruleset 60-minute timeout fails it',
+    ];
+    for (const line of legitimate) {
+      expect(documentCounts(line), `doc-component-types.yml's count pin must NOT fire on: ${line}`).toEqual([]);
+    }
+  });
+  /**
+   * The positive control for the emptiness floor — objectui#7901.
+   *
+   * The pin above has two halves and they fail differently. The control right
+   * above this one exercises the PATTERN half; this one exercises the other,
+   * and the shape it demonstrates is what makes a pin vacuous rather than
+   * merely wrong — a surface that came back empty scores clean under any
+   * pattern, however good. That is not hypothetical for this family:
+   * objectui#7466 is the pin in this repository that scored the same on the
+   * broken tree and the fixed one.
+   *
+   * Demonstrated on synthetic YAML rather than by emptying the real workflow,
+   * so the claim stays reproducible in a checkout whose header is intact —
+   * which is every checkout.
+   */
+  it('the emptiness floor fires on a header this pin has stopped reading', () => {
+    const unread = 'name: Doc Component Types\non:\n  workflow_dispatch:\n';
+    expect(headerComments(unread), 'the extraction returns nothing on a comment-less workflow').toBe('');
+    expect(
+      documentCounts(headerComments(unread)),
+      'and the count half alone scores that identically to a header carrying no counts',
+    ).toEqual([]);
+    expect(headerComments(unread).length, 'so the floor is the half that has to reject it').not.toBeGreaterThan(
+      MIN_HEADER_PROSE,
+    );
+
+    // Short, not empty: a header truncated to a line or two is the same defect
+    // arriving gradually, and `toBe('')` would wave it through.
+    const nearEmpty = '# Doc component types.\n# The gate prints its own verdict line.\nname: x\n';
+    expect(headerComments(nearEmpty).length, 'this fixture must be short, not empty').toBeGreaterThan(0);
+    expect(headerComments(nearEmpty).length).not.toBeGreaterThan(MIN_HEADER_PROSE);
   });
 });
 

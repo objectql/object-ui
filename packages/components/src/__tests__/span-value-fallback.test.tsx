@@ -26,9 +26,10 @@
  * Ruled 2026-08-17: wire it. Both declared faces stay as written, and the
  * renderer makes them true, rather than the declarations being retracted.
  *
- * PRECEDENCE, and why it is not a bespoke rule: `basic/text.tsx` renders
- * `schema.content || schema.value`, so on the sibling type in the same family
- * the richer key already wins and the scalar is already the fallback. `span`
+ * PRECEDENCE, and why it is not a bespoke rule: at the time `basic/text.tsx`
+ * rendered `schema.content || schema.value` (that fallback limb was retired by
+ * objectui#6951; `content` is now `text`'s one spelling), so on the sibling type
+ * in the same family the richer key already won and the scalar was the fallback. `span`
  * follows that, with `children` (its canonical child key, #5027) in the winning
  * position. `body` stays refused — see `span-children-rendering.test.tsx`; it is
  * declared nowhere for this type, whereas `value` is declared twice.
@@ -66,15 +67,16 @@ describe('span reads its declared `value` key (#5050)', () => {
   });
 
   it('lets child content win when both `children` and `value` are authored', () => {
-    // The precedence half of the ruling. `text`'s `content || value` is the
-    // family precedent: the richer key renders, the scalar does not — and the
+    // The precedence half of the ruling. `text`'s `content || value` was the
+    // family precedent (its `value` limb is retired since objectui#6951): the
+    // richer key renders, the scalar does not — and the
     // scalar must not be appended either, which is what the second assertion
     // rules out (a `+` instead of a `||` would keep the first one green).
     const schema: TextSpanSchema = {
       type: 'span',
       className: 'both-keys',
       value: 'value must not render',
-      children: [{ type: 'text', value: 'children win' }],
+      children: [{ type: 'text', content: 'children win' }],
     };
 
     const { container } = render(<SchemaRenderer schema={schema} />);
@@ -93,7 +95,7 @@ describe('span reads its declared `value` key (#5050)', () => {
       type: 'span',
       className: 'single-child-wins',
       value: 'value must not render',
-      children: { type: 'text', value: 'lone child wins' },
+      children: { type: 'text', content: 'lone child wins' },
     };
 
     const { container } = render(<SchemaRenderer schema={schema} />);

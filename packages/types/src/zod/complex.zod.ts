@@ -17,14 +17,16 @@
  */
 
 import { z } from 'zod';
-import { handlerKeyRefusal } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import {
   ChartTypeSchema as SpecChartTypeSchema,
   DashboardSchema as SpecDashboardSchema,
   DashboardWidgetSchema as SpecDashboardWidgetSchema,
   GlobalFilterSchema as SpecGlobalFilterSchema,
+  GroupingConfigSchema as SpecGroupingConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
+import { KanbanConditionalFormattingRuleSchema } from './objectql.zod.js';
 import { DASHBOARD_COLOR_VARIANTS, DASHBOARD_WIDGET_TYPES } from '../designer.js';
 import {
   DASHBOARD_COMPONENT_WIDGET_TYPES,
@@ -32,41 +34,132 @@ import {
 } from '../complex.js';
 
 /**
- * Kanban Card Schema
+ * The retired declarative face, named once so every refusal below says the
+ * same thing (objectui#7664, maintainer ruling (a), 2026-09-05: for an authored
+ * `type: 'kanban'` document the PLUGIN dialect is authoritative; the
+ * `DeclarativeKanbanSchema` / `DeclarativeKanbanColumn` / `DeclarativeKanbanCard`
+ * trio and its three mirrors retired under ADR-0049 in the same change).
+ *
+ * A board written in that dialect used to PASS `safeValidateSchema` and render
+ * EMPTY, because the validator and the registered renderer honoured two
+ * unrelated shapes. The keys that dialect had and this one does not are refused
+ * BY NAME, so the author reads which shape they wrote and what to write instead
+ * — the named-refusal outcome objectui#5474 records as intended, not a silent
+ * strip.
  */
-export const DeclarativeKanbanCardSchema = z.object({
+const retiredDeclarativeKanbanKey = (key: string, where: string, remedy: string) =>
+  retirementTombstone(
+    `\`${key}\` is RETIRED (objectui#7664, ADR-0049) — it belonged to the retired ` +
+      `\`DeclarativeKanbanSchema\` dialect (a ${where} key of the old \`@object-ui/types\` ` +
+      'kanban face), which no registered kanban renderer ever read. The `kanban` type key ' +
+      'now validates the shape `@object-ui/plugin-kanban` renders: `objectName` + `groupBy` for ' +
+      `an object-bound board, or \`columns[].cards[]\` for a static one. ${remedy}`,
+  );
+
+/**
+ * Kanban Card Schema — mirrors {@link KanbanCard} in `../complex.ts` key for key.
+ *
+ * `.passthrough()` because the declaration carries `[key: string]: any`: a card
+ * is a record, and `bucketCardsIntoColumns` pushes raw records into lanes with
+ * their fields intact (conditional formatting reads them back). The three
+ * runtime-computed members `ObjectKanban` writes onto a card — `cardFieldCells`
+ * (rendered `React.ReactNode` cells) and a badge's `colorStyle` (the
+ * `getBadgeHexAppearance` style object) — are PASSED THROUGH as `z.any()`, the
+ * way `data-display.zod.ts` passes `TableColumn.headerIcon` through
+ * (objectui#6424): a non-strict object would otherwise silently strip what the
+ * renderer honours, which is the second de-facto contract that card closed.
+ */
+export const KanbanCardSchema = z.object({
   id: z.string().describe('Card ID'),
   title: z.string().describe('Card title'),
   description: z.string().optional().describe('Card description'),
-  labels: z.array(z.string()).optional().describe('Card labels'),
-  assignees: z.array(z.string()).optional().describe('Card assignees'),
-  dueDate: z.union([z.string(), z.date()]).optional().describe('Due date'),
-  priority: z.enum(['low', 'medium', 'high', 'critical']).optional().describe('Card priority'),
-  content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Custom content'),
-  data: z.any().optional().describe('Custom card data'),
-});
+  badges: z.array(z.object({
+    label: z.string().describe('Badge label'),
+    variant: z.enum(['default', 'secondary', 'destructive', 'outline']).optional().describe('Badge variant'),
+    colorClass: z.string().optional().describe('Tailwind class string applied to the badge; overrides `variant`'),
+    colorStyle: z.any().optional().describe('Inline style accompanying `colorClass` — the `getBadgeHexAppearance` style object, passed through verbatim'),
+  })).optional().describe('Card badges'),
+  cardSubtitle: z.string().optional().describe('Synthesized card subtitle, rendered in preference to `description`'),
+  cardFieldCells: z.array(z.object({
+    field: z.string().describe('Field name the cell renders'),
+    label: z.string().optional().describe('Cell label'),
+    node: z.any().describe('Rendered cell node — written by `ObjectKanban` from `cardFields`, passed through verbatim'),
+  })).optional().describe('Structured per-field cells rendered through the `@object-ui/fields` cell pipeline'),
+  coverImage: z.string().optional().describe('Resolved cover-image URL, derived from the board\'s `coverImageField`'),
+}).passthrough();
 
 /**
- * Kanban Column Schema
+ * Kanban Column Schema — mirrors {@link KanbanColumn} in `../complex.ts`.
  */
-export const DeclarativeKanbanColumnSchema = z.object({
+export const KanbanColumnSchema = z.object({
   id: z.string().describe('Column ID'),
   title: z.string().describe('Column title'),
-  cards: z.array(DeclarativeKanbanCardSchema).describe('Column cards'),
-  color: z.string().optional().describe('Column color'),
-  limit: z.number().optional().describe('Card limit'),
-  collapsed: z.boolean().optional().describe('Whether column is collapsed'),
+  cards: z.array(KanbanCardSchema).describe('Column cards'),
+  limit: z.number().optional().describe('WIP limit — the card count at which the lane warns'),
+  className: z.string().optional().describe('Column class name'),
+  collapsed: z.boolean().optional().describe('Whether the lane renders collapsed (honoured by the enhanced board)'),
+  color: retiredDeclarativeKanbanKey('color', 'column', 'Style a lane through its `className`.'),
 });
 
 /**
- * Kanban Schema - Kanban board component
+ * Card Template Schema — mirrors {@link CardTemplate} in `../complex.ts`.
  */
-export const DeclarativeKanbanSchema = BaseSchema.extend({
+export const CardTemplateSchema = z.object({
+  id: z.string().describe('Unique template identifier'),
+  name: z.string().describe('Human-readable template name'),
+  icon: z.string().optional().describe('Optional Lucide icon name'),
+  values: z.record(z.string(), z.any()).describe('Pre-filled field values'),
+});
+
+/**
+ * Column Width Config Schema — mirrors {@link ColumnWidthConfig} in `../complex.ts`.
+ */
+export const ColumnWidthConfigSchema = z.object({
+  defaultWidth: z.number().optional().describe('Default column width in pixels'),
+  minWidth: z.number().optional().describe('Minimum column width in pixels'),
+  maxWidth: z.number().optional().describe('Maximum column width in pixels'),
+  overrides: z.record(z.string(), z.number()).optional().describe('Per-column width overrides keyed by column ID'),
+});
+
+/**
+ * Kanban Schema — the `'kanban'` arm of {@link ComplexSchema}, mirroring
+ * {@link KanbanSchema} in `../complex.ts` key for key: the shape
+ * `@object-ui/plugin-kanban`'s registered renderers read (objectui#7664).
+ *
+ * `onCardMove` / `onCardClick` / `onQuickAdd` are RUNTIME SLOTS (objectui#6124):
+ * `KanbanRenderer` forwards all three off `schema.*` in one block, so the
+ * TypeScript twin keeps them callable and this mirror refuses them by name.
+ * ⛔ None of the three may be dropped instead of refused — `BaseSchema` is
+ * `.passthrough()`, so a dropped key is KEPT rather than refused (the first cut
+ * of objectui#7664 dropped `onCardClick` and turned a refused document into an
+ * accepted one). `onColumnAdd` / `onCardAdd` are the two
+ * retired handler keys carried over from the declarative face so the successor
+ * arm keeps refusing the spelling; `draggable` is that face's own retired key.
+ * `conditionalFormatting` and `grouping` are the same schemas the `object-kanban`
+ * and `object-gallery` arms use (`objectql.zod.ts`, `@objectstack/spec`).
+ */
+export const KanbanSchema = BaseSchema.extend({
   type: z.literal('kanban'),
-  columns: z.array(DeclarativeKanbanColumnSchema).describe('Kanban columns'),
-  draggable: z.boolean().optional().describe('Whether cards are draggable'),
+  objectName: z.string().optional().describe('Object name to fetch data from'),
+  groupBy: z.string().optional().describe('Field to group records by (maps to column IDs)'),
+  swimlaneField: z.string().optional().describe('Field for swimlane rows (2D grouping)'),
+  cardTitle: z.string().optional().describe('Field to use as the card title'),
+  cardFields: z.array(z.string()).optional().describe('Fields to display on the card'),
+  data: z.array(z.any()).optional().describe('Static data or bound data (raw rows)'),
+  limit: z.number().optional().describe('Row cap for the fetch (defaults to 100)'),
+  columns: z.array(KanbanColumnSchema).optional().describe('Columns to display, each carrying its cards'),
   onCardMove: handlerKeyRefusal('onCardMove', 'runtime-slot', 'Card move handler'),
   onCardClick: handlerKeyRefusal('onCardClick', 'runtime-slot', 'Card click handler'),
+  className: z.string().optional().describe('CSS class name'),
+  quickAdd: z.boolean().optional().describe('Enable the Quick Add button at the bottom of each column'),
+  onQuickAdd: handlerKeyRefusal('onQuickAdd', 'runtime-slot', 'Quick Add handler'),
+  coverImageField: z.string().optional().describe('Field name to use as cover image on cards'),
+  allowCollapse: z.boolean().optional().describe('Allow columns to be collapsed/expanded'),
+  conditionalFormatting: z.array(KanbanConditionalFormattingRuleSchema).optional().describe('Card conditional formatting rules'),
+  cardTemplates: z.array(CardTemplateSchema).optional().describe('Predefined card templates for quick-add'),
+  columnWidths: ColumnWidthConfigSchema.optional().describe('Custom column width configuration'),
+  grouping: SpecGroupingConfigSchema.optional().describe('Grouping configuration from ListView; its first field is the swimlaneField fallback'),
+  draggable: retiredDeclarativeKanbanKey('draggable', 'board', 'Drag-and-drop is always on; delete the key.'),
   onColumnAdd: handlerKeyRefusal('onColumnAdd', 'retired', 'Column add handler'),
   onCardAdd: handlerKeyRefusal('onCardAdd', 'retired', 'Card add handler'),
 });
@@ -171,14 +264,29 @@ export const FilterOperatorSchema = z.enum([
 
 /**
  * Filter Condition Schema
+ *
+ * MEMOISED (objectui#7918): the getter returns a module-level constant, so the
+ * PUBLIC `FilterBuilderConditionSchema.unwrap()` is reference-stable. (`ZodLazy`
+ * spells `unwrap` as `() => _zod.def.getter()`, going around the cache zod keeps
+ * on `def._cachedInner`, so an un-memoised lazy hands out a fresh schema per
+ * call.) Safe here because this body is NOT recursive — it names only
+ * `FilterOperatorSchema`, declared above.
+ *
+ * ⚠️ `FilterGroupSchema` below CANNOT take this shape, and neither can six other
+ * `z.lazy` exports of this face: their bodies name the very const being declared
+ * (or, for `SchemaNodeSchema`, one declared below it), so evaluating the body
+ * eagerly throws `ReferenceError: Cannot access '<name>' before initialization`
+ * at module load. The `z.lazy` there is buying a TDZ dodge, not a style. Measured
+ * one schema at a time in `../__tests__/zod-lazy-getter-identity-7918.test.ts`
+ * — read that before "fixing" any of them to match this one.
  */
-export const FilterBuilderConditionSchema: z.ZodType<any> = z.lazy(() =>
-  z.object({
-    field: z.string().describe('Field name'),
-    operator: FilterOperatorSchema.describe('Filter operator'),
-    value: z.any().optional().describe('Filter value'),
-  })
-);
+const FilterBuilderConditionObject = z.object({
+  field: z.string().describe('Field name'),
+  operator: FilterOperatorSchema.describe('Filter operator'),
+  value: z.any().optional().describe('Filter value'),
+});
+
+export const FilterBuilderConditionSchema: z.ZodType<any> = z.lazy(() => FilterBuilderConditionObject);
 
 /**
  * Filter Group Schema — the shape `FilterBuilder` actually reads
@@ -381,14 +489,55 @@ export const ChatbotSchema = BaseSchema.extend({
   type: z.literal('chatbot'),
   messages: z.array(ChatMessageSchema).describe('Chat messages'),
   placeholder: z.string().optional().describe('Input placeholder'),
-  loading: z.boolean().optional().describe('Whether chat is loading'),
+  // --- ADR-0049 retirement tombstones (objectui#7703) ---------------------
+  //
+  // Six keys this twin mirrored and no `plugin-chatbot` registration read —
+  // `loading`, `showAvatars`, `userAvatar`, `assistantAvatar`, `markdown` and
+  // `height` (that last one below, after `processVisibility`, which is NOT
+  // part of this retirement: `chatbot-enhanced` reads it). The census, the lit
+  // controls and the per-key enforce-or-remove argument live on the TS twin's
+  // `ChatbotSchema` docblock (`../complex.ts`); the pins are in
+  // `../__tests__/chatbot-dark-keys-retired-7703.test.ts`.
+  //
+  // Deleting these arms was the wrong route and is why they stay declared:
+  // `BaseSchema` is `.passthrough()`, so an undeclared key is not refused, it
+  // is KEPT — the same silent acceptance the retirement exists to close.
+  loading: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: chat progress is runtime state the chat runtime owns '
+    + '(the registration derives it from `useObjectChat` as `isLoading`), and `<Chatbot>` declares no `loading` '
+    + 'prop for an authored value to land on. There is no authored spelling that sets it; delete the key.',
+  ),
   onSendMessage: handlerKeyRefusal('onSendMessage', 'retired', 'Send message handler'),
-  showAvatars: z.boolean().optional().describe('Show user avatars'),
-  userAvatar: z.string().optional().describe('User avatar URL'),
-  assistantAvatar: z.string().optional().describe('Assistant avatar URL'),
-  markdown: z.boolean().optional().describe('Enable markdown rendering'),
+  showAvatars: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — no registration reads or forwards this key by name, and a `chatbot` '
+    + 'node renders `<Chatbot>`, which has no `showAvatars` prop; the one channel that did deliver it — the '
+    + "`chatbot-floating` registration's unfiltered props spread — was fenced by objectui#7708. Delete the key: "
+    + 'a `chatbot` node already renders an avatar beside every message, and the images are `userAvatarUrl` / '
+    + '`assistantAvatarUrl` with their `userAvatarFallback` / `assistantAvatarFallback` siblings.',
+  ),
+  userAvatar: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: this spelling has zero hits anywhere in '
+    + '`packages/plugin-chatbot`. Write `userAvatarUrl` instead (with `userAvatarFallback` for the text shown '
+    + 'while the image loads or fails), the key all three chatbot registrations read.',
+  ),
+  assistantAvatar: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: this spelling has zero hits anywhere in '
+    + '`packages/plugin-chatbot`. Write `assistantAvatarUrl` instead (with `assistantAvatarFallback` for the '
+    + 'text shown while the image loads or fails), the key all three chatbot registrations read.',
+  ),
+  markdown: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: a `chatbot` node renders `<Chatbot>`, which prints message '
+    + 'content as text and has no markdown path for this switch to reach. Author `type: "chatbot-enhanced"` '
+    + '(or `"chatbot-floating"`) with `enableMarkdown` instead — markdown is those nodes\' capability, and '
+    + '`enableMarkdown` is the key their registrations read.',
+  ),
   processVisibility: z.enum(['hidden', 'summary', 'debug']).optional().describe('How much agent reasoning/tool detail to show'),
-  height: z.union([z.string(), z.number()]).optional().describe('Chatbot height'),
+  height: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: `<Chatbot>` has no `height` prop. Write `maxHeight` '
+    + 'instead (a CSS length string, default "500px"), the key the `chatbot` and `chatbot-enhanced` '
+    + 'registrations forward; size a `chatbot-floating` panel with `floatingConfig.panelHeight`, a number of '
+    + 'pixels, which is what that panel reads.',
+  ),
   api: z.string().optional().describe('Backend API endpoint for streaming chat'),
   conversationId: z.string().optional().describe('Conversation ID for multi-turn context'),
   systemPrompt: z.string().optional().describe('System prompt for assistant behavior'),
@@ -497,14 +646,15 @@ export const ChatbotEnhancedSchema = BaseSchema.extend({
  *     minting one is the declared-but-unmirrored axis (objectui#6152), a
  *     different defect from the one this pair closes, and the axis the
  *     `triggerIcon` tombstone's tripwire watches (objectui#7654).
- *   - `displayMode` — RULED RETIRED by objectui#7654 (maintainer ruling B,
+ *   - `displayMode` — RETIRED by objectui#7654 (maintainer ruling B,
  *     2026-09-05): the node `type` is the one selector of presentation. The
- *     retirement executes in that card's own PR — `?: never` tombstone on the
- *     TypeScript faces, designer control and seed removed — and, per the
- *     ruling, the mirror half (`retirementTombstone()`) is owed at the moment
- *     objectui#6152 mints an arm for it, not before. Until then a mirror arm
- *     here would be a parse outcome that ruling did not ask for, so this twin
- *     has none.
+ *     TypeScript half landed there — `?: never` tombstone on both faces,
+ *     designer control and seed removed — and, per the ruling, the mirror
+ *     half (`retirementTombstone()`) is owed at the moment objectui#6152 mints
+ *     an arm for it, not before: a mirror arm here today would be a parse
+ *     outcome the ruling did not ask for, so this twin has none and a stored
+ *     document carrying the key parses exactly as it did
+ *     (`chatbot-display-mode-retired.test.ts` pins the shape as the tripwire).
  *
  * Both ride through `BaseSchema`'s `.passthrough()` unvalidated, byte for byte
  * as they do on `ChatbotSchema`'s twin.
@@ -871,7 +1021,7 @@ export const DashboardConfigSchema = z.object({
  * Complex Schema Union - All complex component schemas
  */
 export const ComplexSchema = z.discriminatedUnion('type', [
-  DeclarativeKanbanSchema,
+  KanbanSchema,
   CalendarViewSchema,
   FilterBuilderSchema,
   CarouselSchema,

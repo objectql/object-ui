@@ -107,6 +107,28 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'fields.location.refusedFormat':
     'Not saved: enter a latitude, longitude pair (example: 30.2741, 120.1551).',
   'fields.location.refusedRange': 'Not saved: {{detail}}',
+  // objectui#6888 — the THIRD refusal arm (`12abc, 34`), added by objectui#6715
+  // after #6755's ruling was written and therefore outside the three sentences
+  // it named. All three arms share one `<p>`, so a literal here made ONE line
+  // bilingual rather than one screen.
+  //
+  // Two SIBLING keys, not an i18next `_one`/`_other` family: the verb is
+  // English grammar and cannot be a hole, and this repo's plural convention is
+  // the `X`/`XOne` pair branched at the call site (`lookup.recordCount` /
+  // `recordCountOne` above is the same map's own instance). The coordinate
+  // NOUNS are keyed once each and interpolated into both, so a locale spells
+  // `latitude` in exactly one place. `{{text}}`/`{{otherText}}` are what the
+  // person typed and stay untouched by every pack.
+  //
+  // Values are byte-identical to the literal they replace, in both arities:
+  // `Not saved: latitude "12abc" is not a number. …` and
+  // `… latitude "12abc" and longitude "34xyz" are not numbers. …`.
+  'fields.location.latitude': 'latitude',
+  'fields.location.longitude': 'longitude',
+  'fields.location.refusedResidueOne':
+    'Not saved: {{name}} "{{text}}" is not a number. Enter plain decimals (example: 30.2741, 120.1551).',
+  'fields.location.refusedResidue':
+    'Not saved: {{name}} "{{text}}" and {{otherName}} "{{otherText}}" are not numbers. Enter plain decimals (example: 30.2741, 120.1551).',
   // objectui#3342 — the tags widget's input hint. Used only when the field
   // author declared no `placeholder` of their own (author declaration wins).
   'fields.tags.placeholder': 'Type and press Enter to add…',
@@ -151,6 +173,7 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'capability.label.manage_users': 'Manage Users',
   'capability.label.manage_org_users': 'Manage Organization Users',
   'capability.label.manage_metadata': 'Manage Metadata',
+  'capability.label.manage_org_presentation': 'Manage Organization Presentation',
   'capability.label.manage_platform_settings': 'Manage Platform Settings',
   'capability.label.setup_access': 'Setup Access',
   'capability.label.setup_write': 'Write Settings',

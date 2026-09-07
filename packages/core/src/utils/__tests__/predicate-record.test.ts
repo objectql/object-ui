@@ -26,7 +26,11 @@ const FIELDS = {
   account: { type: 'lookup', reference: 'showcase_account' },
   accounts: { type: 'lookup', reference: 'showcase_account', multiple: true },
   owner: { type: 'user' },
-  parent: { type: 'tree', reference: 'showcase_category' },
+  // No `reference` — optional on a `tree`, and must name the declaring
+  // object when present (objectstack#14892). This map declares none, and
+  // `toPredicateRecord` collapses by declared TYPE, never by target
+  // (objectui#7839).
+  parent: { type: 'tree' },
   config: { type: 'json' },
 };
 

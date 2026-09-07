@@ -19,8 +19,8 @@
  *
  * ⚠️ Two halves of that ruling are load-bearing in opposite directions, and
  * both are asserted here. "Print the selected arm" is worthless if the other
- * 107 arms come with it (that is option A, rejected for noise), so the
- * exclusion is tested as hard as the inclusion.
+ * arms come with it (that is option A, rejected for noise), so the exclusion is
+ * tested as hard as the inclusion.
  *
  * Harness (fixtures under `os.tmpdir()`, `process.exit` recorded rather than
  * taken) follows `validate-root-path-line.test.ts`.
@@ -151,7 +151,7 @@ describe('objectui validate — the arm the document selected', () => {
     const text = printed();
     // The arm `object-grid` selects, failing on its own required key.
     expect(text).toContain('Path: objectName');
-    // ...and nothing from the 107 arms that merely disagree about `type`.
+    // ...and nothing from the arms that merely disagree about `type`.
     // Option A would have printed one of these per arm; this is the assertion
     // that the ruling's rejection of it is real rather than nominal.
     expect(text).not.toContain('Invalid discriminator value');
@@ -176,7 +176,8 @@ describe('objectui validate — when no arm accepts the type', () => {
     // distance rather than by case alone.
     const names = (line as string).split(':')[1].split(',').map((n) => n.trim());
     expect(names[0]).toBe('dropdown-menu');
-    // ...and the list is CAPPED. Uncapped, this is 108 names.
+    // ...and the list is CAPPED. Uncapped, this is every arm name the root
+    // accepts.
     expect(names.length).toBeLessThanOrEqual(MAX_UNION_ARMS_REPORTED);
     expect(/Nearest of the \d+ accepted types/.test(line as string)).toBe(true);
   });
@@ -189,7 +190,7 @@ describe('objectui validate — when no arm accepts the type', () => {
   });
 
   it('offers NO candidates when the document declares no type at all', async () => {
-    // "Nearest" needs something to be near. Ranking 108 arm names against a
+    // "Nearest" needs something to be near. Ranking every arm name against a
     // `type` the author never wrote would present an alphabetical slice as
     // guidance — the bogus suggestion `known-type-case-suggestion.ts` refuses
     // to make on the sibling surface.

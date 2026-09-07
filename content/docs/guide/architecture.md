@@ -202,7 +202,7 @@ ComponentRegistry.register('my-widget', MyWidgetComponent, {
   category: 'Custom',
   icon: 'box',
   inputs: [
-    { name: 'title', type: 'string', label: 'Title' }
+    { name: 'title', type: 'string' }
   ]
 })
 ```
@@ -243,21 +243,33 @@ ObjectUI includes a powerful expression engine for dynamic UIs:
 ```json
 {
   "type": "button",
-  "text": "Submit",
+  "label": "Submit",
   "visible": "${form.isValid && !form.isSubmitting}",
   "disabled": "${form.isSubmitting}"
 }
 ```
 
+A button's text key is `label`, and `text` is not a `ButtonSchema` key at all. Nothing
+refuses the misspelling either: `BaseSchema` is `.passthrough()`, so the validator KEEPS
+the unknown key, and the renderer — which reads `schema.label` — never looks at it.
+Measured on the node above with `text`: the button renders with an empty `textContent`,
+so it appears on screen as a blank rectangle with no text.
+
 ### Data Transformations
 
 ```json
 {
-  "type": "badge",
-  "text": "${orders.length} Orders",
-  "variant": "${orders.length > 10 ? 'success' : 'warning'}"
+  "type": "statistic",
+  "label": "Orders",
+  "value": "${orders.length}",
+  "description": "${orders.length > 10 ? 'Above target' : 'On track'}"
 }
 ```
+
+`statistic` rather than `badge`: an expression is evaluated only on a key the node's own
+type carries, and `expressionBindableTextKeysFor` gives `statistic` the rows `label`,
+`value` and `description` while giving `badge` none. A badge's text is its `label`, and it
+has to arrive already resolved.
 
 See the [Expressions Guide](/docs/guide/expressions) for complete details.
 
@@ -397,10 +409,10 @@ Use expressions for dynamic content:
 <!-- doc-snippet: fragment — a good/bad contrast pair of two bare schema object literals -->
 ```tsx
 // ❌ Bad - hardcoded
-{ type: 'text', value: 'Hello, John!' }
+{ type: 'text', content: 'Hello, John!' }
 
 // ✅ Good - dynamic
-{ type: 'text', value: 'Hello, ${user.name}!' }
+{ type: 'text', content: 'Hello, ${user.name}!' }
 ```
 
 ## Plugin Development

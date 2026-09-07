@@ -62,7 +62,8 @@ vi.mock('../../utils/getIcon', () => ({ getIcon: () => () => null }));
 // (`useActionTextLocalizer` — the shared action-text resolver the bar calls
 // since objectui#4265 — is the REAL one from `@object-ui/react`; it reads these
 // three resolvers plus `pickLocalized`, so the double has to carry all four.)
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectLabel: () => ({
     actionLabel: (_o: unknown, _n: unknown, fallback: string) => fallback,
     actionConfirm: (_o: unknown, _n: unknown, fallback?: string) => fallback,
@@ -72,25 +73,25 @@ vi.mock('@object-ui/i18n', () => ({
   pickLocalized: (value: unknown) => (typeof value === 'string' ? value : ''),
 }));
 
-// The components barrel stays doubled (its full graph is what the light `dom`
-// project deliberately does not load), but `hasDeclaredVisibilityGate` is pulled
-// from its real source module — the ONE definition objectui#3492 established and
-// PR #3816 / #3825 / #3836 spread across the other four member-action gates. A
-// re-spelled `v != null && v !== ''` here would be a fifth copy of it living in
-// a test double, and would keep this suite green no matter what the shipped
-// predicate does (objectui#3142 is what copies of one answer cost). The module
-// is a dependency-free pure function, so importing it directly costs nothing.
-vi.mock('@object-ui/components', async () => {
-  const { hasDeclaredVisibilityGate } = await import(
-    '../../../../components/src/renderers/action/visibility-gate'
-  );
+// The components barrel is INHERITED (objectui#6892 slice 6) and only the two
+// primitives this suite drives are overridden, so `hasDeclaredVisibilityGate`
+// now arrives as the real barrel's re-export — the ONE definition objectui#3492
+// established and PR #3816 / #3825 / #3836 spread across the other four
+// member-action gates. It used to be pulled from its source module by a deep
+// relative path, which the doubled barrel made necessary; the reason that
+// mattered has not changed. A re-spelled `v != null && v !== ''` here would be a
+// fifth copy of it living in a test double, and would keep this suite green no
+// matter what the shipped predicate does (objectui#3142 is what copies of one
+// answer cost).
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
+    ...actual,
     Button: ({ children, onClick, ...props }: any) => (
       <button onClick={onClick} {...props}>{children}</button>
     ),
     Separator: () => <hr />,
     cn: (...args: any[]) => args.filter(Boolean).join(' '),
-    hasDeclaredVisibilityGate,
   };
 });
 
@@ -511,13 +512,40 @@ describe('DeclaredActionsBar — declared `visible` on a server-declared action 
   });
 
   it('an expression-valued `visible` keeps its verdict — false hides, true shows', () => {
-    const gated = { ...APPROVE, visible: 'status == "pending"' };
+    const gated = { ...APPROVE, visible: 'record.status == "pending"' };
     const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
     expect(screen.queryByTestId('declared-action-approval_approve')).toBeNull();
     expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
     unmount();
     renderWithGate(gated, { ...REQUEST, status: 'pending' });
     expect(screen.getByTestId('declared-action-approval_approve')).toBeInTheDocument();
+  });
+
+  it('a bare-field `visible` no longer discriminates (objectui#5741) — hidden on BOTH rows, reported once', () => {
+    // Phase 2 of the objectui#5330 canon: the row is bound as `record.*` only,
+    // so `status` is an unknown variable. This leg opts into `throwOnError`, so
+    // its EXISTING policy is fail-closed: the same verdict on the holding row
+    // and the failing one, and one console line naming the variable. The
+    // ungated companion proves the bar rendered.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const gated = { ...APPROVE, visible: 'status == "pending"' };
+      const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'pending' });
+      expect(screen.queryByTestId('declared-action-approval_approve')).toBeNull();
+      expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+      unmount();
+      renderWithGate(gated, { ...REQUEST, status: 'approved' });
+      expect(screen.queryByTestId('declared-action-approval_approve')).toBeNull();
+      expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+      const reports = warn.mock.calls
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes('was hidden/disabled: its predicate threw'));
+      expect(reports).toHaveLength(1);
+      expect(reports[0]).toContain('status is not defined');
+      expect(reports[0]).toContain('declared action "approval_approve" (visible)');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('a `${…}`-spelled `visible` keeps its verdict — true shows, false hides (objectui#3871)', () => {
@@ -533,7 +561,7 @@ describe('DeclaredActionsBar — declared `visible` on a server-declared action 
     // Reverse verification: the `pending` half is the detector; the `approved`
     // half stays green either way (hidden is hidden), and the companion
     // assertion is what keeps that half from meaning "the bar vanished".
-    const gated = { ...APPROVE, visible: '${status === "pending"}' };
+    const gated = { ...APPROVE, visible: '${record.status === "pending"}' };
     const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
     expect(screen.queryByTestId('declared-action-approval_approve')).toBeNull();
     expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
@@ -623,12 +651,25 @@ describe('DeclaredActionsBar — declared `disabled` on a server-declared action
   });
 
   it('an expression-valued `disabled` keeps its verdict — true disables, false does not', () => {
-    const gated = { ...APPROVE, disabled: 'status == "approved"' };
+    const gated = { ...APPROVE, disabled: 'record.status == "approved"' };
     const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
     expect(approve()).toBeDisabled();
     unmount();
     renderWithGate(gated, { ...REQUEST, status: 'pending' });
     expect(approve()).not.toBeDisabled();
+  });
+
+  it('a bare-field `disabled` no longer discriminates (objectui#5741) — disabled on BOTH rows (fail-soft leg)', () => {
+    // The `disabled` leg does not opt into `throwOnError`, so its EXISTING
+    // policy is fail-soft `true`: an unbound `status` faults and greys Approve
+    // on the holding row and the failing one alike. Pinned as the fail-soft
+    // half of the ruling, next to the fail-closed `visible` half above.
+    const gated = { ...APPROVE, disabled: 'status == "approved"' };
+    const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
+    expect(approve()).toBeDisabled();
+    unmount();
+    renderWithGate(gated, { ...REQUEST, status: 'pending' });
+    expect(approve()).toBeDisabled();
   });
 
   it('a `${…}`-spelled `disabled` keeps its verdict — false leaves Approve clickable (objectui#3871)', () => {
@@ -643,7 +684,7 @@ describe('DeclaredActionsBar — declared `disabled` on a server-declared action
     // disabled before the fix); the `approved` half was green already, since
     // "disabled because the predicate holds" and "disabled because it could not
     // be parsed" look identical from here.
-    const gated = { ...APPROVE, disabled: '${status === "approved"}' };
+    const gated = { ...APPROVE, disabled: '${record.status === "approved"}' };
     const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
     expect(approve()).toBeDisabled();
     unmount();
@@ -670,16 +711,17 @@ describe('DeclaredActionsBar — declared `disabled` on a server-declared action
  * objectui#4077 fixed the root-only binding here with an inline
  * `{ ...row, record: row, data: row }`; objectui#4079 fixed the same fault on
  * the four generic action renderers and gave the rule one name instead of a
- * fifth copy. The two copies agreed on every row the bar has ever been mounted
- * over — which is why this is a convergence card and not a defect report, and
- * why the two cases below are deliberately different in kind:
+ * fifth copy. objectui#5741 (Phase 2 of the objectui#5330 canon) then narrowed
+ * that shared rule to `{ record: row }`: the bare-field and `data.*` spellings
+ * are no longer bound anywhere, and this bar follows the helper. The two cases
+ * below are deliberately different in kind:
  *
- *   • the ROW-PRESENT case is an EQUIVALENCE pin. It was green before the
- *     migration and is green after it, because the copies agree wherever a row
- *     exists. It is not a mutation detector for this change and must not be
- *     read as one; it is here so the reachable path — the only path any host
- *     drives today — is pinned against a future edit to the helper, which now
- *     owns the verdict for this bar too.
+ *   • the ROW-PRESENT case pins the helper's CURRENT rule as this bar sees it:
+ *     `record.*` discriminates, the two retired spellings reach the SAME
+ *     verdict on the holding row and the failing one (they fault, and this
+ *     leg's existing policy is fail-closed). It is here so the reachable path
+ *     — the only path any host drives today — is pinned against a future edit
+ *     to the helper, which owns the verdict for this bar too.
  *   • the NO-ROW case is the CONVERGENCE detector, and the one difference the
  *     two copies ever had. `usePredicateRecordContext` binds NOTHING when there
  *     is no row; the inline copy bound `{ record: {}, data: {} }`. Since
@@ -700,24 +742,42 @@ describe('DeclaredActionsBar — the row binds through the shared helper (object
     locations: ['record_section'],
   };
 
-  it('with a row present, all three spellings reach the same verdict', () => {
-    // Both halves per spelling: "renders" alone is satisfied by a bar that
-    // ignores `visible` entirely, which is the mutation objectui#3835 was.
-    for (const visible of [
-      'record.status == "pending"',
-      'status == "pending"',
-      'data.status == "pending"',
-    ]) {
-      const shown = renderWithGate({ ...APPROVE, visible }, { ...REQUEST, status: 'pending' });
-      expect(screen.getByTestId('declared-action-approval_approve'), visible).toBeInTheDocument();
-      shown.unmount();
+  it('with a row present, `record.*` reaches both verdicts through the shared helper', () => {
+    // Both halves: "renders" alone is satisfied by a bar that ignores `visible`
+    // entirely, which is the mutation objectui#3835 was.
+    const visible = 'record.status == "pending"';
+    const shown = renderWithGate({ ...APPROVE, visible }, { ...REQUEST, status: 'pending' });
+    expect(screen.getByTestId('declared-action-approval_approve'), visible).toBeInTheDocument();
+    shown.unmount();
 
-      const hidden = renderWithGate({ ...APPROVE, visible }, { ...REQUEST, status: 'approved' });
-      expect(screen.queryByTestId('declared-action-approval_approve'), visible).toBeNull();
-      // The ungated companion proves the bar itself rendered — "not found" here
-      // must mean the gate said no, not that the located set was empty.
-      expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
-      hidden.unmount();
+    const hidden = renderWithGate({ ...APPROVE, visible }, { ...REQUEST, status: 'approved' });
+    expect(screen.queryByTestId('declared-action-approval_approve'), visible).toBeNull();
+    // The ungated companion proves the bar itself rendered — "not found" here
+    // must mean the gate said no, not that the located set was empty.
+    expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+    hidden.unmount();
+  });
+
+  it('with a row present, the two retired spellings reach the SAME verdict on both rows (objectui#5741)', () => {
+    // The helper binds `{ record: row }` only, so these fault; the bar's
+    // `visible` leg is fail-closed, so "the same verdict" is hidden twice —
+    // with the companion present both times, so hidden means the gate faulted,
+    // not that the bar vanished.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      for (const visible of ['status == "pending"', 'data.status == "pending"']) {
+        const holding = renderWithGate({ ...APPROVE, visible }, { ...REQUEST, status: 'pending' });
+        expect(screen.queryByTestId('declared-action-approval_approve'), visible).toBeNull();
+        expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+        holding.unmount();
+
+        const failing = renderWithGate({ ...APPROVE, visible }, { ...REQUEST, status: 'approved' });
+        expect(screen.queryByTestId('declared-action-approval_approve'), visible).toBeNull();
+        expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+        failing.unmount();
+      }
+    } finally {
+      warn.mockRestore();
     }
   });
 

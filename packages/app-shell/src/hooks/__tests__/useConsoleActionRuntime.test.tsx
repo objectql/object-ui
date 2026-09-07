@@ -22,12 +22,14 @@ const navigateSpy = vi.fn();
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigateSpy }));
 
 const authFetchSpy = vi.fn();
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'User', image: null }, activeOrganization: null }),
   createAuthenticatedFetch: () => authFetchSpy,
 }));
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectLabel: () => ({
     fieldLabel: (_o: any, _n: any, l: any) => l,
     fieldOptionLabel: (_o: any, _f: any, _v: any, l: any) => l,

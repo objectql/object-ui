@@ -8,6 +8,6 @@
   "description": "Sheet description goes here.",
   "content": {
     "type": "text",
-    "value": "Sheet content"
+    "content": "Sheet content"
   }
 }

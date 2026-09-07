@@ -53,6 +53,33 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { builtInLocales } from '../locales/index';
 
+/**
+ * The repo root, derived from THIS FILE's own location — never from
+ * `process.cwd()` (objectui#7799).
+ *
+ * It was `process.cwd()` until then, on the reasoning that
+ * `scripts/vitest-invocation-guard.mjs` refuses any invocation whose vitest root
+ * is not the repo root. That guard is real, but it is a DIFFERENT invariant:
+ * `--root` moves VITEST's root and moves nothing about `process.cwd()`. This
+ * package's own `test` script — `vitest run --root ../.. packages/i18n/`, which
+ * is what `pnpm --filter … test` and `turbo run test` both run — leaves cwd at
+ * `packages/i18n/`, so every read below resolved against the package directory
+ * and the assertions guarding them failed.
+ *
+ * Spelled in string operations, copying the landed precedent of objectui#7791
+ * (PR #7796): `new URL(rel, import.meta.url)` is REWRITTEN by Vite into a
+ * `http://localhost:3000/@fs/…` dev-server URL, so only bare `import.meta.url`
+ * is read here and taken apart by hand. Measured on this card under both cwds
+ * and in both the `unit` and the `dom` project, it is
+ * `file:///…/packages/i18n/src/__tests__/<this file>`.
+ */
+const SELF_DEPTH_BELOW_REPO_ROOT = 5; // packages / i18n / src / __tests__ / this file
+const REPO_ROOT = decodeURIComponent(new URL(import.meta.url).pathname)
+  .split('/')
+  .slice(0, -SELF_DEPTH_BELOW_REPO_ROOT)
+  .join('/');
+
+
 // Derived from the map rather than left as `string[]`: `Object.keys` erases
 // which keys it enumerated, so `builtInLocales[lang]` below would be an
 // implicit-`any` index into a `const` map (TS7053). Same convention as
@@ -303,11 +330,12 @@ describe('console.objectView config-panel keys are retired (objectui#4730)', () 
     };
 
     for (const root of roots) {
-      // Root-form Vitest only (`scripts/vitest-invocation-guard.mjs` rejects a
-      // package-cwd run), so `process.cwd()` is the repo root. Asserted rather
-      // than assumed: a scan root that silently does not exist walks nothing and
-      // passes, which is the one direction a revival gate must not fail in.
-      const abs = join(process.cwd(), root);
+      // Rooted at THIS FILE, not at the cwd (objectui#7799): the invocation guard
+      // pins VITEST's root, which the package `test` script sets correctly while
+      // leaving cwd in the package. Asserted rather than assumed: a scan root that
+      // silently does not exist walks nothing and passes, which is the one
+      // direction a revival gate must not fail in.
+      const abs = join(REPO_ROOT, root);
       expect(existsSync(abs), `scan root missing: ${abs}`).toBe(true);
       walk(abs);
     }

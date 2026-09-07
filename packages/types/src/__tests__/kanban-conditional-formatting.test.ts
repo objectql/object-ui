@@ -19,7 +19,9 @@ import { ObjectKanbanSchema } from '../zod/index.zod';
 import type { KanbanConditionalFormattingRule } from '../objectql';
 
 describe('kanban conditionalFormatting — zod contract', () => {
-  const base = { type: 'object-kanban', objectName: 'task', groupField: 'status' };
+  // `groupBy`, not `groupField`: the lane key the renderer reads, declared on
+  // both faces by objectui#7322 (which retired `groupField` on this node).
+  const base = { type: 'object-kanban', objectName: 'task', groupBy: 'status' };
 
   it('accepts the native { field, operator, value } rule (back-compat)', () => {
     const parsed = ObjectKanbanSchema.safeParse({

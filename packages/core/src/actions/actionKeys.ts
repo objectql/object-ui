@@ -251,8 +251,26 @@ export const SPEC_ACTION_KEYS = [
   'onSuccess',
   'openIn',
   'opensInNewTab',
+  // Added to `ActionSchema` in @objectstack/spec 17.3.0 (objectui#7122), the
+  // declarative single-record field write that mirrors a list view's
+  // `bulkActionDefs`: `operation: 'update'` applies `patch` (merged UNDER the
+  // collected `params`) to the current record on the data plane AS THE CALLER.
+  //
+  // Listed here for the same reason `description` above is, and with the same
+  // limits: this array's contract is "every property the spec's `ActionSchema`
+  // declares", so listing them RESTATES the spec rather than adopting a
+  // feature. `ActionDef` does NOT declare either key and is not changed, no
+  // runner branch reads them, and no action surface forwards them — that is a
+  // deliberate omission under the maintainer's 2026-09-05 ruling on this bump
+  // ("record both as justified omissions now; forward only the key a runtime
+  // actually reads, once its semantics are read from upstream — no speculative
+  // forwarding"). What these two entries buy is the one thing the inventory is
+  // consulted for: an action carrying them is no longer reported as having
+  // unknown keys, which is a dev-mode console warning and nothing else.
+  'operation',
   'order',
   'params',
+  'patch',
   'recordIdField',
   'recordIdParam',
   'refreshAfter',

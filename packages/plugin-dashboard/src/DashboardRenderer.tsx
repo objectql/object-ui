@@ -16,6 +16,7 @@ import {
   buildWidgetScopedFilter,
   mergeFilters,
   toDomProps,
+  chartMeasureKey,
 } from '@object-ui/core';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button, getLazyIcon } from '@object-ui/components';
 import { forwardRef, useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
@@ -615,7 +616,13 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                         function: providerAgg.function,
                         groupBy: providerAgg.groupBy,
                     } : undefined;
-                    const effectiveYField = effectiveAggregate?.field || yField;
+                    // The contract answers which column carries the measure —
+                    // see the twin site in `DashboardGridLayout` and
+                    // objectui#8266. Note `resolveSeriesLabel` below ALREADY
+                    // knew about this duality (`yField === 'value' || 'count'`)
+                    // while the dataKey did not: the legend read "Count" over a
+                    // plot with nothing in it.
+                    const effectiveYField = chartMeasureKey(effectiveAggregate, yField);
                     return {
                         type: 'object-chart',
                         chartType: resolvedWidgetType,
@@ -789,7 +796,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             if (dispatch.family === 'custom') {
                 return {
                     type: 'text',
-                    value: 'Custom widget — set `component` to a UIComponent schema.',
+                    content: 'Custom widget — set `component` to a UIComponent schema.',
                     variant: 'caption',
                     align: 'center',
                     className: 'flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-muted-foreground',
@@ -802,7 +809,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             if (dispatch.family === 'unsupported') {
                 return {
                     type: 'text',
-                    value: `「${widgetType}」chart type is not supported yet`,
+                    content: `「${widgetType}」chart type is not supported yet`,
                     variant: 'caption',
                     align: 'center',
                     className: 'flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-muted-foreground',

@@ -207,7 +207,9 @@ const schema: ObjectCalendarSchema = {
 ### With Static Data
 
 ```tsx
-const schema = {
+import type { ObjectCalendarSchema } from '@object-ui/types'
+
+const schema: ObjectCalendarSchema = {
   type: 'object-calendar',
   staticData: [
     {
@@ -242,6 +244,8 @@ const schema = {
   staticData?: Array<any>,          // Static data array
   data?: ViewData,                  // Advanced data configuration
   calendar?: CalendarConfig,        // Calendar-specific configuration
+  filter?: ViewFilterRule[],        // Query filter, lowered to $filter
+  sort?: SortConfig[],              // Query sort, lowered to $orderby
   onEventClick?: (record: any) => void,
   onDateClick?: (date: Date) => void,
   className?: string
@@ -307,7 +311,9 @@ const objectProviderCalendar: ObjectCalendarSchema = {
 #### Value Provider (Static)
 
 ```tsx
-const valueProviderCalendar = {
+import type { ObjectCalendarSchema } from '@object-ui/types';
+
+const valueProviderCalendar: ObjectCalendarSchema = {
   type: 'object-calendar',
   staticData: [
     { id: 1, title: 'Event 1', date: '2024-01-15' },

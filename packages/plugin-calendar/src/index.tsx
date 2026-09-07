@@ -295,8 +295,10 @@ ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {
   label: 'Object Calendar',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'calendar', type: 'object', label: 'Calendar Config', description: 'startDateField, endDateField, titleField, colorField' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
+    { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the calendar fetches. Lowered to `$filter` on the query.' },
+    { name: 'sort', type: 'array', description: 'Sort order in `[{ field, order }]` form, ordering the records the calendar fetches. Lowered to `$orderby` on the query.' },
   ],
 });
 
@@ -304,8 +306,11 @@ ComponentRegistry.register('calendar', ObjectCalendarRenderer, {
   namespace: 'view',
   label: 'Calendar View',
   category: 'view',
+  // Same renderer as `object-calendar`, therefore the same declared surface.
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'calendar', type: 'object', label: 'Calendar Config', description: 'startDateField, endDateField, titleField, colorField' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
+    { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the calendar fetches. Lowered to `$filter` on the query.' },
+    { name: 'sort', type: 'array', description: 'Sort order in `[{ field, order }]` form, ordering the records the calendar fetches. Lowered to `$orderby` on the query.' },
   ],
 });

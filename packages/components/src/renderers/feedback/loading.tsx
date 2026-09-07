@@ -53,21 +53,15 @@ ComponentRegistry.register('loading',
     namespace: 'ui',
     label: 'Loading',
     inputs: [
-      { name: 'text', type: 'string', label: 'Loading Text' },
+      { name: 'text', type: 'string' },
       { 
         name: 'size', 
         type: 'enum', 
-        enum: ['sm', 'md', 'lg', 'xl'],
-        label: 'Size',
-        defaultValue: 'md'
-      },
+        enum: ['sm', 'md', 'lg', 'xl']      },
       { 
         name: 'fullscreen', 
-        type: 'boolean', 
-        label: 'Fullscreen Overlay', 
-        defaultValue: false
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        type: 'boolean'      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       text: 'Loading...',

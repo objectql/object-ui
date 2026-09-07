@@ -115,7 +115,15 @@ describe('RelatedList — server-windowed pagination (#2711)', () => {
     // Last page: 12 records / 5 per page → page 3 holds 2 rows, Next disabled.
     fireEvent.click(nextButton());
     await screen.findByText('Page 3 of 3');
-    expect(h.schema.data).toHaveLength(2);
+    // The label is pagination state, not fetched data: `currentPage` flips on
+    // the click and `totalPages` came from page one's `total`, so "Page 3 of 3"
+    // commits BEFORE the third window reaches `h.schema.data` and the read
+    // below samples the previous page. Keep the label gate — it proves the view
+    // committed — and settle the chain this read actually rides: the VALUE.
+    // ⛔ Not `waitFor(ds.find toHaveBeenCalledWith $skip: 10)`: a mock call is
+    // issued one resolution before its rows reach state (objectui#6959), so a
+    // call gate would flake less often and fail identically.
+    await waitFor(() => expect(h.schema.data).toHaveLength(2));
     expect(nextButton().disabled).toBe(true);
 
     fireEvent.click(prevButton());

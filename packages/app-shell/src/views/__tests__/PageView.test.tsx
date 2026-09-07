@@ -26,13 +26,15 @@ vi.mock('react-router-dom', () => ({
 }));
 
 const authFetchSpy = vi.fn();
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'User', role: 'user', image: null }, activeOrganization: null }),
   useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
   createAuthenticatedFetch: () => authFetchSpy,
 }));
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({ t: (k: string, o?: any) => o?.defaultValue ?? o?.name ?? k }),
   useObjectLabel: () => ({
     fieldLabel: (_o: any, _n: any, l: any) => l,

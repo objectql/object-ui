@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { DataScopeManager } from '../DataScopeManager';
+import { DataScopeManager, type RowLevelFilter } from '../DataScopeManager';
 
 describe('DataScopeManager', () => {
   describe('Scope Registration', () => {
@@ -206,6 +206,90 @@ describe('DataScopeManager', () => {
       unsub();
       manager.updateScopeData('test', [2]);
       expect(count).toBe(1);
+    });
+  });
+
+  describe('Unknown operator fails closed (objectui#7378)', () => {
+    // Why the cast is here, and why it must stay: `RowLevelFilter['operator']`
+    // is a closed nine-member union, so TypeScript refuses `'equals'` or
+    // `'is_null'` at a call site. That protects TypeScript callers and nothing
+    // else. A scope rule read back from stored JSON reaches `applyFilters` as a
+    // plain string, and the switch keys on that string at runtime, exactly the
+    // way it is spelled below. The cast reproduces the path stored data takes;
+    // it is the point of these tests, not a shortcut to be "cleaned up". A
+    // test that only spells the nine declared operators cannot reach the
+    // `default` arm at all.
+    const storedRule = (field: string, operator: string, value: unknown): RowLevelFilter =>
+      ({ field, operator, value }) as unknown as RowLevelFilter;
+
+    it('does not admit a record it cannot evaluate (operator outside every published vocabulary)', () => {
+      const manager = new DataScopeManager();
+      manager.registerScope('test', { data: [] });
+      manager.setFilters('test', [storedRule('status', 'not_an_operator', 'active')]);
+
+      const result = manager.applyFilters('test', [
+        { id: 1, status: 'active' },
+        { id: 2, status: 'inactive' },
+      ]);
+
+      // Fail closed: a rule the evaluator cannot answer denies every row in
+      // the scope, the same answer `evaluateCondition` in @object-ui/permissions
+      // gives from its own `default` arm. Before the fix this returned both
+      // rows, `{ id: 2 }` included, with no error and no console line.
+      expect(result).toEqual([]);
+    });
+
+    it('does not let an unrecognised rule widen a scope another rule narrows (AND semantics)', () => {
+      const manager = new DataScopeManager();
+      manager.registerScope('test', { data: [] });
+      manager.setFilters('test', [
+        { field: 'status', operator: 'eq', value: 'active' },
+        storedRule('tenant', 'not_an_operator', 'acme'),
+      ]);
+
+      const result = manager.applyFilters('test', [
+        { id: 1, status: 'active', tenant: 'acme' },
+        { id: 2, status: 'active', tenant: 'other' },
+        { id: 3, status: 'inactive', tenant: 'acme' },
+      ]);
+
+      // Before the fix the unknown `tenant` rule evaluated to `true`, so the
+      // `status` rule alone decided and `{ id: 2, tenant: 'other' }` passed —
+      // the row the second rule existed to hide. Now nothing passes.
+      expect(result).toEqual([]);
+    });
+
+    // The spec's published vocabularies (`VIEW_FILTER_OPERATORS` from
+    // `@objectstack/spec/ui`, `VALID_AST_OPERATORS` from `@objectstack/spec/data`)
+    // carry spellings this switch has no arm for: the canonical forms of the
+    // implemented abbreviations, and the whole null-ness family. Measured on
+    // @objectstack/spec 17.2.0: 18 of the 20 view operators and 44 of the 53
+    // AST operators have no arm. Until they are either implemented or refused
+    // by name, they MUST take the fail-closed arm rather than the admit-all one.
+    // A change that implements these spellings rewrites the expectations below
+    // to the evaluated result; it never deletes the cases. Every case is
+    // chosen so that a CORRECT evaluation of the spelling admits at least one
+    // of the two rows: an implementation that lands without rewriting the
+    // expectation turns red here instead of passing by coincidence.
+    it.each([
+      ['equals', 'status', 'active'],
+      ['not_equals', 'status', 'active'],
+      ['greater_than', 'age', 20],
+      ['not_in', 'status', ['inactive']],
+      ['starts_with', 'status', 'act'],
+      ['is_null', 'status', null],
+      ['is_not_null', 'status', null],
+    ])('denies rather than admits for the published-but-unimplemented spelling %s', (operator, field, value) => {
+      const manager = new DataScopeManager();
+      manager.registerScope('test', { data: [] });
+      manager.setFilters('test', [storedRule(field, operator, value)]);
+
+      const result = manager.applyFilters('test', [
+        { id: 1, status: 'active', age: 30 },
+        { id: 2, status: null, age: 10 },
+      ]);
+
+      expect(result).toEqual([]);
     });
   });
 });

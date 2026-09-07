@@ -34,7 +34,7 @@
  * the more specific signal.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
 import fs from 'node:fs';
@@ -96,7 +96,121 @@ function makeAdapter() {
 const DETAIL_SNIPPETS = guideSchemas('detail-view');
 const SNIPPET = DETAIL_SNIPPETS[0];
 
-beforeEach(() => cleanup());
+/* ─────────────────────────────────────────────────────────────────────────────
+ * objectui#7307 — this file's TWO network escapes, both served here.
+ *
+ * Nothing below asks for a security verdict or for a REST record, yet every run
+ * opened real TCP connections to `http://localhost:3000`. Traced with a stack
+ * probe on the network-escape guard's attribution point (measured, not
+ * inferred) — this file is the only one in its batch that reaches two routes:
+ *
+ *   SchemaRenderer -> the guide's `detail-view` snippet
+ *     -> DetailView           packages/plugin-detail/src/DetailView.tsx:290, :296
+ *       -> useRecordEditable  packages/plugin-detail/src/useRecordEditable.ts:76
+ *         -> `const doFetch = apiFetch ?? fetch`      [escape 1, 12 calls]
+ *           POST /api/v1/security/explain  (twice per render: edit, then delete)
+ *
+ *   the `api`-sourced case at the bottom of this file
+ *     -> DetailView           packages/plugin-detail/src/DetailView.tsx:616
+ *       -> `fetch(`${schema.api}/${schema.resourceId}`)`   [escape 2, 1 call]
+ *         GET /api/task/42
+ *
+ * `useRecordEditable` reads the host's AUTHENTICATED `apiFetch` off
+ * `SchemaRendererContext` and, with no host supplying one, degrades to the
+ * GLOBAL `fetch` by design — a standalone embed must keep rendering rather than
+ * crash. `DetailView`'s `api` branch has no such seam at all: it calls the
+ * global directly. Under happy-dom that global is a real HTTP client and the
+ * document URL defaults to `http://localhost:3000`, so both relative paths
+ * resolved to live requests. Both reads are best-effort (each failure is
+ * caught), which is why the cases below stayed green while the requests always
+ * failed.
+ *
+ * Answered from a RECORDING double — the shape objectui#5225 settled on, carried
+ * by `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx` and by
+ * this burn-down's earlier batches (see
+ * `packages/plugin-gantt/src/ObjectGantt.navWidthDefault.test.tsx`).
+ * Deliberately NOT a blanket network stub: it records every URL it is handed and
+ * `afterEach` fails on any URL outside the set it serves, so an escape to
+ * somewhere else reds here instead of vanishing into one of those `catch`es.
+ *
+ * What it answers, and why that changes no assertion here:
+ *
+ *   - `/api/v1/security/explain` — the permissive verdict, in the two response
+ *     shapes the two explain hooks read: `{ record: { visible } }` for a single
+ *     `recordId` and `{ records: [{ recordId, visible }] }` for a batched
+ *     `recordIds`. Only the first is reached from this file; the batched branch
+ *     is kept so this router stays byte-identical to its siblings in this batch.
+ *     `useRecordEditable` initialises `allowed` to `true` and its failure path
+ *     leaves it there, so `true` and the absent verdict the failing request
+ *     produced are the same value at every read site.
+ *   - `/api/task/42` — the RECORD, which is the shape its reader consumes:
+ *     `DetailView` does `res.json()` then `setData(result?.data || result)`.
+ *     The one case that reaches it asserts only that the "No data source
+ *     resolved" panel stays absent, and that panel is a WIRING gate
+ *     (`ElementDataSourceGate`) decided before any response arrives — it is
+ *     absent here because the block declares `api`, not because the request
+ *     failed. Serving the record therefore exercises the success path this
+ *     route always had, without moving any assertion.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+const EXPLAIN_ROUTE = '/api/v1/security/explain';
+
+/** `DetailView`'s `api`-sourced read — `${schema.api}/${schema.resourceId}`. */
+const RECORD_ROUTE = '/api/task/42';
+
+const SERVED_ROUTES: readonly string[] = [EXPLAIN_ROUTE, RECORD_ROUTE];
+
+/** Every URL this file's renders handed the global `fetch`, in request order. */
+let servedCalls: string[] = [];
+
+/** Serve both routes; record everything; 404 anything else. */
+function installFetchDouble() {
+  servedCalls = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown, init?: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      servedCalls.push(url);
+      if (url === RECORD_ROUTE) return { ok: true, status: 200, json: async () => RECORD };
+      if (url !== EXPLAIN_ROUTE) return { ok: false, status: 404, json: async () => ({}) };
+      let body: { recordId?: unknown; recordIds?: unknown } = {};
+      try {
+        body = JSON.parse(String((init as { body?: unknown } | undefined)?.body ?? '{}'));
+      } catch {
+        /* a non-JSON body is not a request this route can answer */
+      }
+      const recordIds = Array.isArray(body.recordIds) ? body.recordIds : null;
+      return {
+        ok: true,
+        status: 200,
+        json: async () =>
+          recordIds
+            ? { records: recordIds.map((recordId) => ({ recordId, visible: true })) }
+            : { record: { visible: true } },
+      };
+    }),
+  );
+}
+
+beforeEach(() => {
+  cleanup();
+  installFetchDouble();
+});
+
+afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of vanishing into one of the readers' best-effort `catch`es.
+  expect(servedCalls.filter((url) => !SERVED_ROUTES.includes(url))).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch`. Vitest runs `afterEach` hooks in
+  // reverse registration order, so this file's teardown runs before the root
+  // setup's RTL cleanup: unstubbing first would leave the tree mounted with the
+  // real global back in place, and a verdict effect settling in that window
+  // escapes again (objectui#7439).
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('guide/building-crud-app.md — the `detail-view` snippet actually renders', () => {
   it('publishes exactly one detail snippet', () => {

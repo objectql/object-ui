@@ -7,7 +7,8 @@
  */
 
 /**
- * @object-ui/types/zod - ADR-0049 retirement tombstone helper
+ * @object-ui/types/zod - ADR-0049 retirement tombstone helper, and its two
+ * named-refusal siblings (handler keys, alias spellings)
  *
  * @module zod/tombstone
  * @packageDocumentation
@@ -119,4 +120,70 @@ export function handlerKeyRefusal(key: string, disposition: HandlerKeyDispositio
     'node with a declared action, the spelling PR #6498 established.';
   const guidance = `${label ? `${label} — ` : ''}${what} ${remedy}`;
   return z.custom<never>(() => false, { error: guidance }).optional().describe(guidance);
+}
+
+/**
+ * Declare a NAMED ALIAS REFUSAL ARM: a key that is a sibling SPELLING of a
+ * declared member — never a member itself — kept declared and unwritable so an
+ * authored value is refused by name and pointed at the canonical spelling,
+ * instead of being STRIPPED in silence by a non-strict `z.object`
+ * (objectui#7694, `domain:ui` PM ruling on objectui#7546: option A). The lead
+ * sentence is the one `@objectstack/spec`'s `strictObject({ aliases })` answers
+ * with, so an author meets the same remedy on both faces:
+ *
+ *     Unrecognized key(s) on this chart series: `chartType`. Did you mean
+ *     `chartType` → `type`? …
+ *
+ * The third member of this file's family, and deliberately neither of the
+ * other two by NAME — while sharing {@link retirementTombstone}'s PRIMITIVE:
+ *
+ *   - not {@link retirementTombstone} by name: that helper's guidance is a
+ *     MIGRATION NOTE for a key the contract is withdrawing (ADR-0049), while an
+ *     alias arm's guidance has to carry the canonical spelling instead.
+ *     ⚠️ What separates the two is NOT declaration history. Measured on this
+ *     tree: `MenuItemSchema.type` (`overlay.zod.ts:196`, objectui#6523) is a
+ *     `retirementTombstone` whose own guidance reads "`type` ('separator' or
+ *     'label') was an undeclared spelling two renderers used to read and is now
+ *     a declared refusal, not a strip", and `overlay.ts:458-464` states it
+ *     again ("a spelling the type never declared"). A never-declared,
+ *     renderer-read spelling turned into a named refusal pointing at the
+ *     canonical key therefore ALREADY had a precedent in this package, and it
+ *     was filed under `retirementTombstone`.
+ *     What is new here is the MESSAGE: this helper composes the lead sentence
+ *     `@objectstack/spec`'s `strictObject({ aliases })` answers with, so one
+ *     remedy meets the author on both faces. Same `z.never` primitive, same
+ *     `invalid_type` code, a three-line composer — a VOCABULARY, not a shape.
+ *   - not {@link handlerKeyRefusal}: that says why JSON cannot author a
+ *     function-valued key; an alias has a perfectly authorable value under the
+ *     other name. And not its `z.custom` primitive either — measured:
+ *     `z.toJSONSchema` THROWS on a `z.custom` arm ("Custom types cannot be
+ *     represented in JSON Schema") and represents a `z.never` arm as
+ *     `{ not: {} }` carrying the description. `z.toJSONSchema(ChartDataSeriesSchema)`
+ *     succeeded before the first alias arm landed and goes on succeeding.
+ *   - not a FOLD (`.overwrite()`, the shape `foldChartXAxisAlias` takes in
+ *     `data-display.zod.ts`): a fold is only honest where the canonical key is
+ *     the READER's first limb, so "canonical wins when both are written" restates
+ *     a precedence already running. Where the reader takes the ALIAS first, a
+ *     fold would let it overwrite the canonical key; the refusal is the shape
+ *     there (objectui#7113's precedence rule, not inverted).
+ *
+ * Same discipline as its siblings: ONE string feeds BOTH author-facing
+ * channels — the parse-time issue message and the `.describe()` metadata — so
+ * they cannot drift apart. The issue `code` is `invalid_type` at the key's own
+ * path, `z.input` is `undefined`, so the TypeScript twin is a `?: never`
+ * tombstone and the pair does not drift in `zod-mirror-parity.test.ts`.
+ * Pinned in `../__tests__/chart-series-chart-type-alias-refusal-7694.test.ts`.
+ *
+ * @param alias     the refused spelling, spelled into the message so the issue
+ *                  is addressed even when read without its path
+ * @param canonical the declared member the author meant
+ * @param surface   the object being authored, phrased as the spec phrases it
+ *                  (`'this chart series'`)
+ * @param detail    the site's own reason and remedy — why the alias is not a
+ *                  member HERE, and what to write instead
+ */
+export function aliasKeyRefusal(alias: string, canonical: string, surface: string, detail: string) {
+  const guidance =
+    `Unrecognized key(s) on ${surface}: \`${alias}\`. Did you mean \`${alias}\` → \`${canonical}\`? ${detail}`;
+  return z.never({ error: guidance }).optional().describe(guidance);
 }

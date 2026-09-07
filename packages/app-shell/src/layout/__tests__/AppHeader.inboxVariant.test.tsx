@@ -58,13 +58,15 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 // Passthrough primitives: the popover body renders inline instead of driving
 // Radix open/close in jsdom (i.e. "as if the user clicked the bell"). Menus
 // that Radix would keep unmounted while closed render as nothing.
-vi.mock('@object-ui/components', () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const Pass = ({ children, ...p }: any) => <div {...stripProps(p)}>{children}</div>;
   const stripProps = (p: any) => {
     const { asChild, variant, size, align, sideOffset, ...rest } = p ?? {};
     return rest;
   };
   return {
+    ...actual,
     Button: ({ children, asChild, variant, size, ...p }: any) => (
       <button type="button" {...p}>{children}</button>
     ),
@@ -118,7 +120,8 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
 // #4197 boundary case can assert that presence stays app-only chrome while the
 // activity feed goes user-scoped. `useTenantPresence` is a transport
 // subscription, not a `dataSource.find` — there is no presence *read* to count.
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   PresenceAvatars: () => <div data-testid="presence-avatars" />,
   useTenantPresence: () => [{ id: 'u2', name: 'Wang Wu' }],
 }));
@@ -133,7 +136,8 @@ vi.mock('../AppSwitcher', () => ({ AppSwitcher: () => null }));
 vi.mock('../LocalizedSidebarTrigger', () => ({ LocalizedSidebarTrigger: () => null }));
 vi.mock('../PreviewBadge', () => ({ PreviewBadge: () => null }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
     user: { id: 'u1', name: 'Zhang San', email: 'zs@example.com' },
     signOut: vi.fn(),

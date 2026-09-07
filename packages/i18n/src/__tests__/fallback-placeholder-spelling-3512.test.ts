@@ -134,10 +134,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
+import {
+  HAND_ROLLED_TABLES,
+  scanDefaultsTables,
+} from '@object-ui/test-support/defaults-table-scan';
+import { DOUBLE_BRACE, placeholderViolations } from './placeholder-spelling-rule';
 import { builtInLocales } from '../locales';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -145,65 +148,21 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, '../../../..');
 
 /* ------------------------------------------------------------------ */
-/* The rule                                                            */
+/* The rule — beside this file, so the parity gate can reach it        */
 /* ------------------------------------------------------------------ */
 
-/**
- * A `{{…}}` pair and its contents. `[^{}]*` deliberately: a placeholder never
- * nests braces, and refusing to cross one keeps an unterminated `{{` from
- * swallowing the rest of the sentence into a bogus "placeholder".
- */
-const DOUBLE_BRACE = /\{\{([^{}]*)\}\}/g;
-
-/** Every `{{` occurrence, matched or not — the balance check's other half. */
-const DOUBLE_BRACE_OPEN = /\{\{/g;
-
-/**
- * The one spelling `fallbackT` resolves. `k` comes from `Object.entries(options)`
- * and is spliced into the needle raw, so the accepted name is exactly a bare
- * identifier: no whitespace, no format spec, no `-` prefix, no dotted path.
- */
-const CANONICAL_NAME = /^[A-Za-z0-9_]+$/;
-
-/** i18next's nesting syntax. The fallback has no notion of it at all. */
-const NESTING = '$t(';
-
-/** Why one placeholder is not something `fallbackT` can resolve. */
-function reasonFor(inner: string): string {
-  if (inner !== inner.trim()) return 'whitespace inside the braces';
-  if (inner.startsWith('-')) return 'the {{- x}} unescape prefix';
-  if (inner.includes(',')) return 'an i18next format spec';
-  if (inner.includes('.')) return 'a dotted/keyed placeholder path';
-  return 'a non-identifier placeholder name';
-}
-
-/**
- * THE rule. Returns one human-readable violation per offending placeholder, and
- * `[]` for copy the provider-less fallback renders identically to i18next.
+/*
+ * The predicate was written out here until objectui#7310. It now lives in
+ * `./placeholder-spelling-rule.ts`, unchanged, because
+ * `scripts/__tests__/placeholder-spelling-parity.test.ts` has to import it
+ * alongside `check-i18n-call-site-keys.mjs`'s copy — and a `*.test.ts` is not
+ * importable for that purpose: vitest registers each `describe` into whichever
+ * file is collecting when the module evaluates, so importing this suite drags
+ * its cases into the importer. That module's header records the measurement,
+ * and why the two implementations are pinned to each other rather than merged.
  *
- * Only the inside of a `{{…}}` pair is judged, so single-brace `{x}` holes
- * (objectui#4135's downstream-fill convention) can never reach a verdict here.
+ * Every case below is this side's own self-test and is unchanged.
  */
-export function placeholderViolations(value: string): string[] {
-  const out: string[] = [];
-  const regions = [...value.matchAll(DOUBLE_BRACE)];
-  for (const region of regions) {
-    const inner = region[1];
-    if (CANONICAL_NAME.test(inner)) continue;
-    out.push(
-      `${JSON.stringify(region[0])} — ${reasonFor(inner)}; the fallback resolves only {{name}}`,
-    );
-  }
-  // An unterminated `{{` renders as literal braces on BOTH paths, so it is not
-  // an i18next divergence — but it is never intentional copy, and the regions
-  // above cannot report what they did not match.
-  const opens = (value.match(DOUBLE_BRACE_OPEN) ?? []).length;
-  if (opens > regions.length) out.push('an unterminated `{{` with no closing `}}`');
-  if (value.includes(NESTING)) {
-    out.push('`$t(` — i18next nesting, which the fallback emits verbatim');
-  }
-  return out;
-}
 
 /* ------------------------------------------------------------------ */
 /* Copy source 1 — the ten locale packs                                */
@@ -229,233 +188,22 @@ const PACK_LEAVES = new Map(LOCALE_CODES.map((code) => [code, leaves(builtInLoca
 /* Copy source 2/3 — the defaults tables, read from source             */
 /* ------------------------------------------------------------------ */
 
-/** The factory, and plugin-detail's re-export alias for it. */
-const FACTORY_NAMES = new Set(['createSafeTranslation', 'createSafeTranslationHook']);
-
-/**
- * The literal needle, as it is spelled in source: ``.split(`{{${``. The
- * completeness case below pins which files carry it, so a fourth hand-rolled
- * copy of `fallbackT` forces an edit here instead of escaping the gate.
+/*
+ * The walk that discovers these tables moved to
+ * `@object-ui/test-support`'s `defaults-table-scan.ts` in objectui#7884, so
+ * that the objectui#4401 gate — "every defaults row names a key the `en` pack
+ * actually defines", which used to read a hand-written list of three imported
+ * maps and therefore judged 400 of 1056 rows — asks its question of exactly the
+ * population this file asks its own question of. Two traversals would be two
+ * definitions of that population, drifting apart. Nothing about the discovery
+ * changed in the move: same factory names, same hand-rolled registry, same
+ * `unreadable` reporting. Verified byte-identical either side of the move on the
+ * same tree — 35 discovery entries, 1072 rows, 0 unreadable, the same 4 needle
+ * files, and the same sha256 over every row. (The walked-FILE count matched too,
+ * but it is not quoted here: it moves by one with `apps/site/next-env.d.ts`,
+ * which is generated at install time, so it is a property of the checkout rather
+ * than of the tree. The case below floors it instead of pinning it.)
  */
-const NEEDLE_IN_SOURCE = '.split(`{{${';
-
-/** Every runtime `.ts`/`.tsx` under the workspace — tests and tooling excluded. */
-function collectSourceFiles(): string[] {
-  const out: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const name = entry.name;
-      if (
-        name === 'node_modules' ||
-        name === 'dist' ||
-        name === '__tests__' ||
-        name === '__mocks__' ||
-        name.startsWith('.')
-      ) {
-        continue;
-      }
-      const full = path.join(dir, name);
-      if (entry.isDirectory()) walk(full);
-      else if (/\.tsx?$/.test(name) && !/\.(test|spec|bench|stories)\.tsx?$/.test(name)) {
-        out.push(full);
-      }
-    }
-  };
-  for (const root of ['packages', 'apps', 'examples']) {
-    const full = path.join(REPO_ROOT, root);
-    if (existsSync(full) && statSync(full).isDirectory()) walk(full);
-  }
-  return out.sort();
-}
-
-const SOURCE_FILES = collectSourceFiles();
-const rel = (abs: string) => path.relative(REPO_ROOT, abs);
-
-const parsed = new Map<string, ts.SourceFile | null>();
-function sourceFileFor(abs: string): ts.SourceFile | null {
-  if (parsed.has(abs)) return parsed.get(abs) ?? null;
-  const sf = existsSync(abs)
-    ? ts.createSourceFile(
-        abs,
-        readFileSync(abs, 'utf8'),
-        ts.ScriptTarget.Latest,
-        true,
-        abs.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-      )
-    : null;
-  parsed.set(abs, sf);
-  return sf;
-}
-
-/** Peel the wrappers a table declaration may carry before its object literal. */
-function unwrap(node: ts.Expression): ts.Expression {
-  let e = node;
-  for (;;) {
-    if (ts.isAsExpression(e) || ts.isSatisfiesExpression(e) || ts.isParenthesizedExpression(e)) {
-      e = e.expression;
-      continue;
-    }
-    return e;
-  }
-}
-
-/** The initializer of a top-level `const <name> = …` in this file. */
-function constInitializer(sf: ts.SourceFile, name: string): ts.Expression | null {
-  let found: ts.Expression | null = null;
-  const visit = (node: ts.Node) => {
-    if (found) return;
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.name.text === name &&
-      node.initializer
-    ) {
-      found = node.initializer;
-      return;
-    }
-    ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(sf, visit);
-  return found;
-}
-
-/** Follow `import { <name> } from './relative'` to the file that declares it. */
-function importedFrom(sf: ts.SourceFile, name: string): string | null {
-  let spec: string | null = null;
-  ts.forEachChild(sf, (node) => {
-    if (spec !== null) return;
-    if (
-      ts.isImportDeclaration(node) &&
-      node.importClause?.namedBindings &&
-      ts.isNamedImports(node.importClause.namedBindings) &&
-      ts.isStringLiteral(node.moduleSpecifier)
-    ) {
-      for (const element of node.importClause.namedBindings.elements) {
-        if (element.name.text === name) spec = node.moduleSpecifier.text;
-      }
-    }
-  });
-  if (spec === null || !(spec as string).startsWith('.')) return null;
-  const base = path.resolve(path.dirname(sf.fileName), spec);
-  for (const candidate of [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`]) {
-    if (existsSync(candidate)) return candidate;
-  }
-  return null;
-}
-
-/**
- * A string a table row is declared with. Handles the `'a' + 'b'` concatenation
- * one row uses (`plugin-form/src/occSave.tsx`); anything else returns
- * `undefined` and is REPORTED rather than skipped — a row the gate cannot read
- * is a hole in it, not an exemption.
- */
-function staticString(node: ts.Expression): string | undefined {
-  const e = unwrap(node);
-  if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return e.text;
-  if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.PlusToken) {
-    const left = staticString(e.left);
-    const right = staticString(e.right);
-    if (left !== undefined && right !== undefined) return left + right;
-  }
-  return undefined;
-}
-
-/** One row of one gated table, located precisely enough to fix. */
-interface Row {
-  readonly table: string;
-  readonly where: string;
-  readonly key: string;
-  readonly value: string;
-}
-
-interface TableScan {
-  readonly rows: Row[];
-  /** Rows whose value is not a static string, and tables that never resolved. */
-  readonly unreadable: string[];
-}
-
-function scanObjectLiteral(
-  literal: ts.ObjectLiteralExpression,
-  table: string,
-  into: TableScan,
-  keyPrefix = '',
-): void {
-  const owner = literal.getSourceFile();
-  const at = (node: ts.Node) =>
-    `${rel(owner.fileName)}:${owner.getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
-  for (const property of literal.properties) {
-    if (ts.isPropertyAssignment(property)) {
-      const name =
-        ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
-          ? property.name.text
-          : null;
-      if (name === null) {
-        into.unreadable.push(`${at(property)} — computed key in ${table}`);
-        continue;
-      }
-      const key = keyPrefix ? `${keyPrefix}.${name}` : name;
-      const initializer = unwrap(property.initializer);
-      if (ts.isObjectLiteralExpression(initializer)) {
-        scanObjectLiteral(initializer, table, into, key);
-        continue;
-      }
-      const value = staticString(initializer);
-      if (value === undefined) {
-        into.unreadable.push(`${at(property)} — ${table}.${key} is not a static string`);
-        continue;
-      }
-      into.rows.push({ table, where: at(property), key, value });
-    } else {
-      into.unreadable.push(`${at(property)} — non-assignment member in ${table}`);
-    }
-  }
-}
-
-/**
- * Resolve a `createSafeTranslation` first argument to its object literal: an
- * inline table, a `const` in the same file, or a `const` imported from a
- * relative module.
- */
-function resolveTableArgument(
-  sf: ts.SourceFile,
-  argument: ts.Expression,
-): { literal: ts.ObjectLiteralExpression | null; name: string } {
-  const unwrapped = unwrap(argument);
-  if (ts.isObjectLiteralExpression(unwrapped)) {
-    return { literal: unwrapped, name: '(inline table)' };
-  }
-  if (ts.isIdentifier(unwrapped)) {
-    const name = unwrapped.text;
-    let initializer = constInitializer(sf, name);
-    if (initializer === null) {
-      const from = importedFrom(sf, name);
-      const imported = from === null ? null : sourceFileFor(from);
-      if (imported) initializer = constInitializer(imported, name);
-    }
-    if (initializer !== null) {
-      const literal = unwrap(initializer);
-      if (ts.isObjectLiteralExpression(literal)) return { literal, name };
-    }
-    return { literal: null, name };
-  }
-  return { literal: null, name: ts.SyntaxKind[unwrapped.kind] };
-}
-
-/**
- * The three tables whose packages re-implemented `fallbackT`'s literal needle
- * rather than taking the factory. Each file states its own reason for that;
- * none of them changes the grammar the needle accepts, so the rule is the same.
- * `TIMELINE_DEFAULT_TRANSLATIONS` also reaches the factory — listed anyway, so
- * the registry mirrors the needle-file set the completeness case pins.
- */
-const HAND_ROLLED_TABLES: readonly { readonly file: string; readonly name: string }[] = [
-  { file: 'packages/plugin-gantt/src/useGanttTranslation.ts', name: 'GANTT_DEFAULT_TRANSLATIONS' },
-  { file: 'packages/plugin-grid/src/ImportWizard.tsx', name: 'IMPORT_DEFAULT_TRANSLATIONS' },
-  {
-    file: 'packages/plugin-timeline/src/useTimelineTranslation.ts',
-    name: 'TIMELINE_DEFAULT_TRANSLATIONS',
-  },
-];
 
 /**
  * Files that carry the literal needle today — the completeness case's subject.
@@ -473,62 +221,7 @@ const NEEDLE_FILES = [
   'packages/plugin-timeline/src/useTimelineTranslation.ts',
 ];
 
-function scanDefaultsTables(): TableScan & { readonly tables: string[]; readonly needle: string[] } {
-  const scan: TableScan = { rows: [], unreadable: [] };
-  const tables: string[] = [];
-  const needle: string[] = [];
-
-  for (const abs of SOURCE_FILES) {
-    const text = readFileSync(abs, 'utf8');
-    if (text.includes(NEEDLE_IN_SOURCE)) needle.push(rel(abs));
-    if (!text.includes('createSafeTranslation')) continue;
-    const sf = sourceFileFor(abs);
-    if (!sf) continue;
-    const visit = (node: ts.Node) => {
-      if (ts.isCallExpression(node)) {
-        const callee = node.expression;
-        const name = ts.isIdentifier(callee)
-          ? callee.text
-          : ts.isPropertyAccessExpression(callee)
-            ? callee.name.text
-            : null;
-        if (name !== null && FACTORY_NAMES.has(name) && node.arguments.length > 0) {
-          const line = sf.getLineAndCharacterOfPosition(node.getStart()).line + 1;
-          const { literal, name: tableName } = resolveTableArgument(sf, node.arguments[0]);
-          const label = `${tableName} (${rel(abs)}:${line})`;
-          if (literal === null) {
-            // Not an exemption: a table the gate cannot reach is a table the
-            // gate does not cover, and that has to be visible.
-            scan.unreadable.push(`${rel(abs)}:${line} — cannot resolve ${tableName} to a table`);
-          } else {
-            tables.push(label);
-            scanObjectLiteral(literal, label, scan);
-          }
-        }
-      }
-      ts.forEachChild(node, visit);
-    };
-    ts.forEachChild(sf, visit);
-  }
-
-  for (const { file, name } of HAND_ROLLED_TABLES) {
-    const abs = path.join(REPO_ROOT, file);
-    const sf = sourceFileFor(abs);
-    const initializer = sf === null ? null : constInitializer(sf, name);
-    const literal = initializer === null ? null : unwrap(initializer);
-    if (literal === null || !ts.isObjectLiteralExpression(literal)) {
-      scan.unreadable.push(`${file} — hand-rolled table ${name} no longer resolves`);
-      continue;
-    }
-    const label = `${name} (${file})`;
-    tables.push(label);
-    scanObjectLiteral(literal, label, scan);
-  }
-
-  return { ...scan, tables, needle: needle.sort() };
-}
-
-const TABLE_SCAN = scanDefaultsTables();
+const TABLE_SCAN = scanDefaultsTables(REPO_ROOT);
 
 /* ------------------------------------------------------------------ */
 /* The cases                                                           */
@@ -585,7 +278,7 @@ describe('the fallback only ever meets placeholders it can resolve (objectui#351
       // free; only a table DISAPPEARING has to be explained.
       expect(TABLE_SCAN.tables.length).toBeGreaterThanOrEqual(34);
       expect(TABLE_SCAN.rows.length).toBeGreaterThanOrEqual(700);
-      expect(SOURCE_FILES.length).toBeGreaterThan(1_000);
+      expect(TABLE_SCAN.sourceFiles.length).toBeGreaterThan(1_000);
       // Every discovered table resolved to a literal and every row to a string.
       // A table the scanner cannot read is a hole in the gate, reported here
       // rather than skipped in silence.

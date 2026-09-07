@@ -59,13 +59,15 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
  * its children rather than the `() => null` that suffices when only the bell is
  * under test. Radix would otherwise keep the closed menu unmounted in jsdom.
  */
-vi.mock('@object-ui/components', () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const stripProps = (p: any) => {
     const { asChild, variant, size, align, sideOffset, ...rest } = p ?? {};
     return rest;
   };
   const Pass = ({ children, ...p }: any) => <div {...stripProps(p)}>{children}</div>;
   return {
+    ...actual,
     Button: ({ children, asChild, variant, size, ...p }: any) => (
       <button type="button" {...p}>{children}</button>
     ),
@@ -111,7 +113,8 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
   useOffline: () => ({ isOnline: true }),
 }));
 
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   PresenceAvatars: () => null,
   useTenantPresence: () => [],
 }));
@@ -140,7 +143,7 @@ let organizations: Array<Record<string, unknown>> = [ONE_ORG];
 /** `features.multiOrgEnabled` the mocked auth config resolves with. */
 let multiOrgEnabled = true;
 
-vi.mock('@object-ui/auth', () => {
+vi.mock('@object-ui/auth', async (importOriginal) => {
   /**
    * ONE stable function identity for the whole file — not a fresh arrow per
    * `useAuth()` call. Both AppHeader and WorkspaceSwitcher resolve this config
@@ -152,6 +155,7 @@ vi.mock('@object-ui/auth', () => {
    */
   const getAuthConfig = () => Promise.resolve({ features: { multiOrgEnabled } });
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     useAuth: () => ({
       user: { id: 'u1', name: 'Zhang San', email: 'zs@example.com' },
       signOut: vi.fn(),

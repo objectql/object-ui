@@ -19,6 +19,7 @@ const ja = {
       manage_users: "ユーザー管理",
       manage_org_users: "組織ユーザーの管理",
       manage_metadata: "メタデータ管理",
+      manage_org_presentation: "組織表示の管理",
       manage_platform_settings: "プラットフォーム設定の管理",
       setup_access: "設定へのアクセス",
       setup_write: "設定の書き込み",
@@ -277,6 +278,12 @@ const ja = {
       refusedFormat:
         "保存されていません: 緯度, 経度 の組で入力してください（例: 30.2741, 120.1551）。",
       refusedRange: "保存されていません: {{detail}}",
+      latitude: "緯度",
+      longitude: "経度",
+      refusedResidueOne:
+        "保存されていません: {{name}}「{{text}}」は数値ではありません。通常の小数で入力してください（例: 30.2741, 120.1551）。",
+      refusedResidue:
+        "保存されていません: {{name}}「{{text}}」と{{otherName}}「{{otherText}}」は数値ではありません。通常の小数で入力してください（例: 30.2741, 120.1551）。",
     },
     tags: {
       placeholder: "入力してEnterキーで追加…",
@@ -1096,6 +1103,9 @@ const ja = {
     loading: "チャート読み込み中…",
     nullCategory: "（未設定）",
     scatterOneMeasure: "散布図は1つの指標だけを描画します。系列は1つだけ残してください：",
+    unconfigured: {
+      noCategoryAxis: "チャートのカテゴリ軸が必要です — オブジェクト連携チャートは軸を推測しません。次のいずれかを宣言してください：",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1447,6 +1457,9 @@ const ja = {
   console: {
     saveAdvisoryTitle: "保存しました — 編集チェックで {{count}} 件の推奨事項が見つかりました",
     publishAdvisoryTitle: "公開しました — 編集チェックで {{count}} 件の推奨事項が見つかりました",
+    importMappingsUnavailable: "{{object}} の保存済みインポートマッピングを読み込めませんでした",
+    importMappingsRefused: "サーバーがこのリクエストを拒否しました。つまりこのリストが空なのは読み取れなかったためであり、何も登録されていないためではありません。再度サインインするか、管理者にアクセス権を依頼してください。",
+    importMappingsUnreadable: "このリストが空なのは読み取れなかったためであり、何も登録されていないためではありません。再試行し、繰り返し発生する場合は報告してください。",
     settingsHub: {
       title: "設定",
       subtitle: "ワークスペース、連携、機能フラグを設定します。",
@@ -1638,11 +1651,21 @@ const ja = {
           availableObjects: "利用できるデータオブジェクトを一覧にしてください。",
           recentActivity: "最近の自分の活動を要約してください。",
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: "いずれかのオブジェクトに項目を追加してください。",
           addObject: "新しいオブジェクトを追加し、既存のものと関連づけてください。",
           addDashboard: "主要指標のダッシュボードを追加してください。",
-          addAutomation: "自動化を追加してください — 承認、ステータスフロー、または通知。",
+          addSampleData: "既存のオブジェクトに、デモで使えるリアルなサンプルデータを入れてください。",
         },
       },
       changesTitle: "変更の確認",

@@ -13,6 +13,7 @@ import {
   countChunksCarrying,
   derivePinnedKeys,
   main,
+  sourceFirstEntries,
 } from '../check-sdui-registration-pins.mjs';
 
 /**
@@ -28,8 +29,18 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** A fixture root: one array package with one registrar, plus a fake console dist. */
-function fixture(chunks: Record<string, string>): string {
+/** The registrar body both spellings of the fixture package carry. */
+const REGISTRAR = "import { ComponentRegistry } from 'somewhere';\nComponentRegistry.register('fixture:widget', 1);\n";
+
+/**
+ * A fixture root: one array package with one registrar, plus a fake console dist.
+ *
+ * `built` writes the package's PUBLISHED spelling too. The array always names
+ * both (that is the `check-side-effects-array` rule), but only a built tree has
+ * both on disk — so this flag is how a case states which build state it means
+ * instead of inheriting the runner's, which is objectui#6893's whole subject.
+ */
+function fixture(chunks: Record<string, string>, { built = false }: { built?: boolean } = {}): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'objectui-6683-pins-'));
   fs.writeFileSync(path.join(dir, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
   const pkg = path.join(dir, 'packages/pkg');
@@ -42,10 +53,11 @@ function fixture(chunks: Record<string, string>): string {
       sideEffects: ['./dist/index.js', './src/index.ts'],
     }),
   );
-  fs.writeFileSync(
-    path.join(pkg, 'src/index.ts'),
-    "import { ComponentRegistry } from 'somewhere';\nComponentRegistry.register('fixture:widget', 1);\n",
-  );
+  fs.writeFileSync(path.join(pkg, 'src/index.ts'), REGISTRAR);
+  if (built) {
+    fs.mkdirSync(path.join(pkg, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(pkg, 'dist/index.js'), REGISTRAR);
+  }
   const assets = path.join(dir, 'apps/console/dist/assets');
   fs.mkdirSync(assets, { recursive: true });
   for (const [name, code] of Object.entries(chunks)) fs.writeFileSync(path.join(assets, name), code);
@@ -132,6 +144,91 @@ describe('the fixture console', () => {
   });
 });
 
+describe('the source spelling wins, whatever the tree has been built to', () => {
+  // objectui#6893. A `sideEffects` array names every registrar TWICE — once as
+  // `src/x.tsx`, once as `dist/x.js` — and `derivePinnedKeys` attributes a key
+  // to the FIRST module it read it from. With no order of its own, the winner
+  // was decided by the array's literal order in `package.json` AND by whether
+  // `dist/` happened to be on disk. `packages/app-shell/dist` is gitignored, so
+  // the SAME COMMIT answered the source spelling on an unbuilt checkout and the
+  // published one on a built checkout — a verdict that is a function of hidden
+  // local state, which is the family this repo keeps paying for.
+  //
+  // The two cases below are ONE assertion run over the two build states, which
+  // is the property itself. They use a fixture rather than the workspace on
+  // purpose: a fixture owns its own build state, so these cases keep asserting
+  // the preference on a machine where nothing has been built — exactly the
+  // machines a conditional skip would have stopped running on.
+  const chunk = { 'index-abc.js': "R.register('fixture:widget',1)" };
+
+  it('attributes the key to the SOURCE spelling when BOTH spellings are on disk', () => {
+    const dir = fixture(chunk, { built: true });
+    try {
+      const { keys, sources, modulesRead } = derivePinnedKeys(dir);
+      // Both spellings were still READ: this is a reordering, not a filter, so
+      // the derived population — the only input to the gate's verdict — cannot
+      // move. If this drops to 1 the fix has started hiding modules instead.
+      expect(modulesRead).toBe(2);
+      expect(keys).toEqual(['fixture:widget']);
+      expect(sources.get('fixture:widget')).toBe('packages/pkg/src/index.ts');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('gives that same answer when only the source spelling is on disk', () => {
+    const dir = fixture(chunk);
+    try {
+      const { keys, sources, modulesRead } = derivePinnedKeys(dir);
+      expect(modulesRead).toBe(1);
+      expect(keys).toEqual(['fixture:widget']);
+      expect(sources.get('fixture:widget')).toBe('packages/pkg/src/index.ts');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('THROWS rather than falling back to array order when the two spellings cannot be told apart', () => {
+    // The ordering is derived from the package's own spelling map. When that map
+    // cannot be derived there is no source-first answer, and quietly reverting
+    // to array order would restore the build-state-dependent attribution above
+    // — silently, which is the failure this gate exists to refuse. Loud instead;
+    // `scripts/check-side-effects-array.mjs` owns this condition and already
+    // reports it as exit 2, so such a workspace is red there too.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'objectui-6893-nomap-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
+      const pkg = path.join(dir, 'packages/pkg');
+      fs.mkdirSync(path.join(pkg, 'src'), { recursive: true });
+      // `main` names the SOURCE barrel, so the manifest publishes no
+      // `index.js`-shaped entry and the map has nothing to anchor on.
+      fs.writeFileSync(
+        path.join(pkg, 'package.json'),
+        JSON.stringify({ name: '@fixture/pkg', main: './src/index.ts', sideEffects: ['./src/index.ts'] }),
+      );
+      fs.writeFileSync(path.join(pkg, 'src/index.ts'), REGISTRAR);
+      expect(() => derivePinnedKeys(dir)).toThrow(/source spelling from its published one/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps every declared entry — it reorders the read, it does not filter it', () => {
+    // The population guard for the reordering itself: a partition that dropped
+    // an entry would shrink the derived key set without any assertion noticing.
+    const declared = ['dist/index.js', 'src/index.ts', 'src/styles.css', 'dist/a/b.js', 'src/a/b.tsx'];
+    const dir = fixture(chunk, { built: true });
+    try {
+      const pkg = { name: '@fixture/pkg', dir: 'packages/pkg', declared, manifest: { main: './dist/index.js' } };
+      const ordered = sourceFirstEntries(pkg, dir);
+      expect([...ordered].sort()).toEqual([...declared].sort());
+      expect(ordered.slice(0, 3).every((e) => e.startsWith('src/'))).toBe(true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('the real workspace', () => {
   it('derives the keys from the arrays, and the ruled controls are among them', () => {
     const { keys, sources, unreadable, modulesRead } = derivePinnedKeys(repoRoot);
@@ -142,7 +239,13 @@ describe('the real workspace', () => {
       expect(keys, `${control} is one of the three registrations the 2026-08-29 ruling pins`).toContain(control);
     }
     // The derivation must point at the module it read the key from, or a drop
-    // would be reported without saying which array entry promised it.
+    // would be reported without saying which array entry promised it — and it
+    // must point at the SOURCE module, the one an author can go and fix, not at
+    // the gitignored build artifact beside it. Before objectui#6893 this line
+    // was the workspace's build state in disguise: green on an unbuilt checkout,
+    // red on a built one, same commit. The preference itself is pinned above on
+    // a fixture that owns its build state; this line is the real workspace's
+    // half, and it now holds in every build state.
     expect(sources.get('mcp:connect-agent')).toBe(
       'packages/app-shell/src/console/connect/ConnectAgentWidget.tsx',
     );

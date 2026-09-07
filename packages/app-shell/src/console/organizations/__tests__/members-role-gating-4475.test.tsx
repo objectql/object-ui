@@ -114,9 +114,11 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
-vi.mock('@object-ui/components', () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const passthrough = (tag: string) => (p: any) => React.createElement(tag, p, p.children);
   return {
+    ...actual,
     Avatar: passthrough('div'),
     AvatarFallback: passthrough('div'),
     AvatarImage: (p: any) => <img {...p} />,
@@ -163,9 +165,11 @@ vi.mock('@object-ui/components', () => {
   };
 });
 
-vi.mock('lucide-react', () => {
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const icon = () => <span />;
   return {
+    ...actual,
     Loader2: icon,
     Copy: icon,
     Check: icon,

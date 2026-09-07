@@ -74,15 +74,20 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: null, signOut: vi.fn(), isAuthEnabled: false, activeOrganization: null }),
   useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
   getUserInitials: () => 'U',
 }));
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({ can: () => true, hasCapabilities: () => true }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({ can: () => true, hasCapabilities: () => true }),
+  };
+});
 
 /** The zero-app deployment `systemFallbackNavigation` exists for. */
 vi.mock('../../providers/MetadataProvider', () => ({

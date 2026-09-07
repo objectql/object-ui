@@ -39,6 +39,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/fields": "workspace:*",
     "@object-ui/i18n": "workspace:*",
+    "@object-ui/permissions": "workspace:*",
     "@object-ui/plugin-detail": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "@object-ui/data-objectstack": "workspace:*",
+    "@object-ui/sdui-parser": "workspace:*",
     "@object-ui/test-support": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "19.2.18",

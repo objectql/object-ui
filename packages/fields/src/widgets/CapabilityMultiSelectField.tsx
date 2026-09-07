@@ -130,6 +130,7 @@ const CURATED_CAPABILITY_LABELS = new Set([
   'manage_users',
   'manage_org_users',
   'manage_metadata',
+  'manage_org_presentation',
   'manage_platform_settings',
   // The spec spells these three with a dot (`setup.access`, `setup.write`,
   // `studio.access`). `labelFor` normalises dots to underscores before building

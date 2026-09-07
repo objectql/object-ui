@@ -29,6 +29,7 @@ const zh = {
       manage_users: '管理用户',
       manage_org_users: '管理组织用户',
       manage_metadata: '管理元数据',
+      manage_org_presentation: '管理组织展示',
       manage_platform_settings: '管理平台设置',
       setup_access: '访问 Setup',
       setup_write: '保存设置',
@@ -284,6 +285,12 @@ const zh = {
       refusedFormat:
         '未保存：请输入纬度, 经度坐标对（例如 30.2741, 120.1551）。',
       refusedRange: '未保存：{{detail}}',
+      latitude: '纬度',
+      longitude: '经度',
+      refusedResidueOne:
+        '未保存：{{name}}“{{text}}”不是数字。请输入普通小数（例如 30.2741, 120.1551）。',
+      refusedResidue:
+        '未保存：{{name}}“{{text}}”和{{otherName}}“{{otherText}}”不是数字。请输入普通小数（例如 30.2741, 120.1551）。',
     },
     tags: {
       placeholder: '输入后回车添加…',
@@ -1135,6 +1142,9 @@ const zh = {
     loading: '图表加载中…',
     nullCategory: '(未指定)',
     scatterOneMeasure: '散点图只绘制一个度量。请只保留一个系列：',
+    unconfigured: {
+      noCategoryAxis: '图表需要分类轴 —— 对象绑定的图表不会虚构一个。请声明以下之一：',
+    },
   },
   report: {
     total: '总计',
@@ -1512,6 +1522,9 @@ const zh = {
   console: {
     saveAdvisoryTitle: '已保存 — 编辑检查提出了 {{count}} 条建议',
     publishAdvisoryTitle: '已发布 — 编辑检查提出了 {{count}} 条建议',
+    importMappingsUnavailable: "无法加载 {{object}} 的已保存导入映射",
+    importMappingsRefused: "服务器拒绝了此请求，因此该列表为空是因为读取失败，而不是因为没有注册任何映射。请重新登录，或联系管理员申请访问权限。",
+    importMappingsUnreadable: "该列表为空是因为读取失败，而不是因为没有注册任何映射。请重试；如果反复出现，请反馈此问题。",
     title: 'ObjectStack 控制台',
     initializing: '正在初始化应用程序…',
     search: '搜索…',
@@ -1827,11 +1840,21 @@ const zh = {
           availableObjects: '列出可用的数据对象。',
           recentActivity: '总结我的最近动态。',
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: '给某个对象加一个字段。',
           addObject: '新增一个对象，并关联到已有对象。',
           addDashboard: '加一个展示关键指标的仪表盘。',
-          addAutomation: '加一个自动化 —— 审批、状态流转或通知。',
+          addSampleData: '给现有对象补一批贴近真实的示例数据，好拿去演示。',
         },
       },
       // objectui#3546 slice four — the AI console surfaces: the /ai chat page's app switcher,

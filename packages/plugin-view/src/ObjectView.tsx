@@ -65,6 +65,7 @@ import {
   convertSortToQueryParams,
 } from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer, useSettledSchema } from '@object-ui/react';
+import { usePermissions } from '@object-ui/permissions';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
 import { useStableIdentity } from './stableIdentity';
@@ -229,8 +230,40 @@ export interface ObjectViewProps {
   schema: ObjectViewSchema;
 
   /**
-   * Data source (ObjectQL or ObjectStack adapter).
-   * If not provided, falls back to SchemaRendererProvider context.
+   * Data source (ObjectQL or ObjectStack adapter) — REQUIRED. This component
+   * never resolves one for itself.
+   *
+   * This comment used to close with "If not provided, falls back to
+   * SchemaRendererProvider context", one line above a declaration that has
+   * been required for its whole life (objectui#7842). The measurement that
+   * settled which of the two was wrong: `ObjectView` holds no context read at
+   * all — no `useContext`, no `SchemaRendererContext`, and not
+   * `useElementDataSource`, which is how `@object-ui/react` spells that
+   * fallback for the components that genuinely have one. The value travels
+   * from this prop into `useSettledSchema(schemaKey, dataSource)` (which has
+   * no context read either) and into the two effects below, and every one of
+   * those sites GUARDS on it instead of resolving one —
+   * `if (!dataSource?.onMutation …) return;` and
+   * `if (!dataSource || !schema.objectName) return;`.
+   *
+   * The promise was not invented, it was MISFILED. `ObjectViewRenderer`
+   * (`./index.tsx`) — the renderer registered for the `object-view` and `view`
+   * schema tags — is the thing that does exactly what that sentence described:
+   * it reads `useContext(SchemaRendererContext)` and hands `ctx?.dataSource`
+   * down to this prop. A schema-driven host therefore does get the provider's
+   * adapter; a caller writing `<ObjectView …>` in TSX does not, and tsc
+   * refuses the omission at the call site.
+   *
+   * What happens if it is absent anyway (an untyped JS host, or that
+   * registered renderer with no provider mounted, which passes `null`):
+   * nothing throws and nothing is fetched. `useSettledSchema` settles with
+   * `def: null`, both effects return early, and the value is forwarded
+   * verbatim to `ObjectGrid` / `SchemaRenderer`, whose own `dataSource` is
+   * declared optional. The view renders its chrome and stays empty.
+   *
+   * ⛔ Making this prop optional would WIDEN a published accept set — a
+   * maintainer's ruling, not a passing edit (objectui#7842). Pinned by
+   * `__tests__/ObjectView.dataSourceContextFallback-7842.test.tsx`.
    */
   dataSource: DataSource;
 
@@ -772,6 +805,13 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // Navigation config
   const navigationConfig: ViewNavigationConfig | undefined = schema.navigation;
 
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7429, same structural note PR #7229 /
+  // PR #7428 recorded for `ListView`'s memo and `RecordDetailView`'s effect).
+  const perms = usePermissions();
+
   // Fetch data for non-grid view types (grid handles its own data via ObjectGrid)
   useEffect(() => {
     let isMounted = true;
@@ -880,7 +920,46 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // declares lookups queries WITH its expansion the first time —
         // `objectSchema` here is `null` only when there was nothing to resolve
         // it from.
-        const expand = buildExpandFields((objectSchema as any)?.fields);
+        //
+        // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same gate
+        // objectui#7215 / PR #7229 put on the two projection sites in its
+        // scope, and objectui#7230 / PR #7428 applied unchanged at four more.
+        // `$select` on a denied lookup asks the server for a bare foreign key;
+        // `$expand` asks it to RESOLVE the relation and return the related
+        // record, the larger of the two requests.
+        //
+        // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+        // `buildExpandFields` reads an absent column list as "no column
+        // restriction" and falls back to EVERY declared relation on the
+        // object, denied ones included. A standalone non-grid view therefore
+        // asks for the maximum possible set by default, not by configuration.
+        //
+        // Graded as objectui#7215 graded it, by measurement rather than
+        // assumption: against ObjectStack this is defence-in-depth, because
+        // `plugin-security`'s `FieldMasker.maskRecord` does
+        // `delete result[field]` on every unreadable key and objectql's
+        // expand path writes the resolved record back under THAT SAME KEY, so
+        // one statement removes the expanded object and the bare id alike;
+        // the expansion sub-read itself takes the referenced object's full
+        // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing
+        // for a backend that does not strip.
+        //
+        // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+        // alternative is not merely unsound but unreachable: the call passes
+        // `undefined`, so there is no input to gate. Gating the output also
+        // gives the required ordering structurally: `buildExpandFields`
+        // returns a subset of the object's DECLARED reference-bearing fields,
+        // so every name judged here is declared by construction and the
+        // "`checkField` answers false for an undeclared key" trap cannot be
+        // reached. Pinned in `ObjectView.expandFls-7429.test.tsx`.
+        //
+        // Deferral matches every other gate on this path: an unanswered
+        // policy filters nothing, and `perms` is in this effect's dependency
+        // list, so the expansion is rebuilt the moment the answer arrives.
+        const expandable = buildExpandFields((objectSchema as any)?.fields);
+        const expand = !perms?.isLoaded
+          ? expandable
+          : expandable.filter((f) => perms.checkField(schema.objectName as string, f, 'read'));
         const results = await dataSource.find(schema.objectName, {
           // `mergeFilterNodes` returns a node or `undefined`; the old
           // `.length > 0` here was the second place an object filter was lost.
@@ -943,7 +1022,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   }, [
     schema.objectName, dataSource, currentViewType, refreshKey,
     currentNamedViewConfig, activeViewQueryInputs, renderListView,
-    objectSchemaReady, objectSchema,
+    objectSchemaReady, objectSchema, perms,
   ]);
 
   // Determine layout mode. #2578: default the record surface from how heavy the
@@ -1276,11 +1355,28 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         const kanbanConditionalFormatting =
           kanbanCfg.conditionalFormatting ??
           activeView?.conditionalFormatting;
+        // `groupBy` is the lane key and the ONLY one written here. This node
+        // used to carry `groupField: groupBy` alongside it — a duplicate the
+        // `object-kanban` renderer never read (zero `groupField` sites under
+        // `packages/plugin-kanban/`, against thirteen `schema.groupBy` reads in
+        // `ObjectKanban.tsx`). objectui#7322 retired the key on that node on
+        // both faces — `groupField?: never` on the TS interface and a
+        // `retirementTombstone()` in the zod mirror — so the write made this
+        // adapter emit a node the published contract refuses BY NAME. It was
+        // inert only because the generated node never reaches
+        // `safeValidateSchema` (SchemaRenderer runs the structural
+        // `validateSchema`); the CLI's `os check` / `os validate` do run the
+        // mirror, so the same node authored by hand was already rejected.
+        // ⛔ Do not restore it: the tombstone is the contract.
+        //
+        // ⚠️ NODE-LOCAL, and the distinction is the whole card: the VIEW-LEVEL
+        // `kanbanCfg.groupField` alias read above is LIVE (a legacy spelling of
+        // the spec's `groupByField`, mapped by `normalize-list-view.ts`) and is
+        // untouched. Only the write onto the generated node is dead.
         return {
           type: 'object-kanban',
           ...baseProps,
           groupBy,
-          groupField: groupBy,
           titleField: kanbanCfg.titleField || 'name',
           cardFields,
           ...restKanban,

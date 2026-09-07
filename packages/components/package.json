@@ -27,8 +27,6 @@
   },
   "scripts": {
     "build": "vite build && node scripts/build-css.mjs",
-    "prebuild": "pnpm --filter @object-ui/types build && pnpm --filter @object-ui/core build && pnpm --filter @object-ui/react build",
-    "pretest": "pnpm run prebuild",
     "test": "vitest run --root ../.. packages/components/",
     "test:dist": "OBJECTUI_DIST_PINS=1 vitest run --root ../.. --config vitest.config.mts --project dist",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
@@ -79,7 +77,6 @@
     "react-day-picker": "^10.0.1",
     "react-hook-form": "^7.85.0",
     "react-resizable-panels": "^4.12.2",
-    "recharts": "3.10.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",

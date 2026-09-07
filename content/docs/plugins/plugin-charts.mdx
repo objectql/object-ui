@@ -190,10 +190,12 @@ Each `series` entry names the column it plots (`dataKey`, or the spec spelling `
 | `stack` | `string` | Stack group id — series sharing one id stack together. |
 | `yAxis` | `'left' \| 'right'` | Which y-axis the series binds to, on a chart that declares a second y-axis. |
 | `variant` | `'primary' \| 'comparison'` | `comparison` draws the muted period-over-period overlay; `primary` (the default) is the normal treatment. |
-| `dashArray` | `string` | SVG `stroke-dasharray`, e.g. `"4 4"` for a dashed line. Today the renderer applies it only on a `variant: 'comparison'` series **and** only on a mark that has a stroke to dash — a `line` or `area` mark (the chart's `chartType`, or a per-series `type` override), where it overrides the overlay's default `"4 4"`; a comparison `bar` or `scatter` mark takes `opacity` only and drops the dash, and on a primary series of any family it is read and unused. |
-| `opacity` | `number` | Stroke and fill opacity override — any finite number (the spec bounds it to 0–1). Today the renderer applies it only on a `variant: 'comparison'` series, where it overrides the overlay's per-family default on every mark family — the fill of a `bar` or `scatter` mark, the stroke of a `line` mark, both on an `area` mark; on a primary series it is read and unused. |
+| `dashArray` | `string` | SVG `stroke-dasharray`, e.g. `"4 4"` for a dashed line. Applies on **any** series, whatever its `variant`, and overrides the comparison overlay's default `"4 4"`. Only a mark with a stroke can show a dash, and this renderer strokes `line` and `area` marks (the chart's `chartType`, or a per-series `type` override) — on a `bar` or `scatter` mark the value reaches the mark and paints nothing, which is the mark's geometry rather than a condition on the key. |
+| `opacity` | `number` | Stroke and fill opacity override — any finite number (the spec bounds it to 0–1). Applies on **any** series, whatever its `variant`, on every mark family — the fill of a `bar` or `scatter` mark, the stroke of a `line` mark, both on an `area` mark — and overrides the comparison overlay's per-family default. |
 
-An `area` chart keeps every key in this example live: `stack` stacks the two primary areas, and the comparison overlay takes both the dash and the opacity (on a `bar` chart the overlay would take `opacity` only).
+`chartType` is **not** a series key. It is the renderer's internal spelling of `type` — `@objectstack/spec`'s `ChartSeries` lists it as an alias — and the validator refuses it by name (`Unrecognized key(s) on this chart series: chartType. Did you mean chartType → type?`) instead of dropping it silently, which is what it used to do. Write `type`.
+
+An `area` chart keeps every key in this example live: `stack` stacks the two primary areas, and the comparison overlay takes both the dash and the opacity (on a `bar` chart the dash would still reach the mark, but a bar has no stroke to dash). Neither key needs `variant: 'comparison'` — a primary series may carry them too, and then it is the overlay's defaults, not the keys, that stay comparison-only.
 
 ```tsx
 const schema = {

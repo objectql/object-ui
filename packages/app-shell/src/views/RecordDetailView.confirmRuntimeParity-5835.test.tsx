@@ -59,7 +59,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, act, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'Ada', image: null }, activeOrganization: null }),
   createAuthenticatedFetch: () => vi.fn(async () =>
     new Response(JSON.stringify({ data: [] }), {
@@ -69,7 +70,8 @@ vi.mock('@object-ui/auth', () => ({
   ),
 }));
 
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useRecordPresence: () => [],
   PresenceAvatars: () => null,
 }));

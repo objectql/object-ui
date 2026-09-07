@@ -340,8 +340,16 @@ export const MIN_PARTIAL_REASON = 12;
  * lives in the README and says "deliberate"; this ledger lives here and says
  * "drift, owed to a content card". objectui#6214 wired this pin and was
  * explicitly not allowed to edit README CONTENT, so the drift its first run
- * found is written down here with the card number instead of being inherited
+ * found was written down here with the card number instead of being inherited
  * silently or fixed in the gate's own PR.
+ *
+ * EMPTY TODAY, and that is a state and not a retirement. objectui#7302 paid off
+ * the three entries #6214 opened with: `plugin-gantt`'s `GanttTask` was a
+ * genuine excerpt and moved to the in-README `PARTIAL_MARKER` above, and
+ * `plugin-kanban`'s `KanbanColumn` and `KanbanCard` were staleness and were
+ * brought up to the shipped declarations. ⛔ Do not delete this ledger because
+ * it holds nothing: the next pin that finds drift it may not fix in its own PR
+ * writes the entry here, exactly as #6214 did.
  *
  * SHRINK-ONLY, enforced rather than asked for: an entry whose declaration is no
  * longer in the README, or that no longer omits anything, FAILS as a stale
@@ -350,15 +358,16 @@ export const MIN_PARTIAL_REASON = 12;
  *
  * It suppresses `stale-omission` for that declaration and NOTHING else. A
  * `fabricated-key` is never excludable here -- see the header.
+ *
+ * The annotation is load-bearing while the ledger is empty: without it
+ * `Object.freeze({})` infers `Readonly<{}>`, `Object.entries` hands the test
+ * suite `unknown` values, and `pnpm type-check:scripts` fails TS18046 at the
+ * case that reads each reason. Same spelling, and the same reason, as
+ * `check-doc-snippet-types.mjs`'s `UNGATED_DOCS`.
+ *
+ * @type {Readonly<Record<string, string>>}
  */
-export const PARTIAL_EXCERPTS = Object.freeze({
-  'packages/plugin-gantt/README.md::GanttTask':
-    'objectui#6214, content fix objectui#7302 -- omits `fields` and `hasOwnDates`, which the prose immediately BELOW the block already names as populated by ObjectGantt itself. Genuinely an excerpt, so it wants the in-README PARTIAL_MARKER rather than this ledger; that one-line README edit was deliberately not made in the gate\'s own PR.',
-  'packages/plugin-kanban/README.md::KanbanColumn':
-    'objectui#6214, content fix objectui#7302 -- omits `collapsed`. Nothing in the page says the block is partial, so this is staleness, not an excerpt.',
-  'packages/plugin-kanban/README.md::KanbanCard':
-    'objectui#6214, content fix objectui#7302 -- omits `cardSubtitle`, `cardFieldCells` and `coverImage`. Same page, same class as `KanbanColumn` above: the block reads as the whole card shape and is three keys behind it. objectui#6155 may move this set: these are read from what `@object-ui/plugin-kanban` exports, and that card records four disagreeing declarations of the pair.',
-});
+export const PARTIAL_EXCERPTS = Object.freeze({});
 
 /** The NUL that `git ls-files -z` delimits with, built from its code point. */
 const NUL = String.fromCharCode(0);

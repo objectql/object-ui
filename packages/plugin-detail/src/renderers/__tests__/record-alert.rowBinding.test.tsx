@@ -6,31 +6,34 @@
  * LICENSE file in the root directory of this source tree.
  *
  * ══════════════════════════════════════════════════════════════════════════
- * `record:alert` binds the row the THREE canonical ways (objectui#4807)
+ * `record:alert` binds the row through the SHARED helper (objectui#4807), and
+ * the helper binds `record.*` only (objectui#5741)
  * ══════════════════════════════════════════════════════════════════════════
  *
  * `record:alert` was the last predicate face in the repo still handing
- * `useCondition` a ROOT-ONLY bag (`{ record }`) instead of the shared
+ * `useCondition` a local ROOT-ONLY bag (`{ record }`) instead of the shared
  * `usePredicateRecordContext(record)` that objectui#4075 / #4077 put under the
- * four generic action renderers and app-shell's `DeclaredActionsBar`. The
- * consequence was user-visible, and it is what this file measures:
+ * four generic action renderers and app-shell's `DeclaredActionsBar`; #4807
+ * moved it onto the helper. objectui#5330 (maintainer, 2026-08-20) then ruled
+ * **B** — `record.*` is the canon, the row-action shorthand and legacy `data.*`
+ * deprecated — and objectui#5741 (Phase 2, ruled 2026-09-02 / amended
+ * 2026-09-05) retired them: the shared helper now binds `{ record: row }` and
+ * nothing else, no survey, no special case. What this file measures is what
+ * that looks like on THIS renderer, whose `useCondition` call is FAIL-SOFT:
  *
- *   • row-action shorthand (`status == 'x'`) resolved NOTHING, so the
- *     evaluator threw `status is not defined`. This call site is FAIL-SOFT —
- *     the legacy `${…}` path answers a throw with its own source text, which is
- *     a non-empty (truthy) string — so an author-declared gate came out as
- *     SHOWN on every row. A banner the author gated was permanently on screen,
- *     with nothing but a console line to say so.
- *   • legacy `data.*` did not throw at all, which is worse than it sounds: the
- *     ambient scope app-shell mounts (`providers/ExpressionProvider.tsx`) puts
- *     `data: {}` in the bag, so `data.status` resolved to `undefined` against
- *     the wrong object and the comparison was a constant `false` — the banner
- *     was permanently OFF screen instead. Same defect, opposite polarity.
- *
- * objectui#5330 (maintainer, 2026-08-20) ruled **B**: `record.*` is the canon;
- * the row-action shorthand and legacy `data.*` are DEPRECATED but kept behind a
- * survey-sized window. So all three must resolve, and the pins below name
- * `record.*` as the one an author should write today.
+ *   • canon `record.*` gates the banner on the row — true on the matching row,
+ *     false on the other.
+ *   • row-action shorthand (`status == 'x'`) resolves NOTHING, so the evaluator
+ *     throws `status is not defined` and this fail-soft site answers SHOWN on
+ *     every row — the same verdict on both rows, i.e. the gate is not consulted.
+ *     This is the pre-#4807 signature by design: it is the ruled cost of the
+ *     retirement, and the console line is the notice.
+ *   • legacy `data.*` does not throw: the ambient scope app-shell mounts
+ *     (`providers/ExpressionProvider.tsx`) puts `data: {}` in the bag, and that
+ *     `data` is the HOST's own, left standing, so `data.status` reads an
+ *     undefined VALUE on the wrong object and the comparison is a constant
+ *     `false` — the banner is OFF on every row, silently. Same retirement,
+ *     opposite polarity, and no fault to report because nothing faulted.
  *
  * ── Why groups B and C mount different shapes ──────────────────────────────
  *
@@ -161,10 +164,11 @@ describe('#4807 group A — controls: the harness paints the banner, and this ch
   });
 });
 
-describe('#4807 group B — all THREE bindings resolve on this renderer own gate', () => {
+describe('#4807 group B — only the canon binds on this renderer own gate (objectui#5741)', () => {
   // The two rows differ ONLY in `status`, so a pair of opposite verdicts IS the
   // binding: the predicate reached the row. A pair of EQUAL verdicts means the
-  // author's gate was never consulted, whichever way it landed.
+  // author's gate was never consulted, whichever way it landed — and since
+  // objectui#5741 that pair is the RULED outcome for the two retired spellings.
 
   it('canon `record.*` — the spelling objectui#5330 ruled canonical', () => {
     expect(verdicts(alertNode(CANON, NODE_GATE_OPEN))).toEqual({
@@ -173,42 +177,49 @@ describe('#4807 group B — all THREE bindings resolve on this renderer own gate
     });
   });
 
-  it('row-action shorthand `status` — deprecated by objectui#5330, still resolves', () => {
-    // Before objectui#4807 both mounts were `true`: `status` was unbound, the
-    // evaluator threw, and this fail-soft call site turned the throw into SHOWN.
+  it('row-action shorthand `status` — retired by objectui#5741: SHOWN on both rows (fail-soft)', () => {
+    // `status` is unbound, the evaluator throws, and this fail-soft call site
+    // turns the throw into SHOWN — on the matching row and the other alike.
     expect(verdicts(alertNode(SHORTHAND, NODE_GATE_OPEN))).toEqual({
       onMatchingRow: true,
-      onOtherRow: false,
+      onOtherRow: true,
     });
   });
 
-  it('legacy `data.*` — deprecated by objectui#5330, still resolves', () => {
-    // Before objectui#4807 both mounts were `false`, not `true`: the ambient
-    // `data: {}` from app-shell answered instead of the row, so the comparison
-    // was constantly false and the banner never appeared at all.
+  it('legacy `data.*` — retired by objectui#5741: OFF on both rows (the host `data: {}` answers)', () => {
+    // No throw: the ambient `data: {}` from app-shell is the host's own and is
+    // left standing, so the comparison is constantly false and the banner never
+    // appears — on either row, and with nothing faulting to report.
     expect(verdicts(alertNode(LEGACY, NODE_GATE_OPEN))).toEqual({
-      onMatchingRow: true,
+      onMatchingRow: false,
       onOtherRow: false,
     });
   });
 
-  it('the row wins over an ambient `record` / `data` the host also supplied', () => {
-    // `usePredicateRecordContext` writes `record` and `data` AFTER the spread
-    // for this reason; APP_SCOPE carries a `data` of its own, and a host may
-    // carry a `record` too. Pinned on the user-visible verdict so the
-    // precedence cannot regress silently.
-    const hostScope = { ...APP_SCOPE, record: DONE, data: DONE };
-    const withHostScope = (record: Record<string, unknown>) =>
+  it('the row wins over an ambient `record`; a host `data` is left standing (objectui#5741)', () => {
+    // `usePredicateRecordContext` binds `{ record: row }` OVER the ambient
+    // scope, so a host-supplied `record` never shadows the row — pinned on the
+    // user-visible verdict so the precedence cannot regress silently. A host
+    // `data`, by contrast, is the host's own now: `data.*` reads IT, on every
+    // row, which is what "no longer bound to the row" looks like from here.
+    const hostScope = { ...APP_SCOPE, record: DONE, data: IN_REVIEW };
+    const withHostScope = (visible: string, record: Record<string, unknown>) =>
       render(
         <PredicateScopeProvider scope={hostScope}>
           <RecordContextProvider objectName="showcase_task" recordId="r1" data={record}>
-            <SchemaRenderer schema={alertNode(CANON, NODE_GATE_OPEN) as never} />
+            <SchemaRenderer schema={alertNode(visible, NODE_GATE_OPEN) as never} />
           </RecordContextProvider>
         </PredicateScopeProvider>,
       );
-    expect(bannerInDocument(withHostScope(IN_REVIEW))).toBe(true);
+    expect(bannerInDocument(withHostScope(CANON, IN_REVIEW))).toBe(true);
     cleanup();
-    expect(bannerInDocument(withHostScope(DONE))).toBe(false);
+    expect(bannerInDocument(withHostScope(CANON, DONE))).toBe(false);
+    cleanup();
+    // `data.status == 'in_review'` against the HOST's `data` (IN_REVIEW): true
+    // whichever row is bound — the row never enters this verdict.
+    expect(bannerInDocument(withHostScope(LEGACY, IN_REVIEW))).toBe(true);
+    cleanup();
+    expect(bannerInDocument(withHostScope(LEGACY, DONE))).toBe(true);
   });
 });
 
@@ -220,9 +231,11 @@ describe('#4807 group C — end to end, on the plain authored node', () => {
     expect(verdicts(alertNode(CANON))).toEqual({ onMatchingRow: true, onOtherRow: false });
   });
 
-  it('row-action shorthand gates the banner on the row', () => {
-    // THE defect of objectui#4807 as a user met it: this pair used to be
-    // `{ true, true }` — an author-declared gate that never once hid the banner.
-    expect(verdicts(alertNode(SHORTHAND))).toEqual({ onMatchingRow: true, onOtherRow: false });
+  it('row-action shorthand no longer gates the banner (objectui#5741) — SHOWN on both rows', () => {
+    // The pair objectui#4807 fixed is back by ruling: `status` is unbound on
+    // every runtime record surface, so an author-declared gate spelled this way
+    // never hides the banner, and the console line naming the variable is the
+    // notice. The canon case above is the control that the gate still works.
+    expect(verdicts(alertNode(SHORTHAND))).toEqual({ onMatchingRow: true, onOtherRow: true });
   });
 });

@@ -29,6 +29,17 @@
  * stopped there and wrote so: relaxing `data` is an accept-set change and a
  * separate ruling. This is that change; `nodes` and `title` are untouched here.
  *
+ * ## What objectui#6951 (maintainer ruling B1, 2026-09-04) did to this pin
+ *
+ * `data` was RETIRED outright — `?: never` on the TS face, `retirementTombstone()`
+ * on the mirror, and the renderer's read is now `boundData || schema.nodes || []`.
+ * The relaxation this file records is still history worth keeping: `nodes` stays
+ * optional, a document with no inline source stays legal (no refinement, as ruled),
+ * and the "deleted member falls through to `BaseSchema.data`" measurement is
+ * exactly why the retirement is a tombstone and not a deletion. The pins below
+ * that asserted `data` ACCEPTED are flipped to refusal in place; the refusal
+ * envelope itself is pinned in `tree-view-data-retired-6951.test.ts`.
+ *
  * ## Why `data` stays DECLARED instead of being deleted
  *
  * Deleting the member is the intuitive reading of "the renderer prefers
@@ -52,7 +63,7 @@ import type { TreeNode, TreeViewSchema as TsTreeViewSchema } from '../data-displ
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '..', '..', '..', '..');
 const READER = 'packages/components/src/renderers/data-display/tree-view.tsx';
-const READ_TEXT = 'boundData || schema.nodes || schema.data || []';
+const READ_TEXT = 'boundData || schema.nodes || []';
 
 /* ── Type-level pins (invariant equality, house form) ─────────────────────── */
 
@@ -81,8 +92,12 @@ type Expect< T extends true > = T;
  * exactly what the file header, the TS-face doc comment and the mirror's
  * `.describe()` all say, and what this comment used to contradict.
  */
-export type _TreeDataIsOptionalTreeNodes =
-  Expect< Equal< TsTreeViewSchema['data'], TreeNode[] | undefined > >;
+export type _TreeDataIsRetired =
+  Expect< Equal< TsTreeViewSchema['data'], undefined > >;
+// ^ objectui#6951: `data?: never` reads as `undefined`. The second limb above
+//   still bites — a DELETED member resolves to the inherited `any` and this
+//   equality goes red — and so does the first: `TreeNode[] | undefined` (the
+//   pre-retirement declaration) is not `undefined`.
 
 /** `nodes` and `title` are objectui#6150's and are unchanged by this card. */
 export type _TreeNodesStillTreeNodes =
@@ -123,13 +138,16 @@ describe('objectui#6939 — a `nodes`-only tree-view is a legal document', () =>
     }
   });
 
-  it('the accept set only WIDENED — every `data` document that parsed still parses', () => {
-    // The patch reasoning. Nothing that validated before this change may stop
-    // validating: `packages/types/examples/data-display-examples.json` authors
-    // its tree-view on `data`, and the renderer still reads that limb third.
-    expect(TreeViewSchema.safeParse({ ...ROOT, data: NODES }).success).toBe(true);
-    expect(TreeViewSchema.safeParse({ ...ROOT, data: NODES, nodes: NODES }).success).toBe(true);
-    expect(TreeViewSchema.safeParse({ ...ROOT, data: [] }).success).toBe(true);
+  it('every `data` document is now REFUSED by name — objectui#6951 retired the spelling', () => {
+    // Flipped from "the accept set only WIDENED": PR #7533 relaxed `data` and
+    // objectui#6951 then retired it. `packages/types/examples/data-display-examples.json`
+    // now authors its tree-view on `nodes`. The refusal lands on the `data`
+    // path with the guidance; the envelope is pinned in the retirement file.
+    for (const doc of [{ ...ROOT, data: NODES }, { ...ROOT, data: NODES, nodes: NODES }, { ...ROOT, data: [] }]) {
+      const r = TreeViewSchema.safeParse(doc);
+      expect(r.success).toBe(false);
+      if (!r.success) expect(r.error.issues.map((i) => i.path.join('.'))).toContain('data');
+    }
   });
 
   it('a tree-view with NO data source at all is legal, and that admits nothing new', () => {
@@ -153,10 +171,17 @@ describe('objectui#6939 — `data` is still DECLARED, so it is still VALIDATED',
     if (!r.success) expect(r.error.issues.map((i) => i.path.join('.'))).toContain('data');
   });
 
-  it('element-level enforcement survives the relaxation', () => {
+  it('a well-formed `data` array is refused at the KEY, not at an element — the tombstone, not element validation', () => {
+    // Pre-retirement this pinned `data.0.id` (element-level enforcement). The
+    // tombstone refuses the key itself, so the path is `data` and the message
+    // names the spelling to write instead.
     const r = TreeViewSchema.safeParse({ ...ROOT, data: [{ label: 'no id' }] });
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error.issues.map((i) => i.path.join('.'))).toContain('data.0.id');
+    if (!r.success) {
+      const issue = r.error.issues.find((i) => i.path.join('.') === 'data');
+      expect(issue).toBeTruthy();
+      expect(issue?.message).toContain('write `nodes`');
+    }
   });
 
   it('control: `BaseSchema` alone would have admitted both of those', () => {
@@ -179,7 +204,11 @@ describe('objectui#6939 — `data` is still DECLARED, so it is still VALIDATED',
     // the ablation below — not because passthrough moved, but because the
     // pre-repair mirror refuses the carrier itself. A control that fails for
     // the change it is controlling FOR is not a control.
-    const r = TreeViewSchema.safeParse({ ...ROOT, data: [], [SENTINEL]: 'not-an-array' });
+    // objectui#6951: the carrier moved from `data: []` to `nodes: []` — the
+    // same reasoning, the other way round: `data` is now the retired spelling,
+    // so a `data`-bearing carrier would redden for the retirement, not for
+    // passthrough. `nodes: []` is legal before and after.
+    const r = TreeViewSchema.safeParse({ ...ROOT, nodes: [], [SENTINEL]: 'not-an-array' });
     expect(r.success).toBe(true);
     if (r.success) expect((r.data as Record<string, unknown>)[SENTINEL]).toBe('not-an-array');
   });
@@ -190,16 +219,17 @@ describe('objectui#6939 — `data` is still DECLARED, so it is still VALIDATED',
   });
 });
 
-describe('objectui#6939 — the declaration still names a live read', () => {
-  it('the renderer reads `data` as the third limb', () => {
-    // A key whose reader is gone must be DROPPED, not declared (objectui#6150's
-    // own rule). Line numbers drift and stay in prose; the READ is the fact.
+describe('objectui#6951 — the renderer no longer reads the retired limb', () => {
+  it('the read is `boundData || schema.nodes || []` — `bind` first, `nodes` second, nothing third', () => {
+    // Enforce-or-remove: a retired key must stop being READ as well as declared.
+    // Line numbers drift and stay in prose; the READ is the fact.
     const src = readFileSync(join(REPO_ROOT, READER), 'utf8');
-    expect(src, `${READER} no longer reads \`schema.data\` as \`${READ_TEXT}\``).toContain(READ_TEXT);
+    expect(src, `${READER} does not read \`${READ_TEXT}\``).toContain(READ_TEXT);
+    expect(src.match(/schema\.data\b/g)).toBeNull();
   });
 
-  it('and it reads `nodes` ahead of it — the order the relaxation rests on', () => {
+  it('and `bind` is still read ahead of `nodes` — the order the no-refinement ruling rests on', () => {
     const src = readFileSync(join(REPO_ROOT, READER), 'utf8');
-    expect(src.indexOf('schema.nodes')).toBeLessThan(src.indexOf('schema.data ||'));
+    expect(src.indexOf('useDataScope(schema.bind)')).toBeLessThan(src.indexOf('schema.nodes'));
   });
 });

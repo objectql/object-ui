@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { afterAll, describe, expect, it } from 'vitest';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,7 +11,6 @@ import { fileURLToPath } from 'node:url';
 import {
   COVERED_SPECIFIERS,
   FLOORS,
-  deJsxClosingTags,
   findCallSites,
   scan,
   summarise,
@@ -57,6 +56,11 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const Q = String.fromCharCode(39);
 
 const COVERED = '@object-ui/react';
+
+/** Escape a specifier list for embedding in a `RegExp` source. */
+function escapeRe(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 /** A `vi.mock` call as SOURCE TEXT, unmatchable in this file, matchable on disk. */
 const mockCall = (spec: string, factory: string, fn: 'mock' | 'doMock' = 'mock') =>
@@ -263,7 +267,24 @@ describe('scope — narrow, and out of scope by construction rather than by exem
   it('the header states what it does NOT cover, and the precondition for widening', () => {
     // Triage asked for both in writing, so that a later reader widening the set
     // knows what evidence is owed rather than guessing at it.
-    const header = fs.readFileSync(path.join(repoRoot, 'scripts/check-vi-mock-inherit.mjs'), 'utf8').slice(0, 12000);
+    //
+    // The window is the leading docblock ITSELF, not a byte budget. It used to
+    // be `.slice(0, 12000)`, and every sweep that appends its per-specifier
+    // record pushes the paragraphs below it further down: objectui#6892's
+    // FOURTH slice took the header past 12000 bytes and reddened this pin
+    // without touching a word either assertion reads. A byte count is not what
+    // the rule is about, and re-raising it would only defer the same failure to
+    // the next slice.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-vi-mock-inherit.mjs'), 'utf8');
+    const opened = source.indexOf('/**');
+    const closed = source.indexOf('\n */\n', opened);
+    expect(opened, 'the gate has a leading docblock').toBeGreaterThanOrEqual(0);
+    expect(closed, 'that docblock terminates').toBeGreaterThan(opened);
+    const header = source.slice(opened, closed);
+    // The window must still be a HEADER, not the whole file -- otherwise these
+    // two assertions would pass on a match anywhere in the source, including
+    // inside the code they are supposed to be documenting.
+    expect(header.length).toBeLessThan(source.length);
     expect(header).toMatch(/whole-module replacement/i);
     expect(header).toMatch(/precondition for widening is a sweep/i);
   });
@@ -313,57 +334,65 @@ describe('only text the language would execute', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The JSX mask — a real mis-mask in the shared scanner, measured
+// The JSX mask — a real mis-mask in the shared scanner, since fixed
 // ---------------------------------------------------------------------------
 
-describe('deJsxClosingTags — the shared masker reads `</div>` as a regex literal', () => {
+describe('a JSX closing tag — the shared masker USED to read `</div>` as a regex literal', () => {
   /**
-   * `js-comment-mask` opens a regex when a `/` follows something that is not a
-   * value. In `</div>` that something is `<`, so a PHANTOM regex opens and runs
-   * to the end of the line, swallowing whatever is there — including the `)`
-   * that closes a `vi.mock` call. Measured on this tree: SEVEN call sites in
-   * five files could not be delimited at all, one of them a covered site.
-   * Filed against the shared module as objectui#6891; worked around here.
+   * `js-comment-mask` opened a regex when a `/` followed something that is not
+   * a value. In `</div>` that something is `<`, so a PHANTOM regex opened and
+   * ran to the end of the line, swallowing whatever was there — including the
+   * `)` that closes a `vi.mock` call. Measured on this tree at the time: SEVEN
+   * call sites could not be delimited at all, one of them a covered site.
+   *
+   * That is history. The shared masker handles `</tag>` itself since
+   * objectui#6891, whose own pin
+   * (`scripts/__tests__/js-comment-mask-jsx-6891.test.ts`) holds the scanner,
+   * and THIS gate rewrites nothing before masking any more — objectui#7883
+   * retired the local `deJsxClosingTags` workaround and its two unit cases
+   * with it.
+   *
+   * The three cases below are what say the retirement changed nothing: the
+   * first reads the mask directly on the RAW source, and the two behavioural
+   * ones drive the gate end to end on a factory that returns JSX. They pass
+   * with no rewrite in the gate at all.
+   *
+   * ⛔ Not a claim that the masker is correct on JSX: objectui#6891 closed
+   * only the `<` `/` half, and a `/` after `}` or `>` still opens a phantom
+   * (objectui#7882, still open). The retired rewrite never covered that half
+   * either, so nothing was lost with it.
    */
 
   const jsxFactory = `({ open, children }: any) => (open ? <div>{children}</div> : null)`;
 
-  it('the mis-mask is real: the closing tag opens a literal span in the raw source', () => {
-    // Pinning the CAUSE, not just the workaround. If the shared masker is ever
-    // fixed this case fails and the workaround can be retired deliberately.
+  it('the mis-mask is GONE: the shared masker was fixed, so this workaround is now redundant', () => {
+    // This case was written the other way up — it pinned the CAUSE, asserting
+    // the mis-mask was real, so that fixing the shared module would fail here
+    // and the workaround could be retired deliberately rather than rotting.
+    // That is what happened: objectui#6891 taught `scanSource` that a `/`
+    // whose immediately preceding byte is `<` opens nothing, and this case
+    // has been turned over to pin the fix instead.
+    //
+    // `deJsxClosingTags` was deliberately NOT removed in that change — it was
+    // a second gate's source, outside that card's file surface. objectui#7883
+    // then retired it, and these assertions are what made that a decision
+    // rather than a guess: the raw source, with no rewrite anywhere, already
+    // masks correctly.
     const src = `const C = ${jsxFactory};\n`;
     const { literal } = scanSource(src);
-    // The `/` opens the phantom span, so the first byte INSIDE it is the `d`
-    // of `div` — the slash itself is consumed as the opener, not flagged.
     const inside = src.indexOf('</div>') + 2;
-    expect(literal[inside], 'the shared masker no longer mis-reads a JSX closing tag').toBe(1);
-    // ...and the phantom runs to end of line, swallowing the `)` that closes
-    // the call along with everything else after it. THAT is what breaks a
-    // delimiter walk.
-    expect(literal[src.indexOf(': null)')]).toBe(1);
-    expect(literal[src.lastIndexOf(')')]).toBe(1);
-  });
-
-  it('neutralises the tag while PRESERVING LENGTH, so every offset still holds', () => {
-    const src = 'a</div>b</>c</Foo.Bar>z';
-    const out = deJsxClosingTags(src);
-    expect(out).toHaveLength(src.length);
-    expect(out).toBe('a<____>b<_>c<________>z');
-    // Every offset past the rewrite still indexes the same byte, which is what
-    // lets the mask's flags be read against the ORIGINAL source.
-    expect(out.indexOf('z')).toBe(src.indexOf('z'));
-  });
-
-  it('leaves a `/` that is not a closing tag alone — a regex, a path, a division', () => {
-    for (const src of ['const re = /<x>/;', 'const p = "a/b";', 'const q = a / b;', 'x.replace(/</g, "&lt;");']) {
-      expect(deJsxClosingTags(src)).toBe(src);
-    }
+    expect(literal[inside], 'the shared masker mis-reads a JSX closing tag again').toBe(0);
+    // ...and, the property this gate actually needs: the `)` that closes the
+    // call is code, so a delimiter walk over the RAW source balances.
+    expect(literal[src.indexOf(': null)')]).toBe(0);
+    expect(literal[src.lastIndexOf(')')]).toBe(0);
   });
 
   it('THE CONSEQUENCE: a covered factory returning JSX is READ, not skipped', () => {
-    // Without the workaround this call site is `unreadable`. `unreadable` fails
-    // the gate, so the mis-mask would not have been silent — but it would have
-    // reddened five innocent files instead of judging them.
+    // Under the mis-mask this call site was `unreadable`. `unreadable` fails
+    // the gate, so the defect would not have been silent — but it would have
+    // reddened five innocent files instead of judging them. This case is now
+    // the load-bearing half: it goes red if the shared masker ever regresses.
     const site = verdictOf(`async (importOriginal) => ({ ...(await importOriginal()), C: ${jsxFactory} })`);
     expect(site.verdict).toBe('inherits');
   });
@@ -433,9 +462,18 @@ describe('ablation — the 26th, reconstructed from the site this PR converts', 
   it('THE DISCRIMINATING HALF: correct neighbours in the same file are NOT flagged', () => {
     // A real file mocks several specifiers at once. Only the covered one is
     // judged, and the inheriting spellings beside it stay green.
+    //
+    // The workspace neighbour is deliberately a specifier that NO package
+    // publishes. It used to name a real uncovered package, and objectui#6892's
+    // sweep of that package turned this fixture's frozen factory into a genuine
+    // finding -- the case failed for a reason that had nothing to do with what
+    // it asserts. `COVERED_SPECIFIERS` is grow-only, so any real name here is
+    // only ever on loan; the scope resolver classifies by string prefix and
+    // never resolves the module, so a name that cannot be swept keeps this case
+    // about the resolver instead of about the covered set's current membership.
     const { root, files } = fixtureTree({
       [suiteAt]: [
-        mockCall('@object-ui/plugin-grid', `() => ({ ObjectGrid: Stub })`),
+        mockCall('@object-ui/plugin-never-swept-fixture', `() => ({ ObjectGrid: Stub })`),
         mockCall('sonner', `() => ({ toast: Stub })`),
         mockCall('./ObjectCalendar', `() => ({ ObjectCalendar: Stub })`),
         mockCall(COVERED, `async (orig) => { const actual = await (orig as any)(); return { ...actual, X: Stub }; }`),
@@ -625,12 +663,18 @@ describe('repo state — the gate is green on this tree', () => {
 
   it('puts the census in the verdict, so a reader sees the population', () => {
     // "OK" alone is what a gate that does nothing also prints.
+    //
+    // The names come from `COVERED_SPECIFIERS`, not from a copy of it: the list
+    // is GROW-ONLY, and a case spelling one member reads as an assertion about
+    // the verdict line while actually asserting the set's SIZE — measured, it
+    // failed on objectui#7337's flip for that reason and nothing else.
+    const named = COVERED_SPECIFIERS.join(', ');
     const line = summarise(result);
     expect(line).toMatch(/\d+ tracked source file\(s\)/);
-    expect(line).toMatch(new RegExp(`\\d+ call site\\(s\\) on ${COVERED} judged`));
+    expect(line).toMatch(new RegExp(`\\d+ call site\\(s\\) on ${escapeRe(named)} judged`));
     const out = execFileSync('node', ['scripts/check-vi-mock-inherit.mjs'], { cwd: repoRoot, encoding: 'utf8' });
     expect(out).toMatch(/check-vi-mock-inherit: OK/);
-    expect(out).toContain(`${result.census.covered} call site(s) on ${COVERED} judged`);
+    expect(out).toContain(`${result.census.covered} call site(s) on ${named} judged`);
   });
 
   it('needs no install and no build — it is a cheap-tier gate', () => {
@@ -707,4 +751,369 @@ describe('wiring — the gate is reachable and every PR shape starts it', () => 
     expect(yaml).not.toMatch(/pnpm install/);
     expect(yaml.indexOf(SCRIPT)).toBeGreaterThan(-1);
   });
+});
+
+// ---------------------------------------------------------------------------
+// objectui#7337 — the `@object-ui/i18n` sweep
+// ---------------------------------------------------------------------------
+
+/** The specifier objectui#7337 swept, and the second member of `COVERED_SPECIFIERS`. */
+const I18N = '@object-ui/i18n';
+
+/** Classify one factory in isolation against an arbitrary covered specifier. */
+function verdictFor(spec: string, factory: string) {
+  const sites = findCallSites(mockCall(spec, factory), { covered: [spec] });
+  expect(sites, 'the fixture must produce exactly one call site').toHaveLength(1);
+  return sites[0];
+}
+
+describe('the generic argument NESTS — `vi.importActual<Record<string, unknown>>(…)`', () => {
+  /**
+   * The recogniser's optional generic was `<[^>]*>`, which stops at the FIRST
+   * `>`. Against `vi.importActual<Record<string, unknown>>('@object-ui/i18n')`
+   * it consumed `<Record<string, unknown>` and then failed on the `>` that
+   * follows, so the whole call went unmatched and the factory was reported as
+   * one that "never obtains the real module" — on code that obtains it and
+   * spreads it.
+   *
+   * That is the failure this gate's own header rules out by name, and it stayed
+   * invisible because the covered set was `@object-ui/react`, where nobody
+   * writes the spelling. Measured over the whole tree at the fix: 349 frozen
+   * across all 21 workspace specifiers became 344, and no site moved the other
+   * way.
+   */
+
+  const RECEIVER = `async () => { const actual = await OBTAIN; return { ...actual, X: Stub }; }`;
+  const withObtain = (generic: string) => RECEIVER.replace('OBTAIN', importActual(I18N, generic));
+
+  it('reads the NESTED generic the four real files write', () => {
+    expect(verdictFor(I18N, withObtain('<Record<string, unknown>>')).verdict).toBe('inherits');
+  });
+
+  it('still reads the spellings that always worked — no generic, and a flat one', () => {
+    expect(verdictFor(I18N, withObtain('')).verdict).toBe('inherits');
+    expect(verdictFor(I18N, withObtain('<any>')).verdict).toBe('inherits');
+    expect(verdictFor(I18N, withObtain(`<typeof import(${Q}${I18N}${Q})>`)).verdict).toBe('inherits');
+  });
+
+  it('reads a generic nested twice — the scan is balanced, not one level deep', () => {
+    expect(verdictFor(I18N, withObtain('<Record<string, Record<string, unknown>>>')).verdict).toBe('inherits');
+  });
+
+  it('an UNBALANCED angle bracket is not read as an obtain — it stays FROZEN', () => {
+    // The failure direction of an unforeseen spelling is the verdict the old
+    // regex already gave, never a false GREEN.
+    expect(verdictFor(I18N, withObtain('<Record<string, unknown>')).verdict).toBe('frozen');
+  });
+
+  it('an importActual of a DIFFERENT specifier still does not inherit this one', () => {
+    const other = RECEIVER.replace('OBTAIN', importActual('@object-ui/auth', '<Record<string, unknown>>'));
+    expect(verdictFor(I18N, other).verdict).toBe('frozen');
+  });
+
+  it('THE FOUR REAL FILES: each obtains and spreads through the nested spelling', () => {
+    // Pinned against the files on disk, not against a reconstruction: these are
+    // the four the old regex called frozen, and a future edit reddens here.
+    const misread = [
+      'packages/app-shell/src/console/cloud-connection/__tests__/CloudConnectionPanel.bindError.test.tsx',
+      'packages/app-shell/src/console/cloud-connection/__tests__/CloudConnectionPanel.bindErrorLocale.test.tsx',
+      'packages/app-shell/src/layout/__tests__/AppSwitcher.publishState.test.tsx',
+      'packages/app-shell/src/preview/__tests__/UnpublishedAppBar.test.tsx',
+    ];
+    for (const file of misread) {
+      const source = fs.readFileSync(path.join(repoRoot, file), 'utf8');
+      expect(source, `${file} no longer writes the nested-generic obtain`).toContain(
+        `${'importActual'}<Record<string, unknown>>`,
+      );
+      const judged = findCallSites(source, { covered: [I18N] }).filter((s: { scope: string }) => s.scope === 'covered');
+      expect(judged.map((s: { verdict: string }) => s.verdict), file).toEqual(['inherits']);
+    }
+  });
+});
+
+describe('the sweep — every `@object-ui/i18n` factory inherits, and the specifier is covered', () => {
+  /**
+   * objectui#7337 converted 29 frozen factories and deleted a 30th
+   * (`apps/console/dev/__tests__/setup/common-mocks.ts`, a helper with zero
+   * importers repo-wide). The 31st — `DeclaredActionsBar.test.tsx` — was held
+   * by an open PR at the time and kept the population at one, so the sweep
+   * shipped without widening `COVERED_SPECIFIERS`: flipping it while a frozen
+   * factory remains fails this gate on the very next run. That file has since
+   * been converted and the specifier added, in the one PR the gate's own header
+   * requires — so the assertions below are no longer a stand-in for the ratchet,
+   * they are the census the ratchet is computed over.
+   */
+
+  const swept = () => scan(repoRoot, { covered: [I18N], floors: {} });
+
+  it('no `@object-ui/i18n` factory freezes the surface', () => {
+    const result = swept();
+    expect(
+      result.frozen.map((f: { file: string; line: number }) => `${f.file}:${f.line}`),
+      'convert these to the obtain-and-spread form — the specifier is covered, so the gate reds too',
+    ).toEqual([]);
+    expect(result.unreadable, 'a factory the gate cannot read is never a pass').toEqual([]);
+  });
+
+  it('walked a real population — a collapsed scan cannot read as a swept one', () => {
+    // Same discipline as `FLOORS`: this describe's green is a claim about 92
+    // call sites, so the count is asserted rather than assumed.
+    const census = swept().census;
+    expect(census.covered).toBeGreaterThan(60);
+    expect(census.inherits).toBeGreaterThan(60);
+    expect(census.covered - census.inherits - census.automock).toBe(0);
+  });
+
+  it('the specifier IS in COVERED_SPECIFIERS — the sweep is held by the gate, not by this file', () => {
+    // The positive half of the pin this replaces. Without it the third step of
+    // objectui#7337 could be reverted in silence: dropping a member makes every
+    // i18n call site unjudged, so the gate stays GREEN over a population it no
+    // longer looks at — the one direction a ratchet must never be free to move.
+    expect(
+      COVERED_SPECIFIERS,
+      'the sweep landed; removing the specifier retires the ratchet silently',
+    ).toContain(I18N);
+  });
+
+  it('the zero-importer mock helper is gone, not merely unreferenced', () => {
+    // The needle is ASSEMBLED, for the reason "Fixture discipline" gives above:
+    // spelt whole it would appear in this file and the search would find
+    // itself. Measured — the first draft of this case failed exactly that way.
+    const needle = `applyCommon${'ConsoleMocks'}`;
+    expect(fs.existsSync(path.join(repoRoot, 'apps/console/dev/__tests__/setup/common-mocks.ts'))).toBe(false);
+    // `git grep` exits 1 on no match, which is the PASSING case, so the run is
+    // read rather than thrown: `execFileSync` would turn the pass into an error.
+    const hits = spawnSync('git', ['grep', '-l', needle, '--', '.'], { cwd: repoRoot, encoding: 'utf8' });
+    expect((hits.stdout ?? '').trim(), 'the deleted helper is named again somewhere').toBe('');
+    expect(hits.status, 'git grep itself failed — the search never ran').toBe(1);
+  });
+});
+
+describe('THE DEATH — a frozen factory kills the file at COLLECTION, not in a test', () => {
+  /**
+   * The gate's verdict is a prediction about what vitest does. This case makes
+   * the prediction and then checks it by running vitest for real, over a
+   * throwaway package whose "next export" is the one added the day after the
+   * factory was written — objectui#7337's own reproduction, minus the repo.
+   *
+   * Three legs, and the third is what stops the first from being vacuous:
+   *
+   *   1. FROZEN factory + a MODULE-SCOPE read  -> the suite never collects.
+   *      `Tests  no tests`: zero failed assertions, which is why objectui#6768
+   *      records that this reads as flake and bills the wrong author.
+   *   2. INHERITING factory, same read         -> collects and passes.
+   *   3. FROZEN factory + a LAZY read          -> collects, and fails as an
+   *      ordinary assertion pointing at the culprit. So leg 1 is measuring the
+   *      MODULE-SCOPE read, not merely the presence of a frozen factory —
+   *      without leg 3 a suite that failed for any reason at all would satisfy
+   *      it.
+   */
+
+  /** A specifier that exists only inside the fixture tree. */
+  const SPEC = '@fixture/i18n';
+
+  const REAL_MODULE = [
+    `export const useObjectTranslation = () => ({ t: (k) => k });`,
+    `// The export added the day AFTER every frozen factory below was written.`,
+    `export const createSafeTranslation = (defaults) => () => ({ t: (k) => defaults?.[k] ?? k });`,
+    '',
+  ].join('\n');
+
+  const FROZEN = `() => ({ useObjectTranslation: () => ({ t: (k) => k }) })`;
+  const INHERITING = `async (importOriginal) => ({ ...(await importOriginal()), useObjectTranslation: () => ({ t: (k) => k }) })`;
+
+  const EAGER = [
+    `import { createSafeTranslation } from ${Q}${SPEC}${Q};`,
+    `export const DISCARD_GUARD = createSafeTranslation({ discard: ${Q}Discard?${Q} });`,
+    '',
+  ].join('\n');
+
+  const LAZY = [
+    `import { createSafeTranslation } from ${Q}${SPEC}${Q};`,
+    `export const discardGuard = () => createSafeTranslation({ discard: ${Q}Discard?${Q} });`,
+    '',
+  ].join('\n');
+
+  const suite = (factory: string, importLine: string, body: string) =>
+    [`import { expect, it, vi } from ${Q}vitest${Q};`, mockCall(SPEC, factory), importLine, body, ''].join('\n');
+
+  const roots: string[] = [];
+
+  /**
+   * A throwaway package tree. `vitest` is resolved by walking UP from the
+   * fixture, so one symlink is everything it borrows from this repo; the mocked
+   * specifier is a REAL package inside the fixture's own `node_modules`, which
+   * is what makes it a bare specifier the gate judges rather than a relative
+   * one it declines to.
+   */
+  function fixturePackage(files: Record<string, string>) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vi-mock-collection-death-'));
+    roots.push(root);
+    const pkg = path.join(root, 'node_modules', SPEC);
+    fs.mkdirSync(pkg, { recursive: true });
+    fs.symlinkSync(path.join(repoRoot, 'node_modules/vitest'), path.join(root, 'node_modules/vitest'));
+    fs.writeFileSync(
+      path.join(pkg, 'package.json'),
+      `${JSON.stringify({ name: SPEC, version: '0.0.0', type: 'module', main: 'index.mjs' }, null, 2)}\n`,
+    );
+    fs.writeFileSync(path.join(pkg, 'index.mjs'), REAL_MODULE);
+    for (const [rel, body] of Object.entries(files)) fs.writeFileSync(path.join(root, rel), body);
+    return root;
+  }
+
+  /**
+   * ANSI SGR sequences, built from the escape's CODE POINT — a raw control byte
+   * in this source is what `pnpm check:control-bytes` exists to refuse.
+   */
+  const SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+  const stripAnsi = (text: string) => text.replace(SGR, '');
+
+  /**
+   * The nested run.
+   *
+   * Three things about the child are DELIBERATE, and the first two are repairs
+   * (CI run 34003883330, job 101407488095, where three assertions here failed
+   * on output that visibly contained the text they were matching):
+   *
+   *   1. **The verdict comes from the JSON reporter, not from the summary.**
+   *      Under GitHub Actions the child colours its output, so the summary line
+   *      is really `Tests ` + SGR + `1 failed` + SGR + ` (1)` and `\s+` matches
+   *      no escape sequence. Pinning a human-readable summary through a regex
+   *      was the fragile part; the counts are read from structured data now and
+   *      the prose is only checked after `stripAnsi`, which is belt to that
+   *      brace. Reproduced byte-for-byte in `the summary matcher survives the
+   *      colour CI adds` below.
+   *   2. **`GITHUB_ACTIONS` is removed from the child's env.** Legs 1 and 3
+   *      fail ON PURPOSE, and with that variable set the child switches on
+   *      vitest's github-actions reporter and writes `::error file=…`
+   *      annotations — which the CI log shows it did, decorating the parent's
+   *      own run with failures from a fixture that is behaving correctly.
+   *   3. `NO_COLOR` asks for uncoloured output. It is not relied on: the
+   *      stripping above is what makes the assertions true either way.
+   */
+  function runVitest(root: string) {
+    const env: Record<string, string> = { NO_COLOR: '1' };
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value === undefined || key === 'VITEST' || key.startsWith('VITEST_')) continue;
+      if (key === 'GITHUB_ACTIONS' || key === 'NO_COLOR' || key === 'FORCE_COLOR') continue;
+      env[key] = value;
+    }
+    const reportAt = path.join(root, 'vitest-report.json');
+    const run = spawnSync(
+      path.join(repoRoot, 'node_modules/.bin/vitest'),
+      ['run', '--root', root, '--reporter=default', '--reporter=json', `--outputFile.json=${reportAt}`],
+      { cwd: root, encoding: 'utf8', env },
+    );
+    const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+    if (!fs.existsSync(reportAt)) {
+      throw new Error(`the nested vitest wrote no JSON report -- it did not run:\n${output}`);
+    }
+    const report = JSON.parse(fs.readFileSync(reportAt, 'utf8'));
+    const suite = report.testResults?.[0] ?? {};
+    return {
+      status: run.status,
+      plain: stripAnsi(output),
+      /** Structured, so no assertion here depends on how vitest PRINTS. */
+      facts: {
+        success: report.success,
+        total: report.numTotalTests,
+        passed: report.numPassedTests,
+        failed: report.numFailedTests,
+        suiteStatus: suite.status,
+        /** 0 when the file never collected: there was no test to run. */
+        assertions: suite.assertionResults?.length ?? 0,
+        /** A suite-level message is where a COLLECTION error lands. */
+        suiteMessage: String(suite.message ?? ''),
+      },
+    };
+  }
+
+  afterAll(() => {
+    for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('the gate PREDICTS the two outcomes before either is run', () => {
+    expect(verdictFor(SPEC, FROZEN).verdict).toBe('frozen');
+    expect(verdictFor(SPEC, INHERITING).verdict).toBe('inherits');
+  });
+
+  it('the summary matcher survives the colour CI adds', () => {
+    // The exact bytes from CI run 34003883330, job 101407488095, rebuilt from
+    // the escape's code point. Under GitHub Actions the child colours its
+    // summary, so `Tests ` and `1 failed` are separated by SGR sequences rather
+    // than by whitespace -- which is why three assertions here failed on output
+    // that visibly contained the text they were matching.
+    const e = String.fromCharCode(27);
+    const asCiPrinted = `${e}[2m      Tests ${e}[22m ${e}[1m${e}[31m1 failed${e}[39m${e}[22m${e}[90m (1)${e}[39m`;
+    expect(asCiPrinted, 'the historical defect, reproduced').not.toMatch(/Tests\s+1 failed/);
+    expect(stripAnsi(asCiPrinted), 'and what this file matches on now').toMatch(/Tests\s+1 failed/);
+    expect(stripAnsi(asCiPrinted)).toBe('      Tests  1 failed (1)');
+  });
+
+  it('LEG 1 — frozen factory, module-scope read: the file dies during COLLECTION', () => {
+    const root = fixturePackage({
+      'consumer.mjs': EAGER,
+      'frozen.test.mjs': suite(
+        FROZEN,
+        `import { DISCARD_GUARD } from ${Q}./consumer.mjs${Q};`,
+        `it(${Q}never runs${Q}, () => { expect(DISCARD_GUARD).toBeTypeOf(${Q}function${Q}); });`,
+      ),
+    });
+    const { status, plain, facts } = runVitest(root);
+    expect(status, plain).not.toBe(0);
+    // STRUCTURED, so nothing here depends on how vitest prints. The suite was
+    // found and failed, and NO test inside it ever existed to be run: that is
+    // collection death, and `total: 0` is what leg 3 will contradict.
+    expect(facts.suiteStatus).toBe('failed');
+    expect(facts.total, 'a collected file would report its tests').toBe(0);
+    expect(facts.assertions, 'no test ran, so there is nothing to blame').toBe(0);
+    expect(facts.failed, 'the signature objectui#6768 measured: ZERO failed assertions').toBe(0);
+    expect(facts.suiteMessage, 'the collection error lands on the SUITE').toContain(
+      'No "createSafeTranslation" export is defined on the "@fixture/i18n" mock',
+    );
+    // ...and the human-readable half the card quotes, after ANSI is stripped.
+    expect(plain).toMatch(/Failed Suites\s+1/);
+    expect(plain, 'zero failed assertions is what makes this read as flake').toMatch(/Tests\s+no tests/);
+  }, 120_000);
+
+  it('LEG 2 — the converted factory, same read: it collects and passes', () => {
+    const root = fixturePackage({
+      'consumer.mjs': EAGER,
+      'inheriting.test.mjs': suite(
+        INHERITING,
+        `import { DISCARD_GUARD } from ${Q}./consumer.mjs${Q};`,
+        `it(${Q}runs${Q}, () => { expect(DISCARD_GUARD).toBeTypeOf(${Q}function${Q}); });`,
+      ),
+    });
+    const { status, plain, facts } = runVitest(root);
+    expect(status, plain).toBe(0);
+    expect(facts.success).toBe(true);
+    expect(facts.total).toBe(1);
+    expect(facts.passed).toBe(1);
+    expect(plain).toMatch(/Tests\s+1 passed/);
+  }, 120_000);
+
+  it('LEG 3 — the NON-VACUITY control: a lazy read fails as an ordinary test', () => {
+    const root = fixturePackage({
+      'lazy-consumer.mjs': LAZY,
+      'lazy.test.mjs': suite(
+        FROZEN,
+        `import { discardGuard } from ${Q}./lazy-consumer.mjs${Q};`,
+        `it(${Q}collects, then fails${Q}, () => { expect(discardGuard()).toBeTypeOf(${Q}function${Q}); });`,
+      ),
+    });
+    const { status, plain, facts } = runVitest(root);
+    expect(status, plain).not.toBe(0);
+    // Same missing export, same frozen factory -- and a completely different
+    // shape, because the read is no longer at module scope. THESE THREE are
+    // what stop leg 1 from being satisfied by any red run at all: the file
+    // COLLECTED, one test existed, and the failure is an assertion.
+    expect(facts.total, 'the file collected, so its test exists').toBe(1);
+    expect(facts.assertions, 'and it ran -- leg 1 reports 0 here').toBe(1);
+    expect(facts.failed).toBe(1);
+    expect(facts.suiteMessage, 'nothing failed at COLLECTION this time').toBe('');
+    expect(plain).toContain('No "createSafeTranslation" export is defined on the "@fixture/i18n" mock');
+    expect(plain, 'a lazy read collects, so the failure is an assertion').toMatch(/Tests\s+1 failed/);
+    expect(plain).not.toMatch(/Failed Suites/);
+  }, 120_000);
 });

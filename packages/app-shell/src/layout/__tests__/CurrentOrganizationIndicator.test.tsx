@@ -32,7 +32,8 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
   }),
@@ -48,7 +49,8 @@ const getAuthConfig = vi.fn(() => Promise.resolve({ features }));
  * ending in `setState`, so a fresh closure per render would loop effect →
  * setState → render → effect until the heap dies.
  */
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
     organizations,
     activeOrganization: organizations[0] ?? null,

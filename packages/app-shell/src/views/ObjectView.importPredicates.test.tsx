@@ -45,29 +45,35 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 /** Controllable principal verdict, keyed by action (`can()` is permissive by default). */
 let principal: Record<string, boolean> = {};
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({
-    check: () => ({ allowed: true }),
-    checkField: () => true,
-    getFieldPermissions: () => [],
-    getRowFilter: () => undefined,
-    getObjectApiOperations: () => undefined,
-    roles: [],
-    isLoaded: false,
-    hasCapabilities: () => true,
-    can: (_object: string, action: string) => principal[action] ?? true,
-    cannot: (_object: string, action: string) => !(principal[action] ?? true),
-  }),
-  useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({
+      check: () => ({ allowed: true }),
+      checkField: () => true,
+      getFieldPermissions: () => [],
+      getRowFilter: () => undefined,
+      getObjectApiOperations: () => undefined,
+      roles: [],
+      isLoaded: false,
+      hasCapabilities: () => true,
+      can: (_object: string, action: string) => principal[action] ?? true,
+      cannot: (_object: string, action: string) => !(principal[action] ?? true),
+    }),
+    useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
+  };
+});
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'Ada' }, activeOrganization: null }),
   useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
   createAuthenticatedFetch: () => vi.fn(),
 }));
 
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useRealtimeSubscription: () => ({ lastMessage: null }),
   useConflictResolution: () => ({ hasConflicts: false, resolveAllConflicts: () => {} }),
 }));
@@ -85,7 +91,10 @@ vi.mock('sonner', () => ({
 
 // Heavy children: orthogonal to the toolbar gate under test, and each drags in
 // a plugin bundle. Same posture as the sibling RecordDetailView render tests.
-vi.mock('@object-ui/plugin-list', () => ({ ListView: () => null }));
+vi.mock('@object-ui/plugin-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-list')>()),
+  ListView: () => null,
+}));
 vi.mock('@object-ui/plugin-view', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   ObjectView: () => null,

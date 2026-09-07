@@ -421,7 +421,13 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   // surviving bare name must be the one a renderer honours, because
   // objectui#6086 measured that auto-importing the wrong copy yields a confident
   // EMPTY BOARD rather than an abstention. One authority each now, so all three
-  // entries would fail the stale-baseline direction.
+  // entries would fail the stale-baseline direction. objectui#7664 (maintainer
+  // ruling (a), 2026-09-05) then reversed the "keep both faces" half: the ONE
+  // declaration of `KanbanSchema` / `KanbanColumn` / `KanbanCard` (and
+  // `CardTemplate` / `ColumnWidthConfig`) moved down to `@object-ui/types`
+  // (`complex.ts`), the `DeclarativeKanban*` trio retired, and
+  // `plugin-kanban/src/types.ts` re-exports the five — a plain re-export, not
+  // an authority, so the entries stay retired.
   // `MarkdownSchema` sat here, colliding between
   // `packages/plugin-markdown/src/types.ts` and `packages/types/src/data-display.ts`.
   // The copies differed on ONE member — `content`, required there and optional here —
@@ -451,7 +457,27 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['RecordDetailDrawerProps', ['packages/plugin-dashboard/src/RecordDetailDrawer.tsx', 'packages/plugin-detail/src/RecordDetailDrawer.tsx']],
   ['SchemaNode', ['packages/sdui-parser/src/types.ts', 'packages/types/src/base.ts']],
   ['ThemeProviderProps', ['packages/providers/src/types.ts', 'packages/react/src/context/ThemeContext.tsx']],
-  ['TranslateFn', ['packages/app-shell/src/providers/saveAdvisoryToast.ts', 'packages/app-shell/src/providers/writeWarningToast.ts', 'packages/fields/src/widgets/file-size-guard.ts']],
+  // `TranslateFn` lost its `packages/app-shell/src/providers/saveAdvisoryToast.ts`
+  // site in objectui#8165. All three declarations were BYTE-IDENTICAL when that
+  // was measured (86 bytes each, one sha256 across the three), so there was no
+  // shape to reconcile; and the authority did not need choosing, because
+  // `AdapterProvider` is the single caller of all three emitters and already
+  // imported the type from `./writeWarningToast.js`, passing that one value into
+  // each of them. `saveAdvisoryToast.ts` now re-exports it, which this gate does
+  // not count.
+  //
+  // ⚠️ The `packages/fields` site STAYS, and that is a measurement rather than an
+  // oversight. The re-export remedy is dependency-illegal there:
+  // `@object-ui/app-shell` DEPENDS ON `@object-ui/fields`, so pointing fields at
+  // app-shell is a package cycle — and `TranslateFn` is on neither package's
+  // published face (`app-shell/src/index.ts` names it nowhere and has no star
+  // re-export; `fields/src/index.tsx` stars 50-odd widget modules but not
+  // `file-size-guard.js`, and none of its three importers re-export the name), so
+  // there would be nothing to import either. Retiring the last copy means moving
+  // the authority DOWN into a package both depend on — the `KanbanSchema` route
+  // above — which publishes a new name from that package and is a decision
+  // nobody has made. objectui#8165 reports it instead of guessing.
+  ['TranslateFn', ['packages/app-shell/src/providers/writeWarningToast.ts', 'packages/fields/src/widgets/file-size-guard.ts']],
   ['UndoRedoState', ['packages/plugin-designer/src/hooks/useUndoRedo.ts', 'packages/types/src/ui-action.ts']],
   ['UserDataAdapter', ['packages/app-shell/src/context/UserStateAdapters.tsx', 'packages/data-objectstack/src/userState.ts']],
   // `ValidationFunction` sat here, colliding between

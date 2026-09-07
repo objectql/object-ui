@@ -298,6 +298,46 @@ describe('parseAiQuotaError', () => {
         ).toBe(false);
       });
 
+      // objectui#7587 — the free plan's shape AFTER cloud PR #1852 (the rolling
+      // 7-day window): same field, same type, inverted VALUE, plus a sibling
+      // key the parser has no read for. The pin above is about the type and
+      // stays true; this one is about what the parse hands downstream, which is
+      // where the change actually landed.
+      it('parses the free-plan envelope and carries no reset instant out of it', () => {
+        const parsed = parseAiQuotaError(
+          err({
+            success: false,
+            error: {
+              code: 'AI_ALLOWANCE_EXHAUSTED',
+              message: 'zh',
+              details: {
+                messageEn: 'Your free AI allowance is used up.',
+                upgrade: true,
+                topUp: false,
+                resetsTonight: false,
+                resetsAt: '2026-09-13T00:00:00Z',
+              },
+            },
+          }),
+        );
+        // The whole shape, so an added field is a deliberate edit to this line.
+        expect(parsed).toEqual({
+          code: 'AI_ALLOWANCE_EXHAUSTED',
+          message: 'zh',
+          messageEn: 'Your free AI allowance is used up.',
+          upgrade: true,
+          topUp: false,
+          resetsTonight: false,
+        });
+        // Stated separately because `toEqual` treats an explicit `undefined`
+        // property as absent: the KEY is not on the parsed object at all, so no
+        // consumer downstream can render the instant the producer sent. Reading
+        // it is a real option (objectui#7587 weighs it) — it just needs a
+        // reader and a measured wire position, and this line is where that
+        // decision has to be made out loud.
+        expect(parsed && 'resetsAt' in parsed).toBe(false);
+      });
+
       it('ignores a non-object `details` instead of throwing', () => {
         expect(
           parseAiQuotaError(

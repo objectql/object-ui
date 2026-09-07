@@ -77,9 +77,40 @@ const makeDataSource = () => ({
   }),
 });
 
-/** Render the permission_set_id column's cell for `value`, return its text. */
+const lookupColumn = () =>
+  h.schema?.columns?.find((c: any) => c.accessorKey === 'permission_set_id');
+
+/**
+ * Has the batch id -> label map landed? Answered WITHOUT touching the DOM.
+ *
+ * This is the readiness signal the two cases below wait on, and it is
+ * side-effect free on purpose (objectui#7756). `waitFor` re-runs its callback
+ * on DOM MUTATIONS as well as on its interval, so a callback that renders
+ * schedules its own next run — self-feeding. Measured here with the interval
+ * pinned at the timeout, so the interval timer can never re-run the callback:
+ * a rendering callback still reached 200 runs in 144ms, an inert one and one
+ * rendering into a DETACHED container reached 1. Every run of the rendering
+ * callback also leaked one node into `document.body` (growth == run count):
+ * RTL's `unmount()` tears down the React root but leaves behind the container
+ * div `render` appended. So the loop is unbounded ALLOCATION, and when the
+ * lookup batch resolves slowly it exhausts the V8 heap and kills the whole
+ * vitest worker — `Tests (2) / Errors 1 / tests 0ms`, nothing reported — which
+ * fails the entire shard rather than one test.
+ *
+ * `col.cell(value)` only ALLOCATES a React element; nothing is mounted. The
+ * junction field declares no `options` of its own, so `field.options` on that
+ * element exists only once the batch map is folded in — that IS the readiness
+ * fact, and it is a pure read.
+ */
+const batchLabelsLanded = (value: string): boolean =>
+  Boolean((lookupColumn()?.cell?.(value) as any)?.props?.field?.options);
+
+/**
+ * Render the permission_set_id column's cell for `value`, return its text.
+ * Called ONCE per case, after the wait above — never from inside a `waitFor`.
+ */
 const renderCellText = (value: string): string | undefined => {
-  const col = h.schema?.columns?.find((c: any) => c.accessorKey === 'permission_set_id');
+  const col = lookupColumn();
   if (!col?.cell) return undefined;
   const { container, unmount } = render(<>{col.cell(value)}</>);
   const text = container.textContent ?? undefined;
@@ -112,9 +143,13 @@ describe('RelatedList batch lookup-label resolution (objectui#3330)', () => {
       expect(dataSource.find).toHaveBeenCalledWith('sys_permission_set', expect.anything()),
     );
 
-    // Once the map lands, the cell must show the declared display name —
-    // never flip to the API name the legacy chain would have picked.
-    await waitFor(() => expect(renderCellText('ps_1')).toBe('排班员权限'));
+    // Wait for the map to land — side-effect free, so the predicate cannot
+    // feed its own re-runs — then render the cell ONCE and read what it shows.
+    await waitFor(() => expect(batchLabelsLanded('ps_1')).toBe(true));
+
+    // The cell must show the declared display name — never flip to the API
+    // name the legacy chain would have picked.
+    expect(renderCellText('ps_1')).toBe('排班员权限');
   });
 
   it('falls back to the legacy chain when the target schema is unavailable', async () => {
@@ -139,7 +174,9 @@ describe('RelatedList batch lookup-label resolution (objectui#3330)', () => {
     await waitFor(() =>
       expect(dataSource.find).toHaveBeenCalledWith('sys_permission_set', expect.anything()),
     );
+    await waitFor(() => expect(batchLabelsLanded('ps_1')).toBe(true));
+
     // Non-regressive: without a schema the old `name`-first chain still applies.
-    await waitFor(() => expect(renderCellText('ps_1')).toBe('ehr_production_planner'));
+    expect(renderCellText('ps_1')).toBe('ehr_production_planner');
   });
 });

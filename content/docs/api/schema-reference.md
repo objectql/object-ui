@@ -17,6 +17,20 @@ This reference documents every ObjectUI schema type with annotated JSON examples
 
 ## Base Schema
 
+**"A component node" is named `BaseSchema`.** That is the object half a renderer
+receives: it carries the required `type` — the registry key that selects the renderer —
+plus the shared keys tabled below, and every schema type in this reference extends it.
+Use `BaseSchema` for any position that holds a node object: a slot's declared type, a
+prop, a type annotation in an example.
+
+Reach for `SchemaNode` only where the wider union is genuinely correct. `SchemaNode` is
+`BaseSchema` **plus** the primitive members that render as text, so it is the right word
+for a slot that also accepts a bare string (`body`, `children`) and the wrong word for a
+position that must be an object: a renderer that narrows a slot with
+`typeof node === 'object'` before reading its keys drops those primitive members on the
+floor. Naming the union where only the object half is accepted is the mismatch
+objectui#7082 had to correct nine times.
+
 ### SchemaNode
 
 The foundational building block of ObjectUI. Every component in the system is described by a `SchemaNode`. It can be a full schema object, or a primitive value rendered as text.
@@ -491,7 +505,7 @@ numbers of its own: `ChartDataSeries.data` is a retirement tombstone
 | `title` | `string` | Chart title. |
 | `description` | `string` | Chart description / subtitle. |
 | `categories` | `string[]` | An **alternative series list** — column names to plot, read only when `series` is absent, and ignored outright when it is present. Not axis labels: the category axis comes from `xAxisKey`. |
-| `series` | `ChartDataSeries[]` | Data series. Each entry's `name` (or `dataKey`) names the column it plots within a `data` row; optional `label`, `color`, a per-series `type` (`"bar"`, `"line"`, `"area"`) for combo charts, `stack`, `yAxis` (`"left"` / `"right"`), `variant` (`"primary"` / `"comparison"`), `dashArray` and `opacity`. |
+| `series` | `ChartDataSeries[]` | Data series. Each entry's `name` (or `dataKey`) names the column it plots within a `data` row; optional `label`, `color`, a per-series `type` (`"bar"`, `"line"`, `"area"`) for combo charts, `stack`, `yAxis` (`"left"` / `"right"`), `variant` (`"primary"` / `"comparison"`), `dashArray` and `opacity`. `chartType` on a series is refused by name — it is the renderer's internal spelling of `type`; write `type`. |
 | `data` | `Array<Record<string, any>>` | Rows to plot — one object per row, keyed by column name. |
 | `xAxisKey` | `string` | Row key holding the category (x) axis. The bare-string `xAxis: "month"` spelling folds onto this key at parse. |
 | `height` / `width` | `string \| number` | Chart dimensions. |
@@ -514,7 +528,7 @@ A hierarchical tree component for nested data with expand/collapse and selection
   "multiSelect": false,
   "showLines": true,
   "defaultExpandedIds": ["root", "src"],
-  "data": [
+  "nodes": [
     {
       "id": "root",
       "label": "project",
@@ -859,11 +873,11 @@ A complete object management interface combining grid, form, search, filters, an
       "sort": [{ "field": "value", "order": "desc" }]
     },
     "my-deals": {
-      "label": "My Deals",
       "filter": [["owner", "=", "${currentUser.id}"]],
-      "default": true
+      "label": "My Deals"
     }
   },
+  "defaultListView": "my-deals",
   "table": {
     "columns": ["name", "stage", "value", "owner", "closeDate"],
     "pageSize": 25
@@ -896,28 +910,44 @@ A complete object management interface combining grid, form, search, filters, an
 
 ## Complex Schemas
 
-### DeclarativeKanbanSchema
+### KanbanSchema
 
-A drag-and-drop Kanban board with columns and cards.
+A drag-and-drop Kanban board. The `kanban` type key validates the shape the registered renderer (`@object-ui/plugin-kanban`) reads: bind the board to an object with `objectName` + `groupBy` (the lanes come from the group field's options), or author it statically with `columns`, each carrying its `cards`.
 
 ```json
 {
   "type": "kanban",
-  "draggable": true,
+  "objectName": "tasks",
+  "groupBy": "status",
+  "cardTitle": "title",
+  "cardFields": ["assignee", "due_date"],
+  "quickAdd": true
+}
+```
+
+A static board carries its cards inline:
+
+```json
+{
+  "type": "kanban",
   "columns": [
     {
       "id": "todo",
       "title": "To Do",
-      "color": "#6366f1",
       "cards": [
-        { "id": "task-1", "title": "Design mockups", "description": "Create wireframes for new feature" },
+        {
+          "id": "task-1",
+          "title": "Design mockups",
+          "description": "Create wireframes for new feature",
+          "badges": [{ "label": "High", "variant": "destructive" }]
+        },
         { "id": "task-2", "title": "Write tests", "description": "Unit tests for auth module" }
       ]
     },
     {
       "id": "in-progress",
       "title": "In Progress",
-      "color": "#f59e0b",
+      "limit": 3,
       "cards": [
         { "id": "task-3", "title": "API integration", "description": "Connect to payment gateway" }
       ]
@@ -925,7 +955,6 @@ A drag-and-drop Kanban board with columns and cards.
     {
       "id": "done",
       "title": "Done",
-      "color": "#22c55e",
       "cards": []
     }
   ]
@@ -934,10 +963,26 @@ A drag-and-drop Kanban board with columns and cards.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `columns` | `DeclarativeKanbanColumn[]` | **Required.** Board columns, each with `id`, `title`, `color`, and `cards`. |
-| `draggable` | `boolean` | Enable drag-and-drop between columns. |
-| `onCardMove` | `function` | Callback when a card is moved: `(cardId, fromColumn, toColumn, position)`. |
-| `onCardClick` | `function` | Callback when a card is clicked. |
+| `objectName` | `string` | Object to fetch records from. |
+| `groupBy` | `string` | Field whose values become the lanes (maps to column ids). |
+| `swimlaneField` | `string` | Field for swimlane rows (2D grouping). |
+| `cardTitle` | `string` | Field used as the card title. |
+| `cardFields` | `string[]` | Fields rendered on each card. |
+| `data` | `any[]` | Inline records, bucketed into lanes by `groupBy`. |
+| `limit` | `number` | Fetch window for the board (default 100). |
+| `columns` | `KanbanColumn[]` | Lanes, each with `id`, `title`, `cards`, and optional `limit` / `className` / `collapsed`. A card has `id`, `title`, optional `description` and `badges`. |
+| `quickAdd` | `boolean` | Show a Quick Add button at the bottom of each column. |
+| `coverImageField` | `string` | Field whose URL renders as the card cover image. |
+| `allowCollapse` | `boolean` | Allow columns to be collapsed. |
+| `conditionalFormatting` | `KanbanConditionalFormattingRule[]` | Card colouring rules — native `{ field, operator, value }` or spec `{ condition, style }`. |
+| `cardTemplates` | `CardTemplate[]` | Predefined quick-add templates. |
+| `columnWidths` | `ColumnWidthConfig` | Column width configuration. |
+| `grouping` | `GroupingConfig` | ListView grouping config; its first field is the swimlane fallback. |
+| `onCardMove` | `function` | Runtime slot supplied by a React host, `(cardId, fromColumnId, toColumnId, newIndex)`; not authorable in JSON. |
+| `onCardClick` | `function` | Runtime slot supplied by a React host, `(card, event?)`; not authorable in JSON. On the object-bound board the host's handler runs alongside the record-detail overlay. |
+| `onQuickAdd` | `function` | Runtime slot supplied by a React host, `(columnId, title)`; not authorable in JSON. |
+
+> The former `@object-ui/types` kanban dialect — `DeclarativeKanbanSchema`, with a board-level `draggable`, a column `color` and card `labels` / `priority` — was retired in objectui#7664: no registered renderer read it, so a board written that way validated and rendered empty. `draggable` and a column `color` are now refused by name; a static board written with `columns[].cards[]` as above is the same document in both dialects and renders every card.
 
 **Related:** [ObjectViewSchema](#objectviewschema), [ObjectGridSchema](#objectgridschema)
 
@@ -1211,7 +1256,7 @@ A toggle control that switches between different view types (list, grid, kanban,
 | `storageKey` | `string` | Storage key for persisting the preference. |
 | `onViewChange` | `string` | Expression or callback invoked on view change. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [DeclarativeKanbanSchema](#declarativekanbanschema), [CalendarViewSchema](#calendarviewschema)
+**Related:** [ObjectViewSchema](#objectviewschema), [KanbanSchema](#kanbanschema), [CalendarViewSchema](#calendarviewschema)
 
 ---
 
@@ -1286,7 +1331,7 @@ import type { ActionSchema, DetailSchema } from '@object-ui/types';
 import type { ObjectGridSchema, ObjectFormSchema, ObjectViewSchema } from '@object-ui/types';
 
 // Complex
-import type { DeclarativeKanbanSchema, DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
+import type { KanbanSchema, DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
 
 // Views
 import type { DetailViewSchema, ViewSwitcherSchema } from '@object-ui/types';

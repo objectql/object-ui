@@ -105,6 +105,7 @@ interface KanbanCard {
 | Property | Type | Description |
 |----------|------|-------------|
 | `columns` | KanbanColumn[] | Array of column definitions |
+| `filter` | ViewFilterRule[] | Query filter for an object-driven board, lowered to `$filter` |
 | `limit` | number | Rows fetched by an object-driven board (default 100) |
 | `onCardMove` | function | Callback when a card is moved |
 | `className` | string | Additional Tailwind CSS classes |
@@ -155,7 +156,9 @@ board renders every fetched record into a lane and offers no pagination control,
 so this is the author's window on the object rather than a page size:
 
 ```tsx
-const board = {
+import type { ObjectKanbanSchema } from '@object-ui/types'
+
+const board: ObjectKanbanSchema = {
   type: 'object-kanban',
   objectName: 'opportunity',
   groupBy: 'stage',

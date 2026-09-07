@@ -83,7 +83,7 @@ ComponentRegistry.register('approvals', RecordApprovalsRenderer, {
   category: 'record',
   label: 'Approvals',
   icon: 'Stamp',
-  inputs: [{ name: 'className', type: 'string', label: 'CSS Class' }],
+  inputs: [{ name: 'className', type: 'string' }],
 });
 
 export default RecordApprovalsRenderer;

@@ -132,10 +132,10 @@ ComponentRegistry.register('header-bar',
     namespace: 'ui',
     label: 'Header Bar',
     inputs: [
-       { name: 'crumbs', type: 'array', label: 'Breadcrumbs' },
-       { name: 'search', type: 'object', label: 'Search Configuration' },
-       { name: 'actions', type: 'array', label: 'Action Slots' },
-       { name: 'rightContent', type: 'object', label: 'Right Content' },
+       { name: 'crumbs', type: 'array' },
+       { name: 'search', type: 'object' },
+       { name: 'actions', type: 'array' },
+       { name: 'rightContent', type: 'object' },
     ],
     defaultProps: {
       crumbs: [

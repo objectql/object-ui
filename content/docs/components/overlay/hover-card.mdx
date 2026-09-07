@@ -14,7 +14,7 @@ The Hover Card component displays rich content when hovering over an element.
 ```plaintext
 interface HoverCardSchema {
   type: 'hover-card';
-  trigger: SchemaNode;                  // Trigger element
+  trigger: SchemaNode | SchemaNode[];   // Trigger element
   content: SchemaNode | SchemaNode[];   // Card content
   side?: 'top' | 'right' | 'bottom' | 'left';
   align?: 'start' | 'center' | 'end';

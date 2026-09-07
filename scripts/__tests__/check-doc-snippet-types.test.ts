@@ -26,8 +26,11 @@ import {
   moduleSpecifiersOf,
   moduleSpecifiersOfBlock,
   resolvesOnlyThroughRootManifest,
+  ROOT_DOCS,
   rootDeclaredSpecifiers,
+  rootDocsPages,
   scanFences,
+  scopedBuildNotice,
   specifierRoot,
 } from '../check-doc-snippet-types.mjs';
 
@@ -249,6 +252,108 @@ describe('fence scanning', () => {
     }
   });
 
+  it('attaches a blockquoted fragment marker to the fence directly beneath it', () => {
+    // objectui#7099: the marker anchor read `^[ \t]*`, so `> {/* doc-snippet:
+    // fragment ... */}` did not register as a marker at all. objectui#7086 had
+    // already brought the quoted fence under the gate's contract, and that
+    // contract has two halves — compile, OR declare why you cannot. Only the
+    // first half reached blockquotes, so a quoted block that legitimately cannot
+    // compile had no declared way to say so.
+    const { blocks, markers } = scanFences(
+      [
+        '> **Note:** the renderer is already mounted above.',
+        '> {/* doc-snippet: fragment \u2014 continues the block above */}',
+        `> ${FENCE}ts`,
+        '> renderer.mount(el);',
+        `> ${FENCE}`,
+      ].join('\n'),
+    );
+    expect(markers, 'a quoted marker must register as a marker').toHaveLength(1);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].fragmentReason).toBe('continues the block above');
+  });
+
+  it('attaches across a bare `>` spacer — the callout shape real pages use', () => {
+    // This is the case a half-fix misses. Widening the marker anchor alone makes
+    // the pin above pass and leaves this one failing: the attachment walk wants
+    // the nearest NON-BLANK line above the fence, and `'>'.trim()` is `'>'`, not
+    // the empty string — so the walk stops on the very spacer that separates a
+    // callout's prose from its fence. Passing in tests and failing on the shape
+    // real pages use is why both mechanisms move together.
+    const { blocks } = scanFences(
+      [
+        '> **Note:** the renderer is already mounted above.',
+        '>',
+        '> {/* doc-snippet: fragment \u2014 continues the block above */}',
+        '>',
+        `> ${FENCE}ts`,
+        '> renderer.mount(el);',
+        `> ${FENCE}`,
+      ].join('\n'),
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].fragmentReason).toBe('continues the block above');
+  });
+
+  it('does not attach a marker written at a different quote depth than its fence', () => {
+    // The rule: a marker declares the fence at its OWN depth. A depth-0 marker
+    // above a quoted fence is not inside the callout the block lives in; a quoted
+    // marker above an unquoted fence is not outside it. Neither attaches, and the
+    // unattached marker is reported rather than silently dropped.
+    const outside = scanFences(
+      [
+        '{/* doc-snippet: fragment \u2014 continues the block above */}',
+        `> ${FENCE}ts`,
+        '> renderer.mount(el);',
+        `> ${FENCE}`,
+      ].join('\n'),
+    );
+    expect(outside.blocks).toHaveLength(1);
+    expect(outside.blocks[0].fragmentReason).toBeNull();
+    expect(outside.markers.map((m) => m.consumed)).toEqual([false]);
+
+    const inside = scanFences(
+      [
+        '> {/* doc-snippet: fragment \u2014 continues the block above */}',
+        `${FENCE}ts`,
+        'renderer.mount(el);',
+        FENCE,
+      ].join('\n'),
+    );
+    expect(inside.blocks).toHaveLength(1);
+    expect(inside.blocks[0].fragmentReason).toBeNull();
+    expect(inside.markers.map((m) => m.consumed)).toEqual([false]);
+  });
+
+  it('leaves the unquoted path exactly as it was — depth 0 is the identity path', () => {
+    const { blocks, markers } = scanFences(
+      [
+        '{/* doc-snippet: fragment \u2014 continues the block above */}',
+        '',
+        '',
+        `${FENCE}ts`,
+        'renderer.mount(el);',
+        FENCE,
+      ].join('\n'),
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].quoteDepth).toBe(0);
+    expect(blocks[0].fragmentReason).toBe('continues the block above');
+    expect(markers.map((m) => m.consumed)).toEqual([true]);
+  });
+
+  it('reports a blockquoted marker that declares nothing, instead of never seeing it', () => {
+    const root = tempTree({
+      'content/docs/a.mdx': [
+        '> {/* doc-snippet: fragment \u2014 nothing follows this */}',
+        '>',
+        '> Just prose.',
+      ].join('\n'),
+    });
+    const findings = analyze({ root, ungated: {} }).findings as Finding[];
+    expect(findings.map((f) => f.reason)).toContain('stale-fragment-marker');
+  });
+
   it('reports a marker that declares nothing rather than ignoring it', () => {
     const root = tempTree({
       'content/docs/a.mdx': ['{/* doc-snippet: fragment — nothing follows this */}', '', 'Just prose.'].join('\n'),
@@ -263,6 +368,142 @@ describe('fence scanning', () => {
     });
     const findings = analyze({ root, ungated: {} }).findings as Finding[];
     expect(findings.map((f) => f.reason)).toContain('unexplained-fragment');
+  });
+});
+
+/**
+ * objectui#7505 — a DECLARED fragment is the one block this gate never compiles,
+ * so a reason claiming the block was checked against something is an assertion
+ * the gate structurally cannot re-verify. Measured cost: the claim on
+ * `content/docs/utilities/data-objectstack.mdx` was true when written, went
+ * silently false when objectui#7503 widened the factory's return type, and three
+ * independent readers hunting for exactly that falsehood missed it because the
+ * page reads as verified.
+ *
+ * ⭐ What is pinned here is that the gate refuses the COMBINATION and nothing
+ * wider. The exemption stays legal; the claim stays legal on a compiled block;
+ * only the two together are refused. A test suite that only proved "the claim
+ * turns it red" would not notice the check growing into a phrase hunt over every
+ * reason in the corpus, which is the failure mode the card named in advance.
+ */
+describe('objectui#7505 — a fragment reason may not claim the block was checked', () => {
+  const claimDoc = (reason: string) =>
+    ['# T', '', `{/* doc-snippet: fragment — ${reason} */}`, `${FENCE}ts`, 'const x: Broken =', FENCE].join('\n');
+
+  const reasonsOf = (reason: string) =>
+    (analyze({ root: tempTree({ 'content/docs/a.mdx': claimDoc(reason) }), ungated: {} }).findings as Finding[])
+      .map((f) => f.reason);
+
+  it('turns red on the spelling that was actually written here, and names itself', () => {
+    const findings = analyze({
+      root: tempTree({
+        'content/docs/a.mdx': claimDoc(
+          'a SIGNATURE excerpt, checked against the shipped `dist/index.d.ts` with the same type',
+        ),
+      }),
+      ungated: {},
+    }).findings as Finding[];
+    const claim = findings.find((f) => f.reason === 'verification-claim-on-fragment');
+    expect(claim, 'the combination this card exists to refuse went green').toBeDefined();
+    expect(claim!.site).toBe('content/docs/a.mdx:4');
+    // The remedy has to reach the author who is standing in front of the red.
+    expect(claim!.detail).toContain('checked');
+    expect(claim!.detail).toContain('compiled tier');
+  });
+
+  it('is a verdict about the document, not a precondition — it leaves through exit 1', () => {
+    const findings = analyze({
+      root: tempTree({ 'content/docs/a.mdx': claimDoc('a shape excerpt, verified member for member') }),
+      ungated: {},
+    }).findings as Finding[];
+    expect(findings.map((f) => f.reason)).toContain('verification-claim-on-fragment');
+    // `couldNotRun` would say the gate never judged the document. It did.
+    expect(blockingPreconditions(findings)).toHaveLength(0);
+  });
+
+  it('refuses the COMBINATION, not the claim: the same words on a COMPILED block are untouched', () => {
+    // No marker, so the block is in the compiled tier — where the claim is one
+    // this gate re-verifies on every commit, which is the shape the rule wants.
+    const root = tempTree({
+      'content/docs/a.mdx': [
+        '# T',
+        '',
+        `${FENCE}ts`,
+        '// verified against the shipped dist/index.d.ts, checked member for member',
+        'export const a = 1;',
+        FENCE,
+      ].join('\n'),
+    });
+    const state = analyze({ root, ungated: {} });
+    expect((state.findings as Finding[]).map((f) => f.reason)).not.toContain('verification-claim-on-fragment');
+    expect(state.compiled).toHaveLength(1);
+  });
+
+  it('leaves a reason that names the same authority to say the OPPOSITE alone', () => {
+    // content/docs/plugins/plugin-calendar.mdx's real shape: it names the shipped
+    // declaration in order to state that nothing agrees with it. Anchoring the
+    // match on "against the shipped" instead of on a verb would fail this.
+    expect(
+      reasonsOf(
+        'the half cannot compile against the SHIPPED prop type: `schema` is declared `ObjectGridSchema` and neither admits this node',
+      ),
+    ).not.toContain('verification-claim-on-fragment');
+  });
+
+  it("leaves `type-checked` alone — it names THIS gate's own action, which does re-run every commit", () => {
+    // content/docs/guide/component-registry.md's real shape. This is the good
+    // shape the rule is built to distinguish: a claim backed by a check that
+    // runs on every commit is not a fact with an expiry date.
+    expect(
+      reasonsOf(
+        'continues the block above; the literal it shows is type-checked on the complete example at the end of the page, which does compile',
+      ),
+    ).not.toContain('verification-claim-on-fragment');
+    // …while the hyphenated compound that IS a manual claim still trips it, so
+    // the guard that lets `type-checked` through is not a hole for `hand-checked`.
+    expect(reasonsOf('a signature excerpt; agreement with dist is hand-checked at each edit')).toContain(
+      'verification-claim-on-fragment',
+    );
+  });
+
+  it('trips on every verb it claims to cover, so the closed list cannot rot in silence', () => {
+    const spellings = [
+      'this excerpt was verified against the shipped declaration',
+      'this excerpt was confirmed against the shipped declaration',
+      'this excerpt was validated against the shipped declaration',
+      'this excerpt was audited against the shipped declaration',
+      'this excerpt was reconciled against the shipped declaration',
+      'this excerpt was checked against the shipped declaration',
+      'agreement with the declaration is cross-checked at each edit',
+      'agreement with the declaration is spot-checked at each edit',
+      'agreement with the declaration is double-checked at each edit',
+      'agreement with the declaration is manually checked at each edit',
+    ];
+    for (const reason of spellings) {
+      expect(reasonsOf(reason), `"${reason}" was not read as a claim`).toContain('verification-claim-on-fragment');
+    }
+  });
+
+  it("this repository's own 158 declared fragments carry no such claim", () => {
+    // The census that decided the route (the card asked for it before any gate
+    // change): 2 of 158 carried a claim, both on the page the card sampled, and
+    // both are repaired on this branch. A corpus-wide pin, so the next one is
+    // caught here and not only in CI.
+    const state = analyze({ root: repoRoot });
+    const claims = (state.findings as Finding[]).filter((f) => f.reason === 'verification-claim-on-fragment');
+    expect(claims.map((f) => f.site)).toEqual([]);
+    // Guards the pin above against going vacuous: this gate must still be
+    // reading a real population of declared fragments for "zero" to mean
+    // anything, and that population must not have moved into the compiled tier.
+    expect(state.declaredFragments.length).toBeGreaterThan(100);
+  });
+
+  it('states the rule in its own header, so it cannot drift out of the source', () => {
+    const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+    expect(source).toContain('It never claims the block was');
+    expect(source).toContain(
+      'A claim that something was verified is only as good as the check that',
+    );
   });
 });
 
@@ -380,6 +621,87 @@ describe('objectui#7115 — the root README is in the scan set', () => {
     const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-doc-snippet-types.mjs'), 'utf8');
     expect(source).toContain('ROOT_PAGES');
     expect(source).toMatch(/for \(const name of ROOT_PAGES\) \{\n\s*if \(!existsSync\(join\(repoRoot, name\)\)\)/);
+  });
+});
+
+/**
+ * objectui#7856 card 1 — the repository-root `docs/` tree was in NO doc gate's
+ * scan set, and `lint:root` ignores it by name (`--ignore-pattern 'docs/**'`).
+ * The card measured what that bought: three phantom-teaching sites found in it by
+ * hand (objectui#7838, objectui#7854) and 11 diagnostics under `docs/*.md` that
+ * nothing reported.
+ *
+ * The rule this file's sibling states — "Widening a scan surface is the change
+ * that can be GREEN ABOUT NOTHING… Anything added here later is owed the same
+ * proof" — is why membership is pinned by name below, and why the leg's
+ * BOUNDARY is pinned too. `recursive: false` is not a performance note: the
+ * subtree it excludes is `docs/adr/**`, a governed surface whose pull requests
+ * stop in draft for a human, plus `docs/audits/**`, and both are card 2. A leg
+ * that grew into them by accident would put a governed-surface failure in front
+ * of a pull request that cannot land it.
+ */
+describe('objectui#7856 — the root docs/*.md pages are in the scan set, and only those', () => {
+  it('listDocuments reaches them', () => {
+    const documents = listDocuments(repoRoot);
+    for (const doc of rootDocsPages(repoRoot)) expect(documents).toContain(doc);
+    // Non-vacuous: the leg reaches a real page, not an empty directory.
+    expect(rootDocsPages(repoRoot)).toContain('docs/ARCHITECTURE.md');
+  });
+
+  it('the widening judges something — the leg contributes blocks to the compiled tier', () => {
+    // Being IN the walk is one fact; being compiled is the other, and this card
+    // delivered both (no `UNGATED_DOCS` entry was needed — the blocks were
+    // repaired). A leg whose pages all sat on the ledger would be visible to the
+    // accounting and judged by nothing, which is a weaker claim than this test
+    // makes.
+    const state = analyze({});
+    const leg = new Set(rootDocsPages(repoRoot));
+    expect((state.covered as string[]).filter((d) => leg.has(d)).sort()).toEqual([...leg].sort());
+    expect((state.compiled as { doc: string }[]).some((b) => leg.has(b.doc))).toBe(true);
+  });
+
+  it('stops at the top level: a page in a subdirectory is NOT collected', () => {
+    const root = tempTree({
+      'docs/PAGE.md': '# top level\n',
+      'docs/adr/0001-decision.md': '# governed, card 2\n',
+      'docs/audits/2026-07-audit.md': '# card 2\n',
+    });
+    try {
+      expect(rootDocsPages(root)).toEqual(['docs/PAGE.md']);
+      expect(listDocuments(root)).toEqual(['docs/PAGE.md']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('collects files only, and only page extensions', () => {
+    const root = tempTree({
+      'docs/b.mdx': '# b\n',
+      'docs/a.md': '# a\n',
+      'docs/notes.txt': 'not a page\n',
+      'docs/screenshots/shot.png': 'not a page\n',
+    });
+    try {
+      expect(rootDocsPages(root)).toEqual(['docs/a.md', 'docs/b.mdx']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('an absent docs/ tree yields nothing here, and a verdict is refused in main', () => {
+    const root = tempTree({ 'README.md': '# root\n' });
+    try {
+      // A throwaway fixture tree stays listable…
+      expect(rootDocsPages(root)).toEqual([]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+    // …while a REAL run refuses, the same way a dangling ROOT_PAGES name does.
+    // `main()` takes no `--root`, so this is pinned against the source for the
+    // same reason the ROOT_PAGES guard above is.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-doc-snippet-types.mjs'), 'utf8');
+    expect(source).toMatch(/if \(!existsSync\(join\(repoRoot, ROOT_DOCS\.dir\)\)\) \{/);
+    expect(ROOT_DOCS).toEqual({ dir: 'docs', recursive: false });
   });
 });
 
@@ -838,6 +1160,75 @@ describe('the exit path — "I could not run" is not "I ran and found errors" (o
     const header = source.slice(0, source.indexOf('## What this gate answers'));
     expect(header).toContain('1 = THE GATE RAN AND FOUND ERRORS');
     expect(header).toContain('2 = THE GATE COULD NOT RUN');
+  });
+});
+
+/**
+ * The scoping notice on the precondition path — objectui#7795.
+ *
+ * The command that path prints builds a CLOSURE, not the tree, and said so
+ * nowhere: measured on `origin/main` `abdcd189c`, running it left 34 of the
+ * workspace's 40 packages with a `dist/`, and nothing told the reader that the
+ * leftovers were the intended end state rather than a build that half-failed.
+ *
+ * Pinned here is the half that rots unwatched — the notice must keep DERIVING its
+ * numbers and must never grow a package list of its own — plus the half that makes
+ * it worthless: the precondition path has to actually print it. That it reaches a
+ * real terminal is shown on an unbuilt tree in the pull request; this suite cannot
+ * get there, because the path only opens when this repository's own packages are
+ * unbuilt, and CI has built them by the time it runs.
+ */
+describe('the printed build command says what it does NOT build (objectui#7795)', () => {
+  it('interpolates the counts it is handed — without this, a fixed sentence passes every pin below', () => {
+    expect(scopedBuildNotice(26, 40)).toContain('26 package(s)');
+    expect(scopedBuildNotice(26, 40)).toContain('packages/ holds 40');
+    // The control: different inputs, different text. A hard-coded "26 of 40" —
+    // exactly the rotting summary this notice exists not to be — passes the
+    // assertions above and fails these.
+    const other = scopedBuildNotice(1, 2);
+    expect(other).toContain('1 package(s)');
+    expect(other).toContain('packages/ holds 2');
+    expect(other).not.toContain('26');
+    expect(other).not.toContain('40');
+  });
+
+  it('names no package of its own — the reader is sent to the filter, never to a copy of it', () => {
+    const notice = scopedBuildNotice(26, 40);
+    expect(
+      notice,
+      'a package name written here is a second list of what gets built, and it rots the first time coverage moves',
+    ).not.toMatch(/@object-ui\//);
+    expect(notice).toContain('--build-filter');
+    expect(notice, 'without a way to ask, the notice is one more thing the reader has to trust').toContain(
+      '--dry=text',
+    );
+  });
+
+  it('says the build is scoped and that what it leaves behind is the designed end state', () => {
+    const notice = scopedBuildNotice(26, 40);
+    expect(notice).toContain('not a whole-tree build');
+    expect(notice).toContain('left exactly as it was');
+  });
+
+  it('is printed on the precondition path, not merely defined', () => {
+    const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+    const start = source.indexOf('PRECONDITION NOT MET');
+    expect(start, 'the precondition path must still print that headline').toBeGreaterThan(-1);
+    const end = source.indexOf('return EXIT_CODES.couldNotRun;', start);
+    expect(
+      source.slice(start, end),
+      'a notice nothing calls is a string in a file, and objectui#7795 was filed about a reader who was never told',
+    ).toContain('scopedBuildNotice(');
+  });
+
+  it('counts the workspace from what the gate itself read, not from a number written down', () => {
+    const root = tempTree({
+      'content/docs/a.mdx': [`${FENCE}ts`, 'export const x = 1;', FENCE].join('\n'),
+      'packages/pkg-a/package.json': JSON.stringify({ name: '@fixture/pkg-a', types: './dist/index.d.ts' }),
+      'packages/pkg-b/package.json': JSON.stringify({ name: '@fixture/pkg-b', types: './dist/index.d.ts' }),
+    });
+    const state = analyze({ root }) as unknown as { packageDirOf: Record<string, string> };
+    expect(Object.keys(state.packageDirOf).sort()).toEqual(['@fixture/pkg-a', '@fixture/pkg-b']);
   });
 });
 

@@ -53,13 +53,19 @@ describe('Basic Renderers - Display Issue Detection', () => {
       expect(domCheck).toBeDefined();
     });
 
-    it('should support value property as alias', () => {
+    it('no longer reads `value` — RETIRED (objectui#6951, ADR-0049), `content` is the one spelling', () => {
+      // Before objectui#6951 this case pinned `value` as an alias for `content`
+      // (`{schema.content || schema.value}`). The alias is retired on both
+      // published faces and the renderer reads `content` alone, so an authored
+      // `value` reaches the DOM as NOTHING — the enforce-or-remove half this
+      // pin now guards. The refusal itself is pinned in `@object-ui/types`
+      // (`text-value-retired-6951.test.ts`); this leg is the read side.
       const { container } = renderComponent({
         type: 'text',
         value: 'Test Value',
-      });
+      } as never);
 
-      expect(container.textContent).toContain('Test Value');
+      expect(container.textContent).not.toContain('Test Value');
     });
 
     it('should render with designer props correctly', () => {

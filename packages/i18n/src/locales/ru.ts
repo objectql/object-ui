@@ -19,6 +19,7 @@ const ru = {
       manage_users: "Управление пользователями",
       manage_org_users: "Управление пользователями организации",
       manage_metadata: "Управление метаданными",
+      manage_org_presentation: "Управление представлением организации",
       manage_platform_settings: "Управление настройками платформы",
       setup_access: "Доступ к настройке",
       setup_write: "Запись настроек",
@@ -283,6 +284,12 @@ const ru = {
       refusedFormat:
         "Не сохранено: введите пару широта, долгота (например: 30.2741, 120.1551).",
       refusedRange: "Не сохранено: {{detail}}",
+      latitude: "широта",
+      longitude: "долгота",
+      refusedResidueOne:
+        "Не сохранено: {{name}} «{{text}}» — не число. Введите обычные десятичные дроби (например: 30.2741, 120.1551).",
+      refusedResidue:
+        "Не сохранено: {{name}} «{{text}}» и {{otherName}} «{{otherText}}» — не числа. Введите обычные десятичные дроби (например: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Введите и нажмите Enter, чтобы добавить…",
@@ -1106,6 +1113,9 @@ const ru = {
     loading: "Загрузка графика…",
     nullCategory: "(Не указано)",
     scatterOneMeasure: "Точечная диаграмма строит только одну меру. Оставьте один ряд:",
+    unconfigured: {
+      noCategoryAxis: "Требуется ось категорий диаграммы — диаграмма, привязанная к объекту, не придумывает её. Объявите одно из:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1457,6 +1467,9 @@ const ru = {
   console: {
     saveAdvisoryTitle: "Сохранено — проверка авторинга выдала рекомендаций: {{count}}",
     publishAdvisoryTitle: "Опубликовано — проверка авторинга выдала рекомендаций: {{count}}",
+    importMappingsUnavailable: "Не удалось загрузить сохранённые сопоставления импорта для {{object}}",
+    importMappingsRefused: "Сервер отклонил этот запрос, поэтому список пуст из-за того, что его не удалось прочитать, а не потому, что ничего не зарегистрировано. Войдите заново или запросите доступ у администратора.",
+    importMappingsUnreadable: "Список пуст из-за того, что его не удалось прочитать, а не потому, что ничего не зарегистрировано. Повторите попытку и сообщите о проблеме, если она повторяется.",
     settingsHub: {
       title: "Настройки",
       subtitle: "Настройте рабочее пространство, интеграции и флаги функций.",
@@ -1648,11 +1661,21 @@ const ru = {
           availableObjects: "Перечисли доступные объекты данных.",
           recentActivity: "Сделай сводку моей недавней активности.",
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: "Добавь поле в один из объектов.",
           addObject: "Добавь новый объект и свяжи его с существующим.",
           addDashboard: "Добавь дашборд с ключевыми показателями.",
-          addAutomation: "Добавь автоматизацию — согласование, процесс статусов или уведомление.",
+          addSampleData: "Заполни существующие объекты правдоподобными демонстрационными записями, чтобы приложение можно было показать.",
         },
       },
       changesTitle: "Подтвердите изменения",

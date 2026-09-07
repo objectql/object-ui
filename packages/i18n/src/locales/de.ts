@@ -19,6 +19,7 @@ const de = {
       manage_users: "Benutzer verwalten",
       manage_org_users: "Organisationsbenutzer verwalten",
       manage_metadata: "Metadaten verwalten",
+      manage_org_presentation: "Organisationsdarstellung verwalten",
       manage_platform_settings: "Plattformeinstellungen verwalten",
       setup_access: "Zugriff auf die Einrichtung",
       setup_write: "Einstellungen schreiben",
@@ -277,6 +278,12 @@ const de = {
       refusedFormat:
         "Nicht gespeichert: Geben Sie ein Paar aus Breitengrad, Längengrad ein (Beispiel: 30.2741, 120.1551).",
       refusedRange: "Nicht gespeichert: {{detail}}",
+      latitude: "Breitengrad",
+      longitude: "Längengrad",
+      refusedResidueOne:
+        "Nicht gespeichert: {{name}} „{{text}}“ ist keine Zahl. Geben Sie einfache Dezimalzahlen ein (Beispiel: 30.2741, 120.1551).",
+      refusedResidue:
+        "Nicht gespeichert: {{name}} „{{text}}“ und {{otherName}} „{{otherText}}“ sind keine Zahlen. Geben Sie einfache Dezimalzahlen ein (Beispiel: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Tippen und mit der Eingabetaste hinzufügen…",
@@ -1096,6 +1103,9 @@ const de = {
     loading: "Diagramm wird geladen…",
     nullCategory: "(Ohne Angabe)",
     scatterOneMeasure: "Ein Streudiagramm zeichnet genau eine Kennzahl. Behalten Sie nur eine Datenreihe:",
+    unconfigured: {
+      noCategoryAxis: "Kategorieachse des Diagramms erforderlich — ein objektgebundenes Diagramm erfindet keine. Deklarieren Sie eine davon:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1447,6 +1457,9 @@ const de = {
   console: {
     saveAdvisoryTitle: "Gespeichert — die Autorenprüfung ergab {{count}} Hinweis(e)",
     publishAdvisoryTitle: "Veröffentlicht — die Autorenprüfung ergab {{count}} Hinweis(e)",
+    importMappingsUnavailable: "Gespeicherte Importzuordnungen für {{object}} konnten nicht geladen werden",
+    importMappingsRefused: "Der Server hat diese Anfrage abgelehnt. Die Liste ist also leer, weil sie nicht gelesen werden konnte — nicht, weil nichts registriert ist. Melden Sie sich erneut an oder bitten Sie eine Administratorin oder einen Administrator um Zugriff.",
+    importMappingsUnreadable: "Diese Liste ist leer, weil sie nicht gelesen werden konnte, nicht weil nichts registriert ist. Versuchen Sie es erneut und melden Sie das Problem, wenn es weiterhin auftritt.",
     settingsHub: {
       title: "Einstellungen",
       subtitle: "Konfigurieren Sie Ihren Workspace, Integrationen und Feature-Flags.",
@@ -1636,11 +1649,21 @@ const de = {
           availableObjects: "Liste die verfügbaren Datenobjekte auf.",
           recentActivity: "Fasse meine letzten Aktivitäten zusammen.",
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: "Füge einem der Objekte ein Feld hinzu.",
           addObject: "Füge ein neues Objekt hinzu und verknüpfe es mit einem bestehenden.",
           addDashboard: "Füge ein Dashboard für die wichtigsten Kennzahlen hinzu.",
-          addAutomation: "Füge eine Automatisierung hinzu — eine Freigabe, einen Statusablauf oder eine Benachrichtigung.",
+          addSampleData: "Fülle die vorhandenen Objekte mit realistischen Beispieldatensätzen, damit ich die App vorführen kann.",
         },
       },
       changesTitle: "Änderungen bestätigen",

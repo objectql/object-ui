@@ -53,6 +53,8 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { ComponentRegistry } from '@object-ui/core';
 import { compile, manifestFromConfigs } from '@object-ui/sdui-parser';
 
@@ -126,14 +128,21 @@ describe('the `mobileNavMode` declaration is the implemented vocabulary (objectu
     ).toEqual(['drawer', 'bottom_nav']);
   });
 
-  it('carries the renderer default and a description that names both modes', () => {
-    // `defaultValue` is what the designer pre-fills; it must be the value the
-    // renderer already falls back to, or the panel and the runtime disagree
-    // about what "leave it alone" means.
-    expect(navModeInput()?.defaultValue).toBe('drawer');
+  it("names the renderer's ACTUAL default in the description, and both modes", () => {
+    // The default an author is told about must be the value the renderer really
+    // falls back to, or the docs and the runtime disagree about what "leave it
+    // alone" means. The fallback is read off the renderer itself —
+    // `AppSchemaRenderer`'s destructuring default for the prop — because the
+    // input's own `defaultValue` was a shadow copy nothing consumed
+    // (`ComponentInput.defaultValue` is an ADR-0049 tombstone since
+    // objectui#7493). `description` is the published channel, so that is what
+    // is pinned against the read site.
+    const renderer = readFileSync(resolve(__dirname, '../AppSchemaRenderer.tsx'), 'utf8');
+    const fallback = /\bmobileNavMode\s*=\s*'([a-z_]+)'/.exec(renderer)?.[1];
+    expect(fallback, 'AppSchemaRenderer no longer declares a destructuring default for `mobileNavMode`').toBe('drawer');
 
     const description = navModeInput()?.description ?? '';
-    expect(description).toMatch(/drawer/);
+    expect(description).toMatch(/"drawer" \(default\)/);
     expect(description).toMatch(/bottom_nav/);
   });
 });

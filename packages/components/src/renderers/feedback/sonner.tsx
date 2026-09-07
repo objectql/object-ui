@@ -46,17 +46,14 @@ ComponentRegistry.register('sonner',
     namespace: 'ui',
     label: 'Sonner Toast',
     inputs: [
-      { name: 'message', type: 'string', label: 'Message' },
-      { name: 'description', type: 'string', label: 'Description' },
+      { name: 'message', type: 'string' },
+      { name: 'description', type: 'string' },
       { 
         name: 'variant', 
         type: 'enum', 
-        enum: ['default', 'success', 'error', 'warning', 'info'], 
-        defaultValue: 'default',
-        label: 'Variant'
-      },
-      { name: 'buttonLabel', type: 'string', label: 'Button Label' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        enum: ['default', 'success', 'error', 'warning', 'info']      },
+      { name: 'buttonLabel', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       message: 'Notification',

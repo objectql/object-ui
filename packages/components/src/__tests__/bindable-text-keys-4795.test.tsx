@@ -81,18 +81,19 @@ describe('objectui#4795 — declared text keys are evaluated AND read back, thro
 
 describe('objectui#4795 — the undeclared half stays inert, through real renderers', () => {
   /**
-   * `basic/text.tsx` renders `schema.content || schema.value`, so `text.value`
-   * IS a top-level read-back site — and `text` has no row in the spec's
-   * carriage map, so the memo must not evaluate it. This assertion therefore
-   * pins a KNOWN, reported gap rather than a desired behaviour: the literal on
-   * screen is what an author writing the form the expressions guide teaches
-   * gets today, and closing it is a spec-side row (objectstack), not a
-   * renderer-side inference here. If a row is ever added upstream, this is the
-   * test that will go red and say so.
+   * `text.value` is RETIRED (objectui#6951, ADR-0049 enforce-or-remove):
+   * `basic/text.tsx` renders `{schema.content}` alone, so `value` is no longer
+   * a read-back site at all — neither evaluated (the spec's carriage map never
+   * had a `text` row for it, objectstack#13670 ruled `content` the sole
+   * channel) nor rendered as a literal. Before the retirement this case pinned
+   * the literal `${data.total}` on screen as a known gap; now the pin is that
+   * NOTHING from the retired key reaches the DOM. The refusal at the authoring
+   * boundary is pinned in `@object-ui/types` (`text-value-retired-6951.test.ts`).
    */
-  it('`text.value` is still not evaluated — no spec row (reported upstream)', () => {
-    renderNode({ type: 'text', value: '${data.total}' });
-    expect(screen.getByText('${data.total}')).toBeTruthy();
+  it('`text.value` is retired — neither evaluated nor read back', () => {
+    const { container } = renderNode({ type: 'text', value: '${data.total}' });
+    expect(container.textContent).not.toContain('${data.total}');
+    expect(container.textContent).not.toContain('99');
   });
 
   it('a key outside the component\'s declared row stays inert (`card.value`)', () => {

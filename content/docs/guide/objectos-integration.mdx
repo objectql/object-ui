@@ -266,23 +266,24 @@ const sysUserView: ObjectViewSchema = {
 
 ```typescript
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import type { ObjectGridSchema } from '@object-ui/types';
 
 const dataSource = new ObjectStackAdapter({
   baseUrl: 'http://localhost:3000/api'
 });
 
 // ObjectQL queries are automatically handled
-const schema = {
+const schema: ObjectGridSchema = {
   type: 'object-grid',
   objectName: 'contact',
   dataSource,
-  // ObjectQL filter syntax
-  filter: {
-    and: [
-      { field: 'status', operator: 'eq', value: 'active' },
-      { field: 'created_date', operator: 'gte', value: '2024-01-01' }
-    ]
-  },
+  // Grid filter, JSON-rules form: an array of `{ field, operator, value }`
+  // entries, AND-ed together. `operator` takes the canonical view-filter
+  // vocabulary (`equals`, `greater_than_or_equal`, ...).
+  filter: [
+    { field: 'status', operator: 'equals', value: 'active' },
+    { field: 'created_date', operator: 'greater_than_or_equal', value: '2024-01-01' }
+  ],
   // ObjectQL sorting
   sort: [
     { field: 'created_date', order: 'desc' }

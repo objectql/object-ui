@@ -66,10 +66,12 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 // Radix's Select is not driveable in happy-dom (pointer capture), and the
 // choreography is not what is under test — which store the pick lands in is.
 // Swap the primitives for a flat list of buttons calling `onValueChange`.
-vi.mock('@object-ui/components', async () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const R = await import('react');
   const PickCtx = R.createContext<(value: string) => void>(() => {});
   return {
+    ...actual,
     getLazyIcon: () => () => null,
     Select: ({ value, onValueChange, children }: any) => (
       <PickCtx.Provider value={onValueChange}>

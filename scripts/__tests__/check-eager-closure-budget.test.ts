@@ -4,6 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// The structural locator for the prose attached to an exported constant, shared
+// with `vite-declared-lazy-views.test.ts` (objectui#7289). It was written here
+// for objectui#7046 and moved out unchanged; see the helper's own header for
+// why one implementation rather than two.
+import { attachedDocs } from './helpers/attached-docs';
+
 // Plain-JS CI helper. Its types are INFERRED from the .mjs source by
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here —
 // re-adding one is now itself an error (TS2578). See objectui#3494.
@@ -195,9 +201,9 @@ describe('evaluateClosureBudget', () => {
 /**
  * objectui#5490 — per-chunk ceilings on top of the aggregate.
  *
- * The aggregate is one number over 52 chunks: inside its headroom a single
- * chunk can absorb the whole allowance while the others shrink, and the total
- * never moves. objectui#5266 is that shape exactly — 89 KiB, all of it in
+ * The aggregate is one number over the whole eager closure: inside its headroom
+ * a single chunk can absorb the whole allowance while the others shrink, and the
+ * total never moves. objectui#5266 is that shape exactly — 89 KiB, all of it in
  * `vendor-objectstack`. These tests hold the two properties that decide whether
  * the per-chunk half is worth anything: it must be red when a budgeted chunk
  * grows, and it must be red — not silent — when a budgeted chunk is not there
@@ -611,10 +617,11 @@ describe('ceiling sensitivity, judged live (objectui#5924)', () => {
     // A passing run still prints every measurement, so a reader watching a
     // ceiling drift upward sees it coming rather than the day it reds. The
     // literal is `BASELINE.gzipBytes` rendered, re-taken each time the baseline
-    // moves (objectui#6683 down to 3177.7, objectui#6776 down to 3146.8) — a
+    // moves (objectui#6683 down to 3177.7, objectui#6776 down to 3146.8,
+    // objectui#7122 UP to 3468.0 on the authorised raise) — a
     // rendering derived in the test would agree with the renderer by
     // construction and pin nothing.
-    expect(result.message).toContain('3146.8');
+    expect(result.message).toContain('3468.0');
   });
 
   it('is exactly one regression wide, from either side of the line', () => {
@@ -795,7 +802,7 @@ describe('main', () => {
     // about the FIXTURE while the gate under test behaved correctly. The number
     // this case is actually about is "the report's chunk count, echoed".
     expect(outputs.closure_chunks).toBe(String(fixture.files.length));
-    expect(outputs.closure_gzip_kb).toBe('3146.8');
+    expect(outputs.closure_gzip_kb).toBe('3468.0');
   });
 
   it('exits 1 — a verdict about the BUNDLE — when over budget', () => {
@@ -1397,84 +1404,6 @@ describe('performance-budget.yml + vite.config.ts contract', () => {
 describe('the prose attached to the baselines (objectui#7046)', () => {
   const checkerSource = fs.readFileSync(checkerPath, 'utf8');
 
-  /**
-   * The documentation ATTACHED to one exported constant, located structurally —
-   * never by a line number, which objectui#6778 demonstrated three times over
-   * rots within days.
-   *
-   * "Attached" is the JSDoc block ending immediately before the
-   * `export const NAME` declaration PLUS every comment lexically inside that
-   * declaration, with the code itself stripped out. Both halves are load-bearing
-   * and neither is a convenience:
-   *
-   *   - the leading block alone is not enough. Measured on `main` when this was
-   *     written, `BASELINE`'s leading block carries no commit hash at all — the
-   *     sentence naming the commit the measurement was taken on is the JSDoc on
-   *     the `gzipBytes` FIELD, inside the object literal. Scoping there would
-   *     make the positive pin below red on an honest file.
-   *   - the declaration TEXT is too much. `commit: '...'` would satisfy the pin
-   *     by restating the constant — the prose about the value passing because it
-   *     contains the value, which is this card's own defect one layer up.
-   */
-  function attachedDocs(source: string, exportName: string): { prose: string; code: string } {
-    const declaration = new RegExp(String.raw`^export const ${exportName}\b`, 'm').exec(source);
-    if (!declaration) throw new Error(`no \`export const ${exportName}\` in the checker`);
-    const declStart = declaration.index;
-
-    const before = source.slice(0, declStart).replace(/\s+$/, '');
-    if (!before.endsWith('*/')) {
-      throw new Error(`\`export const ${exportName}\` is not preceded by a block comment`);
-    }
-    const open = before.lastIndexOf('/**');
-    if (open === -1) throw new Error(`unterminated JSDoc above \`export const ${exportName}\``);
-
-    // Walk the initializer, skipping comments and string literals, until the
-    // brackets it opened close again. Comments met on the way are the per-field
-    // prose; everything else is code.
-    const inner: string[] = [];
-    let i = source.indexOf('=', declStart) + 1;
-    let depth = 0;
-    let opened = false;
-    while (i < source.length) {
-      const two = source.slice(i, i + 2);
-      if (two === '/*') {
-        const end = source.indexOf('*/', i + 2);
-        if (end === -1) throw new Error(`unterminated comment inside ${exportName}`);
-        inner.push(source.slice(i, end + 2));
-        i = end + 2;
-        continue;
-      }
-      if (two === '//') {
-        const end = source.indexOf('\n', i);
-        inner.push(source.slice(i, end));
-        i = end;
-        continue;
-      }
-      const c = source[i];
-      if (c === "'" || c === '"' || c === '`') {
-        i += 1;
-        while (i < source.length && source[i] !== c) i += source[i] === '\\' ? 2 : 1;
-        i += 1;
-        continue;
-      }
-      if (c === '(' || c === '{' || c === '[') {
-        depth += 1;
-        opened = true;
-      } else if (c === ')' || c === '}' || c === ']') {
-        depth -= 1;
-        if (opened && depth === 0) {
-          i += 1;
-          break;
-        }
-      } else if (!opened && c === ';') {
-        break;
-      }
-      i += 1;
-    }
-
-    return { prose: [before.slice(open), ...inner].join('\n'), code: source.slice(declStart, i) };
-  }
-
   /** Commit strings a constant carries AS DATA, found by walking its values. */
   function commitsCarriedBy(value: unknown): string[] {
     const found: string[] = [];
@@ -1585,4 +1514,304 @@ describe('the prose attached to the baselines (objectui#7046)', () => {
     const { prose } = attachedDocs(checkerSource, 'PER_CHUNK_BASELINE');
     expect(Object.keys(PER_CHUNK_BASELINE).filter((chunk) => !prose.includes(chunk))).toEqual([]);
   });
+});
+
+/**
+ * objectui#7528 — a chunk count in this gate's prose stays pinned to the commit
+ * it was measured on, or it is not written.
+ *
+ * Three sentences here and in the checker described the aggregate as "one number
+ * over N chunks" with N written out as a literal. By the time the card was worked
+ * that literal, the checker's own frozen `BASELINE.chunks`, and the figure the
+ * gate's verdict line printed were three DIFFERENT numbers, with no check red
+ * anywhere across the spread, because nothing fails on a stale number in a
+ * comment. The count was never load-bearing either: the sentence is rhetorical
+ * ("one total over N chunks cannot say WHERE the payload moved"), which is
+ * exactly why nothing caught it. Refreshing the literal to today's reading would
+ * have turned three numbers into two and restarted the clock; this makes the
+ * class fail loudly instead.
+ *
+ * ⚠️ It also means this docblock may not quote the old literal back: the reader
+ * below cannot tell a quotation from a claim, and refusing both is the safe
+ * direction for a check on prose accuracy. The numbers live in the card and in
+ * the pull request that closed it.
+ *
+ * The rule is the one the checker's header already states for its motivating
+ * table — "that table is the MOTIVATING measurement and stays pinned to
+ * `77f846a8b`; it is not the current reading" — generalised and made mechanical.
+ * An ANCHORED count is a measurement of a named build and cannot go stale; an
+ * unanchored one is a standing claim about the live closure, which moves on most
+ * builds. The same distinction is why objectui#7528 declined to file
+ * `vite-declared-lazy-views.ts`'s "42.5 KB of headroom": it sits in a paragraph
+ * dated to a `b98352a15` measurement and reads as history.
+ *
+ * Deliberately narrow, and each limit is a decision rather than an oversight:
+ *
+ *   - NUMERALS qualifying a CHUNK noun. "144 modules" and "166 modules" are
+ *     module counts inside anchored change records, not claims about the shape
+ *     of the closure, and none of them rots when a chunk is added.
+ *   - OWN-LINE comments — block comments and `//` lines, the form every
+ *     paragraph of prose in these two files is written in.
+ *   - The anchor window is a paragraph PLUS the one before it, because the
+ *     header writes its lead-in ("Measured on `77f846a8b`:") and its table as
+ *     two paragraphs. A sha cannot reach across code: a code line breaks the
+ *     paragraph, so a hash in one block never anchors a count in another.
+ *
+ * The window is a heuristic in one direction and is left that way knowingly: a
+ * lead-in paragraph anchors what follows it, so a hash written for one reason can
+ * vouch for a count beside it. It errs toward ALLOWING, which is the tolerable
+ * side for a check on prose — the intolerable side is a standing claim nobody
+ * refuses. The two legs of the reader's own self-test above hold each direction.
+ *
+ * `.github/workflows/performance-budget.yml` joined this population in
+ * objectui#7850 — the same rule, the same reader, no second matcher. Its prose
+ * is `#` comments rather than `/**` blocks, so it reaches the reader through
+ * `yamlProse` below, which translates the marker and nothing else.
+ *
+ * Its one obstacle was settled by REWORDING, not by an exemption. The workflow
+ * counted chunks once as the OUTCOME of a hazard — a `"sideEffects": false`
+ * that is statically coherent while the registrations it governs reach no chunk
+ * at all, objectui#6535 — which is structural, has no build that can move it,
+ * and which this reader cannot tell from a population count. That sentence now
+ * states the outcome without a numeral, so the reader needs no exception to be
+ * right about it; the alternative was an exemption entry, and exemption lists
+ * are how a pin decays.
+ *
+ * ⚠️ The workflow's frozen-SIZE prose is a DIFFERENT class and is deliberately
+ * OUT of this pin — named here so nobody widens a count pin into a size pin by
+ * accident. The 350 KB entry line, the 89 KiB regression and the byte figures
+ * measured on `77f846a8b` are sizes, and a pin for them would have to tell a
+ * ceiling's value from the several sizes that paragraph legitimately carries,
+ * which this test does not do.
+ *
+ * Only the negative half is asserted. A positive "the prose names the verdict
+ * line" pin would fix a wording, and what has to stay true is narrower: that no
+ * number is written here which the next build could falsify.
+ */
+describe("chunk counts in this gate's prose (objectui#7528)", () => {
+  /**
+   * The population. Two script files whose prose is JS comments, and the
+   * workflow whose prose is `#` comments (objectui#7850) — the same rule and the
+   * same reader, with only the comment marker translated for the third.
+   */
+  const PROSE_FILES: Record<string, { path: string; toProse: (source: string) => string }> = {
+    'check-eager-closure-budget.mjs': { path: checkerPath, toProse: (source) => source },
+    'check-eager-closure-budget.test.ts': {
+      path: fileURLToPath(import.meta.url),
+      toProse: (source) => source,
+    },
+    'performance-budget.yml': { path: workflowPath, toProse: yamlProse },
+  };
+
+  /** A chunk population written as a numeral: "N chunks", or "N of M chunks". */
+  const CHUNK_COUNT = /\b\d[\d,_]*\s+(?:of\s+\d[\d,_]*\s+)?chunks?\b/gi;
+
+  /** A commit named the way all three files name one: a backticked short hash. */
+  const NAMES_A_COMMIT = /`[0-9a-f]{7,40}`/;
+
+  /**
+   * The workflow's prose is YAML and shell `#` comments, which `proseLines`
+   * classifies as CODE — every count in it would be invisible, and the pin green
+   * because it read nothing rather than because nothing was loose. Translating
+   * the marker to the one `proseLines` already knows is the whole adaptation:
+   * one reader, one rule, no second matcher. The paragraph structure a human
+   * sees survives the translation because the two kinds of separator survive it
+   * — a bare `#` becomes a bare `//`, a blank COMMENT line that carries an
+   * anchor into the paragraph after it, while a line of YAML stays a line of
+   * code, which does not. Both directions are held by the self-test below.
+   */
+  function yamlProse(source: string): string {
+    return source
+      .split('\n')
+      .map((raw) => {
+        const line = raw.trim();
+        return line.startsWith('#') ? `//${line.slice(1)}` : raw;
+      })
+      .join('\n');
+  }
+
+  /**
+   * One entry per source line: the comment's text, `''` for a blank comment
+   * line, and `null` for code. The three are distinguished because a blank
+   * comment line separates two paragraphs of one argument while a line of code
+   * separates two unrelated blocks, and only the first may carry an anchor
+   * across.
+   */
+  function proseLines(source: string): (string | null)[] {
+    const lines: (string | null)[] = [];
+    let inBlock = false;
+    for (const raw of source.split('\n')) {
+      const line = raw.trim();
+      if (inBlock) {
+        lines.push(line.replace(/^\*\/?\s?/, '').replace(/\*\/$/, ''));
+        if (line.includes('*/')) inBlock = false;
+        continue;
+      }
+      if (line.startsWith('/*')) {
+        inBlock = !line.includes('*/');
+        lines.push(line.replace(/^\/\*+\s?/, '').replace(/\*\/$/, ''));
+        continue;
+      }
+      if (line.startsWith('//')) lines.push(line.replace(/^\/\/\s?/, ''));
+      else lines.push(line === '' ? '' : null);
+    }
+    return lines;
+  }
+
+  /**
+   * Prose paragraphs in order, each carrying whether code stands between it and
+   * the paragraph before — which is what decides how far back its anchor may be
+   * looked for.
+   */
+  function paragraphs(source: string): { text: string; afterCode: boolean }[] {
+    const paras: { text: string; afterCode: boolean }[] = [];
+    let current: string[] = [];
+    let startsAfterCode = false;
+    let pendingCode = false;
+    const flush = () => {
+      if (current.length > 0) paras.push({ text: current.join('\n'), afterCode: startsAfterCode });
+      current = [];
+    };
+    for (const line of proseLines(source)) {
+      if (line === null) {
+        flush();
+        pendingCode = true;
+        continue;
+      }
+      if (line.trim() === '') {
+        flush();
+        continue;
+      }
+      if (current.length === 0) {
+        startsAfterCode = pendingCode;
+        pendingCode = false;
+      }
+      current.push(line);
+    }
+    flush();
+    return paras;
+  }
+
+  /** Every chunk count in a file's prose, each tagged with whether a commit anchors it. */
+  function chunkCounts(source: string): { text: string; anchored: boolean }[] {
+    const paras = paragraphs(source);
+    return paras.flatMap((para, i) => {
+      const lead = para.afterCode ? '' : (paras[i - 1]?.text ?? '');
+      const anchored = NAMES_A_COMMIT.test(`${lead}\n${para.text}`);
+      return [...para.text.matchAll(CHUNK_COUNT)].map((m) => ({
+        text: m[0].replace(/\s+/g, ' '),
+        anchored,
+      }));
+    });
+  }
+
+  /**
+   * The reader itself, on strings rather than on the repository. A pin whose
+   * matcher silently found nothing would be green forever; this fails instead,
+   * and it holds the anchoring rule in both directions without pinning a line of
+   * either file.
+   */
+  it('reads a count and its anchor — so a matcher that found nothing cannot pass', () => {
+    expect(chunkCounts('/**\n * The aggregate is one number over 52 chunks.\n */')).toEqual([
+      { text: '52 chunks', anchored: false },
+    ]);
+
+    // A lead-in paragraph anchors the table under it — the header's own shape.
+    expect(
+      chunkCounts('/**\n * Measured on `77f846a8b`:\n *\n *   | the closure — 58 of 507 chunks |\n */'),
+    ).toEqual([{ text: '58 of 507 chunks', anchored: true }]);
+
+    // ...but a hash in a different comment block does not reach across code.
+    expect(chunkCounts('// Measured on `77f846a8b`.\nconst x = 1;\n// One total over 52 chunks.')).toEqual([
+      { text: '52 chunks', anchored: false },
+    ]);
+
+    // Code is not prose, and a module count is not a chunk count.
+    expect(chunkCounts("const n = 52; // the chunk held 144 modules\n")).toEqual([]);
+  });
+
+  /**
+   * The marker translation, held in both directions — it is what makes the
+   * reader see the paragraphs a human sees in the workflow, and a translation
+   * that quietly saw nothing would make the workflow entry green forever.
+   */
+  it('reads a `#` comment block the way it reads a `//` one — once translated', () => {
+    const block = [
+      '          # Measured on `77f846a8b`:',
+      '          #',
+      '          #   the closure — 58 of 507 chunks',
+    ].join('\n');
+
+    // Untranslated, the reader classifies every one of those lines as code: no
+    // paragraph, no count, and a pin that is green because it read nothing.
+    expect(chunkCounts(block)).toEqual([]);
+    expect(chunkCounts(yamlProse(block))).toEqual([{ text: '58 of 507 chunks', anchored: true }]);
+
+    // A blank COMMENT line joins two paragraphs of one argument, so the anchor
+    // reaches the paragraph after it — and no further. Two paragraphs away is
+    // unanchored, exactly as it is in a `/**` block.
+    const twoParagraphsAway = [
+      '          # Measured on `77f846a8b`:',
+      '          #',
+      '          # An intervening paragraph of argument, carrying no measurement.',
+      '          #',
+      '          #   the closure — 58 of 507 chunks',
+    ].join('\n');
+    expect(chunkCounts(yamlProse(twoParagraphsAway))).toEqual([
+      { text: '58 of 507 chunks', anchored: false },
+    ]);
+
+    // ...and a line of YAML breaks the paragraph the way a line of code does,
+    // so a hash in one comment block never anchors a count in another.
+    const acrossYaml = [
+      '          # Measured on `77f846a8b`.',
+      '      - name: Some step',
+      '          # the closure — 58 of 507 chunks',
+    ].join('\n');
+    expect(chunkCounts(yamlProse(acrossYaml))).toEqual([
+      { text: '58 of 507 chunks', anchored: false },
+    ]);
+  });
+
+  /**
+   * The allowed branch is live: the checker really does carry an anchored count,
+   * so the pin below is passing because nothing is unanchored rather than because
+   * nothing was read. A deliberate must-hit control, in the manner of the
+   * objectui#7046 block above.
+   */
+  it('sees the anchored measurement it must not refuse', () => {
+    const anchored = chunkCounts(fs.readFileSync(checkerPath, 'utf8'))
+      .filter((count) => count.anchored)
+      .map((count) => count.text);
+    expect(anchored).toContain('58 of 507 chunks');
+  });
+
+  /**
+   * The same must-hit control for the workflow entry (objectui#7850). Its prose
+   * reaches the reader through a translation, and a translation that stopped
+   * working would show up as a population that passes because it is empty. This
+   * fails instead.
+   */
+  it('sees the anchored measurement the workflow must not be refused for', () => {
+    const anchored = chunkCounts(yamlProse(fs.readFileSync(workflowPath, 'utf8')))
+      .filter((count) => count.anchored)
+      .map((count) => count.text);
+    expect(anchored).toContain('58 of 507 chunks');
+  });
+
+  it.each(Object.entries(PROSE_FILES))(
+    '%s writes no chunk count that no commit anchors',
+    (name, { path: file, toProse }) => {
+      const loose = chunkCounts(toProse(fs.readFileSync(file, 'utf8')))
+        .filter((count) => !count.anchored)
+        .map((count) => count.text);
+      expect(
+        loose,
+        `${name} states a chunk count (${loose.join(', ')}) that names no commit, so it reads as a claim ` +
+          'about the live closure — which moves on most builds, while nothing goes red when a number in a ' +
+          'comment goes stale. Pin it to the commit it was measured on, or name the population and let the ' +
+          'gate’s own verdict line print the figure on every run (objectui#7528).',
+      ).toEqual([]);
+    },
+  );
 });

@@ -8,9 +8,10 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { DataSource, TimelineSchema, ListViewTimelineConfig } from '@object-ui/types';
-import { useDataScope, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
+import { useDataScope, useNavigationOverlay, useSafeFieldLabel, useSettledSchema } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
 import { extractRecords, buildExpandFields, convertSortToQueryParams, createFieldColorResolver } from '@object-ui/core';
+import { usePermissions } from '@object-ui/permissions';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
@@ -173,7 +174,6 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   });
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [objectDef, setObjectDef] = useState<any>(null);
 
   // Resolve nested TimelineConfig (spec-compliant)
   const timelineConfig = schema.timeline;
@@ -187,21 +187,57 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
 
   const boundData = useDataScope(schema.bind);
 
-  // Fetch object definition for metadata
-  useEffect(() => {
-    let isMounted = true;
-    const fetchMeta = async () => {
-      if (!dataSource || typeof dataSource.getObjectSchema !== 'function' || !schema.objectName) return;
-      try {
-        const def = await dataSource.getObjectSchema(schema.objectName);
-        if (isMounted) setObjectDef(def);
-      } catch (e) {
-        console.warn('Failed to fetch object def for ObjectTimeline', e);
-      }
-    };
-    fetchMeta();
-    return () => { isMounted = false; };
-  }, [schema.objectName, dataSource]);
+  /**
+   * The object definition, and whether the read for THIS object has SETTLED —
+   * one piece of state, through the shared hook (objectui#7895).
+   *
+   * `ObjectTimeline` was the last member of the converged set still carrying
+   * the pre-gate shape: a local `useState` fed by its own metadata effect,
+   * with `objectDef` listed in the record-fetch effect's dependency array
+   * below. That shape issues the record query TWICE per mount — once before
+   * the definition lands, with `buildExpandFields` seeing no fields and so no
+   * `$expand` at all, and once after — and whenever the metadata read is the
+   * slower of the two the user sees the three-step paint `ObjectGantt`'s own
+   * conversion names: raw foreign-key ids, back to the loading skeleton (the
+   * re-run calls `setLoading(true)` and `loading` is an early return below),
+   * then the expanded rows. Measured on this component before the change,
+   * instrumented renderer, one mount per hold: 2 `find` calls with expand
+   * sets `[null, ['owner']]`, 1 paint at the readiness predicate and 3 late
+   * writes after it, at every hold from +3ms up.
+   *
+   * ⚠️ The gate below is only safe because this resolution SETTLES ON EVERY
+   * EXIT (objectui#7232) — no source, no `getObjectSchema`, no object name,
+   * and a read that threw alike. The hand-written effect it replaces returned
+   * WITHOUT settling on all four, which cost nothing while nothing waited on
+   * it and would hold a gated query open forever.
+   *
+   * ⛔ `dataSource` is passed unconditionally, NOT `hasInlineData ? undefined
+   * : dataSource` the way `ObjectCalendar` and `ObjectGantt` pass it. Those
+   * two read metadata only to expand a record query, so an inline data set has
+   * nothing to wait for. This component also reads `objectDef.fields` in
+   * `effectiveItems` below — option colours and field labels — on the AUTHORED
+   * items path, where no query is issued at all. Their recipe would stop that
+   * read happening; the conversion is a fetch-sequencing change and must not
+   * take a metadata read away from a path that still uses it.
+   *
+   * The key is `schema.objectName`, which is the object the record query
+   * itself names (`dataSource.find(schema.objectName, …)` below) and the one
+   * the replaced effect read. ⛔ Not `resolveRecordSourceObjectName`: this
+   * component has no resolved `data` block to read a second name from, and
+   * gating on a key the query does not use is exactly the stale-key mismatch
+   * `useSettledSchema`'s render-time comparison exists to make unrepresentable.
+   */
+  const { ready: objectDefReady, def: objectDef } = useSettledSchema<any>(
+    schema.objectName ?? '',
+    dataSource,
+  );
+
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7429, same structural note PR #7229 /
+  // PR #7428 recorded for `ListView`'s memo and `ObjectCalendar`'s effect).
+  const perms = usePermissions();
 
   // Content keys, not identities. `filter` / `sort` are fetch inputs from here on
   // (objectstack#7137), and an inline array on a schema node is a NEW object every
@@ -219,8 +255,50 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
         }
         setLoading(true);
         try {
-            // Auto-inject $expand for lookup/master_detail fields
-            const expand = buildExpandFields(objectDef?.fields);
+            // Auto-inject $expand for lookup/master_detail fields.
+            //
+            // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same
+            // gate objectui#7215 / PR #7229 put on the two projection sites in
+            // its scope, and objectui#7230 / PR #7428 applied unchanged at
+            // four more. `$select` on a denied lookup asks the server for a
+            // bare foreign key; `$expand` asks it to RESOLVE the relation and
+            // return the related record, the larger of the two requests.
+            //
+            // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+            // `buildExpandFields` reads an absent column list as "no column
+            // restriction" and falls back to EVERY declared relation on the
+            // object, denied ones included. A standalone timeline therefore
+            // asks for the maximum possible set by default, not by
+            // configuration.
+            //
+            // Graded as objectui#7215 graded it, by measurement rather than
+            // assumption: against ObjectStack this is defence-in-depth,
+            // because `plugin-security`'s `FieldMasker.maskRecord` does
+            // `delete result[field]` on every unreadable key and objectql's
+            // expand path writes the resolved record back under THAT SAME
+            // KEY, so one statement removes the expanded object and the bare
+            // id alike; the expansion sub-read itself takes the referenced
+            // object's full CRUD + RLS + FLS treatment (objectstack#7626). It
+            // is load-bearing for a backend that does not strip.
+            //
+            // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+            // alternative is not merely unsound but unreachable: the call
+            // passes `undefined`, so there is no input to gate. Gating the
+            // output also gives the required ordering structurally:
+            // `buildExpandFields` returns a subset of the object's DECLARED
+            // reference-bearing fields, so every name judged here is declared
+            // by construction and the "`checkField` answers false for an
+            // undeclared key" trap cannot be reached. Pinned in
+            // `ObjectTimeline.expandFls-7429.test.tsx`.
+            //
+            // Deferral matches every other gate on this path: an unanswered
+            // policy filters nothing, and `perms` is in this effect's
+            // dependency list, so the expansion is rebuilt the moment the
+            // answer arrives.
+            const expandable = buildExpandFields(objectDef?.fields);
+            const expand = !perms?.isLoaded
+              ? expandable
+              : expandable.filter((f) => perms.checkField(schema.objectName as string, f, 'read'));
             // The authored scope reaches the query (objectstack#7137). Before this,
             // the fetch was `{ options: { $top: 100 } }` — no `$filter`, no
             // `$orderby`, and `options` is not a `QueryParams` key, so even the cap
@@ -245,13 +323,28 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     };
 
     if (schema.objectName && !boundData && !schema.items && !(props as any).data) {
+        // ⭐ objectui#7895 — the object definition GATES this query; it does not
+        // refine it afterwards. `objectDef` stays in the dependency list below
+        // and the two are ONE mechanism, not two: the dependency is what makes
+        // this effect re-run when the definition lands, and this line is what
+        // stops the first run from spending a query before it has. Removing
+        // either half alone restores the double fetch — the reverse
+        // verification `ObjectGantt.fetchGate-7225.test.tsx` recorded on the
+        // sibling, re-measured here.
+        //
+        // Scoped to the branch that actually issues the query. The `else` below
+        // has authored or bound items and never queries, so gating it would
+        // hold nothing useful — and this component still reads the definition
+        // on that path (option colours in `effectiveItems`), which is why the
+        // resolution above is not disabled for it.
+        if (!objectDefReady) return;
         fetchData();
     } else {
         // Have inline / bound items — won't fetch; clear loading.
         setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `schema.filter`/`schema.sort` are tracked by CONTENT (filterKey/sortKey) on purpose; see above
-  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey, objectDef, filterKey, sortKey, schema.limit]);
+  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey, objectDefReady, objectDef, filterKey, sortKey, schema.limit, perms]);
 
   const rawData = (props as any).data || boundData || fetchedData;
   const { t } = useTimelineTranslation();

@@ -95,7 +95,8 @@ vi.mock('sonner', () => ({
   }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
     get user() { return authState.user; },
     getAuthConfig,
@@ -103,7 +104,8 @@ vi.mock('@object-ui/auth', () => ({
   }),
 }));
 
-vi.mock('@object-ui/plugin-form', () => ({
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectForm: ({ schema }: any) => {
     formSchemas.push(schema);
     return h('div', { 'data-testid': 'object-form' });

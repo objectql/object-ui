@@ -93,10 +93,63 @@
  * (objectstack#10640): deleting the brace counting inside `${...}` fails a case
  * below, while dropping `return` from `REGEX_AFTER_KEYWORD` passes all of them
  * and is caught only by the corpus sweep. The shape that mutation misreads is
- * live in THIS tree too -- `scripts/check-changeset-presence.mjs:555` and
- * `scripts/check-doc-links.mjs:616` both write `return /.../` today -- so in
+ * live in THIS tree too -- `scripts/check-changeset-presence.mjs`'s
+ * `isDocumentation` function, and the `return /\.(md|mdx)$/.test(root)` site
+ * in `scripts/check-doc-links.mjs`, both write `return /.../` today -- so in
  * objectui that mutation is undetected by anything that runs. Recorded as a
  * known limit of the port, not as coverage.
+ *
+ * ## JSX: a closing tag is not a regex (objectui#6891)
+ *
+ * A `/` opens a regex when what precedes it is not a value. A JSX CLOSING TAG
+ * puts a `/` straight after a `<`, which is not a value, so a phantom regex
+ * opened there and ran to the end of the line -- swallowing the rest of the
+ * expression, the `)` that closed the enclosing call included. That is the
+ * FABRICATES direction reached through the literal flag rather than the comment
+ * one: a caller balancing delimiters over the mask cannot balance them, and a
+ * caller asking "is this token code?" is told a line of live JSX is string
+ * content.
+ *
+ * The rule below is one token wide: a `/` whose IMMEDIATELY preceding byte is
+ * `<` opens nothing. It reads the raw byte, not `prev`, on purpose -- `prev`
+ * skips whitespace, and skipping it would also swallow `a < /re/.test(b)`,
+ * which is a real (if strange) regex the language allows and JSX cannot spell:
+ * `< /div>` is not a closing tag. The tag's `/` then falls through to the
+ * bottom of the loop as an ordinary code byte, which is what it is.
+ *
+ * Measured on `cf7f2af6e`, this tree, before-vs-after over every tracked
+ * `.{ts,tsx,mts,cts,js,mjs,cjs,jsx}` file (4,322 files, `node_modules`, `dist`,
+ * `build`, `.next`, `.turbo` excluded), diffing both flag arrays byte for byte:
+ *
+ *   files whose mask changed      1,623 of 4,322 -- every one of them .tsx/.jsx;
+ *                                 ZERO files with a non-JSX extension moved
+ *   literal bytes no longer flagged   129,998
+ *   literal bytes newly flagged           145  (a DIFFERENT defect, below)
+ *   comment bytes changed, either way       0
+ *
+ * The consumer measurement that made this a card: walking every `vi.mock` call
+ * site in the tree (1,695 sites), SEVEN in seven files could not have their
+ * argument list delimited at all. After this change: zero. No site changes
+ * verdict, and every gate importing this module reports byte-identical output.
+ *
+ * ## What this does NOT fix, measured rather than assumed
+ *
+ * The 145 bytes above are the residue, and they are a second defect this rule
+ * deliberately does not touch: a `/` after a `}` or a `>`. Both are non-values
+ * to the language, so `<Foo bar={x} />` (the SELF-closing tag) and a `/` in JSX
+ * TEXT (`{a}/{b}`, `<code>x</code> / <code>y</code>`) still open a phantom.
+ * They were invisible before only because the closing tag's larger phantom
+ * started earlier on the same line and covered them.
+ *
+ * There is no one-token rule for that half. `/` followed by `>` is exactly how
+ * a regex matching a `>` is spelled (`str.replace(/>/g, '&gt;')`), and `}` and
+ * `>` before a `/` are genuinely ambiguous in JavaScript (`function f(){} /re/`
+ * is a regex; `a > /re/.test(b)` parses). Telling those from JSX needs to know
+ * whether the scanner is inside an element, which is a parser, and this module
+ * is deliberately a cheap language-level masker. Filed separately rather than
+ * guessed at; the shapes are pinned in
+ * `scripts/__tests__/js-comment-mask-jsx-6891.test.ts` as KNOWN LIMITS, so the
+ * day someone closes them the pins fail and get retired on purpose.
  */
 
 /** A character that can end an identifier -- i.e. a value, so `/` is division. */
@@ -240,8 +293,14 @@ export function scanSource(source) {
       i++;
       continue;
     }
-    if (c === '/' && !(IDENT_CHAR.test(prev) || prev === ')' || prev === ']')) {
-      i++; // regex literal: `/` after anything that is not a value
+    // A regex literal: `/` after anything that is not a value -- EXCEPT a `/`
+    // whose immediately preceding byte is `<`, which is a JSX closing tag
+    // (`</div>`, `</>`, `</Foo.Bar>`) and opens nothing. The raw byte, not
+    // `prev`: `prev` skips whitespace and `a < /re/.test(b)` is a real regex
+    // that JSX cannot spell. See the header section on objectui#6891, which
+    // also records the half of the problem this does NOT close.
+    if (c === '/' && source[i - 1] !== '<' && !(IDENT_CHAR.test(prev) || prev === ')' || prev === ']')) {
+      i++;
       let inClass = false;
       while (i < n && source[i] !== '\n') {
         const ch = source[i];
@@ -483,6 +542,25 @@ export function selfTest() {
         "/* err.code = 'GHOST' */", "err.code = 'REAL';"].join('\n')],
     ['a real comment inside an interpolation',
       ['const c = ' + BT + "${x /* err.code = 'GHOST' */} tail" + BT + ';', "err.code = 'REAL';"].join('\n')],
+    // JSX (objectui#6891). A closing tag's `/` used to open a phantom regex
+    // that ran to end of line; the phantom then ATE the comment opener that
+    // followed it on the same line, so genuinely commented-out text came back
+    // as live code -- the FABRICATES direction, reached through the literal
+    // flag rather than the comment one. Both comment spellings are here
+    // because the phantom consumed the first `/` of either.
+    ['a line comment after a JSX closing tag',
+      ["const C = () => <div>x</div>; // err.code = 'GHOST'", "err.code = 'REAL';"].join('\n')],
+    ['a block comment after a JSX closing tag',
+      ["const C = () => <div>x</div>; /* err.code = 'GHOST' */", "err.code = 'REAL';"].join('\n')],
+    ['a line comment after a JSX FRAGMENT closing tag',
+      ["const F = () => <>x</>; // err.code = 'GHOST'", "err.code = 'REAL';"].join('\n')],
+    // The negative control for the rule above: a `/` that really does open a
+    // regex, one character away from the shape being excluded. Without this,
+    // "never open a regex near a `<`" would pass every case in this file.
+    ['a regex after a SPACED less-than is still a regex',
+      ["const b = a < /['\"" + BT + "]/.source.length;", "/* err.code = 'GHOST' */", "err.code = 'REAL';"].join('\n')],
+    ['a regex whose first character is a less-than',
+      ["const t = s.replace(/<[" + BT + "'\"]/g, ''); ", "/* err.code = 'GHOST' */", "err.code = 'REAL';"].join('\n')],
     ['a genuine docblock is still removed',
       ['/** Retired: err.code = ' + "'GHOST'" + ' must never come back. */', "err.code = 'REAL';"].join('\n')],
     ['a genuine line comment is still removed',
@@ -563,6 +641,31 @@ export function selfTest() {
 
   const unterminated = 'const u = ' + BT + '${ g(';
   x('an unterminated interpolation does not throw and yields its code', codeView(unterminated).includes('g('), codeView(unterminated));
+
+  // ── JSX closing tags (objectui#6891) ─────────────────────────────────────
+  //
+  // Driven on the FLAGS, not through the GHOST/REAL corpus, because the
+  // property the consumers depend on is "these bytes are code", and the corpus
+  // above can only see a shape that moves a comment. The shape below is the
+  // one measured on this tree: seven `vi.mock` call sites could not have their
+  // argument list delimited, because the phantom span reached the `)`.
+  const jsx = 'const C = ({ open, children }: any) => (open ? <div>{children}</div> : null);';
+  const jl = scanSource(jsx).literal;
+  x('a JSX closing tag opens no span -- its own bytes are code',
+    jl[jsx.indexOf('</div>') + 2] === 0, jsx.slice(jsx.indexOf('</div>')));
+  x('...and the `)` that closes the enclosing call is still code, so a delimiter walk balances',
+    jl[jsx.lastIndexOf(')')] === 0, String(jl[jsx.lastIndexOf(')')]));
+  const frag = 'const F = () => (<>{x}</>);';
+  x('a FRAGMENT closing tag opens no span either',
+    scanSource(frag).literal[frag.lastIndexOf(')')] === 0, frag);
+  const member = 'const M = () => (<Foo.Bar>{x}</Foo.Bar>);';
+  x('...nor a member-expression closing tag',
+    scanSource(member).literal[member.lastIndexOf(')')] === 0, member);
+  // The negative control, again on the flags: one space is the whole
+  // difference between the excluded shape and a real regex.
+  const spaced = 'const b = a < /re/.source.length;';
+  x('a SPACED less-than still opens a regex -- the rule reads the raw byte',
+    scanSource(spaced).literal[spaced.indexOf('/re/') + 1] === 1, spaced);
 
   for (const [name, ok, detail] of extra) {
     if (!ok) failed++;

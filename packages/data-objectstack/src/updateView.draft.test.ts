@@ -239,4 +239,53 @@ describe('ObjectStackDataSource.updateView — draft addressing (#4139)', () => 
     ).rejects.toThrow();
     expect(saveItem).not.toHaveBeenCalled();
   });
+  /**
+   * objectui#8181 — the merged draft written back carries no read decorations.
+   *
+   * The draft-addressed limb READS a served body and WRITES the merge of it
+   * straight back, so it is a complete read->edit->write round trip. The
+   * framework decorates the read (`_diagnostics` for any type with a
+   * registered schema, plus `_draft: true` on the draft branch), and the spec
+   * names those keys precisely so they do not go back out: `ViewSchema` and
+   * every other closed schema refuse them by name.
+   *
+   * ⚠️ Today's server absorbs this — `saveMetaItem` strips read decorations on
+   * ingress before its own schema gate — so the leak is invisible from the
+   * response. That is a mitigation on the far side of the wire, not a reason
+   * for this client to put them on it (AGENTS.md #0.1: one strict contract,
+   * fixed at the producer). What this pin defends is the body this adapter
+   * SENDS.
+   */
+  it('does not write the framework read decorations back onto the draft', async () => {
+    const decorated = {
+      ...DRAFT_VIEW,
+      _diagnostics: { valid: true, errors: [] },
+      _draft: true,
+      // ADR-0010 protection carriers ride along and MUST survive: the schemas
+      // declare them, and dropping them would lose provenance on every write.
+      _provenance: 'package',
+      _packageId: 'com.test.crm',
+    };
+    const { ds, draftPuts } = makeDS({ draft: decorated, published: new Error('unused') });
+
+    const merged = await ds.updateView('crm_activity', DRAFT_VIEW.name, { label: 'Renamed' });
+
+    // CONTROL: the draft limb really ran and really wrote (a published-limb
+    // run, or no write at all, would satisfy every absence check below).
+    expect(draftPuts).toHaveLength(1);
+    const [url, body] = draftPuts[0]!;
+    expect(url).toContain('mode=draft');
+    expect(body.label).toBe('Renamed');
+
+    // The decorations are not on the wire…
+    expect(body).not.toHaveProperty('_diagnostics');
+    expect(body).not.toHaveProperty('_draft');
+    // …nor in what the caller is handed back to render.
+    expect(merged).not.toHaveProperty('_diagnostics');
+    expect(merged).not.toHaveProperty('_draft');
+
+    // …and the protection envelope was NOT collateral damage.
+    expect(body._provenance).toBe('package');
+    expect(body._packageId).toBe('com.test.crm');
+  });
 });

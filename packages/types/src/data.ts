@@ -39,6 +39,31 @@ export type { ExportJobStatus, ImportJobStatus, ImportWriteMode, ValidationError
 /**
  * Query parameters for data fetching.
  * Follows OData/REST conventions for universal compatibility.
+ *
+ * The key set is CLOSED: the nine `$`-prefixed members below are the whole
+ * contract. Every reader in this repository reads members of this set and
+ * nothing outside it — `convertQueryParams` and `rawFindWithPopulate`
+ * (`@object-ui/data-objectstack`), `queryParamsToRecord` (`@object-ui/core`'s
+ * `ApiDataSource`) and `ValueDataSource.find` — so a key outside the set
+ * reaches no branch and is dropped on the floor. The type refuses it instead
+ * (objectui#7497).
+ *
+ * Until objectui#7497 this interface also carried a `[key: string]: any`
+ * index signature described as "additional custom parameters". Nothing ever
+ * read one: a census of every `find` / `findOne` call site and every
+ * `QueryParams` literal across the packages, apps, examples, e2e and scripts
+ * trees found zero non-`$` keys, and every adapter above reads only declared
+ * members. What the signature DID do was make a misspelling compile —
+ * `{ filter }` for `$filter`, `{ limit }` for `$top`, `{ options: { $top } }`
+ * — and a published guide taught a test built on exactly that, which could
+ * never pass (objectui#4734, #5458, #7497). Declared = enforced: the type now
+ * says what the readers do, and `tsc` is the first gate a typo meets.
+ *
+ * ⛔ Do not reopen this with an index signature, a catch-all `extra` bag, or a
+ * `$`-prefixed template-literal key. No reader consumes such a key, so each of
+ * those is a declared-but-unenforced surface — the same defect in another
+ * spelling. A genuinely new query option is a named member here PLUS the
+ * branch in each reader that honours it, in the same change.
  */
 export interface QueryParams {
   /**
@@ -126,11 +151,6 @@ export interface QueryParams {
    * Total count of records (for pagination)
    */
   $count?: boolean;
-
-  /**
-   * Additional custom parameters
-   */
-  [key: string]: any;
 }
 
 /**

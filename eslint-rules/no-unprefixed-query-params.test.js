@@ -64,9 +64,11 @@ ruleTester.run('no-unprefixed-query-params', rule, {
     // …including the two-argument form, where `thisArg` is the second argument.
     `rows.find(function (r) { return r.id === id; }, { count: 0, limit: 1 });`,
 
-    // ── The adapter-specific params the index signature exists for. Flagging
-    //    these is what "any unprefixed key" would have done, and why it isn't
-    //    what this rule does.
+    // ── Keys off the closed list stay silent HERE. They were read as the
+    //    adapter-specific params the index signature existed for; objectui#7497
+    //    found none and closed the type, so on a typed site `tsc` refuses them
+    //    now. This rule still does not report them: "any unprefixed key" is
+    //    what it deliberately isn't.
     `adapter.find(objectName, { $top: 10, includeDeleted: true, tenant: 'acme' });`,
     `adapter.find(objectName, { $top: 10, cacheKey: key, signal: controller.signal });`,
 
@@ -214,8 +216,10 @@ tsRuleTester.run('no-unprefixed-query-params (typescript)', rule, {
     `adapter.find(o, { $top: 100 } as QueryParams);`,
   ],
   invalid: [
-    // The index signature is what makes all three of these compile — this is
-    // the population the rule exists for, so a cast must not be an escape.
+    // A type assertion skips excess-property checking, so the first two still
+    // compile with the index signature gone (objectui#7497); the third is an
+    // untyped source. This is the population the rule exists for, so a cast
+    // must not be an escape.
     {
       code: `adapter.find(o, { limit: 1 } as QueryParams);`,
       errors: [{ messageId: 'unprefixedQueryOption', data: { key: 'limit', canonical: '$top' } }],

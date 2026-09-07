@@ -102,7 +102,7 @@ ComponentRegistry.register('tree-view',
 
     // Support data binding
     const boundData = useDataScope(schema.bind);
-    const rawNodes = boundData || schema.nodes || schema.data || [];
+    const rawNodes = boundData || schema.nodes || [];
     const nodes = Array.isArray(rawNodes) ? rawNodes : [];
 
     return (
@@ -133,14 +133,13 @@ ComponentRegistry.register('tree-view',
     namespace: 'ui',
     label: 'Tree View',
     inputs: [
-      { name: 'title', type: 'string', label: 'Title' },
+      { name: 'title', type: 'string' },
       { 
         name: 'nodes', 
         type: 'array', 
-        label: 'Tree Nodes',
         description: 'Array of { id, label, icon, children, data }'
       },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       title: 'File Explorer',

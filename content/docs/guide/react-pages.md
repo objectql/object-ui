@@ -80,7 +80,7 @@ Nothing is imported. These identifiers are injected as closure variables:
 | In scope | What it is |
 |---|---|
 | `React` | The host's React — call hooks with it (`React.useState`). |
-| The public data blocks | Every public non-container block, as a PascalCase tag — but *what resolves* and *what you author against* are two different sets, below. |
+| The public data blocks | Every public non-container block, as a PascalCase tag *on this tier* — but *what resolves* and *what you author against* are two different sets, below. |
 | `Block` | Escape hatch for anything not injected. |
 | `useAdapter` | The live data source — query/create/update. |
 | `data`, `variables`, `page` | The page's own data, local variables, and schema. |
@@ -88,10 +88,12 @@ Nothing is imported. These identifiers are injected as closure variables:
 #### Two tiers: what resolves, and what you author against
 
 **The runtime scope** is every block in the curated public contract
-(`PUBLIC_BLOCKS`) that is not a layout container. Tags are derived by splitting
-the registry type on `-`, `_` and `:` and PascalCasing each part: `object-grid` →
-`<ObjectGrid>`, `record:details` → `<RecordDetails>`. Blocks registered lazily
-are in scope too — you never wait on a plugin chunk to reference one.
+(`PUBLIC_BLOCKS`) that is not a layout container. **On this tier** tags are
+derived by splitting the registry type on `-`, `_` and `:` and PascalCasing each
+part: `object-grid` → `<ObjectGrid>`, `record:details` → `<RecordDetails>`. A
+`kind:'html'` page writes the registry type itself instead — `<object-grid>`,
+`<record:details>`. Blocks registered lazily are in scope too — you never wait
+on a plugin chunk to reference one.
 
 **The authored contract** is the much smaller set that has *published props* —
 checked by `os validate` and generated into the reference an author, human or AI,
@@ -313,6 +315,17 @@ The constrained tier. Same JSX-looking syntax, but the source is **parsed**
 into a schema tree and rendered through the normal renderer — never executed.
 Only tags in the public block manifest are allowed, props are validated against
 each block's declared inputs, and unknown tags are a hard error at save time.
+
+Those tags are the **registered type names, written verbatim** — whatever the
+registry spells, character for character, including a `record:` / `page:` /
+`element:` / `action:` namespace prefix and any underscore inside the name:
+`<list-view>`, `<object-form>`, `<record:related_list>`, `<record:quick_actions>`.
+The whitelist is an exact string comparison, so nothing is normalised for you:
+the **PascalCase** tags this page shows for `kind:'react'` are the other tier's
+convention and are not registered names (`<ListView>` is rejected with
+`<ListView> is not an allowed component`), and neither is a name re-spelled to
+look uniform — `<record:related-list>` is not registered, only
+`<record:related_list>` is.
 
 Use it for anything author- or AI-generated. Expressions are limited to what the
 schema supports (`${data.x}`), and there is no local state or event handling

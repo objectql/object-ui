@@ -31,7 +31,7 @@ function App() {
   const schema = {
     type: "page",
     title: "My Dashboard",
-    body: { type: "text", value: "Hello" }
+    body: { type: "text", content: "Hello" }
   }
   
   return <SchemaRenderer schema={schema} />
@@ -133,7 +133,7 @@ Schemas can be nested to create complex UIs:
         "title": "Card 1",
         "body": {
           "type": "text",
-          "value": "Nested content"
+          "content": "Nested content"
         }
       },
       {
@@ -142,13 +142,27 @@ Schemas can be nested to create complex UIs:
         "body": {
           "type": "chart",
           "chartType": "bar",
-          "data": "${chartData}"
+          "xAxisKey": "month",
+          "series": [{ "name": "revenue" }],
+          "data": [
+            { "month": "Jan", "revenue": 120 },
+            { "month": "Feb", "revenue": 80 }
+          ]
         }
       }
     ]
   }
 }
 ```
+
+The chart's rows are written out on the node, and that is the spelling that plots. A
+`${…}` on node-level `data` is **not** one of the rows `SchemaRenderer` evaluates: the raw
+string reaches `ChartRenderer`, whose `Array.isArray(schema.data) ? schema.data : []` drops
+it, and the chart frame draws with nothing in it — no error, no warning. Since objectui#7113
+that node is also refused by name, `ChartSchema.data` being `z.array(z.record(…))`. `series`
+is required alongside it: `series[].name` picks the column to plot within each row, and
+`xAxisKey` names the category column. `chart` reads no `bind` either, so resolve the array in
+your own code and hand `SchemaRenderer` a schema whose rows are already on the node.
 
 ## Array Rendering
 
@@ -158,9 +172,9 @@ Use arrays for multiple items:
 {
   "type": "container",
   "body": [
-    { "type": "text", "value": "First item" },
-    { "type": "text", "value": "Second item" },
-    { "type": "text", "value": "Third item" }
+    { "type": "text", "content": "First item" },
+    { "type": "text", "content": "Second item" },
+    { "type": "text", "content": "Third item" }
   ]
 }
 ```
@@ -182,11 +196,18 @@ Object UI includes a powerful expression system for dynamic behavior:
 
 ```json
 {
-  "type": "badge",
-  "text": "${status === 'active' ? 'Active' : 'Inactive'}",
-  "variant": "${status === 'active' ? 'success' : 'default'}"
+  "type": "card",
+  "title": "${status === 'active' ? 'Active' : 'Inactive'}",
+  "description": "${status === 'active' ? 'This record is in use.' : 'This record is archived.'}"
 }
 ```
+
+`card` here rather than `badge`, because an expression is evaluated only on a key the
+node's own type carries. `expressionBindableTextKeysFor` — the lookup `SchemaRenderer`
+consumes out of `@objectstack/spec` — gives `card` the rows `title` and `description`,
+and gives `badge` no rows at all, so a `${…}` written on a badge reaches the DOM as the
+characters you typed. Resolve a badge's text before you hand the schema over, and author
+it on `label`: `text` is not a `BadgeSchema` key.
 
 ### Visibility Control
 
@@ -203,14 +224,25 @@ Object UI includes a powerful expression system for dynamic behavior:
 ```json
 {
   "type": "alert",
-  "message": "Welcome!",
-  "variant": "${
-    user.isNew ? 'info' :
-    user.tasks.length === 0 ? 'warning' :
-    'success'
-  }"
+  "variant": "default",
+  "title": "Welcome!",
+  "body": {
+    "type": "text",
+    "content": "${
+      user.isNew ? 'Start with the quick tour.' :
+      user.tasks.length === 0 ? 'You are all caught up.' :
+      'You have tasks waiting.'
+    }"
+  }
 }
 ```
+
+The branch sits on the nested `text` node's `content`, which `SchemaRenderer` evaluates
+on every node type — the escape hatch for a component that carries no expression rows of
+its own, and `alert` is one of those. Its severity could not be chosen by expression in
+any case: `AlertSchema.variant` is the closed set `default` | `destructive`, so `info`,
+`warning` and `success` are not values it accepts. Pick the variant in the host and
+author it as a literal.
 
 ## Event Handling
 
@@ -234,14 +266,25 @@ Reference actions in schemas:
 
 ```json
 {
-  "type": "button",
+  "type": "action:button",
+  "name": "call_api",
   "label": "Click Me",
-  "onClick": {
-    "actionType": "ajax",
-    "api": "/api/action"
-  }
+  "actionType": "api",
+  "endpoint": "/api/action",
+  "method": "POST"
 }
 ```
+
+Three things about the shape this replaces. A declarative action is its own NODE TYPE,
+`action:button` — a plain `button` has no authorable handler: `ButtonSchema.onClick` is a
+runtime slot for a host-supplied function, refused by name by the zod mirror, and (being
+on `SDUI_DOM_PASS_THROUGH_KEYS`) forwarded straight to the DOM listener slot, where React
+throws on the first click: "Expected `onClick` listener to be a function, instead got a
+value of `object` type." The execution type is `actionType`, and the built-in vocabulary
+is `script` | `url` | `modal` | `flow` | `api` | `form` (plus objectui's `navigation`
+alias) — anything else must be a handler your host registered on `ActionProvider`. `ajax`
+is neither. And the endpoint key is `endpoint`, with `method`; `api` is not a key any
+action renderer forwards.
 
 ## Performance Optimization
 
@@ -411,11 +454,18 @@ Always type your schemas for better IDE support and fewer runtime errors.
 ```json
 {
   "type": "alert",
-  "variant": "error",
+  "variant": "destructive",
   "visibleOn": "${error}",
-  "message": "${error.message}"
+  "title": "Something went wrong",
+  "body": { "type": "text", "content": "${error.message}" }
 }
 ```
+
+`visibleOn` is a condition key and is evaluated on every node type. The message text is a
+nested `text` node because `alert` carries no expression rows — and `message` is not an
+`AlertSchema` key at all: the alert's own text keys are `title` and `description`, and the
+renderer falls back from `description` to `body`. `destructive` is the variant this state
+wants; `error` is not in the closed set.
 
 ## Next Steps
 

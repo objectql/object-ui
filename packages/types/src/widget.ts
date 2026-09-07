@@ -217,7 +217,8 @@ export interface WidgetSourceRegistry {
  *
  * ## Where this face still diverges from `ComponentInput` — recorded, not repaired
  *
- * Two differences remain, and the ruling on both is NOT NOW rather than "these
+ * Two differences remain (a third, recorded below, was ADDED by a later
+ * retirement), and the ruling on both is NOT NOW rather than "these
  * are the same thing" (objectui#5675). Widget authoring and component
  * registration are not obviously one surface, and nothing measured is pulling
  * for the merge. They are written down here so the next reader meets a
@@ -258,6 +259,19 @@ export interface WidgetSourceRegistry {
  *    tombstone the key; teaching `sdui-parser` to forward it was REFUSED on
  *    record. ⇒ The fork this block used to report as OPEN is CLOSED; do not
  *    re-read it as a pending question.
+ *
+ * 3. **Three keys this face DOES declare are tombstones on `ComponentInput`**
+ *    — `label`, `defaultValue`, `advanced` (objectui#7493 / objectui#7781,
+ *    maintainer ruling A of 2026-09-06, ADR-0049): the serializer forwards
+ *    six keys and none of these, and no consumer of `ComponentMeta.inputs`
+ *    read them. `WidgetRegistry.load()` therefore no longer copies them
+ *    across the seam — that copy was the one non-test write of the three and
+ *    it fed nothing. They stay declared and WRITABLE here: this is the
+ *    widget-manifest face, authored outside this repository, and nothing has
+ *    ruled on it. What that leaves is measured, not repaired: after the copy
+ *    went, no reader of `WidgetInput.label` / `defaultValue` / `advanced`
+ *    exists in this repository either — recorded as objectui#7911 for a
+ *    ruling of its own, in the shape objectui#7781 took for the other face.
  *
  * Pin: `__tests__/widget-input-control-vocabulary.test.ts`.
  */

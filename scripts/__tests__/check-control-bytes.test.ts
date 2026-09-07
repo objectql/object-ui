@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -286,6 +286,38 @@ describe('repo state — the gate is green on this tree', () => {
   });
 });
 
+/**
+ * A content search, read on the stream grep actually writes its refusal to.
+ *
+ * objectui#7897. Measured on GNU grep 3.11 (the build this repo's containers
+ * carry, and the one this file's own header already cites): when grep declines
+ * a binary file it writes `grep: <path>: binary file matches` to **stderr**,
+ * prints nothing at all on stdout, and still exits **0**. `execFileSync`
+ * returns stdout ONLY — so the previous spelling here,
+ * `expect(out).not.toMatch(/binary file matches/)`, was matching against a
+ * stream that message can never reach. It could not fail, for any file, ever:
+ * a guard that reads as a pin while being satisfied by every outcome including
+ * the one it names. The whole pin was carried by the positive assertion beside
+ * it. Both halves are load-bearing now, and
+ * `the refusal this asserts against is a refusal grep really makes` below is
+ * the control that proves the negative half can go red.
+ *
+ * The two spellings grep has used for the refusal are both recognised: modern
+ * GNU grep prefixes `grep: <file>: `, older builds print `Binary file <file>
+ * matches` on stdout. Reading BOTH streams means this does not depend on which.
+ */
+function contentSearch(needle: string, file: string, cwd: string = repoRoot) {
+  const run = spawnSync('grep', ['-n', needle, file], { cwd, encoding: 'utf8' });
+  const both = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+  return {
+    status: run.status,
+    stdout: run.stdout ?? '',
+    stderr: run.stderr ?? '',
+    /** grep's own refusal to search the file, on whichever stream it lands. */
+    refusedAsBinary: /^grep: .*: binary file matches$|^Binary file .* matches$/im.test(both),
+  };
+}
+
 describe('objectstack#5425 — the file that started this is readable again', () => {
   const target = 'packages/app-shell/src/views/metadata-admin/inspectors/useDatasetFields.ts';
 
@@ -299,9 +331,36 @@ describe('objectstack#5425 — the file that started this is readable again', ()
     // The regression this pins is not "the byte is gone", it is "grep can see
     // the file". grep exits 0 and prints the line; before the fix it printed
     // `binary file matches` and no line at all.
-    const out = execFileSync('grep', ['-n', 'includeKey', target], { cwd: repoRoot, encoding: 'utf8' });
-    expect(out).toMatch(/includeKey/);
-    expect(out).not.toMatch(/binary file matches/);
+    const found = contentSearch('includeKey', target);
+    expect(found.status, found.stderr).toBe(0);
+    expect(
+      found.refusedAsBinary,
+      'grep declined to search the file — the objectstack#5425 harm, back again',
+    ).toBe(false);
+    expect(
+      found.stdout,
+      'a declined file yields an EMPTY stdout and exit 0, so the printed line is the real pin',
+    ).toMatch(/^\d+:.*includeKey/m);
+  });
+
+  it('the refusal this asserts against is a refusal grep really makes', () => {
+    // The control. Without it `refusedAsBinary: false` above proves nothing —
+    // and the spelling it replaced was exactly that: it matched stdout for a
+    // message GNU grep writes on stderr, so it was false for every file on
+    // earth. Here grep is handed a file that IS binary and must decline it.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'control-bytes-grep-'));
+    try {
+      const probe = path.join(dir, 'probe.ts');
+      // U+0000 written from its CODE POINT: a raw control byte in this source
+      // is precisely what the gate under test refuses.
+      fs.writeFileSync(probe, `const includeKey = 1;${String.fromCharCode(0)}\n`);
+      const declined = contentSearch('includeKey', probe, dir);
+      expect(declined.refusedAsBinary, 'grep must decline a NUL-bearing file').toBe(true);
+      expect(declined.stdout, 'and print no line at all — that is the search outage').toBe('');
+      expect(declined.status, 'while exiting 0, which is what makes the outage silent').toBe(0);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -334,9 +393,10 @@ describe('objectstack#5450 — the four baselined files are clean', () => {
   it.each(cleaned.filter((c) => c.grepFor).map((c) => [c.file, c.grepFor as string]))(
     '%s is visible to a content search again',
     (file, needle) => {
-      const out = execFileSync('grep', ['-n', needle, file], { cwd: repoRoot, encoding: 'utf8' });
-      expect(out).toMatch(new RegExp(needle));
-      expect(out).not.toMatch(/binary file matches/);
+      const found = contentSearch(needle, file);
+      expect(found.status, found.stderr).toBe(0);
+      expect(found.refusedAsBinary, `grep declined to search ${file}`).toBe(false);
+      expect(found.stdout).toMatch(new RegExp(`^\\d+:.*${needle}`, 'm'));
     },
   );
 

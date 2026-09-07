@@ -336,6 +336,12 @@ export function ObjectDataPage({ dataSource, objects }: any) {
       gallery,
       userFilters,
       appearance: { allowedVisualizations },
+      // This surface's INTENT to offer a switcher, not the final predicate:
+      // `ListView` draws the chrome only when this whitelist INTERSECTED with
+      // its capability gate still has more than one entry (objectui#7547). The
+      // third face carrying this length count — the card named only the object
+      // page and the interface page; this one is found by enumerating the
+      // `ListView` render sites rather than grepping for the spelling.
       showViewSwitcher: allowedVisualizations.length > 1,
       // Full list capability — this surface trades the saved-view anchor for
       // the complete toolbar, NOT for a reduced one. (#2890: expressed as

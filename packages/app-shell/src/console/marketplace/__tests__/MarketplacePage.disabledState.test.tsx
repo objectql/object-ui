@@ -57,7 +57,8 @@ vi.mock('react-router-dom', () => ({
   useParams: () => ({}),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
 }));
 

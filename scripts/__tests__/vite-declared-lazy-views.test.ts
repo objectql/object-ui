@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { attachedDocs } from './helpers/attached-docs';
 import {
   APP_CONTENT_PATH,
   DECLARED_LAZY_VIEWS_STILL_EAGER,
@@ -314,5 +315,115 @@ describe('formatDeclaredLazyViewFailure', () => {
     });
     expect(message).toContain('views/PageView.tsx');
     expect(message).toContain('views/RecordDetailView.tsx');
+  });
+});
+
+/**
+ * objectui#7289 — the VALUE half of the attached-prose pin objectui#7046 built
+ * for `scripts/check-eager-closure-budget.mjs`, applied here.
+ *
+ * Same defect, one file over: a constant carries a value, a paragraph beside it
+ * explains that value, and nothing makes the two agree. objectui#6785 was the
+ * same rot in this very file's prose and was repaired BY HAND, so nothing
+ * stopped the next paragraph from going stale. {@link attachedDocs} locates the
+ * block attached to an export structurally — the JSDoc ending immediately
+ * before the declaration plus every comment lexically inside it, code stripped
+ * — so these pins carry no line numbers to rot.
+ *
+ * ⚠️ Only the value half transfers, and that was MEASURED before it was
+ * written. This file carries five 9-hex commit citations in prose, and it
+ * exports no constant carrying a commit string as data — so the commit half of
+ * objectui#7046's pin has nothing live to check those five against, and
+ * copying it here would ship a vacuously green test: the defect one layer up,
+ * which is the wall objectui#7046 itself hit on `PER_CHUNK_BASELINE`. The five
+ * hashes are deliberately left unguarded; see the PR body for the reading.
+ *
+ * ⚠️ Non-vacuous, also measured: all three constants FAILED this pin when it
+ * was written. Not one of the three paragraphs named the path its constant
+ * carries — the ledger's bullet said `RecordDetailView`, the two control
+ * constants' blocks named no path at all — and the three sentences that now do
+ * are the only edit this card made to `scripts/vite-declared-lazy-views.ts`.
+ */
+describe('the prose attached to the exported constants (objectui#7289)', () => {
+  const source = read('scripts/vite-declared-lazy-views.ts');
+
+  /** The paths a constant carries AS DATA, found by walking its value. */
+  function pathsCarriedBy(value: unknown): string[] {
+    const found: string[] = [];
+    const walk = (v: unknown): void => {
+      if (typeof v === 'string') {
+        found.push(v);
+        return;
+      }
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+    };
+    walk(value);
+    return [...new Set(found)];
+  }
+
+  const PINNED = {
+    APP_CONTENT_PATH,
+    EAGER_WALK_CONTROL,
+    DECLARED_LAZY_VIEWS_STILL_EAGER,
+  } as const;
+
+  it('locates the block attached to each constant, and only that block', () => {
+    const appContent = attachedDocs(source, 'APP_CONTENT_PATH');
+    const control = attachedDocs(source, 'EAGER_WALK_CONTROL');
+    const ledger = attachedDocs(source, 'DECLARED_LAZY_VIEWS_STILL_EAGER');
+
+    // Controls that MUST hit: a phrase verified to be inside each attached
+    // block. A locator that quietly found the wrong span would pass every pin
+    // below by scanning prose that says nothing about these constants.
+    expect(appContent.prose).toContain('declarations are the subject');
+    expect(control.prose).toContain('The positive control for the eager walk');
+    expect(ledger.prose).toContain('Deleting a line is a MEASUREMENT');
+
+    // ...and the neighbours are not swept in. These three declarations sit
+    // consecutively with nothing but their own blocks between them, so an
+    // over-wide span shows up as one constant's block reaching into another's.
+    expect(appContent.prose).not.toContain('Repo root');
+    expect(appContent.prose).not.toContain('The positive control for the eager walk');
+    expect(control.prose).not.toContain('declarations are the subject');
+    expect(ledger.prose).not.toContain('The positive control for the eager walk');
+    expect(ledger.prose).not.toContain('Pull the modules out of');
+
+    // The code is not prose. Without this the positive pin below would be
+    // satisfiable by the ledger's own entry line.
+    expect(ledger.code).toContain("'packages/app-shell/src/views/RecordDetailView.tsx'");
+    expect(ledger.prose).not.toContain("'packages/app-shell/src/views/RecordDetailView.tsx'");
+  });
+
+  /**
+   * The positive pin: every path a constant carries must appear in the prose
+   * attached to that same constant. An entry added, removed or re-pathed
+   * without touching the paragraph that explains it reds here instead of
+   * drifting — which is the whole of what objectui#6785 had to be fixed by
+   * hand.
+   */
+  it.each(Object.keys(PINNED))('pins every path %s carries into its own attached prose', (name) => {
+    const { prose } = attachedDocs(source, name);
+    const carried = pathsCarriedBy(PINNED[name as keyof typeof PINNED]);
+    expect(carried.filter((entry) => !prose.includes(entry))).toEqual([]);
+  });
+
+  /**
+   * What each constant carries AS DATA, recorded so the pin above cannot go
+   * vacuous in silence. The two controls carry exactly themselves; the ledger
+   * carries one entry.
+   *
+   * ⚠️ The ledger EMPTYING is a win, not a failure — the block above this
+   * declaration says it in as many words ("Deleting a line is a MEASUREMENT,
+   * never a repair"), and the `missing` half of the diff is what licenses the
+   * deletion. So this number going down is not a regression; it is the line
+   * where that win gets recorded, alongside the paragraph the deleted entry
+   * took with it. A pin over an empty set passes without checking anything,
+   * and that silence is what this case exists to break.
+   */
+  it('records what each constant carries as data, so the pin cannot go vacuous', () => {
+    expect(pathsCarriedBy(APP_CONTENT_PATH)).toEqual([APP_CONTENT_PATH]);
+    expect(pathsCarriedBy(EAGER_WALK_CONTROL)).toEqual([EAGER_WALK_CONTROL]);
+    expect(pathsCarriedBy(DECLARED_LAZY_VIEWS_STILL_EAGER)).toHaveLength(1);
   });
 });

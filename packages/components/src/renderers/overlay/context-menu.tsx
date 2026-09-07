@@ -92,7 +92,7 @@ ComponentRegistry.register('context-menu',
       <ContextMenuTrigger asChild>
           {/* Usually a Right Click area */}
           <div className={triggerClass}>
-             {renderChildren(schema.trigger || { type: 'text', value: "Right click here" })}
+             {renderChildren(schema.trigger || { type: 'text', content: "Right click here" })}
           </div>
       </ContextMenuTrigger>
       <ContextMenuContent className={contentClass}>
@@ -107,16 +107,14 @@ ComponentRegistry.register('context-menu',
       { 
         name: 'trigger', 
         type: 'slot', 
-        label: 'Trigger Area',
       },
-      { name: 'triggerClassName', type: 'string', label: 'Trigger Area Class' },
+      { name: 'triggerClassName', type: 'string' },
       {
         name: 'items',
         type: 'array',
-        label: 'Items',
         description: 'Recursive structure: a command item { label, icon, shortcut, disabled, onClick, children } or a divider { separator: true }. `icon` is a kebab-case Lucide icon name resolved against lucide\'s runtime `icons` record; an unknown or retired spelling renders no glyph.'
       },
-      { name: 'className', type: 'string', label: 'Content CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       items: [

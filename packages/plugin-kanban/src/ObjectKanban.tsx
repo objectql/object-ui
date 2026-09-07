@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useState, useMemo } from 'react';
-import type { DataSource } from '@object-ui/types';
+import type { DataSource, ObjectKanbanSchema } from '@object-ui/types';
 import {
   useDataScope,
   useNavigationOverlay,
@@ -27,8 +27,9 @@ import {
   getRecordDisplayName,
 } from '@object-ui/core';
 import { getBadgeColorClasses, getBadgeHexAppearance, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
+import { usePermissions } from '@object-ui/permissions';
 import { KanbanRenderer, KANBAN_UNCOLUMNED_ID } from './index';
-import { KanbanSchema } from './types';
+import type { KanbanSchema } from './types';
 import {
   collectRequiredWhenPromptFields,
   type RequiredWhenPromptField,
@@ -140,7 +141,60 @@ export function resolveKanbanCardFields(
  * no importer breaks. Tripwire: `__tests__/spec-symbol-4650.test.ts`.
  */
 export interface ObjectKanbanComponentProps {
-  schema: KanbanSchema;
+  /**
+   * The board node. A UNION of the two declared node types this component is
+   * registered for (objectui#7322 item ②) — `KanbanSchema` (`type: 'kanban'`)
+   * and `ObjectKanbanSchema` (`type: 'object-kanban'`).
+   *
+   * ## Why a union and not either type alone
+   *
+   * `index.tsx` registers ONE component under TWO keys —
+   * `ComponentRegistry.register('object-kanban', ObjectKanbanRenderer, …)` and
+   * `ComponentRegistry.register('kanban', ObjectKanbanRenderer, …)`, and
+   * `kanban-plugin-dialect-authoritative-7664.test.ts` pins that they resolve to
+   * the same renderer. The two keys have DIFFERENT declared node types, and the
+   * discriminants are disjoint literals, so naming one of them makes the prop
+   * lie about the other half of the nodes this component serves. That is the
+   * defect this member carried: it named `KanbanSchema` alone, so no
+   * `object-kanban` node was assignable to it, and every in-package test that
+   * mounts one had to escape the prop with `as never`.
+   *
+   * ## The read set that settled it (measured on `origin/main` `21d7989fb`)
+   *
+   * `ObjectKanban` reads thirteen keys off `schema`. Neither declaration covers
+   * them; the two TOGETHER cover twelve:
+   *
+   * | key | `BaseSchema` | `KanbanSchema` | `ObjectKanbanSchema` |
+   * |---|---|---|---|
+   * | `objectName`, `groupBy`, `limit`, `cardFields` | — | yes | yes |
+   * | `columns`, `cardTitle`, `swimlaneField`, `grouping` | — | yes | — |
+   * | `titleField` | — | — | yes |
+   * | `data`, `bind`, `className` | yes | — / yes | — |
+   * | `filter` | — | — | — |
+   *
+   * So each arm is load-bearing: dropping `ObjectKanbanSchema` loses the
+   * `titleField` read at `:350` / `:1024` (which is why that read was spelled
+   * `(schema as any).titleField` before this card), and dropping `KanbanSchema`
+   * loses four reads AND the `'kanban'` registration. `filter` (`:310`,
+   * `$filter` on the fetch) is declared by NEITHER face and still rides
+   * {@link BaseSchema}'s `[key: string]: any` — measured, filed, and NOT fixed
+   * here: this card moves the prop, not the two published schema faces.
+   *
+   * ## What the union does and does not claim
+   *
+   * It claims exactly the accept set the registry dispatches to this component,
+   * no wider: a node of some third type is still turned away. Every key above
+   * that only one arm declares reads as `any` on the union (through the other
+   * arm's index signature) — the same resolution it had before, so no read
+   * changes meaning. Widening a member of an exported prop type is additive:
+   * every caller that passed a `KanbanSchema` still compiles.
+   *
+   * ⛔ Do not narrow this back to one arm without first removing a
+   * registration. `__tests__/object-kanban-component-props-7322.test.ts`
+   * derives the registered key set from `index.tsx` off disk and goes red if
+   * the two ever stop agreeing.
+   */
+  schema: KanbanSchema | ObjectKanbanSchema;
   dataSource?: DataSource;
   className?: string; // Allow override
   /** Pre-fetched records passed by a parent (e.g. ListView). When provided, skips internal data fetching. */
@@ -198,6 +252,13 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
   // Resolve bound data if 'bind' property exists
   const boundData = useDataScope(schema.bind);
 
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7429, same structural note PR #7229 /
+  // PR #7428 recorded for `ListView`'s memo and `ObjectCalendar`'s effect).
+  const perms = usePermissions();
+
   // P2: Auto-subscribe to DataSource mutation events (standalone mode only).
   // When rendered as a child of ListView, data is managed externally and this is skipped.
   useEffect(() => {
@@ -252,7 +313,46 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             // object declares lookups queries WITH its expansion the first
             // time — `objectDef` here is `null` only when there was nothing to
             // resolve it from.
-            const expand = buildExpandFields(objectDef?.fields);
+            //
+            // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same gate
+            // objectui#7215 / PR #7229 put on the two projection sites in its
+            // scope, and objectui#7230 / PR #7428 applied unchanged at four more.
+            // `$select` on a denied lookup asks the server for a bare foreign
+            // key; `$expand` asks it to RESOLVE the relation and return the
+            // related record, the larger of the two requests.
+            //
+            // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+            // `buildExpandFields` reads an absent column list as "no column
+            // restriction" and falls back to EVERY declared relation on the
+            // object, denied ones included. A standalone board therefore asks
+            // for the maximum possible set by default, not by configuration.
+            //
+            // Graded as objectui#7215 graded it, by measurement rather than
+            // assumption: against ObjectStack this is defence-in-depth, because
+            // `plugin-security`'s `FieldMasker.maskRecord` does
+            // `delete result[field]` on every unreadable key and objectql's
+            // expand path writes the resolved record back under THAT SAME KEY, so
+            // one statement removes the expanded object and the bare id alike;
+            // the expansion sub-read itself takes the referenced object's full
+            // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing
+            // for a backend that does not strip.
+            //
+            // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+            // alternative is not merely unsound but unreachable: the call passes
+            // `undefined`, so there is no input to gate. Gating the output also
+            // gives the required ordering structurally: `buildExpandFields`
+            // returns a subset of the object's DECLARED reference-bearing fields,
+            // so every name judged here is declared by construction and the
+            // "`checkField` answers false for an undeclared key" trap cannot be
+            // reached. Pinned in `__tests__/ObjectKanban.expandFls-7429.test.tsx`.
+            //
+            // Deferral matches every other gate on this path: an unanswered
+            // policy filters nothing, and `perms` is in this effect's dependency
+            // list, so the expansion is rebuilt the moment the answer arrives.
+            const expandable = buildExpandFields(objectDef?.fields);
+            const expand = !perms?.isLoaded
+              ? expandable
+              : expandable.filter((f) => perms.checkField(schema.objectName as string, f, 'read'));
             // The row cap is a REAL `$top` (objectui#4025). It used to be
             // `{ options: { $top: 100 } }` — `$filter` at the top level where the
             // adapters read it, the cap one level down under a key that is not a
@@ -288,7 +388,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
     // `objectDef` stays listed because the body reads it, and with the gate in
     // place the two flip together in one commit — the pre-resolution run now
     // returns above without querying instead of issuing an unexpanded one.
-  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, schema.limit, hasExternalData, objectDefReady, objectDef, refreshKey]);
+  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, schema.limit, hasExternalData, objectDefReady, objectDef, refreshKey, perms]);
 
   // Determine which data to use: external -> bound -> inline -> fetched
   const rawData = (hasExternalData ? externalData : undefined) || boundData || schema.data || fetchedData;
@@ -300,7 +400,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
     // Support cardTitle property from schema (passed by ObjectView)
     // Fallback to legacy titleField for backwards compatibility
     const explicitTitleField: string | undefined =
-      schema.cardTitle || (schema as any).titleField;
+      schema.cardTitle || schema.titleField;
 
     // Title is resolved per-item below via:
     //   1. explicit titleField (schema.cardTitle / schema.titleField), if it
@@ -434,7 +534,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
       // semantic role (ADR-0085); `[]` drops to the legacy heuristic below.
       // (See `resolveKanbanCardFields` for the full priority contract.)
       const explicitCardFields: string[] = resolveKanbanCardFields(
-        (schema as any).cardFields,
+        schema.cardFields,
         objectDef,
       );
       // The field used as the card title is implicit (resolved above). Don't
@@ -974,7 +1074,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
         const rec = navigation.selectedRecord as Record<string, any>;
         const recordId = rec.id ?? rec._id;
         if (!objectName || recordId == null) return null;
-        const titleField = (schema as any).cardTitle ?? (schema as any).titleField;
+        const titleField = schema.cardTitle ?? schema.titleField;
         const titleText = titleField && rec[titleField]
           ? String(rec[titleField])
           : detailTitle;

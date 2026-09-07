@@ -101,7 +101,8 @@ vi.mock('sonner', () => ({
   }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
     get user() { return authState.user; },
     getAuthConfig,
@@ -114,7 +115,8 @@ vi.mock('@object-ui/auth', () => ({
  * inside its `ExpressionProvider`, so what it reads is what a real descendant
  * of that provider reads — no interception, no spy on the provider.
  */
-vi.mock('@object-ui/plugin-form', () => ({
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectForm: ({ schema }: any) => {
     formSchemas.push(schema);
     publishedScopes.push(usePredicateScope());

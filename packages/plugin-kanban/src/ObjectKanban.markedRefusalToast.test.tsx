@@ -51,7 +51,7 @@ import '@testing-library/jest-dom';
 import { registerAllFields } from '@object-ui/fields';
 import { toast } from '@object-ui/components';
 import { normaliseClientError } from '@object-ui/data-objectstack';
-import type { DataSource } from '@object-ui/types';
+import type { DataSource, ObjectKanbanSchema } from '@object-ui/types';
 import { ObjectKanban } from './ObjectKanban';
 
 // Pay the board's lazy chunk at import time rather than racing it against a
@@ -112,7 +112,7 @@ const schema = {
     { id: 'backlog', title: 'Backlog' },
     { id: 'in_progress', title: 'In Progress' },
   ],
-} as never;
+} satisfies ObjectKanbanSchema;
 
 const serverRecords = () => [{ id: 't1', title: CARD, status: 'backlog' }];
 

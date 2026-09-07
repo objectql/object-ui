@@ -32,6 +32,7 @@ import {
 } from '@object-ui/react';
 import { NavigationOverlay, cn } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
+import { usePermissions } from '@object-ui/permissions';
 import {
   buildExpandFields,
   columnIdentity,
@@ -122,15 +123,39 @@ function getTreeConfig(schema: any): TreeConfig {
 
 /**
  * Auto-detect the single-parent pointer field from the object schema:
- * the first field declared as `tree`, or a lookup/master_detail whose
- * reference points back at this same object.
+ * a field declared `tree` whose `reference` is absent or names THIS object, or
+ * a lookup/master_detail whose reference points back at this same object.
+ *
+ * ## The `tree` arm mirrors the parse door, it does not out-guess it
+ *
+ * A hierarchy is parent/child WITHIN one object, so `@objectstack/spec` refuses
+ * a `tree` field whose `reference` names any other object
+ * (`refuseForeignTreeReference` in `packages/spec/src/data/object.zod.ts`,
+ * applied at both doors that carry a field map — `ObjectSchema` with `name` as
+ * the own name and `ObjectExtensionSchema` with `extend`). `reference` stays
+ * OPTIONAL on a `tree` — under that rule it is a redundant self-annotation — so
+ * ABSENCE is accepted and only a FOREIGN value is refused. The spec's own
+ * kernel predicate reads the identical rule (`hasDetectableParentField` in
+ * `packages/spec/src/kernel/functional-completeness.ts`), and its docblock
+ * named this reader as the one place still out of step; objectui#7839 closes
+ * that gap. Mirrored here term for term, including the `objectName` guard: an
+ * object whose own name we do not know cannot be self-referenced, so a `tree`
+ * that DOES name a target is not matchable against a name that is not there.
+ *
+ * ⛔ Not `??`-style tolerance in either direction. A foreign-referencing `tree`
+ * is skipped rather than returned, so it can no longer mask a self-referencing
+ * lookup declared after it — before this it won by position, and the tree view
+ * then grouped records under a pointer into a table it does not point at.
+ * Unreachable from parsed metadata (the parse door refuses the shape) and
+ * reachable from a hand-built schema, which a third-party `DataSource` may
+ * hand straight to `useSettledSchema`. Pinned in
+ * `ObjectTree.treeArmOwnReference-7839.test.tsx`.
  */
 function detectParentField(objectSchema: any, objectName?: string): string | undefined {
   const fields = objectSchema?.fields;
   if (!fields || typeof fields !== 'object') return undefined;
   let firstSelfRef: string | undefined;
   for (const [key, def] of Object.entries<any>(fields)) {
-    if (def?.type === 'tree') return key;
     // ONE arm: `reference`, the only target spelling the protocol declares.
     // `FieldSchema` refuses `reference_to` / `referenceTo` / `target` by name.
     // `referenceTo` went in objectui#6837 slice 2, `reference_to` in half 2
@@ -139,6 +164,11 @@ function detectParentField(objectSchema: any, objectName?: string): string | und
     // canonicalised once at the ingestion choke point, never here. Pinned in
     // `ObjectTree.referenceArms-6837.test.tsx`.
     const ref = def?.reference;
+    // A `tree` still wins over a lookup found earlier — the precedence is
+    // unchanged; what changed is that it must first BE a self-reference.
+    if (def?.type === 'tree' && (ref === undefined || (!!objectName && ref === objectName))) {
+      return key;
+    }
     if (
       !firstSelfRef &&
       (def?.type === 'lookup' || def?.type === 'master_detail') &&
@@ -444,6 +474,13 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
   const dataObjectName = dataConfig?.provider === 'object' ? dataConfig.object : undefined;
   const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
 
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7429, same structural note PR #7229 /
+  // PR #7428 recorded for `ListView`'s memo and `ObjectCalendar`'s effect).
+  const perms = usePermissions();
+
   // Fetch records.
   useEffect(() => {
     let cancelled = false;
@@ -466,7 +503,45 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
           // so the tree shows its spinner instead of a wrong first answer, and
           // this effect re-runs the moment the latch flips.
           if (!schemaSettled) return;
-          const expand = buildExpandFields(objectSchema?.fields);
+          // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same gate
+          // objectui#7215 / PR #7229 put on the two projection sites in its
+          // scope, and objectui#7230 / PR #7428 applied unchanged at four more.
+          // `$select` on a denied lookup asks the server for a bare foreign
+          // key; `$expand` asks it to RESOLVE the relation and return the
+          // related record, the larger of the two requests.
+          //
+          // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+          // `buildExpandFields` reads an absent column list as "no column
+          // restriction" and falls back to EVERY declared relation on the
+          // object, denied ones included. A standalone tree therefore asks for
+          // the maximum possible set by default, not by configuration.
+          //
+          // Graded as objectui#7215 graded it, by measurement rather than
+          // assumption: against ObjectStack this is defence-in-depth, because
+          // `plugin-security`'s `FieldMasker.maskRecord` does
+          // `delete result[field]` on every unreadable key and objectql's
+          // expand path writes the resolved record back under THAT SAME KEY, so
+          // one statement removes the expanded object and the bare id alike;
+          // the expansion sub-read itself takes the referenced object's full
+          // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing
+          // for a backend that does not strip.
+          //
+          // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+          // alternative is not merely unsound but unreachable: the call passes
+          // `undefined`, so there is no input to gate. Gating the output also
+          // gives the required ordering structurally: `buildExpandFields`
+          // returns a subset of the object's DECLARED reference-bearing fields,
+          // so every name judged here is declared by construction and the
+          // "`checkField` answers false for an undeclared key" trap cannot be
+          // reached. Pinned in `ObjectTree.expandFls-7429.test.tsx`.
+          //
+          // Deferral matches every other gate on this path: an unanswered
+          // policy filters nothing, and `perms` is in this effect's dependency
+          // list, so the expansion is rebuilt the moment the answer arrives.
+          const expandable = buildExpandFields(objectSchema?.fields);
+          const expand = !perms?.isLoaded
+            ? expandable
+            : expandable.filter((f) => perms.checkField(dataObjectName as string, f, 'read'));
           // `dataObjectName` is required on the 'object' variant of the
           // discriminated union — same narrowing the pre-refactor
           // `dataConfig.object` read carried.
@@ -527,7 +602,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [dataProvider, dataObjectName, dataItems, dataSource, schema.filter, objectSchema, schemaSettled, (rest as any).data]);
+  }, [dataProvider, dataObjectName, dataItems, dataSource, schema.filter, objectSchema, schemaSettled, (rest as any).data, perms]);
 
   const config = useMemo(() => getTreeConfig(schema), [schema]);
   const parentField = useMemo(

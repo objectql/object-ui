@@ -32,7 +32,8 @@ vi.mock('@object-ui/react', async (importOriginal) => {
 });
 
 // Mock @object-ui/plugin-grid
-vi.mock('@object-ui/plugin-grid', () => ({
+vi.mock('@object-ui/plugin-grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectGrid: ({ schema, onRowClick }: any) => (
     <div data-testid="object-grid" data-object={schema?.objectName}>
       <button data-testid="grid-row" onClick={() => onRowClick?.({ id: '1', name: 'Test' })}>
@@ -43,7 +44,8 @@ vi.mock('@object-ui/plugin-grid', () => ({
 }));
 
 // Mock @object-ui/plugin-form
-vi.mock('@object-ui/plugin-form', () => ({
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectForm: ({ schema }: any) => (
     <div data-testid="object-form" data-mode={schema?.mode}>
       Form ({schema?.mode})

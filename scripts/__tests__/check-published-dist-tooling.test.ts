@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { TOOLING_FILE } from '../check-phantom-dependencies.mjs';
 import {
   BUILD_OUTPUT_DIRS,
+  BUILD_RECORD,
   MIN_PACKAGES,
   PUBLISHED_TOOLING_FILE,
   analyze,
@@ -47,6 +48,13 @@ import {
  *  7. **The gate is wired into the publish path**, which is where the ruling put
  *     it (comment 5307574139), and into a nightly workflow — and NOT into a
  *     per-PR job.
+ *  8. **A build record is refused even though it has no tooling SOURCE.**
+ *     objectui#7003 measured the blind spot: every criterion above traces an
+ *     artifact back to a source the convention names, and a `*.tsbuildinfo` is
+ *     a compiler by-product with no such source, so `PUBLISHED_TOOLING_FILE`
+ *     matches nothing about it. `BUILD_RECORD` is the second, artifact-only
+ *     term; the cases below read it from the gate rather than retyping the
+ *     suffix, so the two cannot disagree about what a build record IS.
  */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const GATE = 'scripts/check-published-dist-tooling.mjs';
@@ -161,6 +169,58 @@ describe('the artifact criterion vs. the source criterion', () => {
   });
 });
 
+// ── 2b. build records, which have no tooling source at all ───────────────────
+
+describe('build records — objectui#7003', () => {
+  /** Spellings `tsc` writes, built from the gate's own output-directory list. */
+  const records = BUILD_OUTPUT_DIRS.flatMap((dir) => [
+    `${dir}/tsconfig.tsbuildinfo`,
+    `${dir}/tsconfig.build.tsbuildinfo`,
+    `${dir}/.tsbuildinfo`,
+    `${dir}/nested/deep/tsconfig.tsbuildinfo`,
+  ]);
+
+  it('is exactly the blind spot the card measured: invisible to the derived convention', () => {
+    // The whole finding of objectui#7003 in one assertion. `PUBLISHED_TOOLING_FILE`
+    // matches a tooling MARKER — a directory name or a stem — because every
+    // artifact it grades was emitted from a file somebody wrote. A build record
+    // was written by the compiler about the build, so it carries no marker, and
+    // the gate built for tooling material in published output saw nothing.
+    for (const record of records) {
+      expect(PUBLISHED_TOOLING_FILE.test(record), `${record} via PUBLISHED_TOOLING_FILE`).toBe(false);
+      expect(TOOLING_FILE.test(record), `${record} via TOOLING_FILE`).toBe(false);
+      expect(isToolingArtifact(record), `${record} via isToolingArtifact`).toBe(true);
+    }
+  });
+
+  it('reads the pattern off the gate instead of retyping the suffix', () => {
+    // The derived-never-retyped property, applied to the new term: the predicate
+    // is the union of the two exported patterns and nothing else, so a third
+    // spelling cannot appear in the gate without appearing here.
+    for (const path of [
+      ...records,
+      'tsconfig.tsbuildinfo',
+      'dist/index.js',
+      'dist/a.test.d.ts',
+      'src/a.test.ts',
+      'dist/__tests__/a.d.ts',
+    ]) {
+      expect(isToolingArtifact(path), path).toBe(PUBLISHED_TOOLING_FILE.test(path) || BUILD_RECORD.test(path));
+    }
+  });
+
+  it('does not fire on names that merely contain the word', () => {
+    for (const clean of [
+      'dist/index.js',
+      'dist/tsbuildinfo.js',
+      'dist/tsconfig.tsbuildinfo.js',
+      'dist/a.tsbuildinfo/index.js', // a DIRECTORY so named — anchored to the last segment
+    ]) {
+      expect(isToolingArtifact(clean), clean).toBe(false);
+    }
+  });
+});
+
 // ── 3. the verdicts, including the vacuous one ───────────────────────────────
 
 describe('outputDirOf', () => {
@@ -199,6 +259,40 @@ describe('auditPackedFiles', () => {
     ]);
     expect(findings[0].pkg).toBe('@object-ui/core');
     expect(findings[0].dir).toBe('packages/core');
+  });
+
+  it('names a build record inside the build output — objectui#7003', () => {
+    const { findings, counters } = auditPackedFiles(pkg('@object-ui/core'), [
+      'dist/index.js',
+      'dist/tsconfig.tsbuildinfo',
+      'dist/chunks/tsconfig.build.tsbuildinfo',
+    ]);
+    expect(findings.map((f: Finding) => f.reason)).toEqual([
+      'tooling-in-published-output',
+      'tooling-in-published-output',
+    ]);
+    expect(findings.map((f: Finding) => f.file)).toEqual([
+      'dist/tsconfig.tsbuildinfo',
+      'dist/chunks/tsconfig.build.tsbuildinfo',
+    ]);
+    expect(findings[0].pkg).toBe('@object-ui/core');
+    expect(findings[0].dir).toBe('packages/core');
+    expect(counters.tooling).toBe(2);
+  });
+
+  it('leaves the record at its REAL location alone — the package root', () => {
+    // Where every one of this repository's 30 composite packages writes its
+    // record today, and the state option B would change. It is not in any
+    // package's `files` list, so it does not reach a tarball at all — but this
+    // function must not flag it even when handed one, or the gate would red a
+    // tree that ships nothing wrong.
+    const { findings, counters } = auditPackedFiles(pkg('@object-ui/core'), [
+      'tsconfig.tsbuildinfo',
+      'dist/index.js',
+      'dist/index.d.ts',
+    ]);
+    expect(findings).toEqual([]);
+    expect(counters.tooling).toBe(0);
   });
 
   it('reports a tarball with NO build output instead of passing it — the vacuous verdict', () => {

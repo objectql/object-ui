@@ -49,14 +49,16 @@ const { ADAPTER } = vi.hoisted(() => {
 
 vi.mock('@object-ui/app-shell', () => ({ useAdapter: () => ADAPTER }));
 
-vi.mock('@object-ui/plugin-markdown', () => ({
+vi.mock('@object-ui/plugin-markdown', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   MarkdownRenderer: ({ schema }: { schema: { content?: string } }) => (
     <div data-testid="doc-content">{schema.content}</div>
   ),
   extractToc: () => [],
 }));
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({ t: (_k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? _k }),
 }));
 

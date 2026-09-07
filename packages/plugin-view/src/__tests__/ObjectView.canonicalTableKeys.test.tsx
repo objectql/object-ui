@@ -68,13 +68,17 @@ vi.mock('@object-ui/react', async (importOriginal) => {
  * it was handed. What reaches this object IS the forwarding whitelist.
  */
 const gridSchemas: any[] = [];
-vi.mock('@object-ui/plugin-grid', () => ({
+vi.mock('@object-ui/plugin-grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectGrid: ({ schema }: any) => {
     gridSchemas.push(schema);
     return <div data-testid="object-grid" />;
   },
 }));
-vi.mock('@object-ui/plugin-form', () => ({ ObjectForm: () => <div data-testid="object-form" /> }));
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ObjectForm: () => <div data-testid="object-form" />,
+}));
 
 const mockDataSource = () => ({
   find: vi.fn().mockResolvedValue({ data: [], total: 0 }),

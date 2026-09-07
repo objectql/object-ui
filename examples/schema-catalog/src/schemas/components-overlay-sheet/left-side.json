@@ -8,6 +8,6 @@
   "title": "Left Sheet",
   "content": {
     "type": "text",
-    "value": "Content"
+    "content": "Content"
   }
 }

@@ -34,7 +34,8 @@ import { AssignedUsersSection } from './AssignedUsersSection';
 // `@object-ui/react` is imported transitively for more than `useAdapter` (the
 // related-count store subscribes to `subscribeDataChanges` at module scope), and
 // a wholesale `vi.mock` of it starves that import.
-vi.mock('@object-ui/fields', () => ({
+vi.mock('@object-ui/fields', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/fields')>()),
   RecordPickerDialog: () => null,
 }));
 

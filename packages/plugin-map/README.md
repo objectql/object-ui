@@ -52,9 +52,10 @@ export to iterate over — the import *is* the registration.
 
 ```ts
 import '@object-ui/plugin-map';
+import type { ObjectMapSchema } from '@object-ui/types';
 
 // Object-bound: the markers are the records the query returns.
-const schema = {
+const schema: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'stores',
   map: {
@@ -69,7 +70,9 @@ const schema = {
 A literal record array instead of a query, with the same `map` block:
 
 ```ts
-const schema = {
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const schema: ObjectMapSchema = {
   type: 'object-map',
   staticData: [
     { id: 1, name: 'San Francisco HQ', lat: 37.7749, lng: -122.4194 },
@@ -130,17 +133,25 @@ and it does not cost the view its fit.
 
 ## Coordinate formats
 
-`locationField` reads any of:
+`locationField` names one record field, and the value in it is read at RUNTIME:
+`extractCoordinates()` in `packages/plugin-map/src/ObjectMap.tsx` tests the value's
+shape per record and takes the first of these three that answers. So this is a
+reference read of what that parser accepts, not a value you author — which is why
+it is a table rather than a snippet:
 
-```ts
-{ location: { lat: 37.7749, lng: -122.4194 } }  // also latitude/longitude, lon
-{ location: '37.7749,-122.4194' }               // "lat,lng"
-{ location: [37.7749, -122.4194] }              // [lat, lng]
-```
+| Shape of `record[locationField]` | Example value | What the parser accepts |
+| --- | --- | --- |
+| Object | `{ lat: 37.7749, lng: -122.4194 }` | `lat` or `latitude` for the latitude; `lng`, `lon` or `longitude` for the longitude. Both must already be numbers — an object form is not string-parsed. |
+| String | `'37.7749,-122.4194'` | `"lat,lng"`: split on the comma, each half trimmed and `parseFloat`-ed. |
+| Array | `[37.7749, -122.4194]` | `[lat, lng]`, exactly two elements, each `parseFloat`-ed. |
+
+The lat/lng PAIR (`latitudeField` + `longitudeField`) is tried first and is
+stricter: both values must already be numbers, with no parsing step at all.
 
 A record whose coordinates are missing, unparseable, or out of range (latitude
 beyond ±90, longitude beyond ±180) is left off the map and counted in a notice
-above it, rather than being silently dropped or rescued.
+above it, rather than being silently dropped or rescued. The range test and the
+notice live in that same file, alongside the parser.
 
 ## What this component does not read
 
@@ -159,7 +170,9 @@ host that registers types itself) and the `ObjectMapProps` type are the package'
 exports:
 
 ```tsx
-import { ObjectMap } from '@object-ui/plugin-map';
+import { ObjectMap, type ObjectMapProps } from '@object-ui/plugin-map';
+
+declare const dataSource: ObjectMapProps['dataSource'];
 
 <ObjectMap
   schema={{ type: 'object-map', objectName: 'stores', map: { latitudeField: 'lat', longitudeField: 'lng' } }}

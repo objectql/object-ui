@@ -358,8 +358,8 @@ ComponentRegistry.register('object-timeline', ObjectTimelineRenderer, {
   label: 'Object Timeline',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'variant', type: 'enum', enum: ['vertical', 'horizontal', 'gantt'], defaultValue: 'vertical' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'variant', type: 'enum', enum: ['vertical', 'horizontal', 'gantt'] },
   ]
 });
 
@@ -368,7 +368,7 @@ ComponentRegistry.register('timeline', ObjectTimelineRenderer, {
   label: 'Timeline View',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'variant', type: 'enum', enum: ['vertical', 'horizontal', 'gantt'], defaultValue: 'vertical' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'variant', type: 'enum', enum: ['vertical', 'horizontal', 'gantt'] },
   ]
 });

@@ -12,6 +12,7 @@
 import * as React from 'react';
 import { SchemaRenderer, RecordContextProvider } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
+import { usePermissions } from '@object-ui/permissions';
 import { buildDefaultPageSchema } from '@object-ui/plugin-detail';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell.js';
@@ -35,6 +36,17 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
   const designMode = !!(editing && onSelectionChange);
   const canEdit = designMode && !!onPatch;
   const selectedId = selection && selection.kind === 'block' ? selection.id : null;
+
+  // Permissions context, read here rather than inside the record-binding
+  // effect below: an effect's DEPENDENCY ARRAY is evaluated during render, so
+  // `perms` has to be a binding that already exists by the time this
+  // component's render reaches that effect (objectui#7429, same structural
+  // note PR #7229 / PR #7428 recorded for `ListView`'s memo and
+  // `ObjectCalendar`'s effect). This studio route is mounted inside
+  // `MePermissionsProvider` (`apps/console/src/AppContent.tsx` wraps
+  // `DefaultAppContent`, which the `/studio/*` routes render under), so the
+  // hook is live here — it is not a no-provider default.
+  const perms = usePermissions();
 
   // ADR-0047 interface pages are config-driven, not region-composed. The
   // runtime (PageView) renders them via InterfaceListPage; the generic
@@ -131,7 +143,58 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
         const schemaRes = await fetch(`/api/v1/meta/object/${encodeURIComponent(recordObject)}`, opts);
         const schemaJson = await schemaRes.json().catch(() => null);
         const schema = schemaJson?.item ?? schemaJson?.data ?? schemaJson;
-        const expand = buildExpandFields(schema?.fields);
+        // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same gate
+        // objectui#7215 / PR #7229 put on the two projection sites in its
+        // scope, and objectui#7230 / PR #7428 applied unchanged at four more.
+        // `$select` on a denied lookup asks the server for a bare foreign key;
+        // `$expand` asks it to RESOLVE the relation and return the related
+        // record, the larger of the two requests.
+        //
+        // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+        // `buildExpandFields` reads an absent column list as "no column
+        // restriction" and falls back to EVERY declared relation on the
+        // object, denied ones included. This preview therefore asks for the
+        // maximum possible set by default, not by configuration.
+        //
+        // ⚠️ THE PRINCIPAL JUDGED HERE IS THE STUDIO REVIEWER, NOT THE PAGE'S
+        // EVENTUAL AUDIENCE (objectui#7429's own flag on this site — "a reason
+        // to look, not a claim"). This request runs with `credentials:
+        // 'include'`, i.e. under the browser session that is ALREADY loading
+        // this preview, so gating by `perms` (which reads that SAME session's
+        // `/me/permissions`) is the correct principal to gate on: it is
+        // exactly the request this browser is about to make, on its own
+        // credentials, regardless of who eventually opens the published page.
+        // A reviewer who holds broader grants than the audience sees a wider
+        // (still-correct) expansion here; the gate never disclosed anything
+        // this session could not itself read.
+        //
+        // Graded as objectui#7215 graded it, by measurement rather than
+        // assumption: against ObjectStack this is defence-in-depth, because
+        // `plugin-security`'s `FieldMasker.maskRecord` does
+        // `delete result[field]` on every unreadable key and objectql's
+        // expand path writes the resolved record back under THAT SAME KEY, so
+        // one statement removes the expanded object and the bare id alike;
+        // the expansion sub-read itself takes the referenced object's full
+        // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing
+        // for a backend that does not strip.
+        //
+        // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+        // alternative is not merely unsound but unreachable: the call passes
+        // `undefined`, so there is no input to gate. Gating the output also
+        // gives the required ordering structurally: `buildExpandFields`
+        // returns a subset of the object's DECLARED reference-bearing fields,
+        // so every name judged here is declared by construction and the
+        // "`checkField` answers false for an undeclared key" trap cannot be
+        // reached. Pinned in `PagePreview.expandFls-7429.test.tsx`.
+        //
+        // Deferral matches every other gate on this path: an unanswered
+        // policy filters nothing, and `perms` is in this effect's dependency
+        // list, so the sample records are re-read the moment the answer
+        // arrives.
+        const expandable = buildExpandFields(schema?.fields);
+        const expand = !perms?.isLoaded
+          ? expandable
+          : expandable.filter((f) => perms.checkField(recordObject, f, 'read'));
         const query = expand.length > 0
           ? `?$top=50&$expand=${encodeURIComponent(expand.join(','))}`
           : `?$top=50`;
@@ -152,7 +215,7 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
       } catch { if (!cancelled) { setRecordSamples([]); setRecordSchema(null); } }
     })();
     return () => { cancelled = true; };
-  }, [recordObject]);
+  }, [recordObject, perms]);
   const recordIdOf = (r: any) => r?.id ?? r?._id ?? r?.name;
   const recordLabelOf = (r: any) =>
     String(r?.name ?? r?.title ?? r?.label ?? r?.subject ?? recordIdOf(r) ?? '(record)');

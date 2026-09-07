@@ -108,3 +108,125 @@ describe('PageHeaderRenderer — record title resolution', () => {
     expect(screen.getByText(/Audit Log abcdefgh/)).toBeTruthy();
   });
 });
+
+/**
+ * `objectSchema.primaryField` is NOT a rung of this chain (objectui#7586).
+ *
+ * `primaryField` is a `DetailViewSchema` key (`@object-ui/types` `views.ts`) —
+ * a VIEW key a view author sets, which `DetailView.resolveDisplayTitle` reads
+ * off `schema` and is welcome to. It was ALSO read here off the OBJECT def,
+ * and ranked ABOVE the unified ADR-0079 resolver that ADR-0079 Phase 2 made
+ * the single pointer to a record's identity.
+ *
+ * No producer can put it on an object: `@objectstack/spec`'s object schema is
+ * a `strictObject` that answers `unrecognized_keys: ['primaryField']`, which
+ * is why objectstack#6326 deleted the identical read from two lint rules and
+ * objectui#7287 / PR #7585 deleted it from `resolveTitleField`. Three of this
+ * repo's own changelogs already describe the probe as "not a spec property —
+ * always undefined" while the code kept honouring it.
+ *
+ * ⚠️ These cases are about RANKING, not about the key being unreadable. Each
+ * object below carries `primaryField` AND a legitimate declaration, and the
+ * assertion is that the legitimate one wins — so deleting the rung turns them
+ * green and re-adding it anywhere above the resolver turns them red again.
+ * A case with `primaryField` alone would pass on a chain that had merely
+ * demoted it, which is not what this pins.
+ */
+describe('PageHeaderRenderer — `objectSchema.primaryField` is not a rung (#7586)', () => {
+  it('does not let `primaryField` outrank the declared `nameField`', () => {
+    const { container } = renderHeader({
+      objectSchema: {
+        name: 'contract',
+        label: 'Contract',
+        nameField: 'contract_no',
+        // Off-spec: a DetailViewSchema key sitting on an OBJECT def.
+        primaryField: 'ref_no',
+        fields: {
+          contract_no: { type: 'text', label: 'Contract No' },
+          ref_no: { type: 'text', label: 'Ref No' },
+        },
+      },
+      record: { id: 'rec-1', contract_no: 'HT-2026-001', ref_no: 'R-999' },
+    });
+
+    // The ACTUAL H1 of the synthesized record page, not a prediction of it.
+    expect(container.querySelector('h1')?.textContent).toBe('HT-2026-001');
+    expect(screen.queryByText('R-999')).toBeNull();
+  });
+
+  it('does not let `primaryField` outrank `titleFormat`', () => {
+    const { container } = renderHeader({
+      objectSchema: {
+        name: 'contact',
+        label: 'Contact',
+        titleFormat: '{first_name} {last_name}',
+        primaryField: 'ref_no',
+        fields: {
+          first_name: { type: 'text' },
+          last_name: { type: 'text' },
+          ref_no: { type: 'text' },
+        },
+      },
+      record: { id: 'rec-2', first_name: 'Ada', last_name: 'Lovelace', ref_no: 'R-999' },
+    });
+
+    expect(container.querySelector('h1')?.textContent).toBe('Ada Lovelace');
+    expect(screen.queryByText('R-999')).toBeNull();
+  });
+
+  it('does not let `primaryField` outrank the type-aware derivation', () => {
+    const { container } = renderHeader({
+      objectSchema: {
+        name: 'task',
+        label: 'Task',
+        // Nothing declared: the ADR-0079 resolver derives `subject` from the
+        // field types, the rung this chain used to jump over.
+        primaryField: 'ref_no',
+        fields: {
+          subject: { type: 'text', label: 'Subject' },
+          ref_no: { type: 'text', label: 'Ref No' },
+        },
+      },
+      record: { id: 'rec-3', subject: 'Fix the widget', ref_no: 'R-999' },
+    });
+
+    expect(container.querySelector('h1')?.textContent).toBe('Fix the widget');
+    expect(screen.queryByText('R-999')).toBeNull();
+  });
+
+  /**
+   * Non-vacuity for the three above, and the case that measures the DELETED
+   * RUNG directly rather than a re-ranking of it.
+   *
+   * ⚠️ Written the obvious way first, and the obvious way cannot fail:
+   * `primaryField: 'ref_no'` over a TEXT `ref_no` still produced `R-999` after
+   * the rung was gone, because the ADR-0079 type-aware derivation picks
+   * `ref_no` on its own — the only title-typed field on the object. Measured,
+   * not assumed. A pin written that way would have gone green against a
+   * `primaryField` rung that was still there.
+   *
+   * `autonumber` is the type that separates the two readings: it is in core's
+   * `NON_TITLE_TYPES`, so the resolver REFUSES `ref_no` (an autonumber is a
+   * record's number, never its name), the record-key walk below never looks at
+   * `ref_no` either, and every remaining rung declines. Only the deleted
+   * `primaryField` rung could put `R-999` in this heading. The chain lands on
+   * the `${objectLabel} ${id}` floor instead.
+   */
+  it('a `primaryField` the resolver refuses does not title the record at all', () => {
+    const { container } = renderHeader({
+      objectSchema: {
+        name: 'ledger_entry',
+        label: 'Ledger Entry',
+        primaryField: 'ref_no',
+        fields: {
+          ref_no: { type: 'autonumber', label: 'Ref No' },
+          posted_at: { type: 'datetime' },
+        },
+      },
+      record: { id: 'abcdefgh-rest-of-id', ref_no: 'R-999', posted_at: '2026-07-04' },
+    });
+
+    expect(container.querySelector('h1')?.textContent).toMatch(/^Ledger Entry abcdefgh/);
+    expect(screen.queryByText('R-999')).toBeNull();
+  });
+});

@@ -36,18 +36,15 @@ ComponentRegistry.register('toast',
     namespace: 'ui',
     label: 'Toast',
     inputs: [
-      { name: 'title', type: 'string', label: 'Title' },
-      { name: 'description', type: 'string', label: 'Description' },
+      { name: 'title', type: 'string' },
+      { name: 'description', type: 'string' },
       { 
         name: 'variant', 
         type: 'enum', 
-        enum: ['default', 'success', 'warning', 'error', 'info'], 
-        defaultValue: 'default',
-        label: 'Variant'
-      },
-      { name: 'duration', type: 'number', label: 'Duration (ms)' },
-      { name: 'buttonLabel', type: 'string', label: 'Button Label' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        enum: ['default', 'success', 'warning', 'error', 'info']      },
+      { name: 'duration', type: 'number' },
+      { name: 'buttonLabel', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       title: 'Notification',

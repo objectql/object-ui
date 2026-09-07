@@ -173,6 +173,35 @@ function locate(finding: UnevaluatedExpressionFinding): string {
 /**
  * Build the message. Separate from the emit so a test can assert the words a
  * developer is going to read, not merely that something was logged.
+ *
+ * ## Why `properties.*` is in the channel list (objectui#7849)
+ *
+ * It was missing, and the omission CONTRADICTED the sibling diagnostic in
+ * `propsBagDiagnostic.ts`, which tells an author who wrote the same key one
+ * envelope out: *"`props` is NOT hoisted onto the node — only `properties.*`
+ * is … Write them under `properties` instead."* An author whose node trips
+ * both messages was told to use `properties` by one and, by the other, that
+ * the only channels that work are `content` or host-side resolution.
+ *
+ * The enumeration was the wrong half. `properties` is not a channel on its way
+ * out and there is no retirement on record for it: `@objectstack/spec@17.2.0`
+ * calls the vocabulary carried there *"ALIVE — this is not dead surface to
+ * retire under ADR-0049"*, keeps `PageComponentSchema.properties` as the open
+ * carrier ON PURPOSE, gates it at the authoring door
+ * (`validate-component-props.ts`), and tombstones no part of it via
+ * `retiredKey()`. In THIS repo `props` — not `properties` — is the spelling
+ * annotated as the legacy alias (`SchemaRenderer.tsx`: "the legacy `props`
+ * bag, minus every key the canonical `properties` bag also …").
+ *
+ * Measured on this branch's base through the real renderers, not inferred:
+ * `badge` with `properties.label = '${data.status}'` renders `completed` and
+ * applies the variant classes; `card` with a conditional
+ * `properties.className` renders `class="… border-red-500"`; the same keys
+ * under `props` render an EMPTY badge body and no `border-red-500`.
+ *
+ * The words are borrowed from the sibling message on purpose — one hoist, one
+ * vocabulary, so the two diagnostics cannot drift apart again. Pinned by
+ * `__tests__/diagnosticChannelConsistency.test.ts`.
  */
 export function formatUnevaluatedExpressionMessage(
   type: unknown,
@@ -195,8 +224,10 @@ export function formatUnevaluatedExpressionMessage(
     'to the DOM, with its source text intact. Either SchemaRenderer does not\n' +
     'evaluate this key, or the expression threw and the evaluator returned the\n' +
     'source unchanged.\n' +
-    'Channels that do evaluate and read back today: `content`, or resolve the\n' +
-    'value in the host before handing the schema to SchemaRenderer.'
+    'Channels that do evaluate and read back today: `content`; `properties.*`,\n' +
+    'which is evaluated and then HOISTED onto the node, so a renderer declared\n' +
+    'as `({ schema })` reads it back as `schema.<key>`; or resolve the value in\n' +
+    'the host before handing the schema to SchemaRenderer.'
   );
 }
 

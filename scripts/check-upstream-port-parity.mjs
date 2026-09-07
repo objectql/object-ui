@@ -9,6 +9,9 @@
  *   node scripts/check-upstream-port-parity.mjs --self-test   # verify the checker itself
  *   node scripts/check-upstream-port-parity.mjs --resync <upstream-file> --ref <sha>
  *                                                            # the deliberate re-sync act
+ *   …the same, plus --rewrite-governed-file                   # …when the ported file is
+ *                                                            # GOVERNED SURFACE and you are
+ *                                                            # the human merging it
  *
  * ## What this gate is for
  *
@@ -87,6 +90,27 @@
  * (zero occurrences), but a divergence that still applies and no longer makes
  * sense is only visible to those tests.
  *
+ * ## `--resync` REFUSES to rewrite governed surface unless told, by name
+ *
+ * The ledger REGISTERS a file; `--resync` REWRITES one. Those are different
+ * powers and only the second one is dangerous here. `.claude/**`, `skills/**`,
+ * `docs/adr/**`, `AGENTS.md` and `CLAUDE.md` are this repository's governed
+ * surface — the operating rules every later session reads — and they carry a
+ * human-merge rule precisely because no green check can say whether a rule
+ * SHOULD be the rule. A tool that silently rewrites one of them in place, from
+ * another repository's bytes, is a governed-surface edit nobody chose.
+ *
+ * So the write path asks `check-governed-queue-guard.mjs` — the repository's own
+ * definition of that surface, reused rather than re-listed, so the two can never
+ * disagree — and refuses, naming the path, its surface and the flag that
+ * proceeds anyway. `--rewrite-governed-file` is spelled long on purpose: it is
+ * for the human doing the merge, and it reads as what it does at the call site.
+ *
+ * ⛔ The CHECK path is NOT governed by any of this. A drifted governed port reds
+ * exactly like any other, with no flag and no exemption — the refusal is about
+ * WRITING, and a gate that went quiet on the surface with the worst drift
+ * history would be the whole card inverted.
+ *
  * ## The divergences are a checklist, not a licence
  *
  * Every entry carries a `why`. An adaptation nobody can justify in one sentence
@@ -104,6 +128,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { GOVERNED_SURFACES, governedPathsIn } from './check-governed-queue-guard.mjs';
 import { isEntrypoint } from './invoked-as.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -297,6 +322,54 @@ function resyncCommand(pin, entry) {
   );
 }
 
+/**
+ * The flag that lets `--resync` write a GOVERNED file. Long on purpose: it is
+ * typed by the human doing the merge, and it has to read as what it does.
+ */
+export const RESYNC_GOVERNED_FLAG = '--rewrite-governed-file';
+
+/**
+ * May `--resync` write this ported path? Pure, so the self-test drives the real
+ * decision rather than a restatement of it, and so the answer costs nothing.
+ *
+ * The governed set is not restated here: `governedPathsIn` is the repository's
+ * own definition (`scripts/check-governed-queue-guard.mjs`), and a second copy
+ * of it would be one more thing to keep honest — the disease this whole file is
+ * about, one level up.
+ *
+ * @returns {{ write: boolean, governed: boolean, surface: object|null, reasons: string[] }}
+ */
+export function resyncWriteVerdict(portedPath, { allowGoverned = false } = {}) {
+  const [surface = null] = governedPathsIn([portedPath]);
+  if (!surface) return { write: true, governed: false, surface: null, reasons: [] };
+  if (allowGoverned) {
+    return {
+      write: true,
+      governed: true,
+      surface,
+      reasons: [
+        `${portedPath} is GOVERNED SURFACE (${surface.glob} — ${surface.what}) and ` +
+          `${RESYNC_GOVERNED_FLAG} was passed: rewriting it in place.`,
+      ],
+    };
+  }
+  return {
+    write: false,
+    governed: true,
+    surface,
+    reasons: [
+      `⛔ refusing to rewrite ${portedPath}: it is GOVERNED SURFACE ` +
+        `(${surface.glob} — ${surface.what}), which this repository merges by human review.`,
+      `A re-sync would replace it with another repository's bytes, which is a governed-surface`,
+      `edit nobody chose. The pin is unchanged and nothing was written.`,
+      `  • To see what a re-sync WOULD do, diff the upstream file against this one by hand.`,
+      `  • To do it anyway — as the human doing that merge — pass ${RESYNC_GOVERNED_FLAG}.`,
+      `  • Registering this file in the pin is NOT affected: checking is not writing, and a`,
+      `    drifted governed port reds this gate with no flag and no exemption.`,
+    ],
+  };
+}
+
 function main(root = ROOT) {
   let pin;
   try {
@@ -422,6 +495,11 @@ function resync(argv, root = ROOT) {
     );
     return 1;
   }
+  const write = resyncWriteVerdict(entry.ported, {
+    allowGoverned: argv.includes(RESYNC_GOVERNED_FLAG),
+  });
+  for (const r of write.reasons) (write.write ? console.log : console.error)(r);
+  if (!write.write) return 2;
   writeFileSync(path.join(root, entry.ported), text, 'utf8');
   entry.upstreamSha256 = digest(upstreamText);
   pin.upstream.ref = ref;
@@ -530,7 +608,42 @@ function selfTest() {
   t('a divergence whose upstream anchor vanished fails the re-sync loudly', lost.problems.length === 1);
   t('…naming the divergence that no longer applies', lost.problems.join(' ').includes('`extra-guard`'));
 
-  // ── row 5: a malformed pin is REFUSED, never read as clean ─────────────────
+  // ── row 5: --resync REFUSES to rewrite governed surface ────────────────────
+  // The write path only. Every row drives `resyncWriteVerdict`, which is the
+  // decision `resync()` makes, so a green row means the refusal is reachable
+  // rather than merely written down.
+  const GOV = '.claude/hooks/guard-main-checkout.selftest.sh';
+  const refused = resyncWriteVerdict(GOV);
+  t('a governed ported path is REFUSED by --resync', refused.write === false);
+  t('…and the refusal names the path', refused.reasons.join(' ').includes(GOV));
+  t('…and names the flag that proceeds anyway', refused.reasons.join(' ').includes(RESYNC_GOVERNED_FLAG));
+  t('…and names the surface it matched, not just "governed"', refused.reasons.join(' ').includes('.claude/**'));
+  // The refusal must not read as "this file cannot be pinned": registering is
+  // the whole point of the card that added this, and checking is not writing.
+  t('…and says registering/checking is unaffected', refused.reasons.join(' ').includes('drifted governed port reds this gate'));
+  const allowed = resyncWriteVerdict(GOV, { allowGoverned: true });
+  t('…and the named flag lets it proceed', allowed.write === true && allowed.governed === true);
+  t('…saying out loud that it is rewriting a governed file', allowed.reasons.join(' ').includes('GOVERNED SURFACE'));
+  // Every surface the REGISTER declares, derived from it rather than re-listed:
+  // a second copy of that list here would drift from the guard's own.
+  t(
+    'every surface in GOVERNED_SURFACES refuses, and the list is not copied here',
+    GOVERNED_SURFACES.every((sf) => resyncWriteVerdict(sf.exact ?? `${sf.prefix}specimen.txt`).write === false),
+  );
+  // The other direction, which is the one that would make the gate useless in
+  // the ordinary case: a plain script is written exactly as before.
+  const plain = resyncWriteVerdict('scripts/pm/check-half-states.mjs');
+  t('a NON-governed ported path is unchanged: it writes, and says nothing', plain.write === true && plain.governed === false && plain.reasons.length === 0);
+  t('…and the flag does not change it either', JSON.stringify(resyncWriteVerdict('scripts/pm/check-half-states.mjs', { allowGoverned: true })) === JSON.stringify(plain));
+  // ⛔ The CHECK path is not governed by any of this. Drift in a governed port
+  // reds with no flag and no exemption — the refusal is about WRITING, and a
+  // gate that went quiet on the surface with the worst drift history would be
+  // this whole mechanism inverted.
+  const govEntry = { ...ENTRY, ported: GOV };
+  t('checking a governed ported file is NOT gated: parity still holds', verifyFile(govEntry, PORTED).ok);
+  t('…and drift in one still REDS, with no flag involved', !verifyFile(govEntry, driftedOutside).ok);
+
+  // ── row 6: a malformed pin is REFUSED, never read as clean ─────────────────
   const good = { upstream: { repo: 'o/r', ref: 'a'.repeat(40) }, files: [ENTRY] };
   t('the fixture pin is well-formed', validatePin(good).length === 0);
   const broken = [
@@ -582,7 +695,8 @@ function selfTest() {
     `✓ check-upstream-port-parity self-test: ${cases.length} cases pass — parity holds on an undrifted copy, ` +
       'drift outside the declared regions reds as a digest mismatch, drift inside one names its divergence, ' +
       'an ambiguous anchor is refused rather than applied, the pin-bump procedure round-trips (and a vanished ' +
-      'anchor fails it loudly), and every malformed-pin shape is refused instead of read as clean.',
+      'anchor fails it loudly), `--resync` refuses to rewrite governed surface unless the named flag is passed ' +
+      'while the CHECK path stays ungated, and every malformed-pin shape is refused instead of read as clean.',
   );
   return 0;
 }

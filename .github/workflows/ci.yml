@@ -292,6 +292,48 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:unreferenced-sources
 
+      # A JSDoc `@example` on an exported hook is not decoration: call sites copy it.
+      # When the ruling the example encoded moves, the prose stays, and every later
+      # copy is seeded from the prose rather than from the code — so fixing the call
+      # sites without fixing the doc comment re-seeds them. That class cost two cards
+      # and three copied call sites (objectui#7627, objectui#7638) with nothing in CI
+      # able to see it; objectui#7617's `check-spec-symbol-derivation` was cited as
+      # covering it twice and does not — its rule 4 judges `@objectstack/spec`
+      # citations at member granularity and has nothing to say about prose that
+      # prescribes a LOCAL spelling.
+      #
+      # This step fails only when a documented symbol's own `@example` hand-spells
+      # what its real call sites obtain by CALLING a shared reader. Parses sources
+      # with `typescript` through the same scanner as the two steps above, so it
+      # needs the install and nothing built.
+      - name: Verify no doc comment prescribes a spelling a shared reader owns
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:doc-example-readers
+
+      # `BaseSchema` is `.passthrough()`, so an `on*` key that is not declared by
+      # its arm is NOT refused — it stops being judged and the value is KEPT, then
+      # reaches the renderer that reads it. objectui#7664 measured that on the built
+      # dist: `{ type: 'kanban', columns: [], onCardClick: { action: 'toast' } }`
+      # went from REFUSED to ACCEPTED with the object surviving into the parsed
+      # output, while every gate here stayed green. The objectui#6124 ledger could
+      # not see it — its population is two hand-written arrays, and that change
+      # re-keyed the arm by SUBSTITUTION, holding the length constant — so a count
+      # ratchet would have been green too (objectui#7753 rejected that option on
+      # exactly this measurement).
+      #
+      # This step derives BOTH populations instead: the arms from every
+      # `type: z.literal(…)` in `packages/types/src/zod`, and the read sites from
+      # every real `ComponentRegistry.register(…)` call, following the document
+      # into the components each registration hands it to. It has to live in
+      # `scripts/` because the read sites are spread across `@object-ui/plugin-*`
+      # and `packages/components`, which `@object-ui/types` may not import —
+      # `check:phantom-deps` rejects it and it would close a cycle. Parses sources
+      # with `typescript` through the same scanner as the steps above, so it needs
+      # the install and nothing built.
+      - name: Verify every handler key a registered renderer reads is declared by its arm
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:handler-key-reads
+
       # A build tsconfig that excludes tooling by FILE NAME (`*.test.ts`) stops
       # the files that happen to be named that way and nothing else. The first
       # shared helper added to a `__tests__/` directory is then a program input,
@@ -475,6 +517,35 @@ jobs:
       - name: Type-check scripts/
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm type-check:scripts
+
+      # The repo-root `vitest.config.mts` had no RUNNABLE gate of its own
+      # (objectui#7328). A program did already contain it —
+      # `apps/console/tsconfig.node.json` lists `../../vitest.config.mts` and
+      # `vitest.config.ts` outright (objectui#3476) — but the only thing that
+      # ran that program was the console's own `type-check` script, which is
+      # `tsc --noEmit && tsc -b tsconfig.node.json --force` behind
+      # `turbo run type-check`, whose task dependsOn `^build`. So the cheapest
+      # compiler that reads the root Vitest config was reachable only through
+      # the most expensive job in the repo, and no local gate union short of a
+      # full workspace build could red on it.
+      #
+      # That is not hypothetical. PR #7291 pushed a conditionally spread `dist`
+      # project whose literal `extends: true` widened to `boolean`, degrading
+      # the whole `projects` array to `never[]`; every gate the author ran was
+      # green and CI reported three errors, two of them at
+      # `../../vitest.config.mts`. This step is the same compiler, invoked
+      # directly.
+      #
+      # Placed in the CHEAP half beside `pnpm type-check:scripts`, and for the
+      # same measured reason: nothing in this project's program imports an
+      # @object-ui/* package (its `@object-ui/*` occurrences are alias-map
+      # STRINGS in `vite.config.ts`), so it needs the install and nothing built
+      # — 2.0s on a worktree with no `dist/` anywhere.
+      # `scripts/__tests__/vitest-config-type-check.test.ts` pins that premise,
+      # this step's presence and its position.
+      - name: Type-check the root Vitest config
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm type-check:vitest-config
 
       # ── Cache bookkeeping cannot void a recorded verdict (objectui#6577) ──
       # THE ORDERING, because it is the only thing a future reader needs in
@@ -1501,6 +1572,32 @@ jobs:
       - name: Build Site
         if: steps.docs-changes.outputs.should_run == 'true'
         run: pnpm turbo run build --filter='@object-ui/site'
+
+      # REPORT-ONLY, by the 2026-09-06 ruling on objectui#7851, and it must stay
+      # that way until somebody rules otherwise. The class it censuses has four
+      # known members and three are OPEN (objectui#7440, #7444, #7838), so a
+      # blocking gate here would go red on other people's cards the day it
+      # landed. The script prints its findings and exits 0; it exits 1 only when
+      # the INSTRUMENT is broken — a derivation that matched nothing, a missing
+      # spec artifact, or a failed built-in control — because a census that runs,
+      # goes green and looked at nothing is the counterfeit this whole check
+      # exists to avoid (objectstack#4928, objectui#4690). ⛔ That is why there is
+      # no `continue-on-error` here: it would swallow exactly the failure that
+      # must be loud, and it is not what makes this step report-only.
+      #
+      # It sits in THIS job because its surface is `content/docs/**` and this job
+      # is the one that already knows whether docs changed; it needs the install
+      # (it reads the carriage map out of the built `@objectstack/spec`) and
+      # nothing built beyond it. Consequence worth stating: on a pull request that
+      # changes no `content/` or `apps/site/` file the census does not run — a
+      # spec bump that moves the carriage map is reported by the next docs PR, not
+      # by the bump itself. A pull request that edits only the gate is covered
+      # elsewhere and does not need this step: `scripts/__tests__/check-doc-
+      # expression-carriage.test.ts` runs the controls AND the real-tree census in
+      # the ordinary vitest suite, which any PR touching `scripts/**` gets.
+      - name: Docs expression-carriage census (report-only)
+        if: steps.docs-changes.outputs.should_run == 'true'
+        run: node scripts/check-doc-expression-carriage.mjs
 
       # The bookkeeping half of the split documented at the restore step above,
       # placed HERE — after `Build Site`, the step that records this job's

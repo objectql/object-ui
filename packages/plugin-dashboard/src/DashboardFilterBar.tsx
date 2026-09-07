@@ -264,8 +264,9 @@ function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilt
           // `QueryParams` declares, so BOTH unprefixed spellings here reached no
           // branch and were dropped: this "best-effort client-side dedupe (top
           // 200 records)" was in fact fetching every row AND every column of the
-          // source object. Nothing rejected it — the index signature exists for
-          // adapter-specific params, so both keys type-checked.
+          // source object. Nothing rejected it — the index signature that then
+          // stood for adapter-specific params let both keys type-check
+          // (retired in objectui#7497; `tsc` refuses them now).
           // Deduped: `valueField === labelField` is the common case (both
           // default to the same column), and this projection only started
           // reaching the wire when the key was corrected above — so a repeated
