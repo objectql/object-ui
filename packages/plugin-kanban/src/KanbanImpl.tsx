@@ -655,8 +655,34 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
       {swimlanes ? (
         /* Swimlane (2D) layout */
         <div className={cn("flex flex-col gap-2 px-4 sm:px-6 py-3 sm:py-4 min-w-0 overflow-hidden", className)} role="region" aria-label="Kanban board with swimlanes">
-          {/* Column headers */}
-          <div className="flex gap-3 sm:gap-4 pl-36 sm:pl-44 overflow-x-auto">
+          {/* Column headers.
+              This is a SECOND header implementation, parallel to the per-column
+              `<h3 id={`kanban-col-${column.id}`}>` that `KanbanColumnView`
+              renders. The two cannot be folded into one: this layout has no
+              column components at all — every lane paints its own row of plain
+              column cells — so the titles have to be drawn once, above every
+              lane, instead of once per column.
+
+              `shrink-0` is load-bearing, not cosmetic (objectui#7303). This row
+              is a flex ITEM of the swimlane region, which is a `flex-col` inside
+              a height-bounded board (`h-full`). `overflow-x-auto` makes the row
+              a scroll container, and a flex item's automatic minimum size
+              (`min-height: auto`) applies only while its overflow is `visible`
+              — so as a scroll container this row may legally be shrunk to
+              height 0. The lanes below stay `overflow: visible`, so their own
+              automatic minimum size clamps them at content height and they
+              refuse to shrink: the moment the lanes overflow the board, the
+              ENTIRE deficit lands on this one shrinkable item. The titles then
+              stay in the DOM, at the right coordinates, painting nothing.
+              Measured in Chromium 1194 at 1600x1000 before the fix: row height
+              0, cell height 0, title span height 16, and `elementFromPoint` at
+              a title's own centre returning the lane-collapse `<button>` behind
+              it. Pinned by `__tests__/swimlaneColumnHeaderRow-7303.test.tsx`.
+
+              The `pl-36 sm:pl-44` indent is shared with the lane content rows
+              below and is what lines the titles up with their columns — it must
+              move on both rows or neither. */}
+          <div className="flex shrink-0 gap-3 sm:gap-4 pl-36 sm:pl-44 overflow-x-auto">
             {boardColumns.map(col => (
               <div key={col.id} className="w-[85vw] sm:w-80 shrink-0 text-center">
                 <span className=" text-xs sm:text-sm font-semibold tracking-wider text-primary/90 uppercase">{col.title}</span>
