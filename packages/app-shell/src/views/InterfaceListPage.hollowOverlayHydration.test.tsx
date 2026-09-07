@@ -67,7 +67,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => {
 // Only `ListView`'s resolved `schema.columns` is under test here — the
 // hydration effect's output, not the grid's own record-fetching/rendering
 // stack (which `ObjectView`'s and `ListView`'s own suites already cover).
-vi.mock('@object-ui/plugin-list', () => ({
+vi.mock('@object-ui/plugin-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-list')>()),
   ListView: (props: any) => (
     <div data-testid="rendered-columns">{JSON.stringify(props?.schema?.columns ?? null)}</div>
   ),

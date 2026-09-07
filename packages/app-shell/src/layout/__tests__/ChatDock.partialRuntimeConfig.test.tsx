@@ -67,7 +67,8 @@ vi.mock('../../console/ai/AiChatPage', () => ({
   ChatPane: () => null,
   resolveApiBase: (explicit?: string) => explicit ?? '/api/v1/ai',
 }));
-vi.mock('@object-ui/plugin-chatbot', () => ({
+vi.mock('@object-ui/plugin-chatbot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-chatbot')>()),
   useAgents: () => ({ agents: [], isLoading: false, error: undefined }),
 }));
 vi.mock('../../hooks', () => ({

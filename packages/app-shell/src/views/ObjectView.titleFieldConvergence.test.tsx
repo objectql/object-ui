@@ -113,7 +113,8 @@ vi.mock('sonner', () => ({
 
 /** The list schema this page hands down — captured, not rendered. */
 let captured: any = null;
-vi.mock('@object-ui/plugin-list', () => ({
+vi.mock('@object-ui/plugin-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-list')>()),
   ListView: (props: any) => {
     captured = props.schema;
     return null;

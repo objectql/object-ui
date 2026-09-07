@@ -2162,7 +2162,24 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const resolvable: ViewType[] = ['grid'];
 
     // Check for Kanban capabilities (spec config takes precedence)
-    if (schema.kanban?.groupByField || schema.kanban?.groupField || schema.options?.kanban?.groupField) {
+    //
+    // All FOUR spellings, because the lane can be bound in either nesting and
+    // in either vocabulary. The `options.kanban` bag was asked for the LEGACY
+    // `groupField` only, so a producer writing the SPEC key into the bag was
+    // invisible here while rendering perfectly — the render branch below merges
+    // the bag and resolves `groupByField || groupField`, so the gate recognized
+    // strictly less than what renders. That is objectui#5042 (`map`) and
+    // objectui#7544 (`chart`) a third time: the gate and the seam must answer
+    // one question. It went live with objectui#8193, which moved app-shell's
+    // `ObjectView` onto the canonical key — measured before and after, the
+    // Kanban toggle disappeared from every object view until this rung existed.
+    // ⛔ The alias rungs stay: stored metadata still authors `groupField`.
+    if (
+      schema.kanban?.groupByField ||
+      schema.kanban?.groupField ||
+      schema.options?.kanban?.groupByField ||
+      schema.options?.kanban?.groupField
+    ) {
       resolvable.push('kanban');
     }
 
@@ -2237,6 +2254,29 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
     return resolvable;
   }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, schema.map, (schema as any).tree, (schema as any).chart, schema.appearance?.allowedVisualizations]);
+
+  /**
+   * Whether the visualization switcher is actually WORTH drawing (objectui#7547).
+   *
+   * `showViewSwitcher` is the author's intent, and both faces that stamp it —
+   * `app-shell/ObjectView` and `app-shell/InterfaceListPage` — compute it from
+   * the LENGTH of `appearance.allowedVisualizations`, which is the whitelist
+   * BEFORE this component intersects it with `availableViews` above. Those two
+   * numbers are not the same number: a view whitelisting `['grid', 'timeline']`
+   * with no timeline block whitelists two and resolves one, so the toolbar drew
+   * switcher chrome — border, dropdown affordance and separator — around a
+   * single Grid entry that cannot switch to anything.
+   *
+   * Neither face can compute this: `availableViews` is the whitelist ∩ the
+   * capability gate, and the gate lives here. So the predicate is applied at
+   * the one site that holds both halves, which also means it covers BOTH doors
+   * at once and cannot drift from the list the dropdown is handed.
+   *
+   * ⚠️ NOT a second policy layer. An author who whitelists two RESOLVABLE types
+   * still gets the switcher, and an author who whitelists none still gets none;
+   * the only views this changes are the ones whose chrome offered no choice.
+   */
+  const viewSwitcherOffered = showViewSwitcher && availableViews.length > 1;
 
   // Sync view from props
   React.useEffect(() => {
@@ -2493,11 +2533,28 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         // vocabulary keys from the passthrough (mirrors plugin-view's adapter).
         const { columns: kanbanCardColumns, groupByField, groupField, cardFields, titleField, ...restKanban } = kanbanCfg as Record<string, any>;
         const laneField = groupByField || groupField || detectStatusField(objectDef) || undefined;
+        // `groupBy` is the lane key and the ONLY one written here. This node
+        // used to carry `groupField: laneField` alongside it — a duplicate the
+        // `object-kanban` renderer never read (zero `groupField` sites under
+        // `packages/plugin-kanban/`, against thirteen `schema.groupBy` reads in
+        // `ObjectKanban.tsx`). objectui#7322 retired the key on that node on
+        // both faces — `groupField?: never` on the TS interface and a
+        // `retirementTombstone()` in the zod mirror — so the write made this
+        // adapter emit a node the published contract refuses BY NAME. It was
+        // inert only because the generated node never reaches
+        // `safeValidateSchema` (SchemaRenderer runs the structural
+        // `validateSchema`); the CLI's `os check` / `os validate` do run the
+        // mirror, so the same node authored by hand was already rejected.
+        // ⛔ Do not restore it: the tombstone is the contract.
+        //
+        // ⚠️ NODE-LOCAL, and the distinction is the whole card: the VIEW-LEVEL
+        // `groupField` alias read just above (`groupByField || groupField`) is
+        // LIVE — a legacy spelling of the spec's `groupByField` — and is
+        // untouched. Only the write onto the generated node is dead.
         return {
           type: 'object-kanban',
           ...baseProps,
           groupBy: laneField,
-          groupField: laneField,
           ...(titleField ? { titleField } : {}),
           cardFields: cardFields || kanbanCardColumns || effectiveFields || [],
           ...(groupingConfig ? { grouping: groupingConfig } : {}),
@@ -3312,7 +3369,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           {/* Visualization switcher — compact dropdown (Airtable-style
               "List ▾"), first slot of the right tool cluster so the whole
               toolbar stays a single row. */}
-          {showViewSwitcher && (
+          {viewSwitcherOffered && (
             <>
               <ViewSwitcherDropdown
                 currentView={currentView}

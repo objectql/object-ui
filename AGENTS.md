@@ -70,7 +70,7 @@ You don't just build components — you build a **Renderer** that interprets JSO
 Every node in the UI tree follows this shape (`@object-ui/types`):
 
 ```ts
-interface UIComponent {
+interface BaseSchema {
   type: string;                         // registry key: 'input', 'grid', 'card'
   id?: string;                          // DOM accessibility / event targeting
   props?: Record<string, any>;          // visual props (mapped to Shadcn props)
@@ -79,7 +79,7 @@ interface UIComponent {
   hidden?: string;                      // expression: "${data.role != 'admin'}"
   disabled?: string;                    // expression
   events?: Record<string, ActionDef[]>; // onClick -> [Action1, Action2]
-  children?: UIComponent[];             // layout slots
+  children?: BaseSchema[];              // layout slots
 }
 ```
 
@@ -121,7 +121,7 @@ export function resolveComponent(type: string) { return registry.get(type) || Fa
 **Renderer loop (recursion):**
 ```tsx
 // packages/react/src/SchemaRenderer.tsx
-export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
+export const SchemaRenderer = ({ schema }: { schema: BaseSchema }) => {
   const Component = resolveComponent(schema.type);
   const { isHidden } = useExpression(schema.hidden);
   if (isHidden) return null;

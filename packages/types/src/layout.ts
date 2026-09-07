@@ -279,6 +279,12 @@ export interface ContainerSchema extends BaseSchema {
  * Types of property 'type' are incompatible.`). Lifting the shared members out
  * of the inheritance path is what keeps them nameable from both sides.
  *
+ * A member here carries an `@default` tag only when BOTH consumers apply the
+ * same value — the criterion is a DIVERGENT shared member, not a shared one:
+ * `align` and `direction` diverge and state their per-type values in prose
+ * instead, while `justify` keeps its `@default 'start'` because `flex.tsx` and
+ * `stack.tsx` both read `|| 'start'`.
+ *
  * Pinned by `__tests__/stack-schema-emitted-members.test.ts`, which asserts
  * against the EMITTED declaration rather than this source — a source-level
  * assertion passes while the emitted declaration is empty, and that gap is
@@ -286,8 +292,19 @@ export interface ContainerSchema extends BaseSchema {
  */
 export interface FlexLayoutProps {
   /**
-   * Flex direction
-   * @default 'row'
+   * Flex direction.
+   *
+   * Deliberately carries NO `@default` tag. The member is declared once here
+   * (see this interface's docblock and objectui#6151), but the two component
+   * types that consume it diverge on the value they apply when it is omitted:
+   * `flex.tsx` reads `schema.direction || 'row'`, `stack.tsx` reads
+   * `schema.direction || 'col'` ("Default to column for Stack"). One tag on a
+   * shared member cannot be right for both — it would publish a single default
+   * that only one consumer applies, which is the defect objectui#7734 records
+   * (the tag here used to read `'row'`, which `flex` applies and `stack`
+   * deliberately does not — a column is what the `stack` type is FOR). The
+   * per-type values are stated in prose so no parser reads a value that is only
+   * conditionally true.
    */
   direction?: 'row' | 'col' | 'row-reverse' | 'col-reverse';
   /**

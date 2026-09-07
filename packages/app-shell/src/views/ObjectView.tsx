@@ -292,6 +292,125 @@ export function ganttViewOptions(viewDef: any): Record<string, unknown> {
 }
 
 /**
+ * The `options.gallery` config this page hands to `ListView`.
+ *
+ * objectui#7547 — the last surviving member of the objectui#7029 / #7070 /
+ * #7500 class on this face. It floored `imageField` at `'image'` for EVERY
+ * object view, declared or not: a cover binding no view had written, on a field
+ * name most objects do not carry.
+ *
+ * ⚠️ WHAT THAT LITERAL ACTUALLY DID, which is not what it looks like. The
+ * screen damage was small — `ObjectGallery` resolves the cover per record and
+ * COLLAPSES the cover area when no record yields one, so an invented `'image'`
+ * degraded to a gallery of coverless cards. The damage was to the GATE. This
+ * bag feeds `ListView.availableViews`, whose gallery check reads
+ * `schema.options?.gallery?.imageField`; a value that is always present makes
+ * that check answer YES for every object view that whitelists `gallery`, so
+ * ADR-0047's whitelist ∩ resolvable — the mechanism that exists to stop a
+ * visualization being offered with nothing behind it — was answering about a
+ * name this file wrote rather than one the author did. Gallery was offered
+ * without a block, and stayed watchable only because the renderer happens to
+ * degrade politely. That is a coincidence, not a design, and it is the same
+ * second-order effect objectui#7029 measured for `calendar` and objectui#7070
+ * for `gantt`.
+ *
+ * ⚠️ MEASURED BEFORE THE DELETION, the discipline objectui#7070 wrote down:
+ * #7029's mechanic — delete the literal, let the read site answer — is only
+ * correct where the read site's answer is honest. `ObjectGallery` floors its
+ * own `coverField` at `'image'` too, and that rung STAYS: it is the component's
+ * own decision about an unconfigured record, and it is honest because the cover
+ * area collapses when the guess yields nothing. What this face must not do is
+ * pre-empt that decision and light the capability gate on the way past.
+ *
+ * What stays here is the view's OWN declared block, spread whole so every spec
+ * key survives (`cardSize` / `visibleFields` / `coverFit` / …), the two legacy
+ * cover spellings cross-filled BUT ONLY WHEN ONE WAS DECLARED, and the
+ * `titleField` `'name'` floor — a display-name default, not a binding, exactly
+ * as `ganttViewOptions` above keeps it.
+ *
+ * Exported for the regression suite.
+ */
+export function galleryViewOptions(viewDef: any): Record<string, unknown> {
+    const gallery = viewDef?.gallery;
+    // `ObjectGallery` reads `coverField` and the legacy `imageField`; each
+    // spelling answers for the other, and NEITHER is invented. Both rungs are
+    // present or both absent, so the gate cannot be lit by half a declaration.
+    const declaredImage = gallery?.imageField || gallery?.coverField;
+    const declaredCover = gallery?.coverField || gallery?.imageField;
+    return {
+        ...(gallery || {}),
+        ...(declaredImage ? { imageField: declaredImage } : {}),
+        ...(declaredCover ? { coverField: declaredCover } : {}),
+        // Spelled through `viewDef` rather than the `gallery` local above, and
+        // that is load-bearing: `ObjectView.titleFieldConvergence.test.tsx`
+        // (objectui#6557) pins all six `titleField` / `labelField` seams to ONE
+        // expression shape — a chain of VIEW-declared rungs floored at 'name',
+        // with `viewDef` as the mechanical proxy for "view-declared". Reading
+        // the local here still resolves the same value but blinds that scan to
+        // the thing it hunts, so the seam keeps the family spelling.
+        titleField: viewDef?.gallery?.titleField || 'name',
+    };
+}
+
+/**
+ * The view-level KANBAN block this face forwards — the fifth member of the
+ * `timelineViewOptions` / `calendarViewOptions` / `ganttViewOptions` /
+ * `galleryViewOptions` family above, and the last one still inlined as an
+ * anonymous IIFE inside the schema literal (objectui#8193).
+ *
+ * ⭐ THE LANE KEY IS `groupByField`, THE SPEC'S OWN SPELLING. This used to emit
+ * the legacy `groupField` alias instead — never the canonical key, even though
+ * it already READ the canonical key first. The sibling producer
+ * `defaultKanbanFromObject` (`InterfaceListPage.tsx`) had migrated already and
+ * left the reasoning next to itself — "that read-site now prefers the spec key,
+ * so one key is enough" — but this twin twelve hundred lines away was not
+ * carried along, so ONE producer surface spoke two vocabularies for one concept
+ * depending on which entry point you arrived through.
+ *
+ * ⚠️ The alias is NOT retired and every alias READ stays exactly as it was:
+ * stored metadata still authors `groupField`, and `ListView` resolving
+ * `groupByField || groupField` is the whole reason the sibling could drop it.
+ * What changed is only what this face WRITES.
+ *
+ * ⚠️ WRITING THE CANONICAL KEY HERE REQUIRED THE GATE TO LEARN IT, and that is
+ * the half a reader will not guess from this file. `ListView.availableViews`
+ * consulted the `options.<kind>` bag for the LEGACY spelling only
+ * (`schema.options?.kanban?.groupField`), so emitting `groupByField` alone made
+ * the Kanban capability stop resolving and the toggle vanish from every object
+ * view — measured, not reasoned: `{groupBy, groupField}` offered Kanban, and
+ * `{groupBy, groupByField}` did not. The gate now reads both spellings out of
+ * the bag, the same one-question-two-sites repair objectui#5042 made for `map`
+ * and objectui#7544 for `chart`. Pinned in `ObjectView.kanbanLane-8193` here
+ * and in `ListView.kanbanOptionsBagCanonical-8193` in `plugin-list`.
+ *
+ * ⚠️ `groupBy` is kept VERBATIM and is deliberately not folded. It is not the
+ * spec's key either — measured against `KanbanConfigSchema`, which declares
+ * `groupByField` / `summarizeField` / `columns` and refuses `groupBy` by name —
+ * but it is read by `ListView`'s projection collectors, so retiring it is a
+ * separate change with its own census: objectui#8213.
+ *
+ * ADR-0085: when the view doesn't pick a lane field, the object's declared
+ * lifecycle (`stageField`) decides — including the strict `stageField: false`
+ * suppression (no default lanes; the status-shaped field is declared
+ * non-linear) and the shared name/type heuristic, which never invents a field
+ * the object doesn't have (the old hard-coded 'status' did).
+ *
+ * Exported for the pin test.
+ */
+export function kanbanViewOptions(viewDef: any, objectDef: any): Record<string, unknown> {
+    const lane =
+        viewDef?.kanban?.groupByField ||
+        viewDef?.kanban?.groupField ||
+        detectStatusField(objectDef as any) ||
+        undefined;
+    return {
+        ...(lane ? { groupBy: lane, groupByField: lane } : {}),
+        titleField: viewDef?.kanban?.titleField || 'name',
+        cardFields: viewDef?.kanban?.columns,
+    };
+}
+
+/**
  * THE record-detail URL this list surface builds — one route shape, one place.
  *
  * Derived from the LIST's own pathname rather than re-assembled from route
@@ -2277,9 +2396,18 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 : (viewDef.showDescription != null
                     ? { showDescription: viewDef.showDescription }
                     : listSchema.appearance),
-            // Offer the visualization switcher only when the author
-            // whitelisted more than one type; ListView intersects the
-            // whitelist with capability-resolvable types.
+            // The author's INTENT to offer a visualization switcher: more than
+            // one type whitelisted. Deliberately not the final predicate — this
+            // face counts the whitelist, and the whitelist is not the offer.
+            //
+            // `ListView` intersects it with the capability gate and draws the
+            // chrome only when the INTERSECTION has more than one entry
+            // (objectui#7547, `viewSwitcherOffered`). It has to be decided
+            // there: the gate that knows which types actually resolve lives in
+            // that component, so a view whitelisting `['grid', 'timeline']`
+            // with no timeline block reads as two here and one there. Counting
+            // this number alone is what drew switcher chrome around a single
+            // Grid entry.
             showViewSwitcher:
                 ((viewDef.appearance ?? listSchema.appearance)?.allowedVisualizations?.length ?? 0) > 1,
             // Toolbar policy — one vocabulary (#2890). Stored views may still
@@ -2397,25 +2525,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // #2890 — see the note at its single remaining computation)
             ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),
             options: {
-                kanban: {
-                    // ADR-0085: when the view doesn't pick a lane field, the
-                    // object's declared lifecycle (`stageField`) decides —
-                    // including the strict `stageField: false` suppression
-                    // (no default lanes; the status-shaped field is declared
-                    // non-linear) and the shared name/type heuristic, which
-                    // never invents a field the object doesn't have (the old
-                    // hard-coded 'status' did).
-                    ...(() => {
-                        const lane =
-                            viewDef.kanban?.groupByField ||
-                            viewDef.kanban?.groupField ||
-                            detectStatusField(objectDef as any) ||
-                            undefined;
-                        return lane ? { groupBy: lane, groupField: lane } : {};
-                    })(),
-                    titleField: viewDef.kanban?.titleField || 'name',
-                    cardFields: viewDef.kanban?.columns,
-                },
+                // The lane key is the spec's `groupByField`, not the legacy
+                // `groupField` this used to write. See `kanbanViewOptions`.
+                kanban: kanbanViewOptions(viewDef, objectDef),
                 // The calendar config the view DECLARED, or no calendar key at
                 // all — never an invented field name (objectui#7029). With the
                 // key absent, ListView's capability gate stops offering the
@@ -2434,16 +2546,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     zoom: viewDef.map?.zoom,
                     center: viewDef.map?.center,
                 },
-                gallery: {
-                    // Spread the full view-defined gallery first so spec
-                    // fields (cardSize, visibleFields, coverField, coverFit)
-                    // make it through; then layer legacy field aliases that
-                    // ObjectGallery still consults.
-                    ...(viewDef.gallery || {}),
-                    imageField: viewDef.gallery?.imageField || viewDef.gallery?.coverField || 'image',
-                    coverField: viewDef.gallery?.coverField || viewDef.gallery?.imageField,
-                    titleField: viewDef.gallery?.titleField || 'name',
-                },
+                // The gallery config the view DECLARED, title floored at
+                // 'name', and no invented cover field (objectui#7547). With no
+                // cover binding to forward, ListView's capability gate stops
+                // offering the Gallery toggle to a view that configured none.
+                // See `galleryViewOptions`.
+                gallery: galleryViewOptions(viewDef),
                 // The gantt config the view DECLARED, title floored at 'name' —
                 // never an invented date field (objectui#7070). With no date
                 // binding to forward, ListView's capability gate stops offering

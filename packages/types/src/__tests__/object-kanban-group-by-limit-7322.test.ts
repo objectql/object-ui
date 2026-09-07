@@ -99,7 +99,19 @@ const READ_CONTROL_KEY = 'objectName';
  */
 const VIEW_LEVEL_ALIAS_SITES: ReadonlyArray<readonly [file: string, text: string]> = [
   ['packages/core/src/utils/normalize-list-view.ts', "kanban: { groupField: 'groupByField', cardFields: 'columns' }"],
-  ['packages/plugin-list/src/ListView.tsx', 'schema.kanban?.groupByField || schema.kanban?.groupField || schema.options?.kanban?.groupField'],
+  // Multi-line since objectui#8193, which added the CANONICAL rung for the
+  // `options` bag next to the legacy one (the gate had been asking that bag for
+  // the deprecated spelling only, so a producer writing the spec key into it was
+  // invisible while rendering fine). The alias rungs are untouched — this pin
+  // now covers four and reads the wider expression verbatim, indentation
+  // included, exactly as it read the one-line form before.
+  [
+    'packages/plugin-list/src/ListView.tsx',
+    `schema.kanban?.groupByField ||
+      schema.kanban?.groupField ||
+      schema.options?.kanban?.groupByField ||
+      schema.options?.kanban?.groupField`,
+  ],
   ['packages/plugin-view/src/ObjectView.tsx', 'kanbanCfg.groupField ||'],
 ];
 /** …and the same alias, still DECLARED on the view-level config in this very mirror file. */
