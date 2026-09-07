@@ -83,8 +83,11 @@
  *     nor a SUBPATH of one.** See below, and "A member covers its subpaths".
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is nineteen, and each joined by sweep
- * rather than by judgement. Running this file's classifier over all 1,499
+ * actually been SWEPT to zero. Today that is twenty-one: nineteen joined by
+ * sweep, and the last two -- `@object-ui/plugin-view` and `@object-ui/core` --
+ * by a MEASUREMENT that found nothing to sweep, which is the degenerate case of
+ * the same precondition and not a second door (see "Slices 15 + 16" below).
+ * Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
  *     covered set = @object-ui/react (swept by PR #6847)  ->    1 frozen
@@ -883,22 +886,88 @@
  * 61 neighbours are local whole-module replacements, out of scope by
  * construction.
  *
- * ### What is left
+ * ### Slices 15 + 16 -- `@object-ui/plugin-view` and `@object-ui/core`, folded
  *
- * ⭐ **Nothing frozen is.** With this member added, running the classifier over
- * every workspace specifier ANY `vi.mock` call site in this tree names -- 21 of
- * them -- reads **660 judged, 660 inherit, 0 frozen**. Two specifiers are still
- * outside `COVERED_SPECIFIERS` (`@object-ui/plugin-view` at 10 sites,
- * `@object-ui/core` at 2), and objectui#6892 carries them as its remaining
- * slices, but both already read 10/10 and 2/2 INHERITING when judged. They are
- * membership flips, not sweeps -- which is why they are still owed a slice
- * each: the precondition below is a MEASUREMENT, and a specifier that reads
- * zero frozen today can carry a frozen factory tomorrow.
+ * The twentieth and twenty-first members, and the first two to join WITHOUT a
+ * sweep: both already read all-inheriting when judged, so this slice edits no
+ * test file at all. Re-derived on `d9788c141` by running this file's own
+ * `scan()` with a local `covered` override -- ⛔ never from the worklist's
+ * table, and never from slice 14's paragraph above, which recorded these same
+ * two figures a day earlier and is exactly the reading the ruling says to
+ * retake rather than inherit:
+ *
+ *     @object-ui/plugin-view   10 judged, 10 inheriting, 0 frozen
+ *     @object-ui/core           2 judged,  2 inheriting, 0 frozen
+ *
+ * with the tree-wide census moving `648 judged / 648 inherit / 12 other
+ * workspace` to `660 / 660 / 0`. Diffed PER SITE -- verdict AND reason string,
+ * across all 1,785 call sites the walk reports: exactly 12 rows changed, every
+ * one of them `workspace/unjudged -> covered/inherits`, and the other 1,773
+ * byte-identical. So this landed as a RATCHET, the shape objectui#8141 and
+ * objectui#8183 landed in, and the precondition below is met by MEASUREMENT
+ * because there was nothing to convert.
+ *
+ * ⭐ **A membership flip owes no STEP 0 barrel walk, and that is a property of
+ * the flip rather than an exemption.** Every previous slice measured its
+ * barrel's module-scope effects because converting a frozen factory makes the
+ * real barrel LOAD in each converted file. Nothing converts here: all twelve
+ * factories already spread the real module, so both barrels already load in
+ * exactly the files that load them today, and this diff cannot change what a
+ * single test executes. What moves is the gate's judgement, nothing else.
+ * ⛔ Do not read that as "flips are free" -- for a specifier that still carries
+ * a frozen factory the sweep, and its STEP 0, are owed in the same PR.
+ *
+ * ⚠️ `@object-ui/components/ui/sonner` is the one named specifier this slice
+ * deliberately did NOT add, and it is named here so the next reader refuses it
+ * on purpose rather than rediscovering it. It is a SUBPATH of the member slice
+ * 6 swept and has been judged by REACH since objectui#8141, so its 2 sites are
+ * already inside the 648. The constant names package ROOTS only and the gate's
+ * test pins that mechanically (`spec.split('/')` has length 2), so adding it
+ * would turn a green pin red while changing no verdict at all.
+ *
+ * ### What is left -- nothing, and what that does NOT mean
+ *
+ * ⭐ **The worklist is CLOSED.** With these two members added, every
+ * `@object-ui/*` specifier that any `vi.mock` or `vi.doMock` call site in this
+ * tree names is judged -- 22 distinct specifiers: 21 package roots, all
+ * members, plus one subpath covered by reach. The gate reads **660 judged, 660
+ * inherit, 0 frozen**, and `other workspace` reads **0**. That last figure is
+ * the one to watch, because it is the count of workspace call sites the gate
+ * declines to judge: the verdict line's claim and the population it was
+ * computed over are now the same set.
+ *
+ * ⛔ **That is a statement about today's tree, not a guarantee about
+ * tomorrow's.** Three things it does NOT promise, each of them measured
+ * somewhere on this worklist rather than argued:
+ *
+ *   - **`other workspace` does not stay 0 by itself.** A new package, or the
+ *     first `vi.mock` naming an existing one no test named before, lands as an
+ *     UNJUDGED site -- counted, never judged, verdict line still green. Slice 2
+ *     met exactly that: `@object-ui/plugin-charts` had no call site at all when
+ *     the worklist's table was taken, and the population GREW three consecutive
+ *     slices in a row while the worklist was being worked.
+ *   - **A member reading zero today can carry a frozen factory tomorrow.**
+ *     Membership is what makes the gate RED when that happens -- that is the
+ *     whole value of the flip. It buys nothing retroactively.
+ *   - **Zero frozen is not zero risk.** This gate judges the FACTORY's shape on
+ *     a covered specifier. A converted file can still die at COLLECTION for the
+ *     neighbouring reason slice 6 measured 15 times: a frozen THIRD-PARTY
+ *     factory (`lucide-react`), which this gate never judges by construction.
+ *
+ * ⇒ So the standing job after closure has exactly one shape: **a non-zero
+ * `other workspace` in the verdict line means a specifier is being mocked that
+ * nobody has swept.** Re-derive it with `scan()`, sweep it if it carries a
+ * frozen factory, and add it -- never floor it, never exempt it.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
  * zero for it, then add it to `COVERED_SPECIFIERS` in the same PR. The list only
- * ever grows. objectui#6892 carries the per-specifier worklist.
+ * ever grows. objectui#6892 carries the per-specifier worklist, and slices 15 +
+ * 16 close it. A specifier that ALREADY reads zero has an empty conversion set,
+ * so the confirmation -- a fresh `scan()` over the tree that ships, taken with a
+ * local `covered` override rather than by widening the constant first -- is then
+ * the whole of the evidence; it is not a lighter bar, it is the same bar with
+ * nothing to convert underneath it.
  *
  * ## A member covers its SUBPATHS (objectui#8141)
  *
@@ -1088,6 +1157,8 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-list',
   '@object-ui/fields',
   '@object-ui/app-shell',
+  '@object-ui/plugin-view',
+  '@object-ui/core',
 ]);
 
 /** Files the walk reads at all. */
