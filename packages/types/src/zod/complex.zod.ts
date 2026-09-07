@@ -264,14 +264,29 @@ export const FilterOperatorSchema = z.enum([
 
 /**
  * Filter Condition Schema
+ *
+ * MEMOISED (objectui#7918): the getter returns a module-level constant, so the
+ * PUBLIC `FilterBuilderConditionSchema.unwrap()` is reference-stable. (`ZodLazy`
+ * spells `unwrap` as `() => _zod.def.getter()`, going around the cache zod keeps
+ * on `def._cachedInner`, so an un-memoised lazy hands out a fresh schema per
+ * call.) Safe here because this body is NOT recursive — it names only
+ * `FilterOperatorSchema`, declared above.
+ *
+ * ⚠️ `FilterGroupSchema` below CANNOT take this shape, and neither can six other
+ * `z.lazy` exports of this face: their bodies name the very const being declared
+ * (or, for `SchemaNodeSchema`, one declared below it), so evaluating the body
+ * eagerly throws `ReferenceError: Cannot access '<name>' before initialization`
+ * at module load. The `z.lazy` there is buying a TDZ dodge, not a style. Measured
+ * one schema at a time in `../__tests__/zod-lazy-getter-identity-7918.test.ts`
+ * — read that before "fixing" any of them to match this one.
  */
-export const FilterBuilderConditionSchema: z.ZodType<any> = z.lazy(() =>
-  z.object({
-    field: z.string().describe('Field name'),
-    operator: FilterOperatorSchema.describe('Filter operator'),
-    value: z.any().optional().describe('Filter value'),
-  })
-);
+const FilterBuilderConditionObject = z.object({
+  field: z.string().describe('Field name'),
+  operator: FilterOperatorSchema.describe('Filter operator'),
+  value: z.any().optional().describe('Filter value'),
+});
+
+export const FilterBuilderConditionSchema: z.ZodType<any> = z.lazy(() => FilterBuilderConditionObject);
 
 /**
  * Filter Group Schema — the shape `FilterBuilder` actually reads

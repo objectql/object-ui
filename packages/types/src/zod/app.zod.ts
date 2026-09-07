@@ -38,8 +38,25 @@ export const NavigationItemTypeSchema = z.enum([
 
 /**
  * Navigation Item Schema — unified model aligned with @objectstack/spec.
+ *
+ * MEMOISED (objectui#7918): the getter returns a module-level constant, so the
+ * PUBLIC `NavigationItemSchema.unwrap()` is reference-stable. (`ZodLazy` spells
+ * `unwrap` as `() => _zod.def.getter()`, going around the cache zod keeps on
+ * `def._cachedInner`, so an un-memoised lazy hands out a fresh schema per call.)
+ * Safe here for a reason specific to THIS schema — its self-reference is already
+ * deferred by the inner `z.lazy(() => NavigationItemSchema)` on `children` below,
+ * so the body itself names nothing that is still uninitialised when it is built.
+ *
+ * ⚠️ Seven of the other nine `z.lazy` exports of this face CANNOT take this
+ * shape — `MenuItemSchema` further down this very file among them. Those bodies
+ * name the const being declared DIRECTLY (`children: z.array(MenuItemSchema)`,
+ * no inner `z.lazy`), so building the body eagerly throws `ReferenceError:
+ * Cannot access '<name>' before initialization` at module load. Their `z.lazy`
+ * is buying a TDZ dodge, not a style. Measured one schema at a time in
+ * `../__tests__/zod-lazy-getter-identity-7918.test.ts` — read that before
+ * "fixing" any of them to match this one.
  */
-export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
+const NavigationItemObject = z.object({
   // Declared optional so a bare `{ type: 'separator' }` — which the spec
   // accepts, and which carries no identity or text by definition — validates
   // here too (objectstack#4115). Every OTHER type still requires both; that is
@@ -112,7 +129,9 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
       });
     }
   }
-}));
+});
+
+export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => NavigationItemObject);
 
 /**
  * Navigation Area Schema — business-domain partition of navigation, DERIVED
