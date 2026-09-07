@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
+import type { ComponentInput } from '@object-ui/types';
 import {
   ElementDataSourceGate,
   useSchemaContext,
@@ -290,27 +291,95 @@ export const ObjectCalendarRenderer: React.FC<{ schema: any; [key: string]: any 
   );
 });
 
+/**
+ * The authoring surface both `ObjectCalendarRenderer` tags publish, spelled
+ * ONCE and spread into both registrations (objectui#8201).
+ *
+ * ## Why it is shared rather than hand-copied
+ *
+ * `object-calendar` and `view:calendar` are the SAME renderer, so a hand-copy
+ * is the only way the two lists could ever disagree. Sharing removes that
+ * failure mode structurally rather than by review attention.
+ *
+ * ## Why these two keys were added
+ *
+ * `@objectstack/spec`'s `ComponentPropsMap['object-calendar']` declares nine
+ * top-level keys; this list published four. The gap was STRUCTURAL rather than
+ * considered — the console registers this block with
+ * `ComponentRegistry.registerLazy` and `getConfig` is loaded-only by design, so
+ * the block sat outside the console's reverse-parity population entirely until
+ * objectui#8176 loaded it. objectui#8201 asked the per-key question.
+ *
+ * Both keys were measured against a read site that CHANGES BEHAVIOUR, and the
+ * two arrive through DIFFERENT channels, which is worth spelling out because
+ * the channel is what makes each honoured:
+ *
+ *   - `defaultView` — read off the SCHEMA (`ObjectCalendar.tsx` seeds its
+ *     `view` state from `schema.defaultView`), so the calendar opens on the
+ *     authored grid. A narrow viewport downgrades `day` to `month`; the
+ *     author's choice is otherwise honoured on first render.
+ *   - `locale` — read off the PROPS channel this boundary resolves
+ *     (`resolveAuthoredLocale(rest.locale)`), which is where `SchemaRenderer`
+ *     delivers a node's own authored keys. It forwards only a tag
+ *     `Intl.getCanonicalLocales` accepts, and the forwarded value reaches
+ *     `toLocaleDateString` / `toLocaleTimeString` inside the component. Pinned
+ *     already by `object-calendar-renderer.propsContract.test.tsx`'s
+ *     MUST-NOT-CHANGE row, which authors `locale: 'de-DE'` on the NODE.
+ *
+ * `defaultView`'s declared members are the spec's own three and nothing else.
+ * That is load-bearing: this gate judges an `enum` arm EXACTLY (every declared
+ * member must be a value the contract accepts), and `agenda` was RETIRED from
+ * this enum (objectui#5784, pinned by `default-view-agenda-retired.test.ts`) —
+ * so a fourth member copied from an older doc would be a red arm, not a nicety.
+ *
+ * ## What declaring them widens, and on what grounds (clause ②)
+ *
+ * Declaring an input WIDENS the authoring surface, so the grounds are stated:
+ * the SPEC already declares both and the RENDERER already honours both — the
+ * identical grounds objectui#8186 (`filter`) and objectui#8223 (`sort`) cleared
+ * on. Measured with a control on the same `safeParse` call, because "the spec
+ * declares it" is the assumption objectui#8172 falsified for `limit`.
+ *
+ * ## What is deliberately NOT here yet
+ *
+ * Three of the nine keys stay undeclared, each keeping its live entry in
+ * `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`:
+ *
+ *   - `data` and `staticData` are array-armed, which objectui#8212 made a
+ *     three-part obligation whose `MEMBER_PINS` entry must be measured at the
+ *     sink rather than assumed. Sliced out with their kanban counterparts.
+ *   - `loading` is scalar, and is held back for a different reason: it is INERT
+ *     on its own. `ObjectCalendar.tsx` applies `externalLoading` only under
+ *     `hasExternalData`, so an authored `loading` does nothing unless `data` is
+ *     authored too — and publishing half of a coupled pair advertises a key an
+ *     author cannot make do anything. It goes out WITH `data`, in the slice
+ *     that measures `data`'s member shape.
+ *
+ * The declarations are pinned by
+ * `__tests__/scalarKeysAreDeclaredAndHonoured-8201.test.ts`, per tag and per
+ * key, so removing one from this list reddens a NAMED row rather than a file.
+ */
+const OBJECT_CALENDAR_INPUTS: ComponentInput[] = [
+  { name: 'objectName', type: 'string', required: true },
+  { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
+  { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the calendar fetches. Lowered to `$filter` on the query.' },
+  { name: 'sort', type: 'array', description: 'Sort order in `[{ field, order }]` form, ordering the records the calendar fetches. Lowered to `$orderby` on the query.' },
+  { name: 'defaultView', type: 'enum', enum: ['month', 'week', 'day'], description: 'The grid the calendar opens on. A narrow viewport downgrades `day` to `month`; the author’s choice is otherwise honoured on first render.' },
+  { name: 'locale', type: 'string', description: 'BCP-47 tag used to format the dates and times this calendar renders. A tag `Intl` refuses is dropped — the same answer as an absent key — rather than passed through to throw out of render.' },
+];
+
 ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {
   namespace: 'plugin-calendar',
   label: 'Object Calendar',
   category: 'view',
-  inputs: [
-    { name: 'objectName', type: 'string', required: true },
-    { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
-    { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the calendar fetches. Lowered to `$filter` on the query.' },
-    { name: 'sort', type: 'array', description: 'Sort order in `[{ field, order }]` form, ordering the records the calendar fetches. Lowered to `$orderby` on the query.' },
-  ],
+  inputs: [...OBJECT_CALENDAR_INPUTS],
 });
 
 ComponentRegistry.register('calendar', ObjectCalendarRenderer, {
   namespace: 'view',
   label: 'Calendar View',
   category: 'view',
-  // Same renderer as `object-calendar`, therefore the same declared surface.
-  inputs: [
-    { name: 'objectName', type: 'string', required: true },
-    { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
-    { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the calendar fetches. Lowered to `$filter` on the query.' },
-    { name: 'sort', type: 'array', description: 'Sort order in `[{ field, order }]` form, ordering the records the calendar fetches. Lowered to `$orderby` on the query.' },
-  ],
+  // Same renderer as `object-calendar`, therefore the same declared surface —
+  // now SHARED rather than hand-copied (objectui#8201).
+  inputs: [...OBJECT_CALENDAR_INPUTS],
 });

@@ -997,8 +997,9 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
 
 
   // ── objectui#8176: the two lazily-registered blocks, judged for the first ──
-  //     time. Sixteen keys, two owners, every one of them A DECLARATION
-  //     SOMEONE OWES (the arm this map's docblock above says must name itself).
+  //     time. EIGHT keys left of the eighteen that entered, and all eight are
+  //     still A DECLARATION SOMEONE OWES (the arm this map's docblock above
+  //     says must name itself) — none of them has become a ruled carve-out.
   //
   //     ⚠️ IT STARTED AT EIGHTEEN, and the two that left are the ledger doing
   //     its job rather than a correction to it. `object-kanban.filter` and
@@ -1027,6 +1028,26 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   // `plugin-calendar` registrations (PR objectui#8223). Deleted, not updated —
   // the same documented exit the two `filter` entries took above, observed here
   // a second time.
+  //   ⚠️ objectui#8201 took SEVEN more by the same exit, and WHICH seven is the
+  //   slice boundary that card argued rather than an alphabet, so it is
+  //   recorded here: `object-kanban`'s `groupBy`, `cardTitle`, `titleField`,
+  //   `swimlaneField` and `coverImageField`, and `object-calendar`'s
+  //   `defaultView` and `locale`. Every one of the seven is SCALAR-ARMED
+  //   (`string`, or the three-member `enum`), so objectui#8212's tightened
+  //   direction adds nothing to its obligation: `structuredInputs` below is
+  //   keyed off the DECLARED arm, a scalar arm never enters that population,
+  //   no `MEMBER_PINS` entry is owed and `MEMBER_PIN_EXEMPTION_CEILING` does
+  //   not move. That is the MECHANICAL statement of the boundary, which is why
+  //   it was chosen over "by package" — it is checkable rather than tasteful.
+  //   The eight left behind are array/object-armed (`data`, `cardFields`,
+  //   `grouping`, `conditionalFormatting`, `staticData`), coupled to one
+  //   (`object-calendar.loading`, inert unless `data` is authored because
+  //   `ObjectCalendar.tsx` applies it only under `hasExternalData`), or
+  //   ESCALATED (`object-kanban.quickAdd` — measured NOT honoured, since
+  //   `KanbanImpl` gates the control on `quickAdd && onQuickAdd` and nothing on
+  //   the `ObjectKanban` path supplies that runtime slot; whether that is a
+  //   permanent carve-out or a feature gap is a product ruling, so the entry
+  //   stays as-is until the maintainer rules).
   //   ⚠️ One correction that outlives the entry, because the rider note that
   //   stood here asserted the opposite and a future reader would inherit it:
   //   `sort` is NOT a pass-through key, and its member claim is NOT the
@@ -1038,33 +1059,19 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   //   member instead (`field`, `order`, an omitted `order` meaning ascending,
   //   and a member with no usable `field` dropped rather than invented). That
   //   is a SHARPER member claim than a pass-through, not a weaker one.
-  'object-kanban.groupBy':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-kanban.data':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-kanban.cardTitle':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-kanban.titleField':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-kanban.cardFields':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-kanban.swimlaneField':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-kanban.grouping':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-kanban.quickAdd':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-kanban.coverImageField':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-kanban.conditionalFormatting':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-calendar.defaultView':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-calendar.data':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-calendar.staticData':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-calendar.locale':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-calendar.loading':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
@@ -2893,19 +2900,39 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // direction — greening a fresh divergence on these two blocks by writing a
     // nineteenth entry instead of declaring the input.
     //
-    // Sixteen is the MEASURED backlog today, not a budget: ten undiscoverable
-    // keys on `object-kanban`, six on `object-calendar`. It was EIGHTEEN when
-    // these blocks entered the population; objectui#7712's declaration landed
-    // as objectui#8186 while this branch was open and took its two `filter`
-    // entries with it, which is the first observed round-trip of the exit this
-    // ceiling is paired with. Landing objectui#8201 / objectui#8171 lowers it
-    // again. A new divergence on these blocks is a plain defect and gets
-    // declared, exactly as it would on any other covered block.
+    // EIGHT is the MEASURED backlog today, not a budget: five undiscoverable
+    // keys on `object-kanban`, three on `object-calendar`. The number has come
+    // down three times and every step was this ceiling's paired EXIT — a
+    // declaration retiring its own cover — rather than a re-derivation:
     //
-    // ⚠️ The `toBe` below is EXACT in both directions on purpose, so the card
-    // that lands a declaration must lower this number in the same change. That
-    // is a rider objectui#8171's PR objectui#8223 owes if it lands after this
-    // one — see the note on `object-calendar.sort` in `UNPUBLISHED_EXEMPTIONS`.
+    //   18  these blocks enter the population (objectui#8176)
+    //   16  objectui#8186 lands objectui#7712's two `filter` declarations
+    //   15  objectui#8223 lands objectui#8171's `object-calendar.sort`
+    //    8  objectui#8201 lands its first slice — seven scalar-armed keys
+    //
+    // ⚠️ The prose that stood here read "Sixteen … ten on `object-kanban`, six
+    // on `object-calendar`" while both assertions already read 15: objectui#8223
+    // moved the numbers and not the sentence describing them. Corrected in
+    // passing, and worth a line because a stale count here is exactly the kind
+    // of drift that makes a reader distrust the assertions instead of the prose.
+    //
+    // A new divergence on these blocks is a plain defect and gets declared,
+    // exactly as it would on any other covered block.
+    //
+    // ⚠️ ONE OF THE REMAINING EIGHT MAY NOT LEAVE BY A DECLARATION AT ALL.
+    // `object-kanban.quickAdd` is measured NOT honoured by this renderer
+    // (objectui#8201): `KanbanImpl` gates the control on `quickAdd &&
+    // onQuickAdd`, and no producer on the `ObjectKanban` path supplies that
+    // runtime slot. Its disposition — permanent carve-out, or a feature gap
+    // whose fix makes the key declarable — is a PRODUCT ruling that card
+    // escalated rather than guessed, so its entry is unchanged. A future card
+    // lowering this number on that entry must say which of the two happened.
+    //
+    // ⚠️ BOTH assertions below carry the ceiling and BOTH must move together.
+    // The `toBe` is EXACT in both directions on purpose, so the card that lands
+    // a declaration lowers this number in the same change; lowering only the
+    // `toBe` would leave `toBeLessThanOrEqual` banking headroom the ratchet
+    // exists to refuse.
     const backlog = Object.keys(UNPUBLISHED_EXEMPTIONS).filter((key) =>
       LAZY_REGISTERED_BLOCKS.includes(splitExemptionKey(key)[0]),
     );
@@ -2914,14 +2941,14 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       'a new unpublished-key exemption was added on a block objectui#8176 newly ' +
         'judged — declare the input at its registration site instead; the ' +
         'backlog list is shrink-only',
-    ).toBeLessThanOrEqual(15);
+    ).toBeLessThanOrEqual(8);
     // Lower it here when the owning cards land, so the ceiling keeps ratcheting
     // rather than banking the headroom their fixes free up.
     expect(
       backlog.length,
       'the objectui#8176 backlog shrank — lower the ceiling above to match, in ' +
         'the same change that declared the input',
-    ).toBe(15);
+    ).toBe(8);
   });
 
   it('the eight tombstoned keys are recognised, not exempted — and not published either', () => {
