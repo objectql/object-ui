@@ -269,23 +269,42 @@ export interface HtmlFieldMetadata extends BaseFieldMetadata {
  * entry for the type; both renderers there destructure `value` only, so the
  * display half contributes no metadata key.
  *
- * ## `max_length` — the one key here the widget does NOT read
+ * ## `max_length` — read at SUBMIT, not by the widget
  *
- * It is declared because the cross-check against {@link MarkdownFieldMetadata}
- * and {@link HtmlFieldMetadata} found `richtext` symmetric with both on every
- * axis that can be measured, not because they happen to have it:
+ * `RichTextField` never reads this key. It is declared because a live reader
+ * outside the widget does, on every field regardless of type:
+ * `buildValidationRules` (`packages/fields/src/index.tsx`) compiles
+ * `(field as any).maxLength ?? field.max_length` into a react-hook-form
+ * `maxLength` rule. That function is GENERIC — it has no field-type gate
+ * anywhere in it — and both form producers call it on every field they build
+ * (`ObjectForm`'s `validation: buildValidationRules(field)` and the same line
+ * in `sectionFields.ts`); the form renderer spreads the result into the RHF
+ * `rules` object and localizes the `maxLength` entry. ⇒ `max_length` written
+ * on a `richtext` field IS enforced when the form is submitted. That is the
+ * checkable reason this key is declared.
  *
- *  - one widget, one code path — see `type` above;
- *  - `@objectstack/spec` 17.3.0 `FieldSchema` answers IDENTICALLY for all three
- *    field types: `rows` admitted, the spec's own camelCase `maxLength`
- *    admitted, and the legacy snake_case `max_length` refused BY NAME on each
- *    of them alike. Pinned in
- *    `packages/fields/src/widgets/__tests__/richtext-field-metadata-7083.test.tsx`
- *    so this paragraph cannot rot into a false canonical claim.
+ * ⛔ Spec symmetry is NOT that reason, and must not be restated as one. At
+ * `@objectstack/spec` 17.3.0 `FieldSchema` answers identically for EVERY field
+ * type — `text` included — on `maxLength` (admitted) and on the legacy
+ * snake_case `max_length` (refused BY NAME), so that reading is
+ * non-discriminating here: it says nothing about `richtext` versus its two
+ * siblings. It is still pinned, for the three types this widget serves, in
+ * `packages/fields/src/widgets/__tests__/richtext-field-metadata-7083.test.tsx`
+ * — the `maxLength` admitted and `max_length` refused halves. `rows` admitted
+ * is pinned separately, in
+ * `packages/types/src/__tests__/select-option-spec-extension-7014.test.ts`.
  *
- * Omitting it would have left `richtext` the one key of the three whose
- * ceiling cannot be authored under an annotation — a fresh instance of the
- * asymmetry this member exists to end.
+ * ⚠️ Two form-side sites do NOT reach `richtext`, and this key claims no
+ * coverage there: `ObjectForm` forwards `max_length` to the HTML `maxlength`
+ * attribute for `text | textarea | markdown | html` only, and
+ * `EmbeddableForm`'s `DEFAULT_MAX_LENGTH` caps `markdown` and `html` only.
+ * `richtext` is absent from both. Those omissions predate this member and are
+ * not corrected here.
+ *
+ * Omitting the key would have left `richtext` the one type of the three whose
+ * ceiling cannot be authored under an annotation, while the submit-time rule
+ * that enforces it stayed live — a fresh instance of the asymmetry this member
+ * exists to end.
  *
  * ⚠️ The `rows` docblocks on the two siblings still describe the
  * `@objectstack/spec` 17.2.0 boundary, where `rows` was refused by name. That

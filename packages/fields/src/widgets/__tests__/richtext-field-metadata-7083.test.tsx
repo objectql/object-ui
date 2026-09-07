@@ -43,10 +43,12 @@
  * (`richField?.rows || 8`), `placeholder`, `mobile_fullscreen` and `label` are
  * the five keys the widget reads off this carrier on the `richtext` path; the
  * readonly branch hands `field` to a `RICH_TEXT_CELL_RENDERERS` entry, and both
- * renderers there read `value` only. The last group below pins the measurement
- * that put the sixth key, `max_length`, on the member even though the widget
- * does not read it — see the member's own docblock in
- * `packages/types/src/field-types.ts`.
+ * renderers there read `value` only. The sixth key, `max_length`, is on the
+ * member even though this widget does not read it, because the FORM does:
+ * `buildValidationRules` is generic and compiles it into a submit-time rule for
+ * every field. The last group below pins only the spec-boundary reading that
+ * accompanies it — see the member's own docblock in
+ * `packages/types/src/field-types.ts` for which of the two is the reason.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -128,16 +130,20 @@ describe('RichtextFieldMetadata — the declarable face of the `richtext` key', 
 });
 
 /**
- * The measurement behind the ONE key on the member that `RichTextField` does
- * not read.
+ * The spec-boundary reading for the ONE key on the member that `RichTextField`
+ * does not read.
  *
- * `max_length` is on {@link import('@object-ui/types').MarkdownFieldMetadata}
- * and `HtmlFieldMetadata`. Putting it on the new member was a decision, and it
- * rests on this reading rather than on the two siblings having it: at
- * `@objectstack/spec` 17.3.0 the authoring boundary answers IDENTICALLY for all
- * three of the field types this one widget serves. Pinned so the member's
- * docblock cannot rot into a false canonical claim — the failure mode
- * objectui#7014 was opened for.
+ * ⛔ This group is NOT the reason `max_length` is declared. That reason is
+ * `buildValidationRules` — generic, no field-type gate, called on every field
+ * both form producers build — which makes the key enforceable at submit on a
+ * `richtext` field. This reading is NON-DISCRIMINATING for it: at
+ * `@objectstack/spec` 17.3.0 the authoring boundary answers IDENTICALLY for
+ * every field type, `text` included, so it says nothing about `richtext`
+ * versus its two siblings.
+ *
+ * It is pinned anyway, for the three types this one widget serves, so the
+ * member's docblock cannot rot into a false canonical claim about the spelling
+ * — the failure mode objectui#7014 was opened for.
  */
 describe('spec boundary — `richtext` is symmetric with `markdown`/`html` on the ceiling key', () => {
   const base = (type: string) => ({ name: 'body', type, label: 'Body' });

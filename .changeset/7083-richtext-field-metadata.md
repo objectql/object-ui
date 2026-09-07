@@ -37,11 +37,20 @@ served all three keys and this release only gives the third one a face.
 `placeholder`, `mobile_fullscreen` and `label` are the keys `RichTextField` actually
 reads on the `richtext` path (the last three already sit on `BaseFieldMetadata`, so the
 member declares `type` and `rows`); the readonly branch hands the metadata to a cell
-renderer that reads `value` only and contributes no key. `max_length` is the one
-declared key the widget does not read, and it is there because the cross-check measured
-`richtext` symmetric with `markdown` and `html` on every available axis — one widget and
-one code path, plus `@objectstack/spec` 17.3.0 `FieldSchema` answering identically for
-all three (`rows` admitted, the spec's own `maxLength` admitted, the legacy snake_case
-`max_length` refused by name alike). Omitting it would have left `richtext` the one key
-of the three whose ceiling cannot be authored — a fresh instance of the asymmetry this
-member exists to end.
+renderer that reads `value` only and contributes no key.
+
+`max_length` is the one declared key the widget itself does not read, and it is declared
+because a live reader outside the widget does: `buildValidationRules` compiles
+`maxLength ?? max_length` into a react-hook-form rule for **every** field it is handed —
+it is generic, with no field-type gate — and both form producers call it on every field
+they build. So `max_length` on a `richtext` field is enforced when the form is
+submitted. (It is not, however, forwarded to the editor's HTML `maxlength` attribute,
+and it gets no default cap in `EmbeddableForm`: both of those enumerate field types and
+omit `richtext`. That predates this release and is unchanged by it.) Omitting the key
+would have left `richtext` the one type of the three whose ceiling cannot be authored
+under an annotation while the submit-time rule enforcing it stayed live — a fresh
+instance of the asymmetry this member exists to end.
+
+Docs: `content/docs/fields/rich-text.mdx` teaches all three metadata types and carries a
+`RichtextFieldMetadata` snippet; before this release the page stated there was no third
+type.
