@@ -32,7 +32,8 @@ vi.mock('./useMetadata', () => ({
 }));
 // The user picker has its own coverage; a stub keeps this suite focused on
 // the explain round-trip.
-vi.mock('@object-ui/fields', () => ({
+vi.mock('@object-ui/fields', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/fields')>()),
   RecordPickerDialog: () => null,
 }));
 

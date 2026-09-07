@@ -89,7 +89,8 @@ vi.mock('./useMetadata', () => ({
   }),
 }));
 vi.mock('./AssignedUsersSection', () => ({ AssignedUsersSection: () => null }));
-vi.mock('@object-ui/fields', () => ({
+vi.mock('@object-ui/fields', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/fields')>()),
   CapabilityMultiSelectField: () => <div data-testid="cap-picker" />,
   parseCapabilityNames: (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : []),
 }));

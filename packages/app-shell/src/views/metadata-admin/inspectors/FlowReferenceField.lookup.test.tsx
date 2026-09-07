@@ -50,7 +50,8 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
   // @object-ui/components wires this at module scope (related-count-store).
   subscribeDataChanges: () => () => {},
 }));
-vi.mock('@object-ui/fields', () => ({
+vi.mock('@object-ui/fields', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/fields')>()),
   LookupField: (props: { field?: { reference_to?: string; idField?: string; multiple?: boolean } }) => (
     <div
       data-testid="record-lookup"
