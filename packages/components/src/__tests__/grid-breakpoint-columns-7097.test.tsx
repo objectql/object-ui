@@ -92,14 +92,27 @@ import { SchemaRenderer } from '@object-ui/react';
 const ALL_BREAKPOINTS = ['xs', 'sm', 'md', 'lg', 'xl', '2xl'] as const;
 
 /**
- * Exhaustiveness gate. If `BreakpointName` grows a member that is not in
- * `ALL_BREAKPOINTS`, `Exclude<...>` stops being `never` and this declaration
- * fails to compile — the new tier cannot be added to the vocabulary without
- * this file being updated to cover it.
+ * Exhaustiveness gate, both directions.
+ *
+ * Forward: if `BreakpointName` grows a member that `ALL_BREAKPOINTS` does not
+ * list, `Exclude<...>` stops being `never`, stops satisfying `T extends never`,
+ * and this alias fails to compile — the new tier cannot join the vocabulary
+ * without this file being updated to cover it. (An `Uncovered[]` variable would
+ * NOT do: `const x: '2xl'[] = []` type-checks happily, so the empty-array
+ * spelling of this gate is inert. This one was verified to redden by deleting a
+ * member from `ALL_BREAKPOINTS`.)
+ *
+ * Reverse: a member listed here that is NOT a `BreakpointName` fails at the
+ * `expectedClassFor(bp, …)` call below, whose parameter is typed `BreakpointName`.
+ *
+ * Both are checked by `pnpm --filter @object-ui/components type-check`, whose
+ * second program is `tsconfig.test.json`.
  */
-type _UncoveredBreakpoint = Exclude<BreakpointName, (typeof ALL_BREAKPOINTS)[number]>;
-const _breakpointsAreExhaustive: _UncoveredBreakpoint[] = [];
-void _breakpointsAreExhaustive;
+type _AssertNever<T extends never> = T;
+type _UncoveredBreakpoint = _AssertNever<
+  Exclude<BreakpointName, (typeof ALL_BREAKPOINTS)[number]>
+>;
+type _GateIsLive = _UncoveredBreakpoint;
 
 const classOf = (schema: unknown): string => {
   const { container } = render(<SchemaRenderer schema={schema as never} />);
