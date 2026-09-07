@@ -141,6 +141,31 @@ const cardsInList = (container: HTMLElement, label: string): string[] =>
 const listLabels = (container: HTMLElement): string[] =>
   [...container.querySelectorAll('[role="list"]')].map((n) => n.getAttribute('aria-label') ?? '');
 
+/**
+ * Wait long enough that a query, had one been issued, would be observable.
+ *
+ * ⚠️ A NEGATIVE assertion about a side effect needs a CALIBRATED window, not a
+ * hopeful one. Measured while writing this file: an earlier `data` gate row
+ * asserted `find` was never called immediately after the first card appeared,
+ * and it could NOT be made to fail — removing `!schema.data` from the gate in
+ * `ObjectKanban.tsx` left every row green, because the query is issued later
+ * than the first paint. The row was describing nothing.
+ *
+ * The board fetches only once `getObjectSchema` has RESOLVED (`if
+ * (!objectDefReady) return;` guards the effect), and `dataSource.find` is then
+ * reached synchronously inside it. So the window is: the definition call, plus
+ * enough macrotask turns for the commit that lands it to run its effects. The
+ * row below named CONTROL proves the window is enough, by making a real query
+ * observable through exactly this wait — which is what turns it from a sleep
+ * into a measurement.
+ */
+const settle = async (adapter: Record<string, any>): Promise<void> => {
+  await waitFor(() => expect(adapter.getObjectSchema).toHaveBeenCalled());
+  for (let turn = 0; turn < 5; turn += 1) {
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+  }
+};
+
 /** Every inline `style` inside one card, joined — `''` when the card is absent. */
 const stylesOnCard = (container: HTMLElement, title: string): string => {
   const item = container.querySelector(`[role="listitem"][aria-label="${title}"]`);
@@ -160,6 +185,18 @@ describe('objectui#8313 — `object-kanban`.`data`: members are records, read tw
     { id: 'b', name: 'Beta deal', status: 'won', owner: 'bob' },
   ];
 
+  it('CONTROL for the gate — the settle window really does make a query observable', async () => {
+    // FIRST, because it is what licenses the two negatives below. Without it
+    // "no query" is indistinguishable from "not yet", and this file measured
+    // that difference the hard way — see `settle`.
+    const adapter = makeAdapter();
+    const { container } = renderBoard(adapter);
+
+    await settle(adapter);
+    expect(adapter.find, 'the window is too short — the negatives below prove nothing').toHaveBeenCalled();
+    await waitFor(() => expect(container.textContent).toContain('FETCHED ROW'));
+  });
+
   it('AS A GATE — authoring `data` suppresses the board’s own query entirely', async () => {
     // `ObjectKanban.tsx`: `if (schema.objectName && !boundData && !schema.data)`.
     // The key is not only a value here, and a pin that measured only the value
@@ -168,28 +205,21 @@ describe('objectui#8313 — `object-kanban`.`data`: members are records, read tw
     const { container } = renderBoard(adapter, { data: ROWS });
 
     await waitFor(() => expect(container.textContent).toContain('Alpha deal'));
+    await settle(adapter);
     expect(adapter.find, 'the board queried despite inline `data`').not.toHaveBeenCalled();
   });
 
-  it('CONTROL for the gate — with no `data`, the board really does query, and renders what it got', async () => {
-    // Without this the row above is satisfied by a board that never queries at
-    // all, and "suppressed" would be indistinguishable from "broken".
-    const adapter = makeAdapter();
-    const { container } = renderBoard(adapter);
-
-    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
-    await waitFor(() => expect(container.textContent).toContain('FETCHED ROW'));
-  });
-
-  it('CONTROL for the gate — an EMPTY `data` still suppresses it, and renders nothing', async () => {
+  it('AS A GATE — an EMPTY `data` suppresses it too, and renders no cards', async () => {
     // The discriminating case between "authored" and "non-empty": `[]` is a
     // real authored value, so the fetch stays suppressed and the board is
-    // empty rather than silently falling back to the query.
+    // empty rather than silently falling back to the query. A gate spelled
+    // `!schema.data?.length` would pass every other row in this file.
     const adapter = makeAdapter();
     const { container } = renderBoard(adapter, { data: [] });
 
-    await waitFor(() => expect(listLabels(container)).toEqual(['Open cards', 'Won cards']));
-    expect(adapter.find).not.toHaveBeenCalled();
+    await settle(adapter);
+    expect(adapter.find, 'an empty authored `data` did not suppress the query').not.toHaveBeenCalled();
+    expect(listLabels(container)).toEqual(['Open cards', 'Won cards']);
     expect(container.textContent).not.toContain('FETCHED ROW');
     expect(cardsInList(container, 'Open cards')).toEqual([]);
   });
