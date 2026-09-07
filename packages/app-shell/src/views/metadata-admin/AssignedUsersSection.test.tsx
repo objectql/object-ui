@@ -15,7 +15,8 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useAdapter: () => mockAdapter,
 }));
-vi.mock('@object-ui/fields', () => ({
+vi.mock('@object-ui/fields', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/fields')>()),
   RecordPickerDialog: () => null,
 }));
 
