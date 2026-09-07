@@ -997,9 +997,11 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
 
 
   // ── objectui#8176: the two lazily-registered blocks, judged for the first ──
-  //     time. EIGHT keys left of the eighteen that entered, and all eight are
+  //     time. FOUR keys left of the eighteen that entered. Three of them are
   //     still A DECLARATION SOMEONE OWES (the arm this map's docblock above
-  //     says must name itself) — none of them has become a ruled carve-out.
+  //     says must name itself); the fourth, `object-kanban.quickAdd`, is the
+  //     one ESCALATED entry — see the note further down. None has become a
+  //     ruled carve-out, because nobody with standing has ruled yet.
   //
   //     ⚠️ IT STARTED AT EIGHTEEN, and the two that left are the ledger doing
   //     its job rather than a correction to it. `object-kanban.filter` and
@@ -1039,7 +1041,7 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   //   no `MEMBER_PINS` entry is owed and `MEMBER_PIN_EXEMPTION_CEILING` does
   //   not move. That is the MECHANICAL statement of the boundary, which is why
   //   it was chosen over "by package" — it is checkable rather than tasteful.
-  //   The eight left behind are array/object-armed (`data`, `cardFields`,
+  //   The eight left behind were array/object-armed (`data`, `cardFields`,
   //   `grouping`, `conditionalFormatting`, `staticData`), coupled to one
   //   (`object-calendar.loading`, inert unless `data` is authored because
   //   `ObjectCalendar.tsx` applies it only under `hasExternalData`), or
@@ -1048,6 +1050,16 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   //   the `ObjectKanban` path supplies that runtime slot; whether that is a
   //   permanent carve-out or a feature gap is a product ruling, so the entry
   //   stays as-is until the maintainer rules).
+  //   ⚠️ objectui#8313 then took the FOUR `object-kanban` array/object-armed
+  //   keys by the same exit, and paid objectui#8212's second obligation in the
+  //   same change: each has a `MEMBER_PINS` entry below, none has a member-pin
+  //   EXEMPTION, and `MEMBER_PIN_EXEMPTION_CEILING` stays 62 — a declaration
+  //   entering the member population must be answered with a pin, which is the
+  //   whole point of that ratchet. The four sinks were measured separately and
+  //   only one of the four questions is the pass-through the `filter` pins
+  //   answer; the `pins` prose on each entry says which. `object-calendar`'s
+  //   three (`data`, `staticData`, `loading`) are untouched by that card — they
+  //   are the other package, split out under the Q2 = B ruling on objectui#8201.
   //   ⚠️ One correction that outlives the entry, because the rider note that
   //   stood here asserted the opposite and a future reader would inherit it:
   //   `sort` is NOT a pass-through key, and its member claim is NOT the
@@ -1059,15 +1071,7 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   //   member instead (`field`, `order`, an omitted `order` meaning ascending,
   //   and a member with no usable `field` dropped rather than invented). That
   //   is a SHARPER member claim than a pass-through, not a weaker one.
-  'object-kanban.data':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-kanban.cardFields':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-kanban.grouping':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-kanban.quickAdd':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-kanban.conditionalFormatting':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-calendar.data':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
@@ -1936,6 +1940,16 @@ const MULTI_KIND_MEMBER_CONTRACTS: Record<string, string> = {
 // gets a pin, which is the whole rule, now demonstrated rather than only
 // asserted.
 //
+// ⚠️ AND THEN BY FOUR MORE, answered the same way. objectui#8313 declared
+// `object-kanban`'s `data`, `cardFields`, `grouping` and
+// `conditionalFormatting` — the array/object-armed half of the backlog
+// objectui#8201 left behind — so all four entered this population at once. All
+// four got PINS. Measured over the ledger this file carries, before and after:
+// 84 array/object-armed inputs, 22 pinned, 62 not -> 88, 26 pinned, 62 not. The
+// exemption list is byte-identical and the ceiling is still 62, which is the
+// demonstration the paragraph above claims: FOUR new array keys at once could
+// not be absorbed by room, because there is none to absorb them with.
+//
 // 58 is the transition case, and this file already owns the pattern for it —
 // `OFF_SPEC_EXEMPTIONS` / `UNPUBLISHED_EXEMPTIONS` / `OFF_SPEC_ARM_EXEMPTIONS`
 // are explicit, reasoned, issue-backed, and go RED once stale. This is the same
@@ -2064,9 +2078,25 @@ const MEMBER_PINS: Record<string, MemberPin> = {
     file: 'packages/plugin-grid/src/__tests__/gridDataInputContract.test.ts',
     pins: 'The `object` arm is `ViewDataSchema` discriminated on `provider`: each of the four providers parses, none of them is an array, the declaration is one shape across both registered tags so the alias cannot drift, and it is pinned at compile time too (objectui#5090).',
   },
+  'object-kanban.cardFields': {
+    file: 'packages/plugin-kanban/src/__tests__/ObjectKanban.structuredMembersReachTheirSinks-8313.test.tsx',
+    pins: 'Members are BARE FIELD NAMES, and the pin is explicit about WHICH question it answers (the objectui#8269 trap): `resolveKanbanCardFields` answers which names the AUTHOR chose — authored order preserved, and NOT filtered against the object definition, which is the one behaviour that separates the explicit list from the `highlightFields` fallback it overrides (that fallback IS filtered). Which cells a card ends up carrying is a SECOND and narrower question, measured separately at the render, because the card loop further drops a name duplicating the title and one whose value is empty. An empty array reading as omitted is the control that keeps the fallback rows from being vacuous. The spec side is `z.array(z.string())`, so it constrains the member KIND but says nothing about either read — the sinks are the whole of the member contract (objectui#8313).',
+  },
+  'object-kanban.conditionalFormatting': {
+    file: 'packages/plugin-kanban/src/__tests__/ObjectKanban.structuredMembersReachTheirSinks-8313.test.tsx',
+    pins: 'Members are card STYLE RULES in two accepted dialects, and BOTH reach the sink: the native `{ field, operator, value, backgroundColor }` and the spec CEL `{ condition, backgroundColor }` each colour the matching card and only it, with the sibling card in the same render as the live non-matching control so a green cannot come from two unstyled cards agreeing. ⛔ NOT an identity pin and not a wire pin: `ObjectKanban.tsx` never names this key at all (measured zero, against nine for `cardFields` in the same file) — it rides the `{ ...schema }` spread into `KanbanRenderer`, which forwards it to `KanbanImpl`\'s `getCardStyles`. That makes the pin load-bearing in a way the others are not: an edit replacing that spread with an explicit key list drops the key silently and nothing else in the repo would notice. The spec row is `z.unknown()`, so the read site is the whole member contract (objectui#8313).',
+  },
+  'object-kanban.data': {
+    file: 'packages/plugin-kanban/src/__tests__/ObjectKanban.structuredMembersReachTheirSinks-8313.test.tsx',
+    pins: 'Members are RECORDS, and the key is read TWICE with two different meanings — both pinned, because either read alone would misdescribe it. As a GATE it suppresses the board\'s own query entirely — asserted as zero `find` calls through a window a CONTROL row proves is long enough for a real query to land. That gate is DOUBLY guarded on the authored-node path and the pin says so, because naming one guard would be wrong: `SchemaRenderer` spreads non-metadata schema properties as props, so an authored `data` is also this component\'s `data` prop, `hasExternalData` is true, and the effect returns before `!schema.data` is reached. Removing either guard alone leaves the rows green; removing both reddens them. As a VALUE it is selected by `rawData = external || boundData || schema.data || fetchedData` and then REBUILT by `effectiveData` into cards — so ⛔ no identity claim is true of this key, unlike the two `filter` pins. What is read INSIDE a member is what the pin asserts instead: `id` (or `_id`) as the card identity, the `groupBy` field\'s value as the lane it lands in, the card-title field, and the `cardFields` cells. The spec row is `z.array(z.unknown())` — it fixes the container kind and nothing about a member (objectui#8313).',
+  },
   'object-kanban.filter': {
     file: 'packages/plugin-kanban/src/__tests__/ObjectKanban.filterMembersReachTheWire-8176.test.tsx',
     pins: 'The `object-kanban` twin of `object-calendar.filter` above, written for this change because the board had no equivalent: the authored array reaches `$filter` BY IDENTITY, a condition on a field named `columns` (this block\'s own configuration key) stays a filter and never reaches a configuration read, both member forms pass through identically, and an unauthored `filter` arrives as `undefined` rather than as a fabricated default — the control that keeps the other three from reading as a coincidence. Same reasoning as the calendar entry: the spec row is `z.unknown()`, so the wire is the whole member contract (objectui#8176).',
+  },
+  'object-kanban.grouping': {
+    file: 'packages/plugin-kanban/src/__tests__/ObjectKanban.structuredMembersReachTheirSinks-8313.test.tsx',
+    pins: 'ONE nested position and no more: `schema.grouping?.fields?.[0]?.field` is the FALLBACK source of `swimlaneField`, and that is the entire member contract this board carries for the key. Three rows make it a reading rather than a claim — the swimlane layout appears keyed by `fields[0].field` where without the key there is none; an explicit `swimlaneField` WINS over it; and a second `fields` entry changes nothing, which is what pins the read at `[0]` rather than at "the fields list". The declared description says the rest is inert precisely so the declaration does not recommend a write the renderer cannot honour — this file is what keeps that sentence true. The spec row is `z.unknown()`, so the read site is the whole member contract (objectui#8313).',
   },
   'page:card.title': {
     file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
@@ -2900,15 +2930,18 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // direction — greening a fresh divergence on these two blocks by writing a
     // nineteenth entry instead of declaring the input.
     //
-    // EIGHT is the MEASURED backlog today, not a budget: five undiscoverable
-    // keys on `object-kanban`, three on `object-calendar`. The number has come
-    // down three times and every step was this ceiling's paired EXIT — a
-    // declaration retiring its own cover — rather than a re-derivation:
+    // FOUR is the MEASURED backlog today, not a budget: one undiscoverable key
+    // on `object-kanban`, three on `object-calendar`. The number has come down
+    // four times and every step was this ceiling's paired EXIT — a declaration
+    // retiring its own cover — rather than a re-derivation:
     //
     //   18  these blocks enter the population (objectui#8176)
     //   16  objectui#8186 lands objectui#7712's two `filter` declarations
     //   15  objectui#8223 lands objectui#8171's `object-calendar.sort`
     //    8  objectui#8201 lands its first slice — seven scalar-armed keys
+    //    4  objectui#8313 lands its second — the four array/object-armed keys
+    //        on `object-kanban`, each with the `MEMBER_PINS` entry objectui#8212
+    //        made part of the same obligation
     //
     // ⚠️ The prose that stood here read "Sixteen … ten on `object-kanban`, six
     // on `object-calendar`" while both assertions already read 15: objectui#8223
@@ -2919,7 +2952,9 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // A new divergence on these blocks is a plain defect and gets declared,
     // exactly as it would on any other covered block.
     //
-    // ⚠️ ONE OF THE REMAINING EIGHT MAY NOT LEAVE BY A DECLARATION AT ALL.
+    // ⚠️ THE ONLY `object-kanban` KEY LEFT MAY NOT LEAVE BY A DECLARATION AT
+    // ALL — and after objectui#8313 it is the whole of this block's remainder,
+    // so the next reader must not take "one key left" for "nearly done".
     // `object-kanban.quickAdd` is measured NOT honoured by this renderer
     // (objectui#8201): `KanbanImpl` gates the control on `quickAdd &&
     // onQuickAdd`, and no producer on the `ObjectKanban` path supplies that
@@ -2941,14 +2976,14 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       'a new unpublished-key exemption was added on a block objectui#8176 newly ' +
         'judged — declare the input at its registration site instead; the ' +
         'backlog list is shrink-only',
-    ).toBeLessThanOrEqual(8);
+    ).toBeLessThanOrEqual(4);
     // Lower it here when the owning cards land, so the ceiling keeps ratcheting
     // rather than banking the headroom their fixes free up.
     expect(
       backlog.length,
       'the objectui#8176 backlog shrank — lower the ceiling above to match, in ' +
         'the same change that declared the input',
-    ).toBe(8);
+    ).toBe(4);
   });
 
   it('the eight tombstoned keys are recognised, not exempted — and not published either', () => {
