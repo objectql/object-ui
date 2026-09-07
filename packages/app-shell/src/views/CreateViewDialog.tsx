@@ -85,45 +85,42 @@ interface ViewTypeMeta {
 }
 
 /**
- * The icon and bundle-key stem each creatable visualization is offered with.
+ * Build the picker's rows from a TOTAL record over the visualizations.
  *
  * A total `Record<ListViewVisualization, …>` (objectui#8127). This picker was a
  * nine-entry array whose `type` was plain `string`, so it was never compared
  * against any view-type union — one of the sites the card records as "drifted,
- * with no type-checking at all". Keyed on the derived visualization union it
- * now fails the build when the spec adds a visualization, instead of quietly
+ * with no type-checking at all". Keyed on the derived visualization union it now
+ * fails the build when the spec adds a visualization, instead of quietly
  * becoming unofferable.
  *
  * ⚠️ `page` is absent BY CONSTRUCTION and needs no locale keys. The spec models
  * `type: 'page'` as a list view that mounts a published page through `pageName`,
  * not as a visualization with field bindings — and this dialog's whole job below
- * is collecting those bindings. Offering it here would require a page picker and
- * a `pageName` binding this dialog has no notion of.
+ * is collecting those bindings. Offering it would require a page picker and a
+ * `pageName` binding this dialog has no notion of.
+ *
+ * ⚠️ Every bundle key stays spelled out as a LITERAL argument to `t()`, never
+ * assembled from a stem. `scripts/check-i18n-call-site-keys.mjs` can only see a
+ * member missing from all ten packs when the key is literal; a
+ * `t(`console.objectView.viewType${stem}`)` template turns ten packs' worth of
+ * coverage into a prefix check, which is the same "guard that stopped guarding"
+ * shape this card exists to remove.
  */
-const VIEW_TYPE_META: Record<ListViewVisualization, {
-  icon: React.ComponentType<{ className?: string }>;
-  /** Bundle-key stem: `console.objectView.viewType<Stem>` + `…Desc`. */
-  stem: string;
-}> = {
-  grid:     { icon: LayoutGrid,       stem: 'Grid' },
-  kanban:   { icon: KanbanSquare,     stem: 'Kanban' },
-  calendar: { icon: CalendarIcon,     stem: 'Calendar' },
-  gallery:  { icon: ImageIcon,        stem: 'Gallery' },
-  timeline: { icon: Clock,            stem: 'Timeline' },
-  gantt:    { icon: GanttChartSquare, stem: 'Gantt' },
-  map:      { icon: MapIcon,          stem: 'Map' },
-  chart:    { icon: BarChart3,        stem: 'Chart' },
-  tree:     { icon: ListTree,         stem: 'Tree' },
-};
-
 function buildViewTypeMeta(t: (k: string) => string): ViewTypeMeta[] {
-  return (Object.entries(VIEW_TYPE_META) as [ListViewVisualization, (typeof VIEW_TYPE_META)[ListViewVisualization]][])
-    .map(([type, { icon, stem }]) => ({
-      type,
-      icon,
-      label: t(`console.objectView.viewType${stem}`),
-      description: t(`console.objectView.viewType${stem}Desc`),
-    }));
+  const meta: Record<ListViewVisualization, Omit<ViewTypeMeta, 'type'>> = {
+    grid:     { icon: LayoutGrid,       label: t('console.objectView.viewTypeGrid'),     description: t('console.objectView.viewTypeGridDesc') },
+    kanban:   { icon: KanbanSquare,     label: t('console.objectView.viewTypeKanban'),   description: t('console.objectView.viewTypeKanbanDesc') },
+    calendar: { icon: CalendarIcon,     label: t('console.objectView.viewTypeCalendar'), description: t('console.objectView.viewTypeCalendarDesc') },
+    gallery:  { icon: ImageIcon,        label: t('console.objectView.viewTypeGallery'),  description: t('console.objectView.viewTypeGalleryDesc') },
+    timeline: { icon: Clock,            label: t('console.objectView.viewTypeTimeline'), description: t('console.objectView.viewTypeTimelineDesc') },
+    gantt:    { icon: GanttChartSquare, label: t('console.objectView.viewTypeGantt'),    description: t('console.objectView.viewTypeGanttDesc') },
+    map:      { icon: MapIcon,          label: t('console.objectView.viewTypeMap'),      description: t('console.objectView.viewTypeMapDesc') },
+    chart:    { icon: BarChart3,        label: t('console.objectView.viewTypeChart'),    description: t('console.objectView.viewTypeChartDesc') },
+    tree:     { icon: ListTree,         label: t('console.objectView.viewTypeTree'),     description: t('console.objectView.viewTypeTreeDesc') },
+  };
+  return (Object.entries(meta) as [ListViewVisualization, Omit<ViewTypeMeta, 'type'>][])
+    .map(([type, row]) => ({ type, ...row }));
 }
 
 /** Suggest a non-colliding default name like "Grid 1", "Grid 2", … */
