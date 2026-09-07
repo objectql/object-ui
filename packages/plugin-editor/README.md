@@ -22,9 +22,10 @@ pnpm add @object-ui/plugin-editor
 ```typescript
 // In your app entry point (e.g., App.tsx or main.tsx)
 import '@object-ui/plugin-editor';
+import type { CodeEditorSchema } from '@object-ui/plugin-editor';
 
 // Now you can use code-editor type in your schemas
-const schema = {
+const schema: CodeEditorSchema = {
   type: 'code-editor',
   value: 'console.log("Hello, World!");',
   language: 'javascript',
@@ -39,9 +40,11 @@ const schema = {
 import { editorComponents } from '@object-ui/plugin-editor';
 import { ComponentRegistry } from '@object-ui/core';
 
-// Manually register if needed
+// Manually register if needed. The third argument is the namespace this plugin's
+// own registration passes (`src/index.tsx`); the two-argument form still compiles,
+// but `register` warns that it is the deprecated pattern.
 Object.entries(editorComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+  ComponentRegistry.register(type, component, { namespace: 'plugin-editor' });
 });
 ```
 
@@ -63,17 +66,23 @@ const schema: CodeEditorSchema = {
 
 ## Schema API
 
-```typescript
-{
-  type: 'code-editor',
-  value?: string,              // Code content
-  language?: string,           // 'javascript' | 'typescript' | 'python' | 'json' | 'html' | 'css'
-  theme?: 'vs-dark' | 'light', // Editor theme
-  height?: string,             // e.g., '400px'
-  readOnly?: boolean,          // Read-only mode
-  className?: string           // Tailwind classes
-}
-```
+`CodeEditorSchema` is declared in `@object-ui/types` and re-exported by this
+plugin, so the type an author reads and the schema that validates their document
+are one declaration. It extends `BaseSchema`, which is where `className` comes
+from.
+
+| Member | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `type` | `'code-editor'` | yes | — | The registry key this plugin registers. |
+| `value` | `string` | no | `''` | Code content. A host-supplied `value` prop wins over it. |
+| `language` | `string` | no | `'javascript'` | The contract is `string`: the renderer forwards it verbatim, so any language id Monaco knows resolves. The registration's `inputs` manifest narrows the authoring picker to `javascript`, `typescript`, `python`, `json`, `html` and `css` — a shortlist, not the accepted set. |
+| `theme` | `'vs-dark' \| 'light'` | no | `'vs-dark'` | Closed, unlike `language`. |
+| `height` | `string` | no | `'400px'` | Forwarded to Monaco as a CSS length. |
+| `readOnly` | `boolean` | no | `false` | Whether the editor refuses edits. |
+| `className` | `string` | no | `''` | Tailwind classes, from `BaseSchema`. |
+
+The defaults above are the renderer's own destructuring defaults
+(`src/MonacoImpl.tsx`) — what an omitted key actually produces.
 
 ## Lazy Loading Architecture
 
