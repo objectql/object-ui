@@ -37,7 +37,7 @@
  * `nameField` wins outright and the type-aware derivation never runs. This
  * ladder is VALUE-keyed — the header's own chain re-tries the next rung when a
  * rung's value is empty on the record (`getRecordDisplayName` step 1+2 falls to
- * step 4 when `valueAt` comes back undefined). Delegating to `resolveNameField`
+ * step 4 when `recordDisplayValueAt` comes back undefined). Delegating to `resolveNameField`
  * alone would therefore lose the derivation rung for every record whose
  * declared pointer happens to be blank. The two rungs are listed separately so
  * the value-keyed walk can fall through exactly the way the H1's does.
@@ -169,7 +169,7 @@ describe('record:details dedupe — the declared `nameField` picks the hidden ro
 
   it('falls through to the literal walk when the declared pointer is EMPTY on the record', () => {
     // The H1's chain is value-keyed: `getRecordDisplayName` only takes the
-    // declared pointer when `valueAt` yields something, else it keeps walking.
+    // declared pointer when `recordDisplayValueAt` yields something, else it keeps walking.
     // With no `contract_no` value the H1 for this record is `Acme Corporation`,
     // so `name` is the row that has to go — not `contract_no`, which shows
     // nothing at all and duplicates no heading.

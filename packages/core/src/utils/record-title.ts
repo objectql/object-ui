@@ -430,8 +430,37 @@ const NAME_ISH_RECORD_KEYS = [
   'label',
 ] as const;
 
-/** Read a non-empty string-ish value off a record at `field`, else undefined. */
-function valueAt(record: any, field: string | undefined): string | undefined {
+/**
+ * Read a non-empty string-ish display value off a record at `field`, else
+ * `undefined`.
+ *
+ * THE definition of "this record has a value here" — the question every
+ * value-keyed rung of {@link getRecordDisplayName} asks, and the reason a
+ * whitespace-only field is not a title.
+ *
+ * ## Why this is exported (objectui#8350)
+ *
+ * A second reader existed. `record:details`' dedupe ladder in
+ * `@object-ui/plugin-detail` asks the same question about the same record for
+ * the same field, to decide which body-grid row duplicates the page H1 — and it
+ * asked it with a hand-written raw `undefined` / `null` / `''` test, which a
+ * whitespace-only value passes and this one does not. So for a record whose
+ * title field held only spaces the two halves disagreed about whether that
+ * field had a value at all: the H1 walked on to the next rung, while the grid
+ * hid the row anyway — a field vanished to deduplicate against a heading that
+ * never showed it. The ladder now calls THIS. One authority, not two
+ * implementations that agree today.
+ *
+ * ⛔ Do not re-spell this test at a call site, and do not "just add a trim"
+ * there: three things beyond the trim are part of the definition, and a second
+ * implementation drifts on each of them independently —
+ *   - an expanded/embedded reference object resolves through its Salesforce-
+ *     style display chain and is EMPTY when that yields nothing (a bare
+ *     `{ id }` lookup payload is not a title);
+ *   - non-strings are stringified, so `0` and `false` ARE values, not blanks;
+ *   - `null` and `undefined` are empty, and only those two.
+ */
+export function recordDisplayValueAt(record: any, field: string | undefined): string | undefined {
   if (!field || !record || typeof record !== 'object') return undefined;
   let v: any = record[field];
   if (v && typeof v === 'object') v = displayNameOfEmbeddedObject(v);
@@ -509,7 +538,7 @@ export function getRecordDisplayName(
   //    search-candidate paths) found none that does. Reading it was a
   //    consumer-side alias for an undeclared key (AGENTS.md Commandment #0.1),
   //    ranked ABOVE the `nameField` ADR-0079 Phase 2 made canonical.
-  const explicit = valueAt(record, options?.titleField);
+  const explicit = recordDisplayValueAt(record, options?.titleField);
   if (explicit) return explicit;
 
   // 1+2. Declared name field — the canonical `nameField` (ADR-0079 Phase 2),
@@ -519,7 +548,7 @@ export function getRecordDisplayName(
   //      if it also carries a stale `titleFormat`.
   //      The `??` chain itself lives in {@link declaredNameField} so the
   //      name-space {@link resolveNameField} reads the identical ladder.
-  const declared = valueAt(record, declaredNameField(objectDef));
+  const declared = recordDisplayValueAt(record, declaredNameField(objectDef));
   if (declared) return declared;
 
   // 3. titleFormat (LEGACY, render-only template). DEPRECATED by ADR-0079: the
@@ -535,7 +564,7 @@ export function getRecordDisplayName(
 
   // 4. Type-aware derivation from the object's fields.
   const derivedField = deriveTitleField(objectDef);
-  const derived = valueAt(record, derivedField);
+  const derived = recordDisplayValueAt(record, derivedField);
   if (derived) return derived;
 
   // 4b. Name-ish keys on the record itself — the safety net for when the
@@ -546,7 +575,7 @@ export function getRecordDisplayName(
   if (options?.deriveFromRecordKeys !== false && record && typeof record === 'object') {
     // (i) exact standard keys (name, full_name, title, …).
     for (const key of NAME_ISH_RECORD_KEYS) {
-      const v = valueAt(record, key);
+      const v = recordDisplayValueAt(record, key);
       if (v) return v;
     }
     // (ii) `*_name` / `*_title` / `name_*` AFFIX on the record's own keys.
@@ -559,7 +588,7 @@ export function getRecordDisplayName(
       const k = key.toLowerCase();
       if (k === 'id' || k === '_id' || k.endsWith('_id') || k.startsWith('_')) continue;
       if (k.endsWith('_name') || k.endsWith('_title') || k.startsWith('name_')) {
-        const v = valueAt(record, key);
+        const v = recordDisplayValueAt(record, key);
         if (v) return v;
       }
     }
