@@ -213,6 +213,68 @@
  * SNAPSHOT, under the same discipline the sections above record: when they move,
  * re-take them and re-name the commit and the spec version.
  *
+ * ── Rule 4's second transport: published prose (objectui#7995) ─────────────
+ * Rule 4 at member granularity reads every COMMENT in the scanned sources. The
+ * receipt that this was not enough is objectui#7537: PR #7510 corrected three
+ * JSDoc claims that the installed spec declared a key it refused by name, and a
+ * FOURTH copy of one of them was sitting in `content/docs/fields/lookup.mdx` in
+ * prose. It survived that PR untouched, shipped, and was corrected only because
+ * a human noticed it by eye. Prose is attached to no declaration, so rules 1 and
+ * 2 have nothing to ask their question OF — but this rule asks only whether a
+ * NAME the prose spells exists in the spec, and nothing about that question
+ * needs a declaration, a tie, or a claim phrase.
+ *
+ * So the scan surface widens to `content/docs/**` and the RULE does not move:
+ * `memberCitationsIn` is the single grammar both transports call, and the
+ * TypeScript side was refactored ONTO it rather than having a second copy
+ * written beside it. Two dialects of one rule is the failure this file's own
+ * commandment #0.1 names; a gate is not exempt from it.
+ *
+ * What is transport-specific, and decides nothing: a comment BLOCK is the scope
+ * on the TS side, a PARAGRAPH is the scope in markdown. That analogue is
+ * load-bearing rather than tidy — a markdown heading carries no sentence
+ * terminator, so without blank lines as hard boundaries the same-sentence test
+ * would measure across a heading into an unrelated section.
+ *
+ * MEASURED on `411a132c0` against `@objectstack/spec@17.3.0`, over
+ * `content/docs/**` — a census taken BEFORE the widening was enforced, because a
+ * gate written against an unknown population is how a scan-surface widening
+ * lands as a wall of reds:
+ *
+ *   documentation pages                                         184
+ *     mentioning `@objectstack/spec` at all                       32
+ *   raw `Symbol.member` citations in those pages                 183
+ *     naming a spec export whose member set is knowable            5
+ *     within CLAIM_WINDOW and the same sentence                    3
+ *       resolve against the family's authored shape                3
+ *       excluded as Zod API                                        0
+ *       DANGLING                                                   0
+ *
+ * The three that survive are `FormViewSchema.type`, `DashboardWidgetSchema.
+ * filterBindings` and `PageHeaderProps.icon`, and all three are correct — so
+ * this widening lands with zero corrections, zero waivers and no ledger of its
+ * own. ⭐ Zero is a MEASUREMENT, not a design goal: 183 raw citations collapsing
+ * to 3 judged ones is what the precision rules inherited from the TS side buy,
+ * and it is the number to re-take when they change.
+ *
+ * Fenced code blocks are scanned like the rest of the page. Measured both ways:
+ * skipping fences drops the raw count 183 → 128 and leaves the judged 5 / 3 / 0
+ * untouched, so a fence rule would be a precision claim with nothing behind it.
+ *
+ * ⚠️ The known property this widening INHERITS, stated so nobody rediscovers it
+ * as a surprise: the rule reads a spelling, not an assertion. A page explaining
+ * that the spec REFUSES `SelectOptionSchema.icon` reads identically to one
+ * claiming it declares it — the same shape as the closing-keyword parser that
+ * ignores negation. It is not new here (the TS side has always had it), and the
+ * measured population is zero, and the escape is the wording the repaired
+ * comments already use: name the symbol and the key without joining them with a
+ * dot. If that ever costs a real page, it is a card about the grammar, not a
+ * reason to narrow the surface back.
+ *
+ * These figures are a SNAPSHOT, under the same discipline as every other
+ * measured section here: when they move, re-take them and re-name the commit and
+ * the spec version — never edit the numbers in place under the old ones.
+ *
  * ── The boundary the rules USED to share: exported only (objectui#5899) ─────
  * ⛔ HISTORY, NOT BEHAVIOUR. Neither scanner has an export filter today. Both
  * halves went in objectui#6291, and the two `// No export filter (objectui#6291)`
@@ -1512,6 +1574,55 @@ function isZodApiCitation(member, textAfterCitation) {
 const MEMBER_CITATION = /(?<![A-Za-z0-9_$./])([A-Z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_]*\/)/g;
 
 /**
+ * THE citation grammar — one implementation, two transports (objectui#7995).
+ *
+ * `doc` is one already-normalised passage: a TS comment block for
+ * `scanFileForMemberCitations`, a markdown paragraph for
+ * `scanProseForMemberCitations`. Everything that DECIDES a verdict lives here,
+ * so the two surfaces cannot drift into two dialects of one rule — the same
+ * argument commandment #0.1 makes about producers and this renderer. What stays
+ * outside is transport-specific and decides nothing: how a passage is cut out of
+ * its file, and how its markers are stripped.
+ *
+ * Returns `{ symbol, member, cited }` per dangling citation, in source order.
+ */
+function memberCitationsIn(doc, membersOf) {
+  const mentions = [];
+  for (let i = doc.indexOf(SPEC_MENTION); i !== -1; i = doc.indexOf(SPEC_MENTION, i + 1)) mentions.push(i);
+  if (mentions.length === 0) return [];
+
+  const found = [];
+  for (const hit of doc.matchAll(MEMBER_CITATION)) {
+    const [cited, symbol, member] = hit;
+    const set = membersOf(symbol);
+    if (!set) continue; // not a spec export, or its member set is unknowable
+
+    // Proximity AND same sentence, exactly as `findClaim` pairs a claim with
+    // its mention: a passage that mentions the spec somewhere does not make
+    // every capitalised dotted name in it a spec citation.
+    let near = false;
+    for (const at of mentions) {
+      const after = hit.index >= at + SPEC_MENTION.length;
+      const distance = after ? hit.index - (at + SPEC_MENTION.length) : at - (hit.index + cited.length);
+      if (distance < 0 || distance > CLAIM_WINDOW) continue;
+      const between = after ? doc.slice(at + SPEC_MENTION.length, hit.index) : doc.slice(hit.index + cited.length, at);
+      if (/[.;!?](?:\s|$)/.test(between)) continue;
+      near = true;
+      break;
+    }
+    if (!near) continue;
+
+    // ORDER IS THE SAFETY: the authored key set answers first, so neither Zod
+    // predicate can ever override a key the spec really declares.
+    if (set.authored.has(member)) continue;
+    if (isZodApiCitation(member, doc.slice(hit.index + cited.length, hit.index + cited.length + 2))) continue;
+
+    found.push({ symbol, member, cited });
+  }
+  return found;
+}
+
+/**
  * Rule 4 at member granularity (objectui#7513) — see the header for the three
  * measured specimens and the four precision rules.
  *
@@ -1536,38 +1647,10 @@ export function scanFileForMemberCitations(file, membersOf) {
     if (seen.has(key)) return;
     seen.add(key);
     const doc = normalizeDoc(text.slice(pos, end));
-    const mentions = [];
-    for (let i = doc.indexOf(SPEC_MENTION); i !== -1; i = doc.indexOf(SPEC_MENTION, i + 1)) mentions.push(i);
-    if (mentions.length === 0) return;
-
-    for (const hit of doc.matchAll(MEMBER_CITATION)) {
-      const [cited, symbol, member] = hit;
-      const set = membersOf(symbol);
-      if (!set) continue; // not a spec export, or its member set is unknowable
-
-      // Proximity AND same sentence, exactly as `findClaim` pairs a claim with
-      // its mention: a comment that mentions the spec somewhere does not make
-      // every capitalised dotted name in it a spec citation.
-      let near = false;
-      for (const at of mentions) {
-        const after = hit.index >= at + SPEC_MENTION.length;
-        const distance = after ? hit.index - (at + SPEC_MENTION.length) : at - (hit.index + cited.length);
-        if (distance < 0 || distance > CLAIM_WINDOW) continue;
-        const between = after ? doc.slice(at + SPEC_MENTION.length, hit.index) : doc.slice(hit.index + cited.length, at);
-        if (/[.;!?](?:\s|$)/.test(between)) continue;
-        near = true;
-        break;
-      }
-      if (!near) continue;
-
-      // ORDER IS THE SAFETY: the authored key set answers first, so neither Zod
-      // predicate can ever override a key the spec really declares.
-      if (set.authored.has(member)) continue;
-      if (isZodApiCitation(member, doc.slice(hit.index + cited.length, hit.index + cited.length + 2))) continue;
-
-      const { line } = sf.getLineAndCharacterOfPosition(pos);
-      findings.push({ file, line: line + 1, symbol, member, cited });
-    }
+    const cited = memberCitationsIn(doc, membersOf);
+    if (cited.length === 0) return;
+    const { line } = sf.getLineAndCharacterOfPosition(pos);
+    for (const finding of cited) findings.push({ file, line: line + 1, ...finding });
   };
 
   const visit = (node) => {
@@ -1576,6 +1659,72 @@ export function scanFileForMemberCitations(file, membersOf) {
   };
   ts.forEachChild(sf, visit);
   return findings;
+}
+
+/**
+ * The published documentation is prose attached to nothing (objectui#7995).
+ *
+ * Same rule, second transport. A markdown page carries no declarations, so
+ * rules 1 and 2 have nothing to ask their question OF — but rule 4 at member
+ * granularity asks only whether a NAME the prose spells exists in the spec, and
+ * that question is transport-free. The grammar is `memberCitationsIn` verbatim;
+ * only the cutting and the normalising are new.
+ *
+ * A PARAGRAPH is the scope, blank lines are hard boundaries. That is the exact
+ * analogue of the comment BLOCK on the TypeScript side, and it is load-bearing
+ * for the same reason: without it the proximity-and-same-sentence pair would
+ * measure across a heading into an unrelated section, since a markdown heading
+ * carries no sentence terminator to stop it.
+ *
+ * Fenced code is scanned like the rest. Measured both ways on the tree
+ * (see the header's census): the judged population is identical, so a fence
+ * rule would be a precision claim with nothing behind it.
+ */
+export function scanProseForMemberCitations(file, membersOf) {
+  const text = readFileSync(file, "utf8");
+  const findings = [];
+  const lines = text.split("\n");
+
+  let block = null;
+  const flush = () => {
+    if (!block) return;
+    const doc = block.text.replace(/\s+/g, " ").trim();
+    for (const finding of memberCitationsIn(doc, membersOf)) findings.push({ file, line: block.line, ...finding });
+    block = null;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() === "") {
+      flush();
+      continue;
+    }
+    if (!block) block = { line: i + 1, text: "" };
+    block.text += lines[i] + " ";
+  }
+  flush();
+  return findings;
+}
+
+/** Every published documentation page — the surface objectui#7995 widened to. */
+function proseFiles() {
+  const out = [];
+  const walkDocs = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return; // the docs tree is optional; its absence is not a gate failure
+    }
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walkDocs(full);
+        continue;
+      }
+      if (/\.mdx?$/.test(entry.name)) out.push(full);
+    }
+  };
+  walkDocs(resolve(root, "content/docs"));
+  return out;
 }
 
 /**
@@ -1715,8 +1864,14 @@ for (const file of files) violations.push(...scanFile(file, specNames));
 const claims = [];
 for (const file of files) claims.push(...scanFileForClaims(file, specNames));
 
+// Rule 4 at member granularity runs over BOTH transports (objectui#7995): the
+// comments of the scanned sources, and the prose of the published docs. One
+// findings list, one error, one grammar — a doc page and a doc comment making
+// the same false claim are the same defect and read the same way.
+const proseSources = proseFiles();
 const memberCitations = [];
 for (const file of files) memberCitations.push(...scanFileForMemberCitations(file, membersOf));
+for (const file of proseSources) memberCitations.push(...scanProseForMemberCitations(file, membersOf));
 
 const matchedAllowKeys = new Set();
 const unallowed = [];
@@ -1891,13 +2046,13 @@ for (const key of Object.keys(CLAIM_ALLOW)) {
 //    always fresh and always fails on the PR that writes it.
 if (memberCitations.length > 0) {
   claimErrors.push(
-    `${memberCitations.length} comment${memberCitations.length === 1 ? "" : "s"} cite a spec member the spec` +
+    `${memberCitations.length} passage${memberCitations.length === 1 ? "" : "s"} cite a spec member the spec` +
       ` does not declare:\n` +
       memberCitations
         .map((c) => `        \`${c.cited}\`  ${relative(root, c.file)}:${c.line}`)
         .join("\n") +
       `\n      The symbol is a real @objectstack/spec export; the KEY is not in its shape. Check the\n` +
-      `      installed spec's own schema and correct the comment — cite the key that exists, or say\n` +
+      `      installed spec's own schema and correct the passage — cite the key that exists, or say\n` +
       `      plainly that this is a local/legacy spelling the spec refuses. A comment naming a key\n` +
       `      the spec rejects invites a 422 INVALID_METADATA from the save route: the option schema\n` +
       `      is \`.strict()\`, so one such key sinks the WHOLE field (objectui#7513).`
@@ -1916,7 +2071,8 @@ if (errors.length === 0 && claimErrors.length === 0) {
       `${Object.keys(CLAIM_ALLOW).length === 1 ? "copy" : "copies"}, ` +
       `${outstandingClaims} unbacked claim${outstandingClaims === 1 ? "" : "s"} in ` +
       `${Object.keys(CLAIM_DEBT).length} packages.\n` +
-      `✅  spec member citations: no comment cites a key its spec symbol does not declare.`
+      `✅  spec member citations: ${files.length} sources + ${proseSources.length} documentation pages; ` +
+      `nothing cites a key its spec symbol does not declare.`
   );
   process.exit(0);
 }
