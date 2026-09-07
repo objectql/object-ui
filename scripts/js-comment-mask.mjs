@@ -64,20 +64,35 @@
  * ## What is NOT here, said plainly
  *
  * In objectstack that sweep is a script -- `scripts/check-comment-mask-corpus.mjs`
- * -- wired into its CI, carrying a `--masker <path>` control that re-derives the
- * 16 files above against the pre-fix implementation. **That script is not ported
- * to objectui and nothing in this repository runs it.** The measurement quoted
- * above was made against objectstack's tree, not this one.
+ * -- wired into its CI, carrying a `--masker <path>` control. It is now PORTED
+ * here as `scripts/check-comment-mask-corpus.mjs` (`pnpm check:comment-mask-corpus`),
+ * under objectui#7882's ruling; the measurement quoted above was still made
+ * against objectstack's tree, not this one, and the port's own header carries
+ * THIS tree's reading.
  *
- * This paragraph is written negatively on purpose. `scripts/invoked-as.mjs`
- * arrived in this repository from the same upstream carrying a header that
- * named a gate as its enforcement; the gate had not been ported, and a reader
- * reasonably concluded the tree was already enforced when it was not
- * (objectui#6078). A ported header that names an absent file is the defect, so
- * the honest form is to name it AND say it is absent.
+ * This paragraph used to say the script was absent, and was written negatively
+ * on purpose: `scripts/invoked-as.mjs` arrived in this repository from the same
+ * upstream carrying a header that named a gate as its enforcement; the gate had
+ * not been ported, and a reader reasonably concluded the tree was already
+ * enforced when it was not (objectui#6078). A ported header that names an absent
+ * file is the defect. The same discipline applies now that the file exists, so
+ * what the port does and does not cover is stated rather than implied:
  *
- * What holds in THIS tree is the self-test at the bottom of this file, run by
- * `node scripts/js-comment-mask.mjs --self-test`, plus whatever its callers'
+ *   - It diffs the COMMENT flag array against `@typescript-eslint/parser` over
+ *     every source file in the tree. Measured on `b6f821a8b`: 4,417 files, ONE
+ *     disagreement, 0 fabricated bytes, 1,517 over-masked bytes -- all of it the
+ *     objectui#7882 shape below, in `apps/console/src/pages/DocsIndex.tsx`.
+ *   - ⛔ It does NOT see the LITERAL flag array, so it is blind to the
+ *     objectui#6891 / objectui#7882 phantom EXCEPT where that phantom happens to
+ *     swallow a comment opener. Measured: diffing this masker against its
+ *     pre-objectui#6891 self moves 145 literal bytes in 28 files and ZERO
+ *     comment bytes, so the corpus sweep cannot re-derive that half at all.
+ *   - Its posture is REPORT, not enforce, for the over-masking direction: the
+ *     objectui#7882 residue is declared as a ceiling there. A fabricated byte is
+ *     fatal, because this tree currently has none.
+ *
+ * What also holds in THIS tree is the self-test at the bottom of this file, run
+ * by `node scripts/js-comment-mask.mjs --self-test`, plus whatever its callers'
  * own self-tests assert. That is a set of shapes someone thought of -- it is
  * strictly weaker than a corpus sweep, and no claim here should be read as
  * covering shapes nobody wrote a case for.
@@ -98,6 +113,15 @@
  * in `scripts/check-doc-links.mjs`, both write `return /.../` today -- so in
  * objectui that mutation is undetected by anything that runs. Recorded as a
  * known limit of the port, not as coverage.
+ *
+ * ⚠️ Porting the corpus sweep (objectui#7882) did NOT change that, and the
+ * check was run rather than reasoned: with `return` dropped from
+ * `REGEX_AFTER_KEYWORD`, `pnpm check:comment-mask-corpus --masker` over the
+ * mutant reports the same 1 file and the same 1,517 bytes as the unmutated
+ * masker, and exits 0. Upstream catches that mutation because its sweep meets a
+ * site where the misread regex swallows a COMMENT opener; the two sites above
+ * hold no comment opener, so the comment array never moves. The sentence above
+ * stands as written -- the sweep is not the instrument that closes it.
  *
  * ## JSX: a closing tag is not a regex (objectui#6891)
  *
