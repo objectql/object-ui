@@ -281,6 +281,30 @@ export const FilterOperatorSchema = z.enum([
  * — read that before "fixing" any of them to match this one.
  */
 const FilterBuilderConditionObject = z.object({
+  // REQUIRED, and the asymmetry with `FilterGroupSchema.id` below is the whole
+  // point of declaring it here (objectui#8415). The group's `id` has ZERO read
+  // sites and is optional for that reason; a CONDITION's `id` is the identity
+  // every affordance on the row matches on, measured in
+  // `packages/components/src/custom/filter-builder.tsx`:
+  //
+  //   - the four MATCH sites — `removeCondition` (`c.id !== conditionId`),
+  //     `updateCondition` and `changeOperator` (`c.id === conditionId`) and
+  //     `changeField` (`c.id !== conditionId`);
+  //   - the React `key` on the row;
+  //   - eleven call sites that hand `condition.id` to one of those four.
+  //
+  // The component's own exported `FilterBuilderCondition` declares it `string`,
+  // not `string | undefined`, and `addCondition` emits `crypto.randomUUID()`.
+  //
+  // ⭐ The narrowing refuses only what is ALREADY broken. Because a plain
+  // `z.object` STRIPS undeclared keys, an author who correctly wrote `id` had
+  // it discarded in silence: the document validated, the row rendered, and then
+  // no affordance could reach it — `removeCondition(undefined)` matches every
+  // OTHER row, `updateCondition(undefined)` matches none, and React keys the
+  // row `undefined`. Nothing that worked stops working; the state this refuses
+  // is accepted-and-discarded, the class objectui#6150 closed for
+  // `tree-view.title`.
+  id: z.string().describe('Row identity — matched by `removeCondition` / `updateCondition` / `changeOperator` / `changeField`, and the React key'),
   field: z.string().describe('Field name'),
   operator: FilterOperatorSchema.describe('Filter operator'),
   value: z.any().optional().describe('Filter value'),
