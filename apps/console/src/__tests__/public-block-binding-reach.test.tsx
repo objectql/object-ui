@@ -40,9 +40,9 @@
  *
  * That distinction — a plausible value for EVERY input is not the same as a
  * plausible CONFIGURATION — is the lesson this file keeps re-learning, and it is
- * recorded instance by instance rather than as a slogan: four in
- * {@link SUPERSEDES_BINDING}, the fifth and sixth in {@link sampleFor}. Six is
- * the count because every one of them cost a red or, worse, a green for the
+ * recorded instance by instance rather than as a slogan: five in
+ * {@link SUPERSEDES_BINDING}, the sixth and seventh in {@link sampleFor}. Seven
+ * is the count because every one of them cost a red or, worse, a green for the
  * wrong reason. Read them before adding a sample.
  *
  * A block that declares `objectName` and asks the data layer for something else
@@ -242,10 +242,42 @@ const declaresObjectName = (cfg: { inputs?: Array<{ name?: string }> }) =>
  * intact. That is the "plausible value ≠ plausible configuration" lesson a
  * fourth time.
  *
+ * `staticData` is the third entry, and it arrived exactly as the other two did —
+ * as a red on this probe the moment objectui#8314 declared `object-calendar`'s
+ * full authoring surface. It is RUNG 2 of the shared record-source ladder, one
+ * below `data` and one ABOVE `objectName`
+ * (`packages/core/src/utils/record-source.ts`):
+ *
+ *     if (schema.staticData) {
+ *       return { provider: 'value', items: schema.staticData };
+ *     }
+ *
+ *     if (schema.objectName) {
+ *       return { provider: 'object', object: schema.objectName };
+ *     }
+ *
+ * The published contract says the same from both faces — `ObjectMapSchema
+ * .objectName` / `ObjectGanttSchema.objectName` gloss it as *"the THIRD record
+ * source `getDataConfig` resolves, after `data` and `staticData`"* — and the
+ * consuming renderers act on it: `ObjectCalendar.tsx` takes its
+ * `hasInlineData && dataProvider === 'value'` branch, calls `setData(dataItems)`
+ * and never reaches `dataSource.find`. So filling `staticData` is the author
+ * telling the block not to fetch, and reporting "objectName never reached the
+ * data layer" from it would be the probe manufacturing its own finding, exactly
+ * as it would for `data`. Length-sensitive like `customFields`: `sampleFor`
+ * returns a non-empty `['name']` for an array input, and an empty one would have
+ * left the binding intact. That is the "plausible value ≠ plausible
+ * configuration" lesson a fifth time.
+ *
+ * ⚠️ Worth knowing for the next declaration that lands on a ladder block: the
+ * five blocks sharing this ladder (calendar, gantt, grid, map, tree) all read
+ * `staticData`, so any of them declaring it belongs here on the same reasoning,
+ * and this entry covers them without a further edit.
+ *
  * Add to this list only with the guard quoted, so the next reader can check the
  * claim instead of trusting it.
  */
-const SUPERSEDES_BINDING = new Set(['data', 'customFields']);
+const SUPERSEDES_BINDING = new Set(['data', 'staticData', 'customFields']);
 
 /**
  * A plausible value for one declared input.
@@ -255,7 +287,7 @@ const SUPERSEDES_BINDING = new Set(['data', 'customFields']);
  * its empty state without asking for data would read here as an unbound
  * binding.
  *
- * `sections` is the FIFTH instance of the lesson counted in
+ * `sections` is the SIXTH instance of the lesson counted in
  * {@link SUPERSEDES_BINDING}, and the one objectui#3840 was filed for. The
  * generic `array` sample is `['name']`, and a bare string is not a section:
  * `@objectstack/spec`'s `FormViewSchema.sections` rejects it at parse —
@@ -271,7 +303,7 @@ const SUPERSEDES_BINDING = new Set(['data', 'customFields']);
  * being the spec shape, not the fact that a different sample stops the crash
  * (which is true either way).
  *
- * `formType` is the SIXTH, and it is why `object-master-detail-form` read GREEN
+ * `formType` is the SEVENTH, and it is why `object-master-detail-form` read GREEN
  * while carrying the identical latent crash. That block declares `formType` as a
  * bare `string` — not the enum `object-form` declares — so the default branch
  * below handed it `'x'`, a value the form family has no path for. The crashing
