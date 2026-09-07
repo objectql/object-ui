@@ -41,6 +41,17 @@
  *
  * `已逾期`/`Overdue Nd` is likewise green on both sides: it never used the
  * broken channel, and this file pins that the fix did not disturb it.
+ *
+ * ⚠️ objectui#8194 amendment. The `date` WIDGET faces in this file (readonly
+ * `DateField`, the sub-grid `date` column, a `date`-returning `FormulaField`)
+ * used to render `Intl`'s bare numeric default — `8/11/2026` / `2026/8/11` —
+ * because they passed NO options bag. They now render `formatDate`'s default
+ * face, the one home for the `date` display convention. That moves the `en`
+ * output too, so those literals were replaced by `defaultDateFace()` below:
+ * this file's subject is WHICH TAG reaches `Intl`, and expressing the
+ * expectation through the shared bag keeps that subject measurable without
+ * re-asserting the face. The `datetime` cases here are untouched — they were
+ * NOT part of #8194 and still render two bare `toLocale*` calls.
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -71,6 +82,32 @@ function daysFromNow(n: number): string {
  * shape the card captured: `8/11/2026 12:00 am` on an en machine.
  */
 const FIXED_INSTANT = new Date(2026, 7, 11, 0, 0, 0).toISOString();
+
+/**
+ * The `date` DEFAULT face in `locale` — `formatDate`'s bag, spelled out.
+ *
+ * Every `date` surface in this file renders through `formatDate`'s default
+ * style since objectui#8194, and that face DROPS the year inside the current
+ * year on purpose. So the expected string cannot be a literal here: `Aug 11`
+ * and `Aug 11, 2026` are the same call in different calendar years, and a
+ * hard-coded literal would turn this locale-channel file red on a January 1st
+ * for a reason that has nothing to do with locales.
+ *
+ * This is the idiom the "absolute fallback beyond the ±7-day window" case
+ * below already used for the same reason; #8194 only widened its reach. The
+ * year-dropping decision itself is pinned VERBATIM, against a frozen clock,
+ * in `fields-date-widget-convention-8194.test.tsx` — that claim belongs
+ * there, this file's claim is that the tag reaching `Intl` is the session's.
+ */
+function defaultDateFace(value: string | Date, locale: string): string {
+  const d = value instanceof Date ? value : new Date(value);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(locale, {
+    year: sameYear ? undefined : 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
 /**
  * A session: the UI language the user picked, plus the tenant's regional
@@ -163,7 +200,12 @@ describe('zh session — every date branch renders Chinese (objectui#4468)', () 
       'zh',
       <DateField value={FIXED_INSTANT} onChange={() => {}} field={dateField('start_date')} readonly />,
     );
-    expect(container.textContent).toContain('2026/8/11');
+    // Since objectui#8194 this widget renders `formatDate`'s default face, so
+    // the zh form is `8月11日` in the current year and `2026年8月11日` after —
+    // both Chinese, which is the claim. The `en` form is asserted absent so
+    // the case cannot pass on a machine-locale render.
+    expect(container.textContent).toContain(defaultDateFace(FIXED_INSTANT, 'zh'));
+    expect(container.textContent).not.toContain(defaultDateFace(FIXED_INSTANT, 'en'));
     cleanup();
 
     const dt = renderSession(
@@ -201,8 +243,8 @@ describe('zh session — every date branch renders Chinese (objectui#4468)', () 
       />,
     );
     const table = screen.getByTestId('line-items-readonly');
-    expect(table.textContent).toContain('2026/6/17');
-    expect(table.textContent).not.toContain('6/17/2026');
+    expect(table.textContent).toContain(defaultDateFace('2026-06-17T00:00:00.000Z', 'zh'));
+    expect(table.textContent).not.toContain(defaultDateFace('2026-06-17T00:00:00.000Z', 'en'));
   });
 
   it('a formula field returning a date', () => {
@@ -214,8 +256,8 @@ describe('zh session — every date branch renders Chinese (objectui#4468)', () 
         field={{ type: 'formula', name: 'computed_on', return_type: 'date' } as any}
       />,
     );
-    expect(container.textContent).toContain('2026/8/11');
-    expect(container.textContent).not.toContain('8/11/2026');
+    expect(container.textContent).toContain(defaultDateFace(FIXED_INSTANT, 'zh'));
+    expect(container.textContent).not.toContain(defaultDateFace(FIXED_INSTANT, 'en'));
   });
 });
 
@@ -252,12 +294,21 @@ describe('en session — output is byte-identical (must-not-change)', () => {
     expect(container.textContent).toContain('12:00 am');
   });
 
+  /**
+   * ⚠️ This case is NO LONGER byte-identical across objectui#8194 — the widget
+   * moved from `Intl`'s bare numeric default (`8/11/2026`) onto `formatDate`'s
+   * default face (`Aug 11` in the current year). It stays in this describe
+   * block because what it measures is unchanged: the `en` session renders the
+   * `en` face. The move itself is pinned in
+   * `fields-date-widget-convention-8194.test.tsx`.
+   */
   it('read-only DateField', () => {
     const { container } = renderSession(
       'en',
       <DateField value={FIXED_INSTANT} onChange={() => {}} field={dateField('start_date')} readonly />,
     );
-    expect(container.textContent).toContain('8/11/2026');
+    expect(container.textContent).toContain(defaultDateFace(FIXED_INSTANT, 'en'));
+    expect(container.textContent).not.toContain(defaultDateFace(FIXED_INSTANT, 'zh'));
   });
 });
 

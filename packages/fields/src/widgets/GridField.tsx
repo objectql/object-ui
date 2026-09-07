@@ -16,7 +16,7 @@ import {
   Label,
 } from '@object-ui/components';
 import { Plus, Trash2, SlidersHorizontal, Maximize2, Copy, GripVertical } from 'lucide-react';
-import { resolveFieldRuleState } from '@object-ui/core';
+import { formatDate, resolveFieldRuleState } from '@object-ui/core';
 import { useDisplayLocale } from '@object-ui/i18n';
 import { LookupField } from './LookupField.js';
 import { FileCell } from './FileField.js';
@@ -337,7 +337,10 @@ const isTemporal = (t?: string) => t === 'date' || t === 'datetime' || t === 'ti
  * - `date` — a calendar day. Formatted from its VERBATIM `YYYY-MM-DD` parts via
  *   a local `Date`, never by parsing the stored string: `new Date('2026-06-17')`
  *   is UTC midnight, so reading local calendar components back out of it moves
- *   the day to the 16th everywhere west of Greenwich.
+ *   the day to the 16th everywhere west of Greenwich. That local `Date` is
+ *   handed to `formatDate` as a `Date` INSTANCE, which the shared function uses
+ *   verbatim — passing the raw string instead would re-introduce exactly the
+ *   UTC-midnight parse this branch exists to avoid.
  * - `datetime` — an instant. Rendered as local day + local time, the same basis
  *   `toDateTimeInputValue` uses for the editor, so the two never disagree (and
  *   matching `DateTimeField`'s own read-only rendering).
@@ -357,7 +360,19 @@ function temporalText(type: string | undefined, value: any, locale: string): str
     const ymd = toDateInputValue(value);
     if (!ymd) return raw;
     const [y, m, d] = ymd.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString(locale);
+    // `formatDate`'s DEFAULT style — the one home for the `date` display
+    // convention (objectui#8194, following the maintainer's ruling A on
+    // objectui#7620). This branch used to call `toLocaleDateString(locale)`
+    // with NO options bag, i.e. `Intl`'s numeric default (`7/4/2026`), so a
+    // sub-grid cell and a `date` field cell on the same screen rendered the
+    // same value two ways — the split #7620 ruled on, one surface over.
+    // Current-year values lose the year here now (`Jul 4`); past- and
+    // future-year values are byte-identical.
+    //
+    // The `!ymd` guard above still owns the unparseable case, so this branch
+    // never reaches `formatDate`'s `—`: an unreadable stored value keeps
+    // showing what is actually stored (objectui#3569).
+    return formatDate(new Date(y, m - 1, d), undefined, { locale });
   }
   const dt = value instanceof Date ? value : new Date(raw);
   if (Number.isNaN(dt.getTime())) return raw;
