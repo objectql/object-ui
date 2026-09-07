@@ -42,6 +42,27 @@ const GRID_COLS_XL: Record<number, string> = {
   9: 'xl:grid-cols-9', 10: 'xl:grid-cols-10', 11: 'xl:grid-cols-11', 12: 'xl:grid-cols-12'
 };
 
+// `2xl` is the sixth and last member of the breakpoint vocabulary — `BreakpointName`
+// in `@object-ui/types`, `BREAKPOINTS` / `BREAKPOINT_ORDER` in `@object-ui/mobile`,
+// and `BreakpointColumnMap` in `@object-ui/layout`, whose `ResponsiveGrid` already
+// emits `2xl:grid-cols-*`. This map stopped at `xl`, and so did the read arm below,
+// so an authored `columns: { '2xl': 6 }` validated, emitted nothing, and rendered at
+// the `xs` count on every screen (objectui#7097).
+//
+// The map is not decoration: it is what makes these class names EXIST. Tailwind v4
+// finds utilities by scanning source text (`@source '../src/**/*.{ts,tsx}'` in
+// `packages/components/src/index.css`), so a `2xl:grid-cols-${n}` built at runtime
+// from a template would never be compiled and the node would render unstyled — green
+// in a unit test, wrong in the browser. Spelling all twelve out is the same reason
+// the five maps above are spelled out. The variant itself is Tailwind's default
+// `2xl` (96rem / 1536px, matching `BREAKPOINTS['2xl']`); no `@theme` block in this
+// repo overrides `--breakpoint-*`.
+const GRID_COLS_2XL: Record<number, string> = {
+  1: '2xl:grid-cols-1', 2: '2xl:grid-cols-2', 3: '2xl:grid-cols-3', 4: '2xl:grid-cols-4',
+  5: '2xl:grid-cols-5', 6: '2xl:grid-cols-6', 7: '2xl:grid-cols-7', 8: '2xl:grid-cols-8',
+  9: '2xl:grid-cols-9', 10: '2xl:grid-cols-10', 11: '2xl:grid-cols-11', 12: '2xl:grid-cols-12'
+};
+
 const GAPS: Record<number, string> = {
   0: 'gap-0', 1: 'gap-1', 2: 'gap-2', 3: 'gap-3', 4: 'gap-4', 
   5: 'gap-5', 6: 'gap-6', 8: 'gap-8', 10: 'gap-10', 12: 'gap-12'
@@ -52,18 +73,21 @@ ComponentRegistry.register('grid',
     // Determine columns configuration
     // Supports detailed object configuration from schema
     let baseCols = 2;
-    let smCols, mdCols, lgCols, xlCols;
+    let smCols, mdCols, lgCols, xlCols, xxlCols;
 
     if (typeof schema.columns === 'number') {
       baseCols = schema.columns;
     } else if (typeof schema.columns === 'object' && schema.columns !== null) {
-      // Handle responsive object: { xs: 1, sm: 2, md: 3, lg: 4 }
+      // Handle responsive object: { xs: 1, sm: 2, md: 3, lg: 4, xl: 5, '2xl': 6 }
       // Note: 'xs' corresponds to base (mobile-first)
       baseCols = schema.columns.xs ?? 1;
       smCols = schema.columns.sm;
       mdCols = schema.columns.md;
       lgCols = schema.columns.lg;
       xlCols = schema.columns.xl;
+      // `xxlCols` because `2xlCols` is not a legal identifier; the authored key
+      // is and stays `'2xl'`.
+      xxlCols = schema.columns['2xl'];
     }
 
     // Fallback to legacy flat props if provided (from designer)
@@ -76,6 +100,12 @@ ComponentRegistry.register('grid',
     // overrides) collapses on small screens so an N-across row doesn't render
     // as unreadable slivers on a phone. Authors who pass a responsive object
     // or sm/md/lg/xlColumns keep full control.
+    //
+    // `xxlCols` is deliberately NOT in this condition. It is only ever set from
+    // the responsive-object branch above, which this arm cannot have taken
+    // (`typeof schema.columns === 'number'`), and there is no `xxlColumns`
+    // legacy flat prop — the designer's flat channel stays at the five it
+    // declares in `inputs` below. Add it here if that ever changes.
     if (
       typeof schema.columns === 'number' && baseCols > 1 &&
       smCols === undefined && mdCols === undefined && lgCols === undefined && xlCols === undefined
@@ -97,6 +127,7 @@ ComponentRegistry.register('grid',
       mdCols && GRID_COLS_MD[mdCols],
       lgCols && GRID_COLS_LG[lgCols],
       xlCols && GRID_COLS_XL[xlCols],
+      xxlCols && GRID_COLS_2XL[xxlCols],
       // Gap
       GAPS[gap] || `gap-[${gap * 0.25}rem]`, // Fallback for arbitrary values if not in map
       className
