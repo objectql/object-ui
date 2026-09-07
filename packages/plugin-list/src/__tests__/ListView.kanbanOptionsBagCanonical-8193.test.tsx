@@ -101,7 +101,21 @@ describe('the capability gate resolves kanban from the CANONICAL key in the opti
   });
 
   it('offers Kanban for the bag ObjectView actually writes', () => {
-    // The end-to-end shape, `groupBy` included: the producer's real output.
+    // The end-to-end shape. ⚠️ This fixture used to carry `groupBy` and call
+    // itself "the producer's real output"; objectui#8213 retired that write, so
+    // the producer claim lives here and the `groupBy`-bearing bag moved to the
+    // arm below, as what it always really was — a robustness arm.
+    // ⛔ One `kanbanOffered` per test: it renders into the shared screen, and a
+    // second render in the same test makes every `queryByRole` ambiguous.
+    expect(
+      kanbanOffered({ options: { kanban: { groupByField: 'stage', titleField: 'name' } } }),
+    ).toBe(true);
+  });
+
+  it('CONTROL: a bag that ALSO carries a stray `groupBy` is answered the same', () => {
+    // Stored metadata written before objectui#8213 still carries the key, and
+    // this repo's `KanbanConfig` mirror is `.passthrough()`, so the gate must
+    // keep answering identically for a bag that has it and one that does not.
     expect(
       kanbanOffered({
         options: { kanban: { groupBy: 'stage', groupByField: 'stage', titleField: 'name' } },

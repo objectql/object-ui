@@ -186,12 +186,24 @@ const DIST_PIN_GLOB = 'packages/*/src/**/*.dist.spec.tsx';
 const DIST_PINS_ENABLED = process.env.OBJECTUI_DIST_PINS === '1';
 
 /**
- * ...which leaves exactly one way to get a FALSE GREEN out of the opt-in, and
- * it is closed here rather than documented. `vitest run --project dist` without
- * the env var would match no project at all; that is a run with nothing in it,
- * and `passWithNoTests` is true for a run that names no files — a green that
- * measured nothing, which is the exact outcome this card exists to prevent.
- * Refuse it instead, and say how.
+ * ...which leaves one rough edge on the opt-in, and it is closed here rather
+ * than documented. `vitest run --project dist` without the env var names a
+ * project that is not declared, and vitest is LOUD about that: its project
+ * resolution throws `No projects matched the filter "dist"` and the run exits
+ * 1. There is no silent green here to prevent.
+ *
+ * What that refusal does NOT do is tell the reader how to proceed. It reports
+ * only that the filter matched nothing — never that the project is env-gated,
+ * never the name OBJECTUI_DIST_PINS, never the task that sets it. So the reader
+ * is stopped with no remedy, and has to come read this file to learn there is
+ * one. Refuse the run earlier, and say how.
+ *
+ * This guard used to justify itself by asserting the un-opted run would
+ * "collect ZERO files and exit GREEN". It does not, and never did on vitest 4;
+ * that sentence sent a reader off to measure vitest before they could trust it
+ * (objectui#8274). The claim is now pinned by an actual vitest spawn in
+ * `scripts/__tests__/dist-pins-guard-message-8274.test.ts`, so a change in
+ * vitest reds a test rather than rotting a comment.
  */
 const DIST_PROJECT_NAMED = process.argv.some(
   (arg, i) => arg === '--project=dist' || (arg === '--project' && process.argv[i + 1] === 'dist'),
@@ -200,7 +212,10 @@ if (DIST_PROJECT_NAMED && !DIST_PINS_ENABLED) {
   throw new Error(
     [
       'vitest --project dist was requested, but OBJECTUI_DIST_PINS is not "1", so the',
-      '`dist` project is NOT declared and this run would collect ZERO files and exit GREEN.',
+      '`dist` project is NOT declared. Left to vitest, this run ends in its generic',
+      'refusal - `No projects matched the filter "dist"`, exit 1 - which tells you the',
+      'filter matched nothing but not that the project is env-gated, and names neither',
+      'OBJECTUI_DIST_PINS nor the task that sets it. Hence this message.',
       '',
       'The `dist` project holds built-artifact pins, which need their package BUILT first.',
       'Reach it through the task that guarantees that:',

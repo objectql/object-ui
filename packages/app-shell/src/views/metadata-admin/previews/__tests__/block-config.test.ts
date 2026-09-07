@@ -225,8 +225,9 @@ describe('record:details sections ↔ spec section-entry coverage (#3819)', () =
   });
 
   it('lists `name` before `label` — the entry identity comes first', () => {
-    // Matches `page:tabs` (`key`), where the stable identifier precedes the
-    // human label. `page:accordion` items no longer have an identifier field
+    // Matches `page:tabs` (`value` — named `key` until objectui#8278 renamed
+    // it to the member the spec declares), where the stable identifier
+    // precedes the human label. `page:accordion` items no longer have an identifier field
     // to compare against — its `value` was removed as dead input (#5212): the
     // renderer derives the panel id and never reads what was authored.
     const order = (sectionsField?.itemFields ?? []).map((f) => f.name);
@@ -462,8 +463,11 @@ describe('page:header `icon` — the designer field retired with the spec key (#
  *     who writes it by hand to remove the key.
  *
  * Neither is symmetric with `page:tabs`: one component over, an authored
- * `items[].value` (designer field name `key`) IS read, with a `tab-${idx}`
- * fallback only when absent (`itemsWithValue` for `page:tabs`, same file).
+ * `items[].value` IS read, with a `tab-${idx}` fallback only when absent
+ * (`itemsWithValue` for `page:tabs`, same file) — and the designer control
+ * there is NAMED `value` since objectui#8278, which is what makes the two
+ * comparable; until then it was named `key`, so the tabs panel wrote a key
+ * the spec refuses by name and the renderer never reads.
  * `PageTabsProps.items[].value` is a real, declared schema member. The
  * accordion's panel id is unconditionally derived; the tabs one is genuinely
  * live — this suite touches the accordion only.

@@ -194,9 +194,18 @@ function ContactList() {
 
 ### Example 2: Next.js Integration
 
+Both files below open with `'use client'`. Under the Next.js App Router every
+module under `app/` is a **server** component by default, and the `@object-ui/*`
+packages carry no `'use client'` banner of their own — so the client boundary has
+to be declared here, in the files that import them. Without the directive the
+layout's React context providers and the page's `useDataSource()` hook are both
+asked to run on the server, where neither exists.
+
 `app/layout.tsx`:
 
 ```tsx
+'use client';
+
 import { AppShell } from '@object-ui/app-shell';
 import type { AppShellProps } from '@object-ui/app-shell';
 import { ThemeProvider } from '@object-ui/providers';
@@ -213,6 +222,8 @@ export default function RootLayout({ children }: { children: AppShellProps['chil
 `app/[object]/page.tsx`:
 
 ```tsx
+'use client';
+
 import { ObjectView } from '@object-ui/plugin-view';
 import { useDataSource } from '@object-ui/providers';
 
@@ -256,32 +267,70 @@ function ContactWidget() {
 
 ## Custom Data Source Interface
 
-Third-party systems implement this interface:
+Third-party systems implement `DataSource`, which `@object-ui/types` **exports**.
+Import it; never re-declare it locally. A local copy is a second contract that
+drifts silently, and the components consume the exported one — `ObjectView`'s
+`dataSource` prop is typed `DataSource`, so a stand-in that satisfies only a
+hand-written look-alike is rejected at the call site.
+
+A minimal adapter implements the interface's six **required** members. Both
+halves of that sentence are checked when this page compiles, rather than
+asserted:
 
 ```tsx
-interface DataSource {
-  find(objectName: string, params?: any): Promise<any>;
-  findOne(objectName: string, id: string): Promise<any>;
-  create(objectName: string, data: any): Promise<any>;
-  update(objectName: string, id: string, data: any): Promise<any>;
-  delete(objectName: string, id: string): Promise<void>;
-  getMetadata?(): Promise<any>;
-}
+import type { DataSource } from '@object-ui/types';
+
+// Which six they are. A member name that is not on the exported interface —
+// `getMetadata`, say — fails this `Pick` rather than being read past.
+type MinimalDataSource = Pick<
+  DataSource,
+  'find' | 'findOne' | 'create' | 'update' | 'delete' | 'getObjectSchema'
+>;
+
+// And that those six SUFFICE. Every other member of `DataSource` — `searchAll`,
+// `bulk`, `getView`, `aggregate`, the import/export job family — is optional, so
+// a value with just the six is assignable to the whole interface. This line goes
+// red the moment a seventh member becomes required.
+declare const minimal: MinimalDataSource;
+export const adapter: DataSource = minimal;
 ```
 
-Example implementation:
+Example implementation. It is annotated `: DataSource`, which is what makes the
+list above complete: leave a required member out and this block stops compiling,
+so there is nothing here to elide. Parameter and return types are inferred from
+the contract — read the signatures off it rather than off this page:
 
 ```tsx
-const myDataSource = {
-  // The parameter types are the ones the interface above declares; spelling
-  // them out is what lets this block be compiled rather than read.
-  async find(objectName: string, params?: any) {
-    return fetch(`/api/${objectName}`, {
+import type { DataSource } from '@object-ui/types';
+
+export const myDataSource: DataSource = {
+  async find(resource, params) {
+    const res = await fetch(`/api/${resource}`, {
       method: 'POST',
       body: JSON.stringify(params),
-    }).then(r => r.json());
+    });
+    return res.json();
   },
-  // ... implement other methods
+  async findOne(resource, id) {
+    const res = await fetch(`/api/${resource}/${id}`);
+    return res.status === 404 ? null : res.json();
+  },
+  async create(resource, data) {
+    const res = await fetch(`/api/${resource}`, { method: 'POST', body: JSON.stringify(data) });
+    return res.json();
+  },
+  async update(resource, id, data) {
+    const res = await fetch(`/api/${resource}/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+    return res.json();
+  },
+  async delete(resource, id) {
+    const res = await fetch(`/api/${resource}/${id}`, { method: 'DELETE' });
+    return res.ok;
+  },
+  async getObjectSchema(objectName) {
+    const res = await fetch(`/api/metadata/${objectName}`);
+    return res.json();
+  },
 };
 ```
 

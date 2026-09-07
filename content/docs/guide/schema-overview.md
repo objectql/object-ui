@@ -313,7 +313,6 @@ ObjectUI includes enhanced view components:
 ## Getting Help
 
 ### Community Support
-- **[GitHub Discussions](https://github.com/objectstack-ai/objectui/discussions)** - Ask questions and share ideas
 - **[GitHub Issues](https://github.com/objectstack-ai/objectui/issues)** - Report bugs and request features
 
 ### Official Documentation

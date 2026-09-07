@@ -15,7 +15,13 @@ import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel } from '@ob
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { RecordDetailsComponentProps } from '@object-ui/types';
-import { columnIdentity, isObjectInlineEditable } from '@object-ui/core';
+import {
+  columnIdentity,
+  deriveTitleField,
+  isObjectInlineEditable,
+  recordDisplayValueAt,
+  resolveNameField,
+} from '@object-ui/core';
 import { DetailView } from '../DetailView';
 
 /** Normalize a field entry (string | {field} | {name}) to its machine name. */
@@ -160,8 +166,37 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // non-empty because a row with no value is not duplicating a heading.
   // The H1 itself is drawn a package away, by `@object-ui/components`'
   // `PageHeaderRenderer` (`page:header`, synthesized by
-  // `buildDefaultPageSchema`) — the names below mirror the tail of THAT
-  // chain, which is why a change to either half must re-read the other.
+  // `buildDefaultPageSchema`) — the names below mirror THAT chain, which is
+  // why a change to either half must re-read the other.
+  //
+  // ⭐ The first two candidates are the unified ADR-0079 resolver, in NAME
+  // space (objectui#8175). Before them this list was the six literal names
+  // alone — the TAIL of the header's chain with no equivalent of the resolver
+  // rung above it — so an object declaring `nameField: 'contract_no'` got BOTH
+  // halves of the dedupe wrong at once: the duplicate survived (`contract_no`,
+  // the value the H1 was showing) and an ordinary field disappeared instead
+  // (`name`, the literal walk's first entry, a row the H1 never showed).
+  // Pinned in `__tests__/record-details.nameFieldDedupe-8175.test.tsx`, which
+  // asserts which row RENDERS and which row DROPS — never the heading, which
+  // this package does not draw.
+  //
+  // ⚠️ The resolver rung is UNROLLED into two candidates on purpose, and
+  // `resolveNameField` alone is NOT enough. It returns ONE answer and
+  // short-circuits: a declared pointer wins outright and `deriveTitleField`
+  // never runs. This ladder is VALUE-keyed, and so is the header's — when the
+  // declared pointer is blank on a record, `getRecordDisplayName` keeps
+  // walking and lands on the derivation (step 4). Listing both rungs is what
+  // lets the fall-through happen here too. When nothing is declared the two
+  // return the same name and the first one simply wins.
+  //
+  // ⚠️ Two disagreements with the header chain are KNOWN and deliberately NOT
+  // repaired here — both are rungs that name no FIELD, so there is no row to
+  // hide for either, and closing them is a separate ruling:
+  //   - `page:header`'s own `schema.title`, which this package cannot see;
+  //   - `objectSchema.titleFormat`, a render-only template the header ranks
+  //     ABOVE the declared pointer (pinned in `@object-ui/components`'
+  //     `__tests__/page-header-title.test.tsx`, "titleFormat still outranks
+  //     nameField"), interpolating any number of fields.
   //
   // ⛔ `objSchema?.primaryField` used to top this list, and it is gone
   // (objectui#7586). It is a `DetailViewSchema` key (`@object-ui/types`
@@ -182,11 +217,43 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // asserts the DEDUPE outcome (which row the grid hides), not the title.
   const objSchema: any = (ctx as any).objectSchema;
   const data: any = ctx.data ?? {};
-  // No `.filter(…): n is string` guard any more: it existed solely to drop the
-  // `objSchema?.primaryField` entry when the key was absent, which was always.
-  const titleCandidates = ['name', 'full_name', 'title', 'subject', 'display_name', 'label'];
+  // The `.filter(…): n is string` guard is back, for a different reason than
+  // the one objectui#7586 retired: it used to drop an `objSchema?.primaryField`
+  // entry that was absent always, and now it drops the two resolver rungs when
+  // an object declares and derives nothing — `string | undefined` is those
+  // functions' real return type, not a stand-in for a key nothing can produce.
+  const titleCandidates = [
+    resolveNameField(objSchema),
+    deriveTitleField(objSchema),
+    'name',
+    'full_name',
+    'title',
+    'subject',
+    'display_name',
+    'label',
+  ].filter((n): n is string => typeof n === 'string' && n.length > 0);
+  //
+  // ⚠️ EMPTINESS IS THE HEADER'S DEFINITION, NOT A LOCAL ONE (objectui#8350).
+  // `recordDisplayValueAt` is the very function every value-keyed rung of
+  // `getRecordDisplayName` uses to decide whether a rung resolved — imported,
+  // not re-spelled, because the two halves must agree about WHAT COUNTS AS A
+  // VALUE exactly as objectui#8175 made them agree about WHICH FIELD.
+  //
+  // This line used to be a raw `undefined` / `null` / `''` test. A
+  // whitespace-only value passes that and does NOT pass the header's, so on a
+  // record whose title field held only spaces the ladder concluded that field
+  // was what the H1 showed and hid its row, while the H1 had already walked on
+  // to the next rung and was showing something else. A field disappeared from
+  // the grid to deduplicate against a heading that never displayed it — silent,
+  // nothing errored, a row was simply absent.
+  //
+  // ⛔ Never "just add a `.trim()`" here. That is a SECOND implementation of the
+  // same test, which is the shape of the defect this line closes, one level
+  // down: it would still disagree with the header about an expanded lookup
+  // object whose display chain yields nothing (`{ id: 'u1' }` is not a title),
+  // which the raw test — and a trim of it — both read as a value.
   for (const candidate of titleCandidates) {
-    if (data[candidate] !== undefined && data[candidate] !== null && data[candidate] !== '') {
+    if (recordDisplayValueAt(data, candidate) !== undefined) {
       hideFieldNames.add(candidate);
       break;
     }

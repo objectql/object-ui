@@ -36,11 +36,13 @@
  * is exactly why the sibling could drop the alias write. The arms below assert
  * what this face WRITES, never what any face reads.
  *
- * ⚠️ `groupBy` IS DELIBERATELY STILL WRITTEN, and this file records why rather
- * than asserting it away. Measured against the spec (below), `groupBy` is not a
- * declared key either — but it is read by `ListView`'s projection collectors,
- * so retiring it needs a producer census and got its own card: objectui#8213.
- * One atomic producer change per PR is what kept this one reviewable.
+ * ⚠️ `groupBy` WAS STILL WRITTEN WHEN THIS FILE LANDED, and is not any more:
+ * objectui#8213 ran the producer census this file deferred and retired the
+ * third spelling. The arms below that named it have been re-judged rather than
+ * spelling-swapped — the spec-refusal arm is still true and still here, the
+ * producer arm that asserted the write is gone, and the anti-fork arm no longer
+ * has to filter `groupBy` out before comparing the two producers. What that
+ * retirement asserts is pinned in `ObjectView.kanbanGroupByRetired-8213`.
  *
  * REVERSE VERIFICATION — direction predicted before running, then observed:
  * restore `return lane ? { groupBy: lane, groupField: lane } : {}` and the
@@ -138,7 +140,11 @@ describe('the two app-shell kanban producers speak ONE vocabulary (objectui#8193
     const viaObjectPage = kanbanViewOptions({}, OBJECT_WITH_STAGE);
     const viaInterfacePage = defaultKanbanFromObject(OBJECT_WITH_STAGE);
 
-    const objectPageLaneKeys = laneKeysOf(viaObjectPage).filter((k) => k !== 'groupBy');
+    // objectui#8213 removed the `.filter((k) => k !== 'groupBy')` that stood
+    // here. It existed only because this face emitted a third spelling the
+    // sibling never did; with the write gone the comparison is unfiltered, so
+    // re-introducing ANY lane spelling on either side now reddens this arm.
+    const objectPageLaneKeys = laneKeysOf(viaObjectPage);
     const interfacePageLaneKeys = laneKeysOf(
       viaInterfacePage as unknown as Record<string, unknown>,
     );
@@ -196,13 +202,15 @@ describe('the emitted lane key is the one `@objectstack/spec` declares (objectui
     expect(unrecognized(complete({ groupField: 'stage' }))).toContain('groupField');
   });
 
-  it('MEASURED, NOT FOLDED: the spec refuses `groupBy` too — objectui#8213', () => {
+  it('refuses `groupBy` by name too — the finding this file made, objectui#8213', () => {
     // The card's one explicitly unmeasured question, answered here so the
     // answer cannot be lost: `groupBy` is not a spec key at view level either.
-    // It is still written, because `ListView`'s projection collectors read it;
-    // retiring it needs a producer census and is objectui#8213, not this PR.
+    // ⚠️ The second half of this arm used to assert the producer STILL wrote it
+    // (`kanbanViewOptions({}, OBJECT_WITH_STAGE).groupBy === 'stage'`).
+    // objectui#8213 ran the census and deleted the write, so that half was
+    // replaced rather than re-spelled — asserting the retirement belongs with
+    // the rest of it, in `ObjectView.kanbanGroupByRetired-8213`.
     expect(unrecognized(complete({ groupBy: 'stage' }))).toContain('groupBy');
-    expect(kanbanViewOptions({}, OBJECT_WITH_STAGE).groupBy).toBe('stage');
   });
 
   it('declares exactly the three keys this file reasons about', () => {

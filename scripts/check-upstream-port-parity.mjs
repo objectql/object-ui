@@ -59,6 +59,28 @@
  *   3. upstream moved -- same as (1) from this side, and the fix is a re-sync
  *      rather than a revert, which is why the message names the procedure.
  *
+ * ## The ref lives on the ENTRY, beside the digest it describes (objectui#8288)
+ *
+ * The pin used to carry ONE global `upstream.ref` while every digest was
+ * per-file, and `--resync` set that global field on every run. So re-syncing a
+ * single file re-labelled the others with a ref their digests had never been
+ * taken from: after objectui#7749 re-synced the hook self-test to `70e77ec3b`,
+ * this gate printed that ref beside `check-half-states.mjs` and `invoked-as.mjs`
+ * too, whose digests were taken at `bf10debd5`. Both stayed GREEN — the digest
+ * is the assertion and their bytes were untouched — while the provenance line
+ * beside them was false. A check that reports a wrong fact confidently is this
+ * repository's worst failure direction, and it was the gate itself doing it.
+ *
+ * So `ref` is a required field on each `files[]` entry and the global one is
+ * RETIRED, not kept as a default. A default would have to be read as
+ * `entry.ref ?? pin.upstream.ref`, which is the same false label re-spelled as
+ * a feature: an absent `ref` cannot be distinguished from one nobody updated.
+ * Provenance is a property of a digest, so it is stored where the digest is,
+ * and `validatePin` REFUSES a pin that still carries `upstream.ref` rather than
+ * silently ignoring it. `upstream.repo` stays global because it is measurably
+ * uniform — every entry is a port from the same repository — and splitting it
+ * would be a speculative field with no reader.
+ *
  * ⛔ What it deliberately does NOT do is fetch anything. A gate that reached
  * api.github.com would be red on a network hiccup and green on a cached 200,
  * and this repository's whole reason for owning a patrol is that a check which
@@ -82,7 +104,8 @@
  *   node scripts/check-upstream-port-parity.mjs --resync /tmp/up.mjs --ref <the commit sha>
  *
  * `--resync` applies the declared divergences FORWARD onto the new upstream
- * text, writes the ported file, and rewrites the pin's ref and digest. It is
+ * text, writes the ported file, and rewrites THAT ENTRY's ref and digest --
+ * only that entry's, so a re-sync can never re-label a file it did not read. It is
  * the only supported way to move the pin, because the alternative -- editing a
  * digest by hand until the gate goes green -- is indistinguishable from
  * baselining the drift it exists to catch. Afterwards, run the ported file's
@@ -178,10 +201,15 @@ export function validatePin(pin) {
     if (typeof up.repo !== 'string' || !/^[\w.-]+\/[\w.-]+$/.test(up.repo)) {
       bad('`upstream.repo` is not an `owner/name` repository');
     }
-    // A ref that is not a full commit sha cannot identify one tree. A branch
-    // name would make the pin read as precise while naming a moving target.
-    if (typeof up.ref !== 'string' || !HEX40.test(up.ref)) {
-      bad('`upstream.ref` is not a 40-character commit sha');
+    // ⛔ RETIRED (objectui#8288). One global ref beside per-file digests is
+    // the false-provenance bug itself; refusing it here is what makes the
+    // retirement real, rather than a field the gate quietly stops reading
+    // while the pin goes on carrying a stale value that looks authoritative.
+    if ('ref' in up) {
+      bad(
+        '`upstream.ref` is RETIRED — the ref is provenance for a digest, so it belongs on each ' +
+          '`files[]` entry beside the digest it was taken with. Move it there and delete this field.',
+      );
     }
   }
   if (!Array.isArray(pin.files) || pin.files.length === 0) {
@@ -201,6 +229,14 @@ export function validatePin(pin) {
       }
       if (seen.has(f.ported)) bad(`${at}.ported is pinned twice (${f.ported})`);
       seen.add(f.ported);
+    }
+    // A ref that is not a full commit sha cannot identify one tree. A branch
+    // name would make the pin read as precise while naming a moving target.
+    // Required, never defaulted: an entry with no ref is an entry whose digest
+    // has no provenance, and the whole point of objectui#8288 is that a ref
+    // supplied from somewhere else is worse than one that is missing.
+    if (typeof f.ref !== 'string' || !HEX40.test(f.ref)) {
+      bad(`${at}.ref is not a 40-character commit sha — every entry states the ref its digest was taken from`);
     }
     if (typeof f.upstreamSha256 !== 'string' || !HEX64.test(f.upstreamSha256)) {
       bad(`${at}.upstreamSha256 is not a 64-character SHA-256 digest`);
@@ -318,7 +354,8 @@ function resyncCommand(pin, entry) {
     `      git -C <objectstack checkout> fetch origin main\n` +
     `      git -C <objectstack checkout> show origin/main:${entry.upstreamPath} > /tmp/upstream.mjs\n` +
     `      node scripts/check-upstream-port-parity.mjs --resync /tmp/upstream.mjs --ref <commit sha>\n` +
-    `    Upstream is ${pin.upstream.repo}; the pin currently names ${pin.upstream.ref}.`
+    `    Upstream is ${pin.upstream.repo}; the pin names ${entry.ref} for THIS file. ` +
+    `Other entries carry their own refs and are not affected by re-syncing this one.`
   );
 }
 
@@ -370,6 +407,29 @@ export function resyncWriteVerdict(portedPath, { allowGoverned = false } = {}) {
   };
 }
 
+/**
+ * The pin after re-syncing ONE entry: that entry gets the new ref and digest,
+ * and EVERY OTHER ENTRY IS RETURNED UNTOUCHED.
+ *
+ * Pure, so the self-test drives the real transform rather than a restatement of
+ * it -- and the property that matters is one a fixture can actually assert.
+ * objectui#8288: the old spelling was `pin.upstream.ref = ref`, a write to a
+ * ledger-wide field from inside a per-file operation, so re-syncing one file
+ * silently re-labelled the rest with a ref their digests were never taken from.
+ * The digests stayed correct and the gate stayed green, which is why nothing
+ * caught it for months. Keeping the untouched entries structurally untouched --
+ * rather than rewriting them with values that happen to match -- is what makes
+ * that class of bug unavailable here.
+ *
+ * @returns {object} a new pin; the argument is not mutated.
+ */
+export function resyncedPin(pin, portedPath, ref, upstreamSha256) {
+  return {
+    ...pin,
+    files: pin.files.map((f) => (f.ported === portedPath ? { ...f, ref, upstreamSha256 } : f)),
+  };
+}
+
 function main(root = ROOT) {
   let pin;
   try {
@@ -401,7 +461,7 @@ function main(root = ROOT) {
     const verdict = verifyFile(entry, portedText);
     if (verdict.ok) {
       console.log(
-        `✓ ${entry.ported}: byte-identical to ${pin.upstream.repo}@${pin.upstream.ref.slice(0, 9)}:` +
+        `✓ ${entry.ported}: byte-identical to ${pin.upstream.repo}@${entry.ref.slice(0, 9)}:` +
           `${entry.upstreamPath} modulo ${entry.divergences.length} declared divergence(s).`,
       );
       continue;
@@ -420,9 +480,16 @@ function main(root = ROOT) {
     );
     return 1;
   }
+  // ⛔ Never collapse the refs into one (objectui#8288). Entries are pinned at
+  // whichever ref each was last re-synced from, so naming a single one here
+  // would restate the false-provenance bug at the summary line -- the exact
+  // sentence that read as authoritative while two of three files were pinned
+  // elsewhere. Distinct refs are listed; one ref prints as one ref.
+  const refs = [...new Set(pin.files.map((f) => f.ref.slice(0, 9)))];
   console.log(
-    `✓ check-upstream-port-parity: ${pin.files.length} ported file(s) match ` +
-      `${pin.upstream.repo}@${pin.upstream.ref.slice(0, 9)} modulo their declared divergences. ` +
+    `✓ check-upstream-port-parity: ${pin.files.length} ported file(s) match ${pin.upstream.repo} ` +
+      `modulo their declared divergences, each at its own pinned ref ` +
+      `(${refs.length === 1 ? refs[0] : `${refs.length} distinct: ${refs.join(', ')}`}). ` +
       '(The digest is verified; the ref beside it is provenance and is NOT fetched.)',
   );
   return 0;
@@ -430,10 +497,11 @@ function main(root = ROOT) {
 
 function list(root = ROOT) {
   const pin = readPin(root);
-  console.log(`upstream: ${pin.upstream.repo}@${pin.upstream.ref}`);
+  console.log(`upstream: ${pin.upstream.repo}`);
   for (const entry of pin.files) {
     const portedText = readPorted(root, entry.ported);
     console.log(`\n${entry.ported}  <-  ${entry.upstreamPath}`);
+    console.log(`  pinned upstream ref   : ${entry.ref}`);
     console.log(`  pinned upstream digest: ${entry.upstreamSha256}`);
     console.log(`  declared divergences  : ${entry.divergences.length}`);
     for (const d of entry.divergences) {
@@ -501,12 +569,14 @@ function resync(argv, root = ROOT) {
   for (const r of write.reasons) (write.write ? console.log : console.error)(r);
   if (!write.write) return 2;
   writeFileSync(path.join(root, entry.ported), text, 'utf8');
-  entry.upstreamSha256 = digest(upstreamText);
-  pin.upstream.ref = ref;
-  writeFileSync(path.join(root, PIN_PATH), `${JSON.stringify(pin, null, 2)}\n`, 'utf8');
+  const next = resyncedPin(pin, entry.ported, ref, digest(upstreamText));
+  writeFileSync(path.join(root, PIN_PATH), `${JSON.stringify(next, null, 2)}\n`, 'utf8');
   console.log(
     `✓ re-synced ${entry.ported} from ${pin.upstream.repo}@${ref.slice(0, 9)}:${entry.upstreamPath} ` +
-      `(${entry.divergences.length} divergence(s) re-applied) and bumped the pin.`,
+      `(${entry.divergences.length} divergence(s) re-applied) and bumped THIS entry's ref and digest.`,
+  );
+  console.log(
+    `  Every other pinned file keeps its own ref: a re-sync speaks only for the file it read.`,
   );
   console.log('  ⚠️ Now run the ported file\'s own suites: a divergence that still APPLIES but no longer');
   console.log('     makes sense is invisible here and visible only there.');
@@ -551,6 +621,7 @@ function selfTest() {
   const ENTRY = {
     ported: 'scripts/x.mjs',
     upstreamPath: 'scripts/x.mjs',
+    ref: 'a'.repeat(40),
     upstreamSha256: digest(UP),
     divergences: DIVS,
   };
@@ -608,6 +679,47 @@ function selfTest() {
   t('a divergence whose upstream anchor vanished fails the re-sync loudly', lost.problems.length === 1);
   t('…naming the divergence that no longer applies', lost.problems.join(' ').includes('`extra-guard`'));
 
+  // ── row 4b: a re-sync speaks ONLY for the file it read (objectui#8288) ─────
+  // The defect this row exists for: the pin carried ONE global `upstream.ref`
+  // beside per-file digests, and `--resync` set that global field on every run.
+  // Re-syncing one file therefore re-labelled the others with a ref their
+  // digests had never been taken from -- and both stayed GREEN, because the
+  // digest is the assertion and their bytes were untouched. Only the provenance
+  // line was false, which is the failure direction this tree treats as worst.
+  // Driven through `resyncedPin`, the transform `resync()` itself applies, so a
+  // green row means the write path has the property rather than that a
+  // restatement of it does.
+  const OTHER = {
+    ported: 'scripts/y.mjs',
+    upstreamPath: 'scripts/y.mjs',
+    ref: 'b'.repeat(40),
+    upstreamSha256: digest('const other = 1;\n'),
+    divergences: [DIVS[0]],
+  };
+  const LEDGER = { upstream: { repo: 'o/r' }, files: [ENTRY, OTHER] };
+  const NEW_REF = 'c'.repeat(40);
+  const after = resyncedPin(LEDGER, ENTRY.ported, NEW_REF, digest(UP2));
+  t("--resync writes the re-synced entry's own ref", after.files[0].ref === NEW_REF);
+  t("…and that entry's digest", after.files[0].upstreamSha256 === digest(UP2));
+  // The card's case, stated as the byte-identity it has to be: not "the other
+  // entry looks right" but "the other entry was not written".
+  t(
+    '…and leaves every OTHER entry byte-identical — ref AND digest (objectui#8288)',
+    JSON.stringify(after.files[1]) === JSON.stringify(OTHER),
+  );
+  t(
+    '…specifically: the untouched entry keeps ITS ref, not the re-synced one',
+    after.files[1].ref === 'b'.repeat(40) && after.files[1].ref !== NEW_REF,
+  );
+  t(
+    '…and there is no global ref left for a re-sync to write through',
+    !('ref' in after.upstream),
+  );
+  t('…and the input pin is not mutated', LEDGER.files[0].ref === 'a'.repeat(40));
+  // The control leg. Without it every row above is satisfied by a transform
+  // that does nothing at all — the shape this whole file exists to refuse.
+  t('…while the re-synced entry itself DID change', JSON.stringify(after.files[0]) !== JSON.stringify(ENTRY));
+
   // ── row 5: --resync REFUSES to rewrite governed surface ────────────────────
   // The write path only. Every row drives `resyncWriteVerdict`, which is the
   // decision `resync()` makes, so a green row means the refusal is reachable
@@ -644,13 +756,19 @@ function selfTest() {
   t('…and drift in one still REDS, with no flag involved', !verifyFile(govEntry, driftedOutside).ok);
 
   // ── row 6: a malformed pin is REFUSED, never read as clean ─────────────────
-  const good = { upstream: { repo: 'o/r', ref: 'a'.repeat(40) }, files: [ENTRY] };
+  const good = { upstream: { repo: 'o/r' }, files: [ENTRY] };
   t('the fixture pin is well-formed', validatePin(good).length === 0);
   const broken = [
     ['a non-object pin', 'nope'],
     ['no files at all', { ...good, files: [] }],
-    ['a branch name where a commit sha belongs', { ...good, upstream: { repo: 'o/r', ref: 'main' }, }],
-    ['a short ref', { ...good, upstream: { repo: 'o/r', ref: 'abc1234' } }],
+    ['a branch name where a commit sha belongs', { ...good, files: [{ ...ENTRY, ref: 'main' }] }],
+    ['a short ref', { ...good, files: [{ ...ENTRY, ref: 'abc1234' }] }],
+    // objectui#8288: both directions of the retirement. An entry with no ref is
+    // a digest with no provenance; a pin still carrying the global field is the
+    // old spelling, and it is REFUSED rather than ignored — a value that is no
+    // longer read but still reads as authoritative is how this bug survived.
+    ['an entry with no ref of its own', { ...good, files: [{ ...ENTRY, ref: undefined }] }],
+    ['a RETIRED global upstream.ref', { ...good, upstream: { repo: 'o/r', ref: 'a'.repeat(40) } }],
     ['a repo that is not owner/name', { ...good, upstream: { repo: 'objectstack', ref: 'a'.repeat(40) } }],
     ['a digest that is not SHA-256', { ...good, files: [{ ...ENTRY, upstreamSha256: 'deadbeef' }] }],
     ['an absolute ported path', { ...good, files: [{ ...ENTRY, ported: '/etc/passwd' }] }],
@@ -695,7 +813,8 @@ function selfTest() {
     `✓ check-upstream-port-parity self-test: ${cases.length} cases pass — parity holds on an undrifted copy, ` +
       'drift outside the declared regions reds as a digest mismatch, drift inside one names its divergence, ' +
       'an ambiguous anchor is refused rather than applied, the pin-bump procedure round-trips (and a vanished ' +
-      'anchor fails it loudly), `--resync` refuses to rewrite governed surface unless the named flag is passed ' +
+      'anchor fails it loudly), a re-sync writes ONLY the re-synced entry\'s ref and digest and leaves every ' +
+      'other entry byte-identical, `--resync` refuses to rewrite governed surface unless the named flag is passed ' +
       'while the CHECK path stays ungated, and every malformed-pin shape is refused instead of read as clean.',
   );
   return 0;

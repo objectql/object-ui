@@ -42,13 +42,28 @@ import { RecordContextProvider } from '@object-ui/react';
 import { RecordDetailsRenderer } from '../renderers/record-details';
 
 /**
- * No `name` / `title` / `display_name` in the data on purpose: the renderer
- * drops the page-H1 title field from the body (`titleCandidates`), and a
- * fixture that tripped that would make an absence assertion below pass for the
- * wrong reason.
+ * No `name` / `title` / `display_name` VALUE in the data on purpose: the
+ * renderer drops the page-H1 title field from the body (`titleCandidates`), and
+ * a fixture that tripped that would make an absence assertion below pass for
+ * the wrong reason.
+ *
+ * ⚠️ Keeping that property took a change when the dedupe ladder gained the
+ * ADR-0079 resolver rung (objectui#8175). The ladder is no longer six literal
+ * names: it asks `deriveTitleField` first, and that walk ends in "the first
+ * title-eligible field by DECLARATION ORDER" — which on the old fixture was
+ * `phone`, so `555-0100` (asserted below) started disappearing from the grid.
+ * That was the ladder working correctly: with no name-ish field declared, the
+ * page H1 for this record IS the phone number, because `PageHeaderRenderer`
+ * resolves it through the very same derivation.
+ *
+ * So `name` is DECLARED here and left UNSET on the record. The derivation
+ * prefers it (name-ish exact beats declaration order), the record has no value
+ * there, and the value-keyed ladder therefore hides nothing — which is what
+ * this file wanted all along, now stated as a field rather than as an absence.
  */
 const objectSchema = {
   fields: {
+    name: { type: 'text', label: 'Name' },
     phone: { type: 'text', label: 'Phone' },
     email: { type: 'text', label: 'Email' },
     industry: { type: 'text', label: 'Industry' },
