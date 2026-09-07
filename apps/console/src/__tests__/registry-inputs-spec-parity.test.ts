@@ -254,11 +254,47 @@ import {
   tombstonedShapeKeys,
 } from '@object-ui/test-support';
 
-// The two graphs whose registrations this file reads, at module scope rather
-// than in a hook: their cold transform is billed to the import phase, which has
-// no test/hook timeout (AGENTS.md §测试纪律, objectui#3010).
+// The graphs whose registrations this file reads, at module scope rather than
+// in a hook: their cold transform is billed to the import phase, which has no
+// test/hook timeout (AGENTS.md §测试纪律, objectui#3010).
 import '@object-ui/components';
 import '../register-plugins';
+
+// ── objectui#8176: the blocks `register-plugins` alone cannot show this gate ──
+//
+// `register-plugins` is the console's REAL block layer, and importing it is what
+// makes this gate read the registrations the console ships rather than a
+// hand-copied list. It is not sufficient on its own, and the gap was silent for
+// as long as this file existed.
+//
+// Most of that module's plugin blocks are registered with
+// `ComponentRegistry.registerLazy`, which files a STUB carrying only the meta
+// `registerLazy` was handed — no `inputs`, until the chunk loads. `getConfig`,
+// which `declaredInputEntries` below calls, is loaded-only BY DESIGN (its own
+// docblock: it answers "can I render this right now", and callers read
+// `.component` off the result). So for a lazily-registered block `getConfig`
+// returned `undefined`, `declaredInputs` returned `null`, and the block landed
+// in neither `covered` (filter: `length > 0`) nor `registeredWithoutInputs`
+// (filter: `length === 0`, which `null` does not satisfy). Unjudged AND
+// uncounted — the gate reported green over a population it never read.
+//
+// MEASURED on `origin/main` `0c8dbc492` before this import existed: 42 blocks in
+// `ComponentPropsMap`, 27 judged, 7 counted as propless, and 8 in neither set.
+// Two of those 8 — `object-calendar` and `object-kanban` — are spec-carried
+// blocks this repo registers WITH inputs, hidden only by the lazy stub. That is
+// the structural reason objectui#7712 (a spec-declared `filter` published by
+// neither registration) was invisible to this direction.
+//
+// Loading the two plugin packages here is the fix, and the import is the whole
+// of it: their top-level `ComponentRegistry.register()` calls replace the stubs
+// with real registrations, `getConfig` answers, and both blocks enter `covered`.
+// The cost is import-phase transform, which is the right place for it (the same
+// note as above). `no spec-carried block is registered but unloaded` below is
+// what keeps this list correct: a future plugin block that reaches
+// `ComponentPropsMap` while the console registers it lazily fails there, by
+// name, instead of quietly rejoining the blind spot.
+import '@object-ui/plugin-kanban';
+import '@object-ui/plugin-calendar';
 
 /** This block's spec props schema, or `undefined` when this pin has none. */
 const specSchema = (type: string): unknown => (ComponentPropsMap as Record<string, unknown>)[type];
@@ -393,9 +429,22 @@ function undiscoverableSpecKeys(type: string): string[] {
 
 /**
  * The blocks this gate judges: an entry of `ComponentPropsMap` that this repo
- * registers with at least one `inputs` entry. A block with no `inputs` — or one
- * present only as a `registerLazy` stub, which has none yet — has no declaration
- * to be wrong.
+ * registers with at least one `inputs` entry. A block with no `inputs` has no
+ * declaration to be wrong.
+ *
+ * ⚠️ This set is a PARTITION MEMBER, not a standalone reading, and objectui#8176
+ * is why the distinction is written down. Every `ComponentPropsMap` entry must
+ * land in exactly one of three places — here, in `registeredWithoutInputs`
+ * below, or in `UNJUDGED_SPEC_BLOCKS` with a reason — and
+ * `accounts for every spec-carried block` asserts it. Before that assertion the
+ * three sets did not have to add up, so a block could be absent from all of
+ * them: not judged, and not counted as unjudged either. Eight were.
+ *
+ * The comment this docblock replaces said a block "present only as a
+ * `registerLazy` stub, which has none yet — has no declaration to be wrong."
+ * That reading was the defect stated as if it were the design: a lazy stub's
+ * emptiness says nothing about the registration behind it, and for
+ * `object-calendar` / `object-kanban` there WAS a declaration, and it WAS wrong.
  */
 const covered = Object.keys(ComponentPropsMap)
   .filter((type) => (declaredInputs(type) ?? []).length > 0)
@@ -511,8 +560,31 @@ const PINNED_EXPECTED_COVERED = [
  * current `main`, and hard-coding only the eighteen fails the day the pin moves;
  * both readings are correct facts about different installed contracts.
  */
+/**
+ * The two spec-carried blocks the console registers ONLY with `registerLazy`,
+ * newly judged by objectui#8176.
+ *
+ * Pin-INDEPENDENT, unlike the two groups above: `@objectstack/spec` has carried
+ * both since well before the GA line, and this repo has registered both with
+ * `inputs` for just as long (`plugin-kanban/src/index.tsx:208`+,
+ * `plugin-calendar/src/index.tsx:293`/`:303`). Nothing about either side moved.
+ * What moved is this FILE — it now loads the two plugin packages (see the import
+ * block at the top), so `getConfig` answers for them and the reverse direction
+ * reaches them for the first time.
+ *
+ * Kept as its own group rather than folded into `PINNED_EXPECTED_COVERED` so the
+ * transition stays legible: a reader asking "why did this gate's population
+ * change without a pin bump" gets the answer from the name and this docblock,
+ * not from `git log`.
+ */
+const LAZY_REGISTERED_BLOCKS = [
+  'object-calendar',
+  'object-kanban',
+];
+
 const EXPECTED_COVERED = [
   ...PINNED_EXPECTED_COVERED,
+  ...LAZY_REGISTERED_BLOCKS,
   ...(specCarriesGaBlocks ? GA_ONLY_BLOCKS : []),
   ...(specCarries171Blocks ? MINOR_17_1_BLOCKS : []),
 ].sort();
@@ -543,6 +615,57 @@ const EXPECTED_WITHOUT_INPUTS = [
   'nav:breadcrumb',
   'nav:menu',
 ];
+
+/**
+ * The third and last place a `ComponentPropsMap` entry may land: blocks this
+ * gate CANNOT judge, each with the reason it cannot (objectui#8176).
+ *
+ * ## Why a ledger and not an absence
+ *
+ * "Not judged" used to be spelled as absence — a block simply failed both
+ * filters and vanished from every set this file computes. Absence is the one
+ * state a gate cannot report on, and it is how eight blocks stayed outside this
+ * gate unnoticed for its whole life, two of them (`object-calendar`,
+ * `object-kanban`) with a real, wrong declaration behind a lazy stub. Fixing
+ * those two by loading them (see the import block) closes the instance; this
+ * ledger plus `accounts for every spec-carried block` closes the CLASS, because
+ * a block can no longer leave the judged population without a line here saying
+ * so and a diff someone reviews.
+ *
+ * ## Two classes, each mechanically checked so an entry cannot rot
+ *
+ * `every unjudged-block ledger entry still describes a block this gate cannot
+ * judge` asserts the reason, not just the name:
+ *
+ *   - EMPTY SPEC SHAPE — `ComponentPropsMap[type]` accepts no top-level key at
+ *     all, so neither direction has a question to ask. Whether this repo happens
+ *     to register the block is irrelevant to that, which is why it is the
+ *     recorded reason even for the two the app shell does register. Asserted as
+ *     `specTopLevelKeys(type).length === 0`, so the day upstream gives one of
+ *     these blocks props, this entry goes red and the block gets judged.
+ *   - NOT REGISTERED, DELIBERATELY — this repo renders no such block on purpose,
+ *     and the refusal is written at the site that refuses. Asserted as absent
+ *     from `ComponentRegistry.getKnownTypes()` (lazy stubs INCLUDED, so the
+ *     assertion cannot be satisfied by the very stub-blindness objectui#8176 is
+ *     about), so registering one of them forces this entry out.
+ *
+ * `aria` is not a member of the empty-shape reasoning: it is a key on non-empty
+ * shapes and has its own uniform cover in `GLOBALLY_UNPUBLISHED_SPEC_KEYS`.
+ */
+const UNJUDGED_SPEC_BLOCKS: Record<string, string> = {
+  'ai:chat_window':
+    'NOT REGISTERED, DELIBERATELY. `packages/components/src/renderers/placeholders.tsx` omits it from `PROTOCOL_COMPONENTS` in so many words — the floating chat overlay (plugin-chatbot) is the canonical entry point, an inline page-level chat window is not a supported surface, and a page schema referencing it should raise a loud unknown-type error rather than draw a placeholder. `app-shell/src/views/metadata-admin/previews/block-types.ts` records the same refusal. objectui#8176.',
+  'app:launcher':
+    'EMPTY SPEC SHAPE. `ComponentPropsMap[app:launcher]` declares no props at all, so there is nothing for either direction to judge. It IS registered — `app-shell/src/views/app-launcher-renderer.tsx` registers it propless for exactly this reason, and says so — but by `@object-ui/app-shell`, which this file does not import; the empty shape is the load-bearing half either way. objectui#8176.',
+  'element:filter':
+    'EMPTY SPEC SHAPE. The pin declares no top-level key for it, and no package in this repo registers the tag. Nothing to judge on either count. objectui#8176.',
+  'element:form':
+    'NOT REGISTERED, DELIBERATELY. `app-shell/src/views/metadata-admin/previews/block-types.ts` records the reason verbatim: no renderer, use the object-bound `object-form` block, which IS registered and IS judged here. objectui#8176.',
+  'global:notifications':
+    'EMPTY SPEC SHAPE. Same shape and same reasoning as `app:launcher` above: `app-shell/src/views/global-notifications-renderer.tsx` registers it propless because the spec shape is empty, and that registration is not in this file\'s import graph. objectui#8176.',
+  'user:profile':
+    'EMPTY SPEC SHAPE. Declared by the spec with no top-level key; in this repo it exists only as a `PROTOCOL_COMPONENTS` placeholder name, which is a scaffold rather than a renderer and publishes no authoring surface. objectui#8176.',
+};
 
 /*
  * `SPEC_SHAPE_EMPTY_ON_THE_PIN` — DELETED on the @objectstack/spec 17.0.0-rc.6
@@ -841,6 +964,60 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
     '@deprecated in ObjectGridSchema ("Moved to top-level resizable"); GA describes it as the "Alternate spelling of `resizable`". Read as back-compat, deliberately not published — the canonical `resizable` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
   'object-grid.title':
     '@deprecated in ObjectGridSchema ("Use label instead"); GA describes it as the "Fallback for `label` (the renderer reads `label || title`)". Read as back-compat, deliberately not published — the canonical `label` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+
+
+  // ── objectui#8176: the two lazily-registered blocks, judged for the first ──
+  //     time. Eighteen keys, three owners, every one of them A DECLARATION
+  //     SOMEONE OWES (the arm this map's docblock above says must name itself).
+  //
+  //     These are NOT a new divergence. The registrations and the spec entries
+  //     are unchanged; what changed is that this file now loads the two plugin
+  //     packages, so `getConfig` answers for them and the reverse direction
+  //     reaches them at all. Eighteen is the "dozens" case this file already
+  //     owns a route for (see the member-pin transition note below): list them
+  //     BY NAME, cite the issue that owns each, and let the existing dangling
+  //     and stale checks force their deletion the moment a key is declared.
+  //     `the objectui#8176 backlog has a ceiling` below stops the list growing.
+  //
+  //     ⛔ Not a licence to keep them unpublished — the bar is unchanged. A key
+  //     the renderer honours gets DECLARED at its registration site, and the
+  //     entry goes stale in the same change.
+  'object-kanban.filter':
+    'Read by the renderer and declared by the spec, published by neither the four `plugin-kanban` registrations nor the two `plugin-calendar` ones. objectui#7712 is open on exactly this key on exactly these two blocks and owns the declaration; this entry is its cover while it is open. Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8176.',
+  'object-calendar.filter':
+    'The `object-calendar` half of the same key and the same card: objectui#7712 measured both renderers reading `schema.filter` while neither registration publishes it. Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8176.',
+  'object-calendar.sort':
+    'objectui#8171 is open on exactly this key — `ObjectCalendar` reads `schema.sort` and the spec declares it, one key over from objectui#7712. That card owns the declaration and its landing deletes this entry. Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8176.',
+  'object-kanban.groupBy':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.data':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.cardTitle':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.titleField':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.cardFields':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.swimlaneField':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.grouping':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.quickAdd':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.coverImageField':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-kanban.conditionalFormatting':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.defaultView':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.data':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.staticData':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.locale':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
+  'object-calendar.loading':
+    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
 
   // ── record:reference_rail.entries — a nested collection, newly JUDGED ──────
   //                                                                   (1 key)
@@ -1618,6 +1795,17 @@ const MULTI_KIND_MEMBER_CONTRACTS: Record<string, string> = {
 // set: 77 array/object-armed inputs across 22 blocks, of which 19 already have a
 // pin that meets both the criterion and the locator. 58 do not.
 //
+// ⚠️ THAT CENSUS WAS TAKEN OVER AN INCOMPLETE POPULATION — objectui#8176. Two
+// spec-carried blocks were missing from `covered` because `getConfig` is
+// loaded-only and the console registers plugin blocks with `registerLazy`, so
+// 77/22/58 was never the whole tree. Re-measured over the corrected population:
+// 81 array/object-armed inputs across 24 blocks, 19 pinned, 62 not. The four
+// that moved are `object-calendar.calendar` / `.dataSource` and
+// `object-kanban.columns` / `.dataSource` — pre-existing declarations, named in
+// `NEWLY_JUDGED_UNPINNED_MEMBERS`, and the reason
+// `MEMBER_PIN_EXEMPTION_CEILING` reads 62. objectui#8071's work is unchanged in
+// kind and four keys longer in extent.
+//
 // 58 is the transition case, and this file already owns the pattern for it —
 // `OFF_SPEC_EXEMPTIONS` / `UNPUBLISHED_EXEMPTIONS` / `OFF_SPEC_ARM_EXEMPTIONS`
 // are explicit, reasoned, issue-backed, and go RED once stale. This is the same
@@ -1806,6 +1994,27 @@ const AWAITING_A_PIN =
   'delete this entry in the same change that registers it.';
 
 /**
+ * The reason the four keys objectui#8176 brought INTO this population carry.
+ *
+ * Separate from `AWAITING_A_PIN` on purpose, because the two say different
+ * things about how the key got here and a reader must be able to tell them
+ * apart. An `AWAITING_A_PIN` key was in objectui#8068's measured 77. These four
+ * were not — not because anything about them changed, but because their blocks
+ * were outside this file's `covered` set entirely while the console's
+ * `registerLazy` stubs hid them from `getConfig`. The declarations are older
+ * than the measurement that missed them.
+ *
+ * Same owner and same exit as their 58 neighbours: objectui#8071 writes the pin,
+ * and the entry is deleted in the change that registers it.
+ */
+const AWAITING_A_PIN_NEWLY_JUDGED =
+  'No per-block member pin today, and NOT one of objectui#8068\'s measured 77: this key was ' +
+  'invisible to that measurement because its block sat outside `covered` behind a `registerLazy` ' +
+  'stub until objectui#8176 loaded it. The declaration is older than the census that missed it, ' +
+  'so this is a correction to the measured population and not a newly added array key. ' +
+  'objectui#8071 owns writing the pin; delete this entry in the same change that registers it.';
+
+/**
  * Array/object-armed inputs accepted WITHOUT a member pin for now, each with the
  * reason. Key format: `BLOCK.INPUT`.
  *
@@ -1910,7 +2119,31 @@ const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
   'record:related_list.dataSource': AWAITING_A_PIN,
   'record:related_list.filter': AWAITING_A_PIN,
   'record:related_list.sort': AWAITING_A_PIN,
+
+  // objectui#8176 — the four this direction could not see. See
+  // `NEWLY_JUDGED_UNPINNED_MEMBERS` below, which pins them BY NAME so the
+  // ceiling correction cannot absorb anything else.
+  'object-calendar.calendar': AWAITING_A_PIN_NEWLY_JUDGED,
+  'object-calendar.dataSource': AWAITING_A_PIN_NEWLY_JUDGED,
+  'object-kanban.columns': AWAITING_A_PIN_NEWLY_JUDGED,
+  'object-kanban.dataSource': AWAITING_A_PIN_NEWLY_JUDGED,
 };
+
+/**
+ * The four ids the ceiling below moves for, named so the move is auditable.
+ *
+ * A ceiling that goes up is worth exactly as much as the account of why, and
+ * "+4, trust me" is not an account. Pinning the four by name means the
+ * correction admits four SPECIFIC pre-existing keys and nothing else: a fifth
+ * entry cannot hide inside the same headroom, because `the member-pin exemption
+ * list only ratchets DOWN` still reads the total.
+ */
+const NEWLY_JUDGED_UNPINNED_MEMBERS = [
+  'object-calendar.calendar',
+  'object-calendar.dataSource',
+  'object-kanban.columns',
+  'object-kanban.dataSource',
+];
 
 /**
  * How many keys may be exempt. Ratchet: this number may only ever go DOWN.
@@ -1919,8 +2152,37 @@ const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
  * cheapest way to green a newly added array-typed input is an exemption entry
  * with the same reason as its 58 neighbours — which is exactly the "voluntary"
  * state this direction was built to end, one entry further in.
+ *
+ * ## 58 -> 62, and why that is a CORRECTION rather than a loosening
+ *
+ * ⚠️ The one number in this file that has gone UP. It is the judgement call in
+ * objectui#8176's change and it is written out here rather than left in a diff,
+ * because a reviewer who disagrees with the reading should be able to find it
+ * without reading the whole card.
+ *
+ * The 58 was measured "over this file's own `covered` set" — and objectui#8176
+ * is the finding that `covered` was wrong: it held 27 of the 42 spec-carried
+ * blocks, because `getConfig` is loaded-only and the console registers plugin
+ * blocks with `registerLazy`. `object-calendar` and `object-kanban` were never
+ * offered to objectui#8068's census. Over the corrected population the same
+ * measurement, by the same method, yields 81 array/object-armed inputs across 24
+ * blocks, 19 pinned and 62 not.
+ *
+ * So this raise admits no new key. It admits four PRE-EXISTING declarations that
+ * the census could not see, named individually in
+ * `NEWLY_JUDGED_UNPINNED_MEMBERS` above and asserted by name below. Nothing
+ * about what the ratchet forbids changes: a genuinely new array-typed input
+ * still cannot be absorbed, because 62 is now the true measured floor and the
+ * count may still only go down from it.
+ *
+ * ⛔ The reading a future edit must not take from this: that a ceiling may be
+ * raised to fit a list. The ONLY thing that licensed it here is that the
+ * population itself was mis-measured, and that fact is independently asserted —
+ * if `states the size of the population it judges` and
+ * `no spec-carried block is registered but unloaded` ever stop holding, this
+ * paragraph stops being true and the number owes a re-derivation, not a bump.
  */
-const MEMBER_PIN_EXEMPTION_CEILING = 58;
+const MEMBER_PIN_EXEMPTION_CEILING = 62;
 
 /**
  * Every test file a member pin can live in, as LAZY `?raw` loaders.
@@ -2017,6 +2279,149 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
   it('pins the spec-carried blocks that are registered with no inputs', () => {
     expect(registeredWithoutInputs).toEqual(EXPECTED_WITHOUT_INPUTS);
+  });
+
+  it('accounts for every spec-carried block — judged, propless, or ledgered', () => {
+    // THE ASSERTION objectui#8176 EXISTS FOR, and the one that turns this gate's
+    // population from an accident into a statement.
+    //
+    // Every other assertion in this file is generated from `covered`. That makes
+    // `covered` the gate's whole reach, and until this test there was nothing
+    // anywhere saying what SHOULD be in it — only `EXPECTED_COVERED`, which
+    // pins the set it happens to hold. A block that fell out of `covered` and
+    // out of `registeredWithoutInputs` fell out of both pins at once and left no
+    // trace: not judged, not counted as unjudged, not reported. Eight did,
+    // measured on `origin/main` `0c8dbc492`.
+    //
+    // The three sets are now required to PARTITION `ComponentPropsMap`, so
+    // absence is no longer expressible. A block leaving the judged population
+    // has exactly one way to do it: a `UNJUDGED_SPEC_BLOCKS` entry, written by
+    // hand, with a reason, in a diff someone reviews.
+    const specBlocks = Object.keys(ComponentPropsMap).sort();
+    const accounted = [
+      ...covered,
+      ...registeredWithoutInputs,
+      ...Object.keys(UNJUDGED_SPEC_BLOCKS),
+    ].sort();
+    expect(
+      specBlocks.filter((type) => !accounted.includes(type)),
+      'spec-carried blocks this gate neither judges nor accounts for — add a ' +
+        'UNJUDGED_SPEC_BLOCKS entry with the reason, or make them judgeable',
+    ).toEqual([]);
+    // …and the converse, so the ledger cannot name a block the spec dropped.
+    expect(
+      accounted.filter((type) => !specBlocks.includes(type)),
+      'accounted for a block ComponentPropsMap does not carry',
+    ).toEqual([]);
+    // Exactly once each: a block may not be both judged and ledgered.
+    expect(accounted, 'a block is accounted for twice').toEqual(specBlocks);
+  });
+
+  it('states the size of the population it judges', () => {
+    // The census, in one place, as one readable object. Redundant with the exact
+    // membership pins above BY CONSTRUCTION and kept anyway: the failure mode
+    // objectui#8176 is about was never a wrong name, it was a population nobody
+    // could see the size of. A reader (and a diff) gets all four numbers here.
+    expect({
+      specCarried: Object.keys(ComponentPropsMap).length,
+      judged: covered.length,
+      registeredPropless: registeredWithoutInputs.length,
+      ledgeredUnjudgeable: Object.keys(UNJUDGED_SPEC_BLOCKS).length,
+    }).toEqual({
+      specCarried: 42,
+      judged: 29,
+      registeredPropless: 7,
+      ledgeredUnjudgeable: 6,
+    });
+    // Non-vacuity, stated rather than implied by the numbers above.
+    expect(covered.length).toBeGreaterThan(0);
+  });
+
+  it('no spec-carried block is registered but unloaded', () => {
+    // The MECHANISM behind objectui#8176, asserted so it cannot come back
+    // silently — and the reason the two eager plugin imports at the top of this
+    // file are not merely a convenience.
+    //
+    // `getConfig` is loaded-only by design, so a block present only as a
+    // `registerLazy` stub reads exactly like a block nobody registered: both
+    // answer `undefined`. `hasLazy` is what tells them apart, and it is the one
+    // question this file never asked. A block that answers YES here has a
+    // declaration this gate is not reading — which is the whole defect, and the
+    // reason objectui#7712 was invisible to a direction written to catch it.
+    //
+    // The remedy is an eager import, never a ledger entry: the declaration
+    // exists and is reachable, so `UNJUDGED_SPEC_BLOCKS` would be a false
+    // statement about it. `assertFullyLoaded` in `sdui-parser` makes the same
+    // demand of manifest generation for the same reason.
+    const registeredButUnloaded = Object.keys(ComponentPropsMap)
+      .filter((type) => ComponentRegistry.hasLazy(type))
+      .filter((type) => ComponentRegistry.getConfig(type) === undefined)
+      .sort();
+    expect(
+      registeredButUnloaded,
+      'these blocks are registered lazily and this file has not loaded them, so ' +
+        'their `inputs` are invisible to both directions — add an eager import ' +
+        'of the owning plugin package alongside the two at the top of this file',
+    ).toEqual([]);
+  });
+
+  it('every unjudged-block ledger entry still describes a block this gate cannot judge', () => {
+    // The ledger's own rot check. An entry states WHY the block is unjudgeable,
+    // and both reasons it may state are mechanically decidable — so an entry
+    // that stops being true fails here instead of quietly excusing a block that
+    // became judgeable.
+    expect(Object.keys(UNJUDGED_SPEC_BLOCKS).length).toBeGreaterThan(0);
+    for (const [type, reason] of Object.entries(UNJUDGED_SPEC_BLOCKS)) {
+      expect(reason, `${type}'s ledger reason cites no issue`).toMatch(/#\d+/);
+      expect(
+        Object.keys(ComponentPropsMap),
+        `${type} is ledgered but the spec no longer carries it — delete the entry`,
+      ).toContain(type);
+      if (reason.startsWith('EMPTY SPEC SHAPE')) {
+        expect(
+          specTopLevelKeys(type),
+          `${type} is ledgered as having an empty spec shape, and it does not — ` +
+            'it now has an authoring surface, so it must be judged',
+        ).toEqual([]);
+      } else {
+        // NOT REGISTERED, DELIBERATELY. `getKnownTypes` includes pending lazy
+        // stubs on purpose: a stub is a registration, and satisfying this
+        // assertion with one would be the exact blindness objectui#8176 is about.
+        expect(
+          ComponentRegistry.getKnownTypes(),
+          `${type} is ledgered as deliberately unregistered, and something ` +
+            'registers it — judge it instead',
+        ).not.toContain(type);
+      }
+    }
+  });
+
+  it('the two lazily-registered blocks are judged, with a real declaration behind them', () => {
+    // The instance pin behind the mechanism pin above.
+    //
+    // ⚠️ It deliberately does NOT assert `hasLazy` on these two, and the reason
+    // is the same registry behaviour that makes the mechanism assertion exact:
+    // `register()` DELETES the matching `lazyEntries` keys, so a stub that has
+    // been loaded stops answering `hasLazy` at all. Measured, not assumed —
+    // both answer false here, precisely because the eager imports at the top of
+    // this file replaced their stubs. That is also why
+    // `registeredButUnloaded` above can never name a loaded block: the two
+    // conditions it ANDs are only ever true together for a stub still pending.
+    //
+    // What is asserted instead is the fact the blind spot hid: there is a real
+    // declaration behind each of these names, with inputs, being judged. If a
+    // future change drops the eager imports, the console's `registerLazy` stubs
+    // come back, `hasLazy` starts answering true again, and the mechanism
+    // assertion above reddens by name — which is the guard this instance pin
+    // does not need to duplicate.
+    for (const type of LAZY_REGISTERED_BLOCKS) {
+      expect(
+        (declaredInputs(type) ?? []).length,
+        `${type} is registered without inputs, or its plugin package stopped ` +
+          'being loaded by this file',
+      ).toBeGreaterThan(0);
+      expect(covered, `${type} is not being judged`).toContain(type);
+    }
   });
 
   it('resolves a non-empty accepted key set for each covered block', () => {
@@ -2338,6 +2743,37 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
         return !undiscoverableSpecKeys(type).includes(specKey);
       });
     expect(stale).toEqual([]);
+  });
+
+  it('the objectui#8176 backlog has a ceiling — it may shrink, never grow', () => {
+    // The transition list's other half, and the reason a "dozens" case is
+    // survivable at all. The stale check above forces an entry OUT once its key
+    // is declared; without a ceiling nothing stops the cheap move in the other
+    // direction — greening a fresh divergence on these two blocks by writing a
+    // nineteenth entry instead of declaring the input.
+    //
+    // Eighteen is the MEASURED backlog at the moment these blocks entered the
+    // population (objectui#8176), not a budget: eleven undiscoverable keys on
+    // `object-kanban`, seven on `object-calendar`. Landing objectui#8201 /
+    // objectui#7712 / objectui#8171 lowers it. A new divergence on these blocks
+    // is a plain defect and gets declared, exactly as it would on any other
+    // covered block.
+    const backlog = Object.keys(UNPUBLISHED_EXEMPTIONS).filter((key) =>
+      LAZY_REGISTERED_BLOCKS.includes(splitExemptionKey(key)[0]),
+    );
+    expect(
+      backlog.length,
+      'a new unpublished-key exemption was added on a block objectui#8176 newly ' +
+        'judged — declare the input at its registration site instead; the ' +
+        'backlog list is shrink-only',
+    ).toBeLessThanOrEqual(18);
+    // Lower it here when the owning cards land, so the ceiling keeps ratcheting
+    // rather than banking the headroom their fixes free up.
+    expect(
+      backlog.length,
+      'the objectui#8176 backlog shrank — lower the ceiling above to match, in ' +
+        'the same change that declared the input',
+    ).toBe(18);
   });
 
   it('the eight tombstoned keys are recognised, not exempted — and not published either', () => {
@@ -3021,10 +3457,41 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
   it('the member-pin exemption list only ratchets DOWN', () => {
     // The other half. A new array-typed key must be answered with a pin, not
-    // with a 59th entry carrying the same reason as its neighbours — that move
+    // with a 63rd entry carrying the same reason as its neighbours — that move
     // is what made the discipline voluntary in the first place, one layer in.
     expect(Object.keys(MEMBER_PIN_EXEMPTIONS).length).toBeLessThanOrEqual(
       MEMBER_PIN_EXEMPTION_CEILING,
     );
+  });
+
+  it('the ceiling correction admits exactly the four keys objectui#8176 made visible', () => {
+    // The audit of the one number in this file that went up. The ceiling moved
+    // 58 -> 62 because the population it was measured over was wrong, not
+    // because four keys needed room — and the difference between those two
+    // sentences is only checkable if the four are named.
+    //
+    // Both directions are asserted. Every named key must really be exempt (so
+    // the list cannot claim credit for headroom it does not use), and every
+    // exemption on a newly judged block must be one of the four (so a fifth
+    // cannot ride in on the same correction).
+    for (const id of NEWLY_JUDGED_UNPINNED_MEMBERS) {
+      expect(
+        Object.keys(MEMBER_PIN_EXEMPTIONS),
+        `${id} is named as part of the objectui#8176 ceiling correction but is ` +
+          'not exempt — delete it from the list and lower the ceiling',
+      ).toContain(id);
+      expect(
+        MEMBER_PIN_EXEMPTIONS[id],
+        `${id} carries the generic reason; it was not in objectui#8068's census`,
+      ).toBe(AWAITING_A_PIN_NEWLY_JUDGED);
+    }
+    const onNewlyJudgedBlocks = Object.keys(MEMBER_PIN_EXEMPTIONS).filter((id) =>
+      LAZY_REGISTERED_BLOCKS.includes(splitExemptionKey(id)[0]),
+    );
+    expect(
+      onNewlyJudgedBlocks.sort(),
+      'a member-pin exemption was added on a block objectui#8176 newly judged ' +
+        'that is not part of the measured correction — it needs a pin, not room',
+    ).toEqual([...NEWLY_JUDGED_UNPINNED_MEMBERS].sort());
   });
 });
