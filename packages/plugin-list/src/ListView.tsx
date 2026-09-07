@@ -2162,7 +2162,24 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const resolvable: ViewType[] = ['grid'];
 
     // Check for Kanban capabilities (spec config takes precedence)
-    if (schema.kanban?.groupByField || schema.kanban?.groupField || schema.options?.kanban?.groupField) {
+    //
+    // All FOUR spellings, because the lane can be bound in either nesting and
+    // in either vocabulary. The `options.kanban` bag was asked for the LEGACY
+    // `groupField` only, so a producer writing the SPEC key into the bag was
+    // invisible here while rendering perfectly — the render branch below merges
+    // the bag and resolves `groupByField || groupField`, so the gate recognized
+    // strictly less than what renders. That is objectui#5042 (`map`) and
+    // objectui#7544 (`chart`) a third time: the gate and the seam must answer
+    // one question. It went live with objectui#8193, which moved app-shell's
+    // `ObjectView` onto the canonical key — measured before and after, the
+    // Kanban toggle disappeared from every object view until this rung existed.
+    // ⛔ The alias rungs stay: stored metadata still authors `groupField`.
+    if (
+      schema.kanban?.groupByField ||
+      schema.kanban?.groupField ||
+      schema.options?.kanban?.groupByField ||
+      schema.options?.kanban?.groupField
+    ) {
       resolvable.push('kanban');
     }
 
