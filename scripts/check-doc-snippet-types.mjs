@@ -777,8 +777,6 @@ const UNGATED_DOCS = {
     'what is left is fragment shape, and no gate reads this page\'s import names.',
   'packages/fields/README.md':
     '2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
-  'packages/plugin-charts/README.md':
-    '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-editor/README.md':
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-map/README.md':
