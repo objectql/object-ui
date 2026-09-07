@@ -60,10 +60,24 @@
  * What this file adds on top is the part a type cannot state: that the key side
  * is complete in both locales (with the rest of the walk), and that the literal
  * side is an inventory somebody has to argue with before "helpfully" translating
- * a JSON sample. The last describe holds that inventory.
+ * a JSON sample. The third describe holds that inventory.
+ *
+ * ## objectui#8368 — the other direction, and why it is the LAST describe
+ *
+ * Every assertion above answers "did the key ARRIVE?". None of them can answer
+ * "did the retired key LEAVE?" — a leftover key resolves in both locales, so it
+ * is green everywhere here by construction. Four renames in a row closed that
+ * half with a hand-written pin naming the one key they retired; the last
+ * describe replaces the convention with an instrument, scoped to exactly the
+ * subset where deadness is mechanically decidable. Its own header states the
+ * reader set it measured and, at equal length, what it deliberately does not
+ * cover.
  */
 
 import { describe, it, expect } from 'vitest';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { BLOCK_CONFIG, type BlockPropField, type PlaceholderSpec } from '../block-config';
 import { t } from '../../i18n';
 
@@ -443,5 +457,263 @@ describe('placeholders that must NOT be translated (#3979)', () => {
       (p) => `${p.where}: '${p.spec.literal}'`,
     );
     expect(keys).toEqual([]);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * objectui#8368 — the RETIREMENT direction.
+ *
+ * Everything above is the ARRIVAL half: a key BLOCK_CONFIG implies must exist
+ * in both locale tables. A designer rename owes a second half — the retired key
+ * must LEAVE both tables — and until this describe nothing measured it. The two
+ * repo-wide i18n gates cannot: `check:i18n-keys` and `check:i18n-dead-keys`
+ * both read `packages/i18n/src/locales/`, and `engine.inspector.pageBlock.*`
+ * lives only in `metadata-admin/i18n.ts` (which says so in its own header). So
+ * each of the four renames so far (objectui#3829, objectui#5212, objectui#8279,
+ * objectui#8278) shipped with a HAND-WRITTEN pin naming the one key it retired
+ * — a convention, not an instrument, and the fifth rename is one forgotten pin
+ * away from leaving dead vocabulary the next author reads as a live surface.
+ *
+ * ## What "retired" means here, operationally
+ *
+ * A key is retired when NOTHING CAN REACH IT — not when it merely looks unused.
+ * The reader set for this namespace was measured rather than assumed, and it
+ * has exactly two members:
+ *
+ *   1. BLOCK_CONFIG, through the positional derivation this file already
+ *      performs. Four families — `field.`, `add.`, `option.`, `placeholder.` —
+ *      are produced by nothing else: `SITES` above is the complete enumeration
+ *      of what the table can ask for, and the sibling assertions "stores
+ *      exactly the key its position implies" and "no label is left as display
+ *      text" are what make that enumeration exhaustive rather than a sample.
+ *   2. Literal `engine.inspector.pageBlock.…` strings in shipped source —
+ *      `PageBlockInspector.tsx`'s panel chrome and `PagePreview.tsx`'s outline
+ *      title. These have no position to derive from, so they are read back OUT
+ *      of the source, the same way `PageBlockInspector.i18n.test.tsx` reads its
+ *      own chrome key list rather than hand-copying it.
+ *
+ * Measured on this checkout: every one of the 171 `engine.inspector.pageBlock.*`
+ * keys in each table is covered by one of those two, and no key is constructed
+ * dynamically anywhere (`grep` for a template head under this prefix returns
+ * only prose in CHANGELOG.md and comments). That is what makes the namespace a
+ * CLOSED WORLD and therefore mechanically decidable.
+ *
+ * ## What this deliberately does NOT cover — say it loudly (objectui#8068)
+ *
+ * ONLY `engine.inspector.pageBlock.*`. The tables hold 1660 keys across three
+ * top-level namespaces (`engine.` 1371, `designer.` 178, `perm.` 111), and the
+ * rest of them are NOT a closed world: they are reached through dynamic
+ * construction (`engine.fieldType.<type>`, `engine.flowNode.<type>.label` via
+ * `translateNodeLabel`, `engine.diagnostics.severity.<level>`, …). Measured
+ * before scoping: a literal-footprint sweep over the whole `ENGINE_STRINGS_EN`
+ * table finds 226 of 1660 keys (13.6%) with no literal spelling in any non-test
+ * source — overwhelmingly LIVE keys the sweep cannot see. A gate over that
+ * corpus would cry wolf 226 times on a clean tree and be deleted rather than
+ * trusted, which is objectui#4658's own ruling for the pack-side sweep and
+ * objectui#8068's argument against instruments that claim more than they check.
+ * The honest scope is the subset that is exactly decidable, and it is stated
+ * here rather than implied by the assertion names.
+ *
+ * ## Why test files are excluded from the literal scan — load-bearing
+ *
+ * `block-config.test.ts` SPELLS the retired keys (`page:header.icon`,
+ * `page:accordion.title`, `object-kanban.groupField`) in its own negative pins.
+ * Counting test files as readers would make every key this gate exists to catch
+ * permanently reachable — the gate would be green by construction. A key read
+ * only by a test is not a key a user can see; the same argument
+ * `check-i18n-dead-keys.mjs` makes about test-only pack importers.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** The four key families derived from a BLOCK_CONFIG POSITION, and therefore
+ *  judged against `SITES` alone — a literal spelling elsewhere (a comment, a
+ *  doc line) must not resurrect one. */
+const POSITIONAL_FAMILIES = new Set(['field', 'add', 'option', 'placeholder']);
+
+/** Repo root, found by walking UP to the workspace manifest rather than by
+ *  counting `..` segments, so moving this file retargets nothing silently. */
+function repoRoot(): string {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 12; i += 1) {
+    if (existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return dir;
+    dir = path.dirname(dir);
+  }
+  throw new Error('could not locate the repo root (no pnpm-workspace.yaml above this file)');
+}
+
+const ROOT = repoRoot();
+const I18N_SOURCE_PATH = path.join(
+  ROOT,
+  'packages/app-shell/src/views/metadata-admin/i18n.ts',
+);
+
+interface EngineStringTable {
+  /** The `const` name, for assertion messages. */
+  name: string;
+  /** Every key the table declares, in file order. */
+  keys: string[];
+  /** 1-based line range of the object literal, for the disjointness guard. */
+  from: number;
+  to: number;
+}
+
+/**
+ * The KEYS of one `ENGINE_STRINGS_*` table, read out of the source by LINE
+ * RANGE rather than by scanning the whole file.
+ *
+ * Table membership is the whole question here: a key that MOVED from one locale
+ * table to the other reads as unchanged to a whole-file grep, which is exactly
+ * the mistake this direction has to be able to see. The range is bounded by the
+ * declaration line and the first column-0 `};` after it; keys are the entries at
+ * exactly two-space indent, so a multi-line VALUE (indented four) can never be
+ * mistaken for one.
+ */
+function engineStringTable(source: string, name: string): EngineStringTable {
+  const lines = source.split('\n');
+  const open = lines.findIndex((l) => l.startsWith(`const ${name}: Record<string, string> = {`));
+  if (open === -1) throw new Error(`${name}: declaration not found in i18n.ts — the extractor is stale`);
+  const close = lines.findIndex((l, i) => i > open && l === '};');
+  if (close === -1) throw new Error(`${name}: no column-0 '};' closes the table — the extractor is stale`);
+  const keys: string[] = [];
+  for (let i = open + 1; i < close; i += 1) {
+    const m = /^ {2}'((?:[^'\\]|\\.)*)':/.exec(lines[i]);
+    if (m) keys.push(m[1]);
+  }
+  return { name, keys, from: open + 1, to: close + 1 };
+}
+
+/**
+ * Every `engine.inspector.pageBlock.…` key spelled as a STRING LITERAL in
+ * shipped (non-test) source under `packages/` and `apps/`, mapped to the files
+ * that spell it.
+ *
+ * Scope is the whole workspace on purpose, not just `metadata-admin/`: `t()` is
+ * imported from `views/studio-design/**` and `views/*.tsx` today, so a chrome
+ * key could legitimately appear outside this directory tomorrow. Reading a key
+ * that no longer exists is not this gate's business (the sibling
+ * `every key resolves in …` assertions own that direction) — over-collecting
+ * here only ever costs a candidate, never a false red.
+ */
+function shippedLiteralKeys(): Map<string, string[]> {
+  const found = new Map<string, string[]>();
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (['node_modules', 'dist', 'build', 'coverage', '.turbo', '.next'].includes(entry.name)) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === '__tests__') continue;
+        walk(full);
+        continue;
+      }
+      if (!/\.(ts|tsx|js|jsx|mjs)$/.test(entry.name)) continue;
+      if (/\.(test|spec)\.[tj]sx?$/.test(entry.name)) continue;
+      if (full === I18N_SOURCE_PATH) continue; // the DEFINITION site, not a reader
+      const content = readFileSync(full, 'utf8');
+      if (!content.includes(PREFIX)) continue;
+      for (const m of content.matchAll(/['"`](engine\.inspector\.pageBlock\.[A-Za-z0-9_.:$-]+)['"`]/g)) {
+        const rel = path.relative(ROOT, full).split('\\').join('/');
+        const files = found.get(m[1]) ?? [];
+        if (!files.includes(rel)) files.push(rel);
+        found.set(m[1], files);
+      }
+    }
+  };
+  for (const top of ['packages', 'apps']) walk(path.join(ROOT, top));
+  return found;
+}
+
+const I18N_SOURCE = readFileSync(I18N_SOURCE_PATH, 'utf8');
+const EN_TABLE = engineStringTable(I18N_SOURCE, 'ENGINE_STRINGS_EN');
+const ZH_TABLE = engineStringTable(I18N_SOURCE, 'ENGINE_STRINGS_ZH');
+
+/** The keys `SITES` implies — the complete BLOCK_CONFIG-derived vocabulary. */
+const DERIVED = new Set(SITES.map((s) => s.derived));
+
+/** Literal chrome keys: spelled in shipped source AND not in a positional
+ *  family, so a stray mention of a positional key can never resurrect it. */
+const SHIPPED_LITERALS = shippedLiteralKeys();
+const CHROME = new Map(
+  [...SHIPPED_LITERALS].filter(
+    ([key]) => !POSITIONAL_FAMILIES.has(key.slice(PREFIX.length + 1).split('.')[0]),
+  ),
+);
+
+/** A table key nothing in the measured reader set can ask for. */
+function unreachable(table: EngineStringTable): string[] {
+  return table.keys.filter(
+    (key) => key.startsWith(`${PREFIX}.`) && !DERIVED.has(key) && !CHROME.has(key),
+  );
+}
+
+function pageBlockKeys(table: EngineStringTable): string[] {
+  return table.keys.filter((key) => key.startsWith(`${PREFIX}.`));
+}
+
+describe('a retired key leaves BOTH locale tables (objectui#8368)', () => {
+  it('reads two disjoint, non-empty tables out of i18n.ts', () => {
+    // The extractor is a source parser, so its silent failure mode is finding
+    // FEWER keys — which would make every assertion below vacuously green over
+    // an empty corpus. Ranges first: overlapping ones would mean the `};`
+    // scan ran past a table and both sets became the same set.
+    expect(EN_TABLE.to).toBeLessThan(ZH_TABLE.from);
+    expect(EN_TABLE.keys.length).toBeGreaterThan(1500);
+    expect(ZH_TABLE.keys.length).toBeGreaterThan(1500);
+    // No duplicates: a key declared twice would be a silent overwrite, and the
+    // set arithmetic below would hide it.
+    expect(EN_TABLE.keys.length).toBe(new Set(EN_TABLE.keys).size);
+    expect(ZH_TABLE.keys.length).toBe(new Set(ZH_TABLE.keys).size);
+  });
+
+  it('the extractor really sees the keys the derivation implies', () => {
+    // The strongest non-vacuity available: two INDEPENDENT channels for the
+    // same fact. `SITES` comes from walking BLOCK_CONFIG; these sets come from
+    // parsing the source text. A parser that silently stopped matching (a
+    // reformat, a changed indent) fails here by name, not by going quiet.
+    const enSet = new Set(EN_TABLE.keys);
+    const zhSet = new Set(ZH_TABLE.keys);
+    expect([...DERIVED].filter((k) => !enSet.has(k))).toEqual([]);
+    expect([...DERIVED].filter((k) => !zhSet.has(k))).toEqual([]);
+    expect(DERIVED.size).toBeGreaterThan(150);
+  });
+
+  it('the literal scan really finds the chrome call sites', () => {
+    // Same guard for the second reader. Named explicitly so a regex that stops
+    // matching fails here rather than quietly emptying the reachable set — an
+    // empty CHROME would report all 15 chrome keys as retired.
+    for (const key of [
+      `${PREFIX}.kind`,
+      `${PREFIX}.close`,
+      `${PREFIX}.list.add`,
+      `${PREFIX}.objectPlaceholder`,
+      `${PREFIX}.outlineLabel`,
+    ]) {
+      expect([...CHROME.keys()], `${key} is a live chrome call site`).toContain(key);
+    }
+    expect(CHROME.size).toBeGreaterThan(12);
+  });
+
+  it('en-US carries no pageBlock key nothing can reach', () => {
+    // The gate. A key here is one BLOCK_CONFIG no longer implies and no source
+    // file asks for — dead vocabulary the next author reads as a live surface.
+    // If a NEW reader shape appears (a dynamically built key), this reddens by
+    // name and the fix is to teach the reader set about it, not to delete the
+    // key. Loud is the correct direction to be wrong in.
+    expect(unreachable(EN_TABLE)).toEqual([]);
+  });
+
+  it('zh-CN carries no pageBlock key nothing can reach', () => {
+    // The half a rename actually forgets: `en` edited, `zh` left behind. The
+    // sibling `every key resolves in zh-CN` cannot see it — a LEFTOVER key
+    // resolves perfectly well.
+    expect(unreachable(ZH_TABLE)).toEqual([]);
+  });
+
+  it('both tables hold the same pageBlock key set', () => {
+    // "Left BOTH tables", stated directly. Asymmetry here is the signature of a
+    // half-applied retirement, and the message names which side kept the key.
+    const en = new Set(pageBlockKeys(EN_TABLE));
+    const zh = new Set(pageBlockKeys(ZH_TABLE));
+    expect([...en].filter((k) => !zh.has(k))).toEqual([]);
+    expect([...zh].filter((k) => !en.has(k))).toEqual([]);
+    expect(en.size).toBeGreaterThan(150);
   });
 });
