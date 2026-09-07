@@ -1,122 +1,135 @@
 /**
- * The shrink-only pin for the network-escape ledger (objectui#6640).
+ * The network-escape ledger is RETIRED — and stays retired (objectui#6640, #7307).
  *
- * `KNOWN_ESCAPES` in `vitest.setup.network-escape-guard.ts` records what remains
- * of the 21 test files measured reaching a real socket on `67dadd6`. The guard's
- * own docstring says that list "may only shrink" — and until this file existed,
- * nothing made that true. An author who hit the guard's red could make it green by adding a
- * line, which is exactly how a burn-down ledger decays into the permanent
- * quarantine it is not supposed to be. THAT is the failure this pin prevents;
- * it does not re-measure escapes (that needs a real DOM run) and does not try.
+ * ## What this file used to be, and why it is not that any more
  *
- * It reconciles the live set against the pinned literal in BOTH directions:
+ * `vitest.setup.network-escape-guard.ts` used to export `KNOWN_ESCAPES`: the
+ * burn-down list of what remained of the 21 test files measured reaching a real
+ * socket on `67dadd6`. This file was its shrink-only reconcile pin, and it
+ * existed because the guard's docstring said the list "may only shrink" while
+ * nothing made that true — an author who hit the guard's red could make it green
+ * by adding a line, which is how a burn-down ledger decays into the permanent
+ * quarantine it is not supposed to be.
  *
- *   - a name in the ledger but not in the pin  -> the ledger GREW. Red.
- *   - a name in the pin but not in the ledger  -> a real fix landed, and the
- *     pin is now stale. Red until the pin is updated too, which is the point:
- *     shrinking the ledger is a deliberate TWO-LINE change (delete from the
- *     ledger, delete from the pin), never a silent one.
+ * objectui#7307 burned the list down batch by batch (PRs #7999, #8013, #8019,
+ * #8032, #8053) and its sixth and last batch emptied it. The old pin's own
+ * non-vacuity floor prescribed what to do then, verbatim: "If the ledger
+ * genuinely reached zero, that is the win this whole instrument was built for —
+ * delete the guard's KNOWN_ESCAPES machinery and this pin together, rather than
+ * leaving a pin that asserts nothing." So the set, the attributed-stderr branch
+ * that kept listed files green, and the known/unknown split are all gone.
  *
- * Plus an anchored non-vacuity floor, because both reconciles above pass
- * vacuously if the imported set or the pin is empty — the classic way a pin
- * keeps reporting green after the thing it pins stopped existing.
+ * ## Why a retirement pin rather than a deleted file
+ *
+ * The pressure the old pin resisted did not end with the list; it went UP. Every
+ * escape is now red on its first run with no list to join, so the cheapest wrong
+ * fix available to the next author who meets that red is to RE-CREATE the list —
+ * a one-line, green-on-arrival change that would silently re-open a tolerated
+ * path for the whole repo. That is the same failure the old pin was written for,
+ * one step later, and deleting this file would leave nothing resisting it.
+ *
+ * So this file now pins the ABSENCE of the machinery, plus the presence of the
+ * STANDING guard that was never part of the burn-down: the recording `fetch`
+ * wrapper and the `afterEach` that fails ANY escape in ANY file. Re-adding a
+ * list is red here; deleting the guard while deleting the list is red here too.
+ *
+ * ## How it reads the guard, and why not with a regex
+ *
+ * The absence assertions run over the guard's source with COMMENTS BLANKED, via
+ * `scripts/js-comment-mask.mjs` — the tree's one answer to "comment, or code?".
+ * That is load-bearing rather than tidy: the guard's own header now explains at
+ * length that there is no `KNOWN_ESCAPES` any more, so a naive text search finds
+ * the name in prose and this pin could never go green. Masking makes the
+ * assertion about CODE, which is what it means.
+ *
+ * Every negative below is paired with a positive control on the same read, so a
+ * mistyped path or an empty read cannot pass as "the thing is absent".
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { KNOWN_ESCAPES } from '../../vitest.setup.network-escape-guard';
+import { maskComments } from '../js-comment-mask.mjs';
+import * as guard from '../../vitest.setup.network-escape-guard';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const GUARD_PATH = 'vitest.setup.network-escape-guard.ts';
+const guardSource = fs.readFileSync(path.join(repoRoot, GUARD_PATH), 'utf8');
+/** The guard's CODE — its prose, which legitimately names the retired set, blanked. */
+const guardCode = maskComments(guardSource);
 
-/**
- * What remains of the 21 files measured escaping on `67dadd6`, pinned verbatim.
- *
- * Provenance: a full sweep of every Vitest project (`dom` all 8 shards,
- * `dom-heavy`, `unit`, `apps/console`) with an attribution ledger wrapping
- * `fetch`. Do not add to this list. Deleting from it is the intended direction
- * and must be done in lockstep with `KNOWN_ESCAPES`.
- */
-const PINNED_LEDGER: readonly string[] = [
-  'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
-];
+describe('the network-escape burn-down list stays retired (objectui#7307)', () => {
+  it('is reading the real guard file, not an empty or wrong one', () => {
+    // The floor under every negative below. A negative over a bad read is the
+    // classic pin that reports green after the thing it pins stopped existing.
+    expect(guardSource.length).toBeGreaterThan(1000);
+    expect(guardCode, 'comment masking blanked the code as well as the prose').toContain(
+      'ESCAPE_ORIGIN',
+    );
+    // The control for the MASK itself: a phrase that exists only in the guard's
+    // header prose. Present in the raw source, absent from the masked code — if
+    // masking silently stopped working, this is what goes red, rather than the
+    // absence assertions below quietly passing over unmasked prose.
+    const PROSE_ONLY = 'THE ANONYMITY IS THE DEFECT';
+    expect(guardSource).toContain(PROSE_ONLY);
+    expect(guardCode, 'comment masking is not blanking comments').not.toContain(PROSE_ONLY);
+  });
 
-describe('network-escape ledger (objectui#6640) is shrink-only', () => {
-  it('has not GROWN: every name in KNOWN_ESCAPES is in the pin', () => {
-    const pinned = new Set(PINNED_LEDGER);
-    const added = [...KNOWN_ESCAPES].filter((file) => !pinned.has(file)).sort();
+  it('exports nothing — the ledger was its only export', () => {
+    // Runtime, not source: this is the SAME module instance the run is guarded
+    // by (`vitest.setup.base.ts` imports it for every project), so a re-exported
+    // list shows up here whatever the source looks like.
+    expect(Object.keys(guard as Record<string, unknown>).sort()).toEqual([]);
+  });
 
+  it('declares no allowlist of tolerated escapes in its code', () => {
+    // Catches the list coming back UNEXPORTED too, which the namespace read
+    // above cannot see — and that is the likelier re-introduction, since a
+    // private set needs no export to make a red green.
     expect(
-      added,
+      guardCode.includes('KNOWN_ESCAPES'),
       [
-        'The network-escape ledger GREW, and it may only shrink.',
+        'The network-escape burn-down list is back in vitest.setup.network-escape-guard.ts.',
         '',
-        'A test that reaches a real socket is a defect to fix, not a line to add here.',
+        'It reached zero on objectui#7307 and was retired deliberately. A test that',
+        'reaches a real socket is a defect to fix, not a line to add to a list.',
         'If the guard went red on your file, serve its probe from a double instead.',
         'The remedy in full — the shape AND where its teardown has to go — is the',
         "guard's own Fix: text in vitest.setup.network-escape-guard.ts. It is",
         'deliberately NOT restated here: this line drifting out of step with that',
         'one is objectui#7765, and one ruling written twice is how it rotted.',
-        '',
-        'Names added to KNOWN_ESCAPES but absent from PINNED_LEDGER:',
-        ...added.map((file) => `  ${file}`),
       ].join('\n'),
+    ).toBe(false);
+
+    // The general shape, not just the old name: a re-introduction under a new
+    // spelling is the same defect. `new Set([...])` of test paths is what one
+    // looks like, and the guard's code holds no `Set` literal at all now.
+    const setLiterals = guardCode.match(/new Set\(\[/g) ?? [];
+    expect(
+      setLiterals,
+      'A set literal appeared in the guard. If it is a tolerated-escape list under a ' +
+        'new name, it is the retired ledger: fix the escape instead. If it is something ' +
+        'else entirely, this pin is what needs the deliberate edit.',
     ).toEqual([]);
   });
+});
 
-  it('has not gone STALE: every pinned name is still in KNOWN_ESCAPES', () => {
-    const stale = PINNED_LEDGER.filter((file) => !KNOWN_ESCAPES.has(file)).sort();
-
-    expect(
-      stale,
-      [
-        'A pinned escape is gone from KNOWN_ESCAPES — which is good news, banked wrong.',
-        '',
-        'Shrinking the ledger is deliberately a TWO-LINE change: delete the entry from',
-        'KNOWN_ESCAPES in vitest.setup.network-escape-guard.ts AND delete it from',
-        'PINNED_LEDGER in this file. This red is the second line asking to be written.',
-        '',
-        'Pinned but no longer in the ledger:',
-        ...stale.map((file) => `  ${file}`),
-      ].join('\n'),
-    ).toEqual([]);
+describe('the STANDING guard survived the retirement (objectui#6640)', () => {
+  it('still wraps the global fetch to record escapes', () => {
+    // Behavioural, on the live global: the setup file has run for this project,
+    // so the wrapper installed below is the one every test in the run uses.
+    expect(globalThis.fetch.name).toBe('guardedFetch');
+    expect(guardCode).toContain('globalThis.fetch = function guardedFetch');
   });
 
-  it('is not vacuous: the pin is non-empty and every pinned path exists on disk', () => {
-    // Both reconciles above are satisfied by two empty collections. Anchor the
-    // floor to a literal so that emptying either side is a red rather than a
-    // silent green — and check the paths resolve, so a rename cannot leave the
-    // pin agreeing with the ledger about files that no longer exist.
-    expect(
-      PINNED_LEDGER.length,
-      'PINNED_LEDGER is empty, so both reconciles above pass vacuously. If the ledger ' +
-        'genuinely reached zero, that is the win this whole instrument was built for — ' +
-        'delete the guard\'s KNOWN_ESCAPES machinery and this pin together, rather than ' +
-        'leaving a pin that asserts nothing.',
-    ).toBeGreaterThan(0);
-
-    expect(
-      KNOWN_ESCAPES.size,
-      'KNOWN_ESCAPES is empty while PINNED_LEDGER is not — see the staleness test above.',
-    ).toBeGreaterThan(0);
-
-    const missing = PINNED_LEDGER.filter(
-      (file) => !fs.existsSync(path.join(repoRoot, file)),
-    ).sort();
-
-    expect(
-      missing,
-      [
-        'A pinned escape names a file that is not on disk.',
-        '',
-        'The ledger keys off the test file path, so a renamed or deleted file leaves an',
-        'entry that can never match and can never be burned down — it would sit here',
-        'looking like outstanding work that no longer exists.',
-        '',
-        'Missing paths:',
-        ...missing.map((file) => `  ${file}`),
-      ].join('\n'),
-    ).toEqual([]);
+  it('still registers the afterEach that fails an escape in any file', () => {
+    // The half the burn-down never owned, and the half that must outlive it: an
+    // escape anywhere is red on its first run.
+    expect(guardCode).toContain('afterEach(');
+    expect(guardCode).toContain('Network escape: this test reached a REAL socket');
+    expect(guardCode, 'the remedy the red points at').toContain(
+      'Fix: serve the probe from a double rather than the network',
+    );
   });
 });
