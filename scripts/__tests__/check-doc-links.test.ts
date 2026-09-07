@@ -2017,35 +2017,89 @@ describe('in-page and cross-document anchors are resolved — objectui#7644', ()
   });
 });
 
-describe('the anchor rule is the renderers’ own, not this gate’s — objectui#7644', () => {
-  // `scripts/github-slug.mjs` is a COPY of github-slugger, because this gate runs
-  // before `pnpm install` and may not import a package (see
-  // `check-pre-install-import-graph.mjs --list`). A copy is only safe while
-  // something proves it still equals the original — that is what this block is.
-  // Both truth sources are resolved from the workspace package that DECLARES
-  // them, so neither is a phantom dependency of the repo root:
-  //   fumadocs-core  — declared by `apps/site`, the docs renderer itself
-  //   github-slugger — declared by `@object-ui/plugin-markdown`
-  const siteRequire = createRequire(path.join(repoRoot, 'apps/site/package.json'));
-  const markdownRequire = createRequire(path.join(repoRoot, 'packages/plugin-markdown/package.json'));
+// `scripts/github-slug.mjs` is a COPY of github-slugger, because this gate runs
+// before `pnpm install` and may not import a package (see
+// `check-pre-install-import-graph.mjs --list`). A copy is only safe while
+// something proves it still equals the original — that is what the describe below
+// is. Both truth sources are resolved from the workspace package that DECLARES
+// them, so neither is a phantom dependency of the repo root:
+//   fumadocs-core  — declared by `apps/site`, the docs renderer itself
+//   github-slugger — declared by `@object-ui/plugin-markdown`
+const siteRequire = createRequire(path.join(repoRoot, 'apps/site/package.json'));
+const markdownRequire = createRequire(path.join(repoRoot, 'packages/plugin-markdown/package.json'));
 
-  const loadToc = async (): Promise<(content: string, plugins: unknown[]) => Promise<{ url: string; title: string }[]>> =>
-    (await import(pathToFileURL(siteRequire.resolve('fumadocs-core/content/toc')).href)).getTableOfContents;
-  const loadSlugger = async (): Promise<new () => { slug(value: string): string }> =>
-    (await import(pathToFileURL(markdownRequire.resolve('github-slugger')).href)).default;
-  const loadMdx = async (): Promise<unknown> => (await import('remark-mdx')).default;
+const loadToc = async (): Promise<(content: string, plugins: unknown[]) => Promise<{ url: string; title: string }[]>> =>
+  (await import(pathToFileURL(siteRequire.resolve('fumadocs-core/content/toc')).href)).getTableOfContents;
+const loadSlugger = async (): Promise<new () => { slug(value: string): string }> =>
+  (await import(pathToFileURL(markdownRequire.resolve('github-slugger')).href)).default;
+const loadMdx = async (): Promise<unknown> => (await import('remark-mdx')).default;
 
-  /** The document body fumadocs-mdx hands the remark pipeline: frontmatter gone. */
-  function documentBody(raw: string): string {
-    const lines = raw.split('\n');
-    if (!/^---\s*$/.test(lines[0] ?? '')) return raw;
-    for (let index = 1; index < lines.length; index += 1) {
-      // Blank the frontmatter rather than dropping it, so line numbers survive.
-      if (/^(?:---|\.\.\.)\s*$/.test(lines[index])) return '\n'.repeat(index + 1) + lines.slice(index + 1).join('\n');
-    }
-    return raw;
+/** The document body fumadocs-mdx hands the remark pipeline: frontmatter gone. */
+function documentBody(raw: string): string {
+  const lines = raw.split('\n');
+  if (!/^---\s*$/.test(lines[0] ?? '')) return raw;
+  for (let index = 1; index < lines.length; index += 1) {
+    // Blank the frontmatter rather than dropping it, so line numbers survive.
+    if (/^(?:---|\.\.\.)\s*$/.test(lines[index])) return '\n'.repeat(index + 1) + lines.slice(index + 1).join('\n');
   }
+  return raw;
+}
 
+/** One scanned file, parsed ONCE by the renderer both corpus tests compare against. */
+interface CorpusEntry {
+  readonly file: string;
+  readonly rule: string;
+  readonly raw: string;
+  readonly body: string;
+  readonly toc: { url: string; title: string }[];
+}
+
+/**
+ * The whole-corpus walk, performed ONCE at MODULE SCOPE — objectui#8062.
+ *
+ * The two corpus tests at the bottom of this file each walked every
+ * `SCAN_ROOTS` entry and handed all 273 files to fumadocs' own
+ * `getTableOfContents`. Measured on this tree (2.5 MB of markdown): that remark
+ * parse is 2.7-3.1 s per pass, while everything those two tests actually ASSERT
+ * adds up to 27 ms. So an UNBOUNDED corpus walk sat inside vitest's BOUNDED
+ * 15 s window — twice, over identical inputs — and both tests timed out under
+ * container load (idle they were 4429 ms and 3792 ms, i.e. 3.4x of headroom,
+ * and this file is measurably ~1.6x slower on a contended box).
+ *
+ * The repair is the one AGENTS.md prescribes under its test-discipline rule
+ * ("flaky tests: look for the race, do not raise the timeout"), and it is NOT a
+ * raised timeout: move the unbounded work OUT of the bounded window. Module
+ * scope is the only home that qualifies — the cost lands in the import phase,
+ * which no `testTimeout` governs, and unlike a `beforeAll` it does not trade
+ * the 15 s budget for the NARROWER 10 s `hookTimeout`. Each `it()` below now
+ * times its own assertion, and the shared parse is paid once, not twice.
+ *
+ * ⚠ Whatever else you do to this block, keep the parse here: this is the
+ * property that makes the timeout question moot rather than merely deferred.
+ */
+const ANCHOR_CORPUS: CorpusEntry[] = await (async () => {
+  const [getTableOfContents, remarkMdx] = await Promise.all([loadToc(), loadMdx()]);
+  const entries: CorpusEntry[] = [];
+  for (const row of SCAN_ROOTS as ScanRoot[]) {
+    const files = collectFiles(
+      path.join(repoRoot, row.path),
+      row.exclude ? new Set(row.exclude) : undefined,
+      row.collect ? new Set(row.collect) : undefined,
+    ) as string[];
+    for (const file of files) {
+      const raw = fs.readFileSync(file, 'utf8');
+      const body = documentBody(raw);
+      // `.mdx` is parsed with `remark-mdx` exactly as `fumadocs-mdx` compiles
+      // it; without it a JSX element followed by a heading with no blank line
+      // between them is one HTML block, and four real files here have that shape.
+      const toc = await getTableOfContents(body, file.endsWith('.mdx') ? [remarkMdx] : []);
+      entries.push({ file, rule: row.rule, raw, body, toc });
+    }
+  }
+  return entries;
+})();
+
+describe('the anchor rule is the renderers’ own, not this gate’s — objectui#7644', () => {
   it('reproduces github-slugger exactly, over every non-surrogate code point', async () => {
     // The tempting shortcut — `/[^\p{L}\p{M}\p{N}\p{Pc}\- ]/gu` — is not
     // equivalent, and this is the assertion that says so: it disagrees on the
@@ -2079,38 +2133,28 @@ describe('the anchor rule is the renderers’ own, not this gate’s — objectu
     // The corpus check, and the reason the hand-written flattener in
     // `check-doc-links.mjs` is safe to hand-write. Truth per rule:
     //   docs — fumadocs' own `getTableOfContents`, MDX-parsed for `.mdx` exactly
-    //          as `fumadocs-mdx` compiles it. Without `remark-mdx` a JSX element
-    //          followed by a heading with no blank line between them is one HTML
-    //          block, and four real files here have that shape.
+    //          as `fumadocs-mdx` compiles it (see `ANCHOR_CORPUS`, which is where
+    //          that parse now happens — once, for both tests, objectui#8062).
     //   disk — GitHub, i.e. the real `github-slugger` run over the same flattened
     //          heading titles, in document order.
-    const [getTableOfContents, Slugger, remarkMdx] = await Promise.all([loadToc(), loadSlugger(), loadMdx()]);
+    const Slugger = await loadSlugger();
     const disagreeing: string[] = [];
     let docsFiles = 0;
     let diskFiles = 0;
 
-    for (const row of SCAN_ROOTS as ScanRoot[]) {
-      const files = collectFiles(
-        path.join(repoRoot, row.path),
-        row.exclude ? new Set(row.exclude) : undefined,
-        row.collect ? new Set(row.collect) : undefined,
-      ) as string[];
-      for (const file of files) {
-        const raw = fs.readFileSync(file, 'utf8');
-        const toc = await getTableOfContents(documentBody(raw), file.endsWith('.mdx') ? [remarkMdx] : []);
-        let expected: Set<string>;
-        if (row.rule === 'docs') {
-          docsFiles += 1;
-          expected = new Set(toc.map((item) => item.url.slice(1)));
-        } else {
-          diskFiles += 1;
-          const slugger = new Slugger();
-          expected = new Set(toc.map((item) => slugger.slug(item.title)));
-        }
-        const actual = headingAnchors(raw, { customId: row.rule === 'docs' }) as Set<string>;
-        const only = [...expected].filter((id) => !actual.has(id)).concat([...actual].filter((id) => !expected.has(id)));
-        if (only.length > 0) disagreeing.push(`${path.relative(repoRoot, file)}: ${only.join(', ')}`);
+    for (const { file, rule, raw, toc } of ANCHOR_CORPUS) {
+      let expected: Set<string>;
+      if (rule === 'docs') {
+        docsFiles += 1;
+        expected = new Set(toc.map((item) => item.url.slice(1)));
+      } else {
+        diskFiles += 1;
+        const slugger = new Slugger();
+        expected = new Set(toc.map((item) => slugger.slug(item.title)));
       }
+      const actual = headingAnchors(raw, { customId: rule === 'docs' }) as Set<string>;
+      const only = [...expected].filter((id) => !actual.has(id)).concat([...actual].filter((id) => !expected.has(id)));
+      if (only.length > 0) disagreeing.push(`${path.relative(repoRoot, file)}: ${only.join(', ')}`);
     }
 
     expect(disagreeing).toEqual([]);
@@ -2119,29 +2163,19 @@ describe('the anchor rule is the renderers’ own, not this gate’s — objectu
     expect(diskFiles).toBeGreaterThan(50);
   });
 
-  it('has no setext headings, which the ATX-only scan would not see', async () => {
+  it('has no setext headings, which the ATX-only scan would not see', () => {
     // `Title` over `---` is a heading too, and `headingAnchors()` does not read
     // one. Nothing in this tree writes them; this is what says so out loud, so
     // the day someone does the answer is a red test rather than a missing anchor.
-    const getTableOfContents = await loadToc();
-    const remarkMdx = await loadMdx();
+    // The renderer's own reading of each file is `ANCHOR_CORPUS` (objectui#8062);
+    // what this test computes is the ATX count it compares that against.
     const setext: string[] = [];
-    for (const row of SCAN_ROOTS as ScanRoot[]) {
-      const files = collectFiles(
-        path.join(repoRoot, row.path),
-        row.exclude ? new Set(row.exclude) : undefined,
-        row.collect ? new Set(row.collect) : undefined,
-      ) as string[];
-      for (const file of files) {
-        const raw = fs.readFileSync(file, 'utf8');
-        const body = documentBody(raw);
-        const lines = body.split('\n');
-        const toc = await getTableOfContents(body, file.endsWith('.mdx') ? [remarkMdx] : []);
-        // Every heading fumadocs found must have been written in ATX form; the
-        // TOC carries no position, so compare counts against the ATX scan.
-        const atx = lines.filter((line, index) => /^#{1,6}\s+\S/.test(line) && !inFence(lines, index)).length;
-        if (toc.length > atx) setext.push(`${path.relative(repoRoot, file)}: ${toc.length} headings, ${atx} ATX`);
-      }
+    for (const { file, body, toc } of ANCHOR_CORPUS) {
+      const lines = body.split('\n');
+      // Every heading fumadocs found must have been written in ATX form; the
+      // TOC carries no position, so compare counts against the ATX scan.
+      const atx = lines.filter((line, index) => /^#{1,6}\s+\S/.test(line) && !inFence(lines, index)).length;
+      if (toc.length > atx) setext.push(`${path.relative(repoRoot, file)}: ${toc.length} headings, ${atx} ATX`);
     }
     expect(setext).toEqual([]);
   });
