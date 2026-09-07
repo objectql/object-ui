@@ -453,12 +453,19 @@ export const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }>
  * because the four sinks answer four different questions and only one of them
  * is a pass-through:
  *
- *   - `data` — `ObjectKanban.tsx` reads it TWICE and the two reads differ.
- *     `if (schema.objectName && !boundData && !schema.data)` gates the fetch,
- *     so authoring it SUPPRESSES the board's own query; `rawData = external ||
- *     boundData || schema.data || fetchedData` then selects it, and
- *     `effectiveData` REBUILDS every member into a card. So it is not a
- *     pass-through and no identity claim is true of it.
+ *   - `data` — read TWICE, and the two reads differ. As a GATE it SUPPRESSES
+ *     the board's own query; as a VALUE, `rawData = external || boundData ||
+ *     schema.data || fetchedData` selects it and `effectiveData` REBUILDS every
+ *     member into a card, so it is not a pass-through and no identity claim is
+ *     true of it. ⚠️ The gate is DOUBLY guarded on the authored-node path, and
+ *     naming only one guard would be wrong: `SchemaRenderer` spreads
+ *     non-metadata schema properties as React props, so an authored `data`
+ *     arrives as `schema.data` AND as this component's `data` prop — which
+ *     makes `hasExternalData` true and returns from the fetch effect at its
+ *     first line, BEFORE `if (schema.objectName && !boundData && !schema.data)`
+ *     is reached. Measured, not reasoned: removing either guard alone leaves
+ *     the query suppressed and the member pin green; removing both makes the
+ *     board query and reddens both of its gate rows by name.
  *   - `cardFields` — `resolveKanbanCardFields(schema.cardFields, objectDef)`,
  *     exported and pure. It answers WHICH FIELD NAMES the author chose, which
  *     is a different question from which cells a card ends up carrying: the

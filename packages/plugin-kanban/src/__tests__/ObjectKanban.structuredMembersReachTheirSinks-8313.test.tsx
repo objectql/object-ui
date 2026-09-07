@@ -37,6 +37,8 @@
  *   - `data` — read TWICE, with two different meanings. As a GATE it suppresses
  *     the board's own query; as a VALUE it is selected and then REBUILT into
  *     cards. ⛔ No identity claim is true of it, unlike the two `filter` pins.
+ *     ⚠️ And the gate is DOUBLY guarded — see the `data` block below, which
+ *     records the measurement rather than the guard this file first named.
  *   - `cardFields` — WHICH NAMES THE AUTHOR CHOSE, at the exported pure
  *     resolver. That is NOT the same question as which cells a card carries;
  *     the two are measured separately and shown to differ.
@@ -198,9 +200,26 @@ describe('objectui#8313 — `object-kanban`.`data`: members are records, read tw
   });
 
   it('AS A GATE — authoring `data` suppresses the board’s own query entirely', async () => {
-    // `ObjectKanban.tsx`: `if (schema.objectName && !boundData && !schema.data)`.
     // The key is not only a value here, and a pin that measured only the value
     // would miss the half an author feels first.
+    //
+    // ⚠️ WHICH GUARD DOES THIS — measured, because the obvious answer is only
+    // half of it and this file asserted the wrong half first. On the authored
+    // node path the suppression is DOUBLY guarded:
+    //
+    //   1. `SchemaRenderer` spreads non-metadata schema properties as React
+    //      props, so an authored `data` arrives BOTH as `schema.data` and as
+    //      this component's `data` prop. `hasExternalData =
+    //      Array.isArray(externalData)` is therefore TRUE, and the fetch effect
+    //      returns at its first line.
+    //   2. `if (schema.objectName && !boundData && !schema.data)` — the guard
+    //      that reads like the whole answer, and is never reached here.
+    //
+    // Ablation, all three legs run: removing (2) alone — GREEN. Removing (1)
+    // alone — GREEN. Removing BOTH — this row and the one below go RED by
+    // name. So the row constrains the BEHAVIOUR, which is the claim, and the
+    // comment names the mechanism it actually measured rather than the one
+    // that reads best.
     const adapter = makeAdapter();
     const { container } = renderBoard(adapter, { data: ROWS });
 
