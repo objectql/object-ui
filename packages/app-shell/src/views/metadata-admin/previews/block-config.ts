@@ -285,9 +285,22 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       label: 'engine.inspector.pageBlock.field.element:definition-list.items',
       kind: 'array',
       addLabel: 'engine.inspector.pageBlock.add.element:definition-list.items',
+      // `term` / `description` are what `DefinitionListRenderer` reads, and the
+      // pair the block's OWN registry declaration names ("Term/description
+      // pairs [{ term, description }]" — `components/renderers/basic/
+      // data-list.tsx`). These controls were `label` / `value` until
+      // objectui#8279: names nothing on the consuming side reads, so every
+      // designer-built list rendered a blank term and a literal em-dash on
+      // every row — `toText` returns `—` for an absent description — whatever
+      // the author typed. Nothing said so: both authored strings stayed in the
+      // document and `items.length` was non-zero, so the renderer's own
+      // "No details" empty state never fired either. The rule they broke is the
+      // one at the top of this file, and this block has no runtime-judgeable
+      // schema on either face to have caught it (objectui#8216's parity gate
+      // carries it as an explicit exemption; objectui#8281 owns that absence).
       itemFields: [
-        { name: 'label', label: 'engine.inspector.pageBlock.field.element:definition-list.items.label', kind: 'text' },
-        { name: 'value', label: 'engine.inspector.pageBlock.field.element:definition-list.items.value', kind: 'text' },
+        { name: 'term', label: 'engine.inspector.pageBlock.field.element:definition-list.items.term', kind: 'text' },
+        { name: 'description', label: 'engine.inspector.pageBlock.field.element:definition-list.items.description', kind: 'text' },
       ],
     },
     { name: 'columns', label: 'engine.inspector.pageBlock.field.element:definition-list.columns', kind: 'number', placeholder: { literal: '1' } },
