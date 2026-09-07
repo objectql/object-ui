@@ -277,6 +277,12 @@ const fr = {
       refusedFormat:
         "Non enregistré : saisissez une paire latitude, longitude (exemple : 30.2741, 120.1551).",
       refusedRange: "Non enregistré : {{detail}}",
+      latitude: "latitude",
+      longitude: "longitude",
+      refusedResidueOne:
+        "Non enregistré : {{name}} « {{text}} » n'est pas un nombre. Saisissez des décimales simples (exemple : 30.2741, 120.1551).",
+      refusedResidue:
+        "Non enregistré : {{name}} « {{text}} » et {{otherName}} « {{otherText}} » ne sont pas des nombres. Saisissez des décimales simples (exemple : 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Saisissez puis appuyez sur Entrée pour ajouter…",
@@ -1449,6 +1455,9 @@ const fr = {
   console: {
     saveAdvisoryTitle: "Enregistré — le contrôle de création a signalé {{count}} recommandation(s)",
     publishAdvisoryTitle: "Publié — le contrôle de création a signalé {{count}} recommandation(s)",
+    importMappingsUnavailable: "Impossible de charger les mappages d’import enregistrés pour {{object}}",
+    importMappingsRefused: "Le serveur a refusé cette requête : cette liste est donc vide parce qu’elle n’a pas pu être lue, et non parce que rien n’est enregistré. Reconnectez-vous ou demandez un accès à un administrateur.",
+    importMappingsUnreadable: "Cette liste est vide parce qu’elle n’a pas pu être lue, et non parce que rien n’est enregistré. Réessayez, et signalez le problème s’il persiste.",
     settingsHub: {
       title: "Paramètres",
       subtitle: "Configurez votre espace de travail, vos intégrations et vos indicateurs de fonctionnalité.",

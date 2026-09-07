@@ -870,8 +870,20 @@ export class MetadataClient {
    * {@link get} is deliberate and long-standing (the draft envelope's identity
    * and protection carriers are part of what a draft reader inspects), so it
    * is preserved by reading the transport directly instead of going through
-   * `get()`'s unwrap. `unwrapDraftBody` (app-shell) and `unwrapViewDraft`
-   * (this package) are the shared helpers for taking the body out.
+   * `get()`'s unwrap.
+   *
+   * ⛔ Do NOT hand `.item` to a gate or a write yourself: the body this serves
+   * is DECORATED (`_draft`, then `_diagnostics` from `decorateMetadataItem`),
+   * and the spec says a served body is not a valid input to the schema that
+   * produced it until those come off. {@link extractDraftBody} is the one
+   * reader for this method's answer — it takes the presence verdict and then
+   * the strip, in that order. That function used to be copy-pasted into four
+   * views and only one copy knew the rule (objectui#8181).
+   *
+   * Its tolerant siblings exist for the OTHER client method: `unwrapDraftBody`
+   * (app-shell) and `unwrapViewDraft` (this package) read a draft that arrived
+   * through {@link get}, which already unwrapped the envelope. They split on
+   * which method feeds them, not on what they mean — all three strip.
    */
   async getDraft<T = unknown>(
     type: string,

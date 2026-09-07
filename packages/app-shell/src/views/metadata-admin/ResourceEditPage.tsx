@@ -85,6 +85,10 @@ import type {
   MetadataLockState,
   MetadataReference,
 } from '@object-ui/data-objectstack';
+// The ONE draft-envelope reader (objectui#8181). Its docblock carries the
+// read-decoration contract objectui#7603 established here; it was hoisted so
+// the three sibling copies could stop re-deriving it.
+import { extractDraftBody } from '@object-ui/data-objectstack';
 import { PageShell } from './PageShell.js';
 import { MetadataTypeActions } from './MetadataTypeActions.js';
 import { LayeredDiff, countOverlaidFields } from './LayeredDiff.js';
@@ -204,30 +208,6 @@ const CANVAS_OWNED_KEYS: Record<string, string[]> = {
   object: ['fields', 'fieldGroups'],
 };
 
-/**
- * Normalize the framework's draft envelope into either the draft body or
- * `null` (no pending draft). The envelope is:
- *
- *   - `{ type, name, item: {...} }` when a draft exists,
- *   - `{ type, name, label }`       when no draft exists (HTTP 200, item absent).
- *
- * The presence of the `item` key is the single signal; we do NOT fall back
- * to using the envelope itself as the body — doing so would mis-identify the
- * "no draft" stub (which still has `type`/`name`/`label` keys) as a real
- * pending draft and would corrupt the editor baseline.
- */
-function extractDraftBody(
-  draftResp: unknown,
-): Record<string, unknown> | null {
-  if (!draftResp || typeof draftResp !== 'object') return null;
-  const env = draftResp as Record<string, unknown>;
-  if (!('item' in env)) return null;
-  const body = env.item;
-  if (!body || typeof body !== 'object') return null;
-  return Object.keys(body as object).length > 0
-    ? (body as Record<string, unknown>)
-    : null;
-}
 
 /**
  * The software-package binding this editor is authoring under, read from the

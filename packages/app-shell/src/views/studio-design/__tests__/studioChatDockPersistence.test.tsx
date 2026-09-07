@@ -46,7 +46,8 @@ vi.mock('../../../layout/ChatDock', async (importOriginal) => {
 
 // The dock's body and its data seams are irrelevant here — only the state
 // wiring is under test. One agent so the empty-catalog gate lets it render.
-vi.mock('@object-ui/plugin-chatbot', () => ({
+vi.mock('@object-ui/plugin-chatbot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-chatbot')>()),
   useAgents: () => ({ agents: [{ name: 'build' }], isLoading: false, error: null }),
 }));
 // Partial — the module also feeds the metadata client factory, which imports

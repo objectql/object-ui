@@ -54,15 +54,19 @@
  *
  * `assertionFloatingDeclaresWhatItReads` pins the named-read instrument —
  * `schema.KEY` inside the `chatbot-floating` registration body — and nothing
- * else. That registration also ends its `FloatingChatbot` element with a raw
- * `{...props}` spread, so every authored key `SchemaRenderer` forwards reaches
- * the panel's `ChatbotEnhanced` unfiltered: `processVisibility`, `surface` and
- * `showAvatars` are LIVE on a `chatbot-floating` node today (measured through
- * the real host with lit/dark pairs, `chatbot-enhanced`'s `toDomProps`-filtered
- * spread as the control — pinned as a tripwire in `plugin-chatbot`'s
- * `renderer.authoring-faces-7655.test.tsx`). The face does not declare them:
- * that channel is accidental and is carded for a declare-vs-fence ruling
- * (objectui#7708).
+ * else. That registration used to ALSO end its `FloatingChatbot` element with a
+ * raw `{...props}` spread, so every authored key `SchemaRenderer` forwards
+ * reached the panel's `ChatbotEnhanced` unfiltered, and `processVisibility`,
+ * `surface` and `showAvatars` were LIVE on a `chatbot-floating` node (measured
+ * through the real host with lit/dark pairs, `chatbot-enhanced`'s
+ * `toDomProps`-filtered spread as the control). The face never declared them:
+ * that channel was accidental, and objectui#7708 ruled FENCE — the spread is
+ * filtered through `toDomProps` and moved to the head of the element, so the
+ * named-read census is now the whole channel and the three keys are dark there.
+ * The tripwires that pinned them live, in `plugin-chatbot`'s
+ * `renderer.authoring-faces-7655.test.tsx`, flipped to dark with that fix.
+ * `showAvatars` was subsequently retired from `ChatbotSchema` altogether
+ * (objectui#7703, `__tests__/chatbot-dark-keys-retired-7703.test.ts`).
  */
 
 import { describe, it, expect } from 'vitest';

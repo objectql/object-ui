@@ -32,7 +32,10 @@ import { render, screen, fireEvent, cleanup, within } from '@testing-library/rea
 import type { DashboardComponentSchema } from '@object-ui/types';
 import { DashboardEditor } from '../DashboardEditor';
 
-vi.mock('@object-ui/plugin-grid', () => import('./__mocks__/plugin-grid'));
+vi.mock('@object-ui/plugin-grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ...(await import('./__mocks__/plugin-grid')),
+}));
 vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   ...(await import('./__mocks__/plugin-form')),

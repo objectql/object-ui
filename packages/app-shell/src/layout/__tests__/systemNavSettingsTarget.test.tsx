@@ -112,9 +112,13 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
   getUserInitials: () => 'U',
 }));
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({ can: () => true, hasCapabilities: () => true }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({ can: () => true, hasCapabilities: () => true }),
+  };
+});
 
 /** The zero-app deployment this whole screen exists for. */
 vi.mock('../../providers/MetadataProvider', () => ({

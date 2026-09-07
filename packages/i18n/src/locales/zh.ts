@@ -284,6 +284,12 @@ const zh = {
       refusedFormat:
         '未保存：请输入纬度, 经度坐标对（例如 30.2741, 120.1551）。',
       refusedRange: '未保存：{{detail}}',
+      latitude: '纬度',
+      longitude: '经度',
+      refusedResidueOne:
+        '未保存：{{name}}“{{text}}”不是数字。请输入普通小数（例如 30.2741, 120.1551）。',
+      refusedResidue:
+        '未保存：{{name}}“{{text}}”和{{otherName}}“{{otherText}}”不是数字。请输入普通小数（例如 30.2741, 120.1551）。',
     },
     tags: {
       placeholder: '输入后回车添加…',
@@ -1512,6 +1518,9 @@ const zh = {
   console: {
     saveAdvisoryTitle: '已保存 — 编辑检查提出了 {{count}} 条建议',
     publishAdvisoryTitle: '已发布 — 编辑检查提出了 {{count}} 条建议',
+    importMappingsUnavailable: "无法加载 {{object}} 的已保存导入映射",
+    importMappingsRefused: "服务器拒绝了此请求，因此该列表为空是因为读取失败，而不是因为没有注册任何映射。请重新登录，或联系管理员申请访问权限。",
+    importMappingsUnreadable: "该列表为空是因为读取失败，而不是因为没有注册任何映射。请重试；如果反复出现，请反馈此问题。",
     title: 'ObjectStack 控制台',
     initializing: '正在初始化应用程序…',
     search: '搜索…',

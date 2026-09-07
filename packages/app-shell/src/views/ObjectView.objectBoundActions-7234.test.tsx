@@ -76,22 +76,26 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
  */
 let heldCapabilities: string[] | undefined;
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({
-    systemPermissions: heldCapabilities,
-    check: () => ({ allowed: true }),
-    checkField: () => true,
-    getFieldPermissions: () => [],
-    getRowFilter: () => undefined,
-    getObjectApiOperations: () => undefined,
-    roles: [],
-    isLoaded: true,
-    hasCapabilities: () => true,
-    can: () => true,
-    cannot: () => false,
-  }),
-  useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({
+      systemPermissions: heldCapabilities,
+      check: () => ({ allowed: true }),
+      checkField: () => true,
+      getFieldPermissions: () => [],
+      getRowFilter: () => undefined,
+      getObjectApiOperations: () => undefined,
+      roles: [],
+      isLoaded: true,
+      hasCapabilities: () => true,
+      can: () => true,
+      cannot: () => false,
+    }),
+    useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
+  };
+});
 
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -119,7 +123,10 @@ vi.mock('sonner', () => ({
 
 // Heavy children: orthogonal to the toolbar under test, and each drags in a
 // plugin bundle. Same posture as the sibling predicate suites in this dir.
-vi.mock('@object-ui/plugin-list', () => ({ ListView: () => null }));
+vi.mock('@object-ui/plugin-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-list')>()),
+  ListView: () => null,
+}));
 vi.mock('@object-ui/plugin-view', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   ObjectView: () => null,

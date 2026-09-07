@@ -55,7 +55,10 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import type { DesignerFieldDefinition } from '@object-ui/types';
 import { FieldDesigner } from '../FieldDesigner';
 
-vi.mock('@object-ui/plugin-grid', () => import('./__mocks__/plugin-grid'));
+vi.mock('@object-ui/plugin-grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ...(await import('./__mocks__/plugin-grid')),
+}));
 vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   ...(await import('./__mocks__/plugin-form')),

@@ -276,6 +276,12 @@ const pt = {
       refusedFormat:
         "Não salvo: informe um par latitude, longitude (exemplo: 30.2741, 120.1551).",
       refusedRange: "Não salvo: {{detail}}",
+      latitude: "latitude",
+      longitude: "longitude",
+      refusedResidueOne:
+        "Não salvo: {{name}} “{{text}}” não é um número. Informe decimais simples (exemplo: 30.2741, 120.1551).",
+      refusedResidue:
+        "Não salvo: {{name}} “{{text}}” e {{otherName}} “{{otherText}}” não são números. Informe decimais simples (exemplo: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Digite e pressione Enter para adicionar…",
@@ -1446,6 +1452,9 @@ const pt = {
   console: {
     saveAdvisoryTitle: "Salvo — a verificação de criação gerou {{count}} recomendação(ões)",
     publishAdvisoryTitle: "Publicado — a verificação de criação gerou {{count}} recomendação(ões)",
+    importMappingsUnavailable: "Não foi possível carregar os mapeamentos de importação salvos de {{object}}",
+    importMappingsRefused: "O servidor recusou esta solicitação, portanto esta lista está vazia porque não pôde ser lida, não porque nada esteja registrado. Entre novamente ou peça acesso a um administrador.",
+    importMappingsUnreadable: "Esta lista está vazia porque não pôde ser lida, não porque nada esteja registrado. Tente novamente e relate o problema se ele persistir.",
     settingsHub: {
       title: "Configurações",
       subtitle: "Configure seu workspace, integrações e sinalizadores de recursos.",

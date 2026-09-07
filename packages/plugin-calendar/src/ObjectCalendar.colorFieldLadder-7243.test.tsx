@@ -92,7 +92,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { ObjectCalendar } from './ObjectCalendar';
 import { __resolveEventColorForTest as resolveEventColor } from './CalendarView';
 
-vi.mock('@object-ui/plugin-detail', () => ({
+vi.mock('@object-ui/plugin-detail', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-detail')>()),
   RecordDetailDrawer: () => null,
   deriveRecordPageHref: () => null,
 }));

@@ -31,7 +31,8 @@ vi.mock('./GanttView', () => ({
 }));
 
 let drawerProps: any = null;
-vi.mock('@object-ui/plugin-detail', () => ({
+vi.mock('@object-ui/plugin-detail', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-detail')>()),
   RecordDetailDrawer: (props: any) => {
     drawerProps = props;
     return (

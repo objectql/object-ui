@@ -44,14 +44,18 @@ import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/re
 import '@testing-library/jest-dom';
 import React from 'react';
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({
-    isLoaded: false,
-    checkField: () => true,
-    getObjectApiOperations: () => undefined,
-    can: () => true,
-  }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({
+      isLoaded: false,
+      checkField: () => true,
+      getObjectApiOperations: () => undefined,
+      can: () => true,
+    }),
+  };
+});
 
 import { ObjectGrid } from '../ObjectGrid';
 import { registerAllFields } from '@object-ui/fields';

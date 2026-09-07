@@ -49,13 +49,17 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({
-    can: () => true,
-    getObjectApiOperations: () => stub.effectiveOps,
-  }),
-  useFieldPermissions: () => ({ readableFields: (names: string[]) => names }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({
+      can: () => true,
+      getObjectApiOperations: () => stub.effectiveOps,
+    }),
+    useFieldPermissions: () => ({ readableFields: (names: string[]) => names }),
+  };
+});
 
 // Capture the schema the renderer synthesizes — `inlineEdit` is the gate under
 // test. Stubbing DetailView also keeps the suite off the heavy field/registry

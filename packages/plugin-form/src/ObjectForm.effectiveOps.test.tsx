@@ -50,7 +50,13 @@ const { permsStub, state } = vi.hoisted(() => {
 });
 
 // `usePermissions` is the only binding this module graph takes from the package.
-vi.mock('@object-ui/permissions', () => ({ usePermissions: () => permsStub }));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => permsStub,
+  };
+});
 
 import { ObjectForm } from './ObjectForm';
 import { registerAllFields } from '@object-ui/fields';

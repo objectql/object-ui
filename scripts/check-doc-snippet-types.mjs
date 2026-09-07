@@ -370,7 +370,9 @@
  * be read off the collector:
  *
  *     every `.mdx` and `.md` page under `content/docs`, every
- *     `packages/<name>/README.md`, and the root `README.md`.
+ *     `packages/<name>/README.md`, every `.md` / `.mdx` page at the TOP LEVEL of
+ *     the repository-root `docs/` tree (objectui#7856 card 1 — not its
+ *     subdirectories), and the root `README.md`.
  *
  * Stating it here is objectui#5174's finding, and the finding was not the missing
  * extension — it was that a reader had to open `listDocuments` to learn that
@@ -484,6 +486,62 @@ export const ROOT_PAGES = ['README.md'];
  *  sidecars) holds no prose and is not a page. */
 const DOC_EXTENSIONS = ['.mdx', '.md'];
 
+/**
+ * The repository-root `docs/` tree, at its TOP LEVEL only (objectui#7856, card 1).
+ *
+ * objectui#7856 measured the hole the same way objectui#7115 measured the root
+ * `README.md`'s: `docs/` is an authored-documentation directory that NO doc gate
+ * read — not this one, not `check-doc-fence-languages`, not
+ * `check-doc-component-types`, and not `lint:root`, whose script literally passes
+ * `--ignore-pattern 'docs/**'`. Three phantom-teaching sites (objectui#7838,
+ * objectui#7854) were found in it by hand, which is the only instrument that was
+ * ever pointed at it.
+ *
+ * `recursive: false` is the whole design of this leg, and it is a boundary rather
+ * than an optimisation. The tree's SUBDIRECTORIES are a different review route:
+ * `docs/adr/**` is a GOVERNED surface (`GOVERNED_SURFACES` id `adr` in
+ * `check-governed-queue-guard.mjs`, so a pull request touching it stops in draft
+ * for a human to merge) and `docs/audits/**` travels with it as objectui#7856's
+ * card 2. A `**`-shaped walk here would pull 29 more diagnostics from those two
+ * trees into a gate whose failures a non-governed pull request is expected to
+ * fix (26 + 3, as objectui#7856 measured them on `8507a2283`) — which is how a
+ * widening turns into a change nobody can land. The same
+ * reasoning, in the same words, as `APP_DOCS`' "one level of app directory and no
+ * deeper": a scan surface says where it stops.
+ *
+ * So the enumeration below is by DIRECTORY ENTRY and filtered to FILES. Adding
+ * `docs/adr/**` later is then an edit to this file that a reviewer sees, never a
+ * side effect of a page being moved into a subdirectory.
+ *
+ * Exported — the constant and the enumerator both — so a sibling census can ask
+ * this gate what its leg contains instead of re-spelling it. That is what
+ * `check-doc-fence-languages.test.ts` does: `check-doc-fence-languages` does NOT
+ * carry this leg (its walk is `check:doc-fences`' own surface, and moving it is
+ * not objectui#7856 card 1), and that pin subtracts exactly this set rather than
+ * a hand-written list of the two filenames.
+ */
+export const ROOT_DOCS = { dir: 'docs', recursive: false };
+
+/**
+ * Every page at the top level of `ROOT_DOCS.dir`, in a stable order.
+ *
+ * An absent directory yields `[]` here so a throwaway fixture tree stays
+ * listable, exactly as `ROOT_PAGES` does; `main` refuses to publish a verdict
+ * when the directory is missing from a REAL run, because a leg that silently
+ * collects nothing is objectui#7115's defect one level up.
+ */
+export function rootDocsPages(root) {
+  const dir = join(root, ROOT_DOCS.dir);
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) return [];
+  return readdirSync(dir)
+    .sort()
+    .filter(
+      (entry) =>
+        DOC_EXTENSIONS.some((ext) => entry.endsWith(ext)) && statSync(join(dir, entry)).isFile(),
+    )
+    .map((entry) => `${ROOT_DOCS.dir}/${entry}`);
+}
+
 /** Fence languages treated as compilable TypeScript. `js` / `jsx` are NOT in the
  *  set: they are not type-annotated, so a strict program judges them on rules
  *  their authors never opted into. */
@@ -502,6 +560,17 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  *   apps/<app>/docs/**              ✓        ✓       ✓     objectui#6600
  *   README.md                       ✓        ✓       ✓     objectui#7115
  *   packages/<name>/README.md       ✓        ✓       ✗     ships inside `files`
+ *   docs/*.md (top level only)      ✗        ✓       ✗     objectui#7856 card 1
+ *
+ * The `docs/*.md` row is the one leg THIS gate carries alone, and the asymmetry
+ * is deliberate rather than an oversight to be tidied up later: objectui#7856
+ * card 1 moves this gate's population only, so `check-doc-fence-languages` and
+ * `check-doc-component-types` keep the surface they had. `check-doc-fence-
+ * languages.test.ts` therefore no longer compares the two walks for equality
+ * flat — it subtracts exactly `rootDocsPages()` and compares the rest, so the
+ * divergence is named and bounded instead of being a list that silently drifted.
+ * ⛔ The subdirectories are NOT this row: `docs/adr/**` is governed and
+ * `docs/audits/**` travels with it (objectui#7856 card 2).
  *
  * `check-doc-component-types` does not read the package READMEs — it asks
  * whether a documented `type` literal is a registered component key, and a
@@ -512,7 +581,9 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * ⚠️ EVERYTHING ELSE authored in markdown is read by no doc gate at all. That is
  * a statement of what the roots are today, ⛔ not a plan and not a promise. In
  * descending order of size, the unscanned population is: non-README `.md` under
- * `packages/**` (by far the largest); `docs/**` (ADRs and audits); the PUBLISHED
+ * `packages/**` (by far the largest); `docs/adr/**` and `docs/audits/**` — the
+ * root `docs/` tree BELOW its top level, which objectui#7856 card 2 holds and
+ * card 1 deliberately left where it was; the PUBLISHED
  * `skills/objectui/**`; the root pages that are not `README.md` (`AGENTS.md`,
  * `CONTRIBUTING.md`, `ROADMAP.md` and the rest); `examples/**`; the `apps/**`
  * pages that are not under an `apps/<app>/docs/` tree; `.claude/**`;
@@ -532,7 +603,7 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * "which":
  *
  *     git ls-files '*.md' '*.mdx' \
- *       | grep -vE '^(content/docs/|apps/[^/]+/docs/|packages/[^/]+/README\.md$|README\.md$|\.changeset/)'
+ *       | grep -vE '^(content/docs/|apps/[^/]+/docs/|packages/[^/]+/README\.md$|README\.md$|docs/[^/]+\.mdx?$|\.changeset/)'
  *
  * ⛔ `skills/objectui/**` is NOT claimed by any gate here, and this line is the
  * opposite of a claim on it: it is a governed, published surface with its own
@@ -704,28 +775,12 @@ const UNGATED_DOCS = {
     'diagnostic(s) (TS2420, TS2355) — a `DataSource` implementation written as `// ... other ' +
     'methods`. This entry read 9 until objectui#7417 paid down the three TS2305s it carried; ' +
     'what is left is fragment shape, and no gate reads this page\'s import names.',
-  'packages/auth/README.md':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
   'packages/fields/README.md':
     '2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
-  'packages/plugin-ai/README.md':
-    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2322x3 — candidate real defects, un-triaged',
-  'packages/plugin-charts/README.md':
-    '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/plugin-chatbot/README.md':
-    '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s); plus TS17000x1 TS2322x1 — candidate real defects, un-triaged',
-  'packages/plugin-editor/README.md':
-    '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/plugin-kanban/README.md':
-    '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-map/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2322x1 — candidate real defects, un-triaged',
   'packages/plugin-markdown/README.md':
     '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/plugin-tree/README.md':
-    '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/providers/README.md':
-    '7 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
 };
 
 // ── Fence scanning ───────────────────────────────────────────────────────────
@@ -926,6 +981,10 @@ export function listDocuments(root = repoRoot) {
       if (existsSync(readme)) out.push(relative(root, readme).split(sep).join('/'));
     }
   }
+  // The root `docs/` tree, TOP LEVEL only (objectui#7856 card 1). Enumerated by
+  // directory entry and filtered to files by `rootDocsPages`, so `docs/adr/**`
+  // (governed) and `docs/audits/**` (card 2) cannot arrive here by accident.
+  out.push(...rootDocsPages(root));
   // Root pages last, by name. An absent one is dropped here so a throwaway
   // fixture tree stays listable; `main` refuses to publish a verdict when one is
   // missing from a real run, which is the only place that can bite.
@@ -2138,6 +2197,19 @@ function main() {
       );
       return EXIT_CODES.couldNotRun;
     }
+  }
+
+  // The same check for the other root leg, for the same reason (objectui#7856
+  // card 1): `rootDocsPages` returns [] for a directory that is not there, which
+  // keeps a fixture tree listable but would let a rename shrink the real surface
+  // back to what objectui#7856 found, with every count below still healthy.
+  if (!existsSync(join(repoRoot, ROOT_DOCS.dir))) {
+    console.error(
+      `ROOT_DOCS names \`${ROOT_DOCS.dir}/\`, which does not exist under ${repoRoot}. That directory is ` +
+        "part of this gate's stated scan surface (objectui#7856), so its absence silently narrows the " +
+        'surface. Re-point it at the tree\'s new path, or remove the leg deliberately.',
+    );
+    return EXIT_CODES.couldNotRun;
   }
 
   const state = analyze({});

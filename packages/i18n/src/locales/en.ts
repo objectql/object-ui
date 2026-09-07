@@ -338,6 +338,12 @@ const en = {
       refusedFormat:
         'Not saved: enter a latitude, longitude pair (example: 30.2741, 120.1551).',
       refusedRange: 'Not saved: {{detail}}',
+      latitude: 'latitude',
+      longitude: 'longitude',
+      refusedResidueOne:
+        'Not saved: {{name}} "{{text}}" is not a number. Enter plain decimals (example: 30.2741, 120.1551).',
+      refusedResidue:
+        'Not saved: {{name}} "{{text}}" and {{otherName}} "{{otherText}}" are not numbers. Enter plain decimals (example: 30.2741, 120.1551).',
     },
     // objectui#3342 — the tags widget's input hint, shown while the tag list
     // is empty. The author-declared `field.placeholder` always wins over this.
@@ -1652,6 +1658,9 @@ const en = {
   console: {
     saveAdvisoryTitle: 'Saved — the authoring check raised {{count}} advisory finding(s)',
     publishAdvisoryTitle: 'Published — the authoring check raised {{count}} advisory finding(s)',
+    importMappingsUnavailable: 'Saved import mappings for {{object}} could not be loaded',
+    importMappingsRefused: 'The server refused this request, so this list is empty because it could not be read — not because nothing is registered. Sign in again, or ask an administrator for access.',
+    importMappingsUnreadable: 'This list is empty because it could not be read, not because nothing is registered. Try again, and report this if it keeps happening.',
     title: 'ObjectOS',
     initializing: 'Initializing application…',
     search: 'Search…',

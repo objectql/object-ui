@@ -38,9 +38,39 @@
  */
 
 import type { MetadataSaveAdvisoryEvent } from '@object-ui/data-objectstack';
+import type { TranslateFn } from './writeWarningToast.js';
 
-/** i18next's `t`, narrowed to what this module uses. */
-export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
+/**
+ * i18next's `t`, narrowed to what this module uses — RE-EXPORTED from
+ * `writeWarningToast`, never re-declared.
+ *
+ * This module carried its own byte-identical copy until objectui#8165. The
+ * objectui#6172 甲/A1 ruling is that every exported name has exactly one
+ * authority, and
+ * `scripts/__tests__/one-authority-per-exported-name-6273.test.ts` had been
+ * carrying `TranslateFn` as accepted debt across three files. The remedy that
+ * gate names is exactly this: `export type { X } from '<the-owner>'` is a
+ * re-export, not a second declaration, and the gate does not count it. ⛔ Its
+ * baseline is SHRINK-ONLY, so the entry lost this site in the same PR.
+ *
+ * Why `writeWarningToast` is the one pointed at — read off the tree rather
+ * than decided here:
+ *
+ *   - `AdapterProvider` is the single caller of all three emitters, and it
+ *     already imports `TranslateFn` from `./writeWarningToast.js` and passes
+ *     that one value into `emitSaveAdvisories` alongside the other two.
+ *   - `metadataReadWarningToast.ts` re-points at it for the same reason, and
+ *     `file-size-guard.ts` names it in its own docblock as the established
+ *     pattern it was copied from.
+ *
+ * ⚠️ The THIRD site — `packages/fields/src/widgets/file-size-guard.ts` — is
+ * deliberately NOT re-pointed and stays on the baseline. `@object-ui/app-shell`
+ * DEPENDS ON `@object-ui/fields`, so a re-export in that direction is a package
+ * cycle, and this name is on neither package's published face. Retiring that
+ * copy means moving the authority DOWN into a package both depend on — a
+ * different change, and one nobody has ruled on (objectui#8165 reports it).
+ */
+export type { TranslateFn } from './writeWarningToast.js';
 
 /**
  * Where the message goes. Structurally satisfied by sonner's `toast`, which is

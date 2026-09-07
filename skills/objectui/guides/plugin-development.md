@@ -218,14 +218,14 @@ export default MyWidget;
 
 ```typescript
 // types.ts
-export interface MyWidgetSchema {
+import type { BaseSchema } from '@object-ui/types';
+
+// Only the widget's OWN members: `id` / `className` / `bind` / `hidden` /
+// `disabled` / `children` are INHERITED — and `hidden` / `disabled` are
+// `boolean | ExpressionWire` there, not strings (packages/types/src/base.ts).
+export interface MyWidgetSchema extends BaseSchema {
   type: 'my-widget';
-  id?: string;
-  className?: string;
-  bind?: string;
-  props?: MyWidgetProps;
-  hidden?: string;
-  disabled?: string;
+  props?: MyWidgetProps; // read by the entry point's `{...schema.props}`
 }
 
 export interface MyWidgetProps {

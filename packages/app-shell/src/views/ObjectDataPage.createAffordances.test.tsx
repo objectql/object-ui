@@ -62,21 +62,25 @@ let principal: Record<string, boolean> = {};
 /** Controllable server-resolved effective API operations (#3391); `undefined` = unrestricted. */
 let apiOperations: string[] | undefined;
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({
-    check: () => ({ allowed: true }),
-    checkField: () => true,
-    getFieldPermissions: () => [],
-    getRowFilter: () => undefined,
-    getObjectApiOperations: () => apiOperations,
-    roles: [],
-    isLoaded: false,
-    hasCapabilities: () => true,
-    can: (_object: string, action: string) => principal[action] ?? true,
-    cannot: (_object: string, action: string) => !(principal[action] ?? true),
-  }),
-  useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({
+      check: () => ({ allowed: true }),
+      checkField: () => true,
+      getFieldPermissions: () => [],
+      getRowFilter: () => undefined,
+      getObjectApiOperations: () => apiOperations,
+      roles: [],
+      isLoaded: false,
+      hasCapabilities: () => true,
+      can: (_object: string, action: string) => principal[action] ?? true,
+      cannot: (_object: string, action: string) => !(principal[action] ?? true),
+    }),
+    useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
+  };
+});
 
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -88,7 +92,10 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
 // Heavy children, all orthogonal to the toolbar gate under test and each
 // dragging in a plugin bundle. Same posture as the sibling create/import
 // predicate tests on `ObjectView`.
-vi.mock('@object-ui/plugin-list', () => ({ ListView: () => null }));
+vi.mock('@object-ui/plugin-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-list')>()),
+  ListView: () => null,
+}));
 vi.mock('./RecordDetailView', () => ({ RecordDetailView: () => null }));
 vi.mock('./CreateViewDialog', () => ({ CreateViewDialog: () => null }));
 vi.mock('./metadata-admin/useMetadata', () => ({ useMetadataClient: () => ({}) }));

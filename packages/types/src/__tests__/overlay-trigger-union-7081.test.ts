@@ -160,12 +160,30 @@ export const singularStaysSingular: SingularSlot = {
   trigger: [{ type: 'button', label: 'Open' }],
 };
 
-// The one in-repo `trigger` OUTSIDE the family with the same asymmetry,
-// recorded rather than resolved (`disclosure.ts`: `string | SchemaNode` on the
-// TS face, the union in `disclosure.zod.ts`, an array in `collapsible.tsx`'s
-// `defaultProps`). Fenced out of objectui#7081 and filed as objectui#7767; the
-// day it widens, this leg goes red and the pin is re-derived deliberately.
-export type _CollapsibleStillSingular = Expect<Equal<AdmitsArray<CollapsibleSchema['trigger']>, false>>;
+// The one in-repo `trigger` OUTSIDE the family that carried the same asymmetry
+// (`disclosure.ts`: `string | SchemaNode` on the TS face, the union in
+// `disclosure.zod.ts`, an array in `collapsible.tsx`'s `defaultProps`). It was
+// fenced out of objectui#7081 and filed as objectui#7767, and stood here as
+// `_CollapsibleStillSingular` -- `AdmitsArray<...>` equal to `false` -- under
+// the note that "the day it widens, this leg goes red and the pin is re-derived
+// deliberately".
+//
+// objectui#7767 IS that day, and it is not a second decision: it carries the
+// 2026-09-03 ruling recorded above -- "The TS face only. The validator's accept
+// set does not move" -- onto this eighth member, whose mirror, renderer and
+// shipped `defaultProps` all already served the array. So the leg is TURNED,
+// not deleted. It is a pin and not a formality: compiled against the pre-#7767
+// declaration this assertion errors (TS2344, `false` does not satisfy `true`),
+// and so does `shippedCollapsible` below (TS2322).
+//
+// The redundant `string |` half went with the widening. `_SchemaNodeUntouched`
+// above pins `SchemaNode` as `BaseSchema | string | ...`, and the leg below
+// spells the consequence out: `string | SchemaNode` denoted `SchemaNode` all
+// along, so dropping it moved nothing.
+export type _CollapsibleTrigger = Expect<Equal<CollapsibleSchema['trigger'], Union>>;
+export type _CollapsibleAdmitsArray = Expect<Equal<AdmitsArray<CollapsibleSchema['trigger']>, true>>;
+export type _CollapsibleRequired = Expect<Equal<IsOptionalKey<CollapsibleSchema, 'trigger'>, false>>;
+export type _StringSchemaNodeCollapses = Expect<Equal<string | SchemaNode, SchemaNode>>;
 
 /**
  * The `defaultProps.trigger` each overlay registration ships, copied VERBATIM
@@ -199,6 +217,16 @@ export const shippedDropdownMenu: DropdownMenuSchema = {
   items: [],
 };
 
+// The same complaint on the eighth member (objectui#7767), copied VERBATIM from
+// `packages/components/src/renderers/disclosure/collapsible.tsx`'s
+// `defaultProps`. Red on the pre-#7767 declaration: `string | SchemaNode`
+// refused the array its own registration ships.
+export const shippedCollapsible: CollapsibleSchema = {
+  type: 'collapsible',
+  trigger: [{ type: 'button', label: 'Toggle', variant: 'outline' }],
+  content: [{ type: 'text', content: 'Collapsible content goes here' }],
+};
+
 // A widening, not a replacement: every singular `trigger` keeps type-checking.
 const SINGLE = { type: 'button', label: 'Open' };
 export const singleDialog: DialogSchema = { type: 'dialog', trigger: SINGLE };
@@ -208,6 +236,10 @@ export const singleDrawer: DrawerSchema = { type: 'drawer', trigger: SINGLE };
 export const singlePopover: PopoverSchema = { type: 'popover', trigger: SINGLE, content: [] };
 export const singleHoverCard: HoverCardSchema = { type: 'hover-card', trigger: SINGLE, content: [] };
 export const singleDropdownMenu: DropdownMenuSchema = { type: 'dropdown-menu', trigger: SINGLE, items: [] };
+export const singleCollapsible: CollapsibleSchema = { type: 'collapsible', trigger: SINGLE, content: [] };
+// ... and so does the bare `string` the dropped `string |` half used to name --
+// it is a `SchemaNode`, which is why that half was redundant (objectui#7767).
+export const stringCollapsible: CollapsibleSchema = { type: 'collapsible', trigger: 'Toggle', content: [] };
 
 /* -- Readers (the objectui#7082 shape) -- */
 

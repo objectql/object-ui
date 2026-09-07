@@ -12,7 +12,7 @@ import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { describeIgnoredBind, describeNonArrayData } from './dataTableBindDiagnostic';
-import { ComponentRegistry, compareSortValues, evalRowPredicate, formatDateTime, getSortValue } from '@object-ui/core';
+import { ComponentRegistry, compareSortValues, evalRowPredicate, formatDate, formatDateTime, getSortValue } from '@object-ui/core';
 import type { DataTableSchema, TableSortItem, TableColumnType } from '@object-ui/types';
 import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
@@ -772,16 +772,21 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       // not derived from the shared function. Byte-identical in en-US, zh and
       // de-DE, so no table cell changes.
       if (hasTime) return formatDateTime(new Date(ts), { locale: language });
-      // The DATE-only half keeps its own bag on purpose: `formatDateTime`
-      // always carries a time, and `formatDate`'s default drops the year in
-      // the current year — routing this branch through either WOULD change
-      // what renders. #7443's subject is the datetime convention; the
-      // date-only divergence is recorded separately.
-      return new Intl.DateTimeFormat(language, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      }).format(new Date(ts));
+      // The DATE-only half is `formatDate`'s DEFAULT style — the same one home,
+      // one type over (objectui#7620, maintainer ruling A). It used to build its
+      // own `Intl.DateTimeFormat` bag here, which asked for `year: 'numeric'`
+      // unconditionally while `formatDate` drops the year INSIDE the current
+      // year on purpose; so one table showed two faces for one value, picked by
+      // which path the cell happened to take. Current-year cells move with this
+      // (`Jul 4, 2026` → `Jul 4`, matching the `date` field cell beside them);
+      // past-year cells are byte-identical, which is why the split went
+      // unnoticed. A column that genuinely wants the year on every row is an
+      // explicit `format` style honoured by both paths, never a second bag.
+      //
+      // `undefined` in the positional slot is how the published signature
+      // `formatDate(value, style?, options?)` asks for the default face; the
+      // positional argument outranks `options.style` (objectui#7745).
+      return formatDate(new Date(ts), undefined, { locale: language });
     } catch {
       return value;
     }

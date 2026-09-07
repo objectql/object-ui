@@ -22,41 +22,58 @@ npm install @object-ui/plugin-ai
 
 ## Quick Start
 
+Every component in this package takes exactly one schema object plus optional
+callbacks — `schema` carries the configuration, the callbacks carry the
+behaviour. The schema types ship from `@object-ui/types`.
+
 ```tsx
 import { AIFormAssist, AIRecommendations, NLQueryInput } from '@object-ui/plugin-ai';
+import type {
+  AIFormAssistSchema,
+  AIRecommendationItem,
+  AIRecommendationsSchema,
+  NLQuerySchema,
+} from '@object-ui/types';
+
+declare const recommendationsData: AIRecommendationItem[];
+
+const contactAssist: AIFormAssistSchema = {
+  type: 'ai-form-assist',
+  formId: 'new-contact',
+  objectName: 'Contact',
+  fields: ['name', 'email', 'company'],
+  showConfidence: true,
+};
 
 function SmartForm() {
   return (
     <div>
-      <AIFormAssist
-        formId="new-contact"
-        objectName="Contact"
-        fields={['name', 'email', 'company']}
-        showConfidence
-      />
+      <AIFormAssist schema={contactAssist} />
     </div>
   );
 }
 
+const productPicks: AIRecommendationsSchema = {
+  type: 'ai-recommendations',
+  objectName: 'Product',
+  maxResults: 5,
+  layout: 'grid',
+  recommendations: recommendationsData,
+};
+
 function RecommendationsPanel() {
-  return (
-    <AIRecommendations
-      objectName="Product"
-      maxResults={5}
-      layout="grid"
-      recommendations={recommendationsData}
-    />
-  );
+  return <AIRecommendations schema={productPicks} />;
 }
 
+const orderSearch: NLQuerySchema = {
+  type: 'nl-query',
+  objectName: 'Order',
+  placeholder: 'Ask a question about your orders...',
+  suggestions: ['Show orders from last week', 'Top customers by revenue'],
+};
+
 function SearchBar() {
-  return (
-    <NLQueryInput
-      objectName="Order"
-      placeholder="Ask a question about your orders..."
-      suggestions={['Show orders from last week', 'Top customers by revenue']}
-    />
-  );
+  return <NLQueryInput schema={orderSearch} />;
 }
 ```
 
@@ -64,50 +81,88 @@ function SearchBar() {
 
 ### AIFormAssist
 
-AI-powered form field suggestions and auto-fill:
+AI-powered form field suggestions and auto-fill. Props: `schema`, plus the
+optional `onApply` and `onRefresh` callbacks.
 
 ```tsx
-<AIFormAssist
-  formId="new-lead"
-  objectName="Lead"
-  fields={['name', 'email', 'phone']}
-  autoFill={false}
-  showConfidence
-  showReasoning={false}
-/>
+import { AIFormAssist } from '@object-ui/plugin-ai';
+import type { AIFormAssistSchema } from '@object-ui/types';
+
+const leadAssist: AIFormAssistSchema = {
+  type: 'ai-form-assist',
+  formId: 'new-lead',
+  objectName: 'Lead',
+  fields: ['name', 'email', 'phone'],
+  autoFill: false,
+  showConfidence: true,
+  showReasoning: false,
+};
+
+const assistPanel = (
+  <AIFormAssist
+    schema={leadAssist}
+    onApply={(suggestion) => console.log(suggestion.fieldName, suggestion.value)}
+  />
+);
 ```
 
 ### AIRecommendations
 
-Display AI-generated recommendations:
+Display AI-generated recommendations. Props: `schema`, plus the optional
+`onSelect` and `onDismiss` callbacks.
 
 ```tsx
-<AIRecommendations
-  objectName="Product"
-  recommendations={data}
-  maxResults={10}
-  layout="list"       // 'list' | 'grid' | 'carousel'
-  showScores={false}
-  emptyMessage="No recommendations available"
-/>
+import { AIRecommendations } from '@object-ui/plugin-ai';
+import type { AIRecommendationItem, AIRecommendationsSchema } from '@object-ui/types';
+
+declare const data: AIRecommendationItem[];
+
+const productPicks: AIRecommendationsSchema = {
+  type: 'ai-recommendations',
+  objectName: 'Product',
+  recommendations: data,
+  maxResults: 10,
+  layout: 'list', // 'list' | 'grid' | 'carousel'
+  showScores: false,
+  emptyMessage: 'No recommendations available',
+};
+
+const panel = (
+  <AIRecommendations schema={productPicks} onSelect={(item) => console.log(item.id)} />
+);
 ```
 
 ### NLQueryInput
 
-Natural language query input for data exploration:
+Natural language query input for data exploration. Props: `schema`, plus the
+optional `onSubmit` callback.
 
 ```tsx
-<NLQueryInput
-  objectName="Order"
-  placeholder="Ask anything..."
-  suggestions={['Recent orders', 'Revenue by month']}
-  showHistory={false}
-/>
+import { NLQueryInput } from '@object-ui/plugin-ai';
+import type { NLQuerySchema } from '@object-ui/types';
+
+const orderSearch: NLQuerySchema = {
+  type: 'nl-query',
+  objectName: 'Order',
+  placeholder: 'Ask anything...',
+  suggestions: ['Recent orders', 'Revenue by month'],
+  showHistory: false,
+};
+
+const searchBar = <NLQueryInput schema={orderSearch} onSubmit={(query) => console.log(query)} />;
 ```
 
-### Schema-Driven Usage
+## Schema-Driven Usage
 
-Components auto-register with `ComponentRegistry`:
+Components auto-register with `ComponentRegistry` on import. The registry key is
+the schema's `type`, and it is **not** always the component name — `NLQueryInput`
+registers as `nl-query`:
+
+| Component | Registry `type` | Schema type |
+|---|---|---|
+| `AIFormAssist` | `ai-form-assist` | `AIFormAssistSchema` |
+| `AIRecommendations` | `ai-recommendations` | `AIRecommendationsSchema` |
+| `NLQueryInput` | `nl-query` | `NLQuerySchema` |
 
 ```json
 {

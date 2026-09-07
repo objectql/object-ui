@@ -86,21 +86,25 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({
-    check: () => ({ allowed: true }),
-    checkField: () => true,
-    getFieldPermissions: () => [],
-    getRowFilter: () => undefined,
-    getObjectApiOperations: () => undefined,
-    roles: [],
-    isLoaded: false,
-    hasCapabilities: () => true,
-    can: () => true,
-    cannot: () => false,
-  }),
-  useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({
+      check: () => ({ allowed: true }),
+      checkField: () => true,
+      getFieldPermissions: () => [],
+      getRowFilter: () => undefined,
+      getObjectApiOperations: () => undefined,
+      roles: [],
+      isLoaded: false,
+      hasCapabilities: () => true,
+      can: () => true,
+      cannot: () => false,
+    }),
+    useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
+  };
+});
 
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -124,7 +128,8 @@ vi.mock('sonner', () => ({
 
 /** The list schema this page hands down — captured, not rendered. */
 let captured: any = null;
-vi.mock('@object-ui/plugin-list', () => ({
+vi.mock('@object-ui/plugin-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-list')>()),
   ListView: (props: any) => {
     captured = props.schema;
     return null;

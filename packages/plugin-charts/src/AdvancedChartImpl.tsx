@@ -84,16 +84,36 @@ const TW_COLORS: Record<string, string> = {
 const resolveColor = (color: string) => TW_COLORS[color] || color;
 
 /**
- * Default visual treatment for a `variant: 'comparison'` series. Returns
- * overrides per chart family so the comparison overlay reads as muted
- * (dashed line, lower fill opacity) while still being color-matched to
- * the primary series. Series-level `opacity` / `dashArray` win over defaults.
+ * Per-series presentation overrides, in two halves that are deliberately NOT
+ * gated the same way (objectui#7698).
+ *
+ * - The AUTHORED keys — `@objectstack/spec`'s `ChartSeries.opacity` ("Override
+ *   series opacity") and `ChartSeries.dashArray` ("Override stroke dash
+ *   pattern") — are declared with NO condition, so they apply on every series
+ *   whatever its `variant`.
+ * - The muted comparison treatment (lower opacity, a `'4 4'` dash) is a
+ *   DEFAULT and stays gated on `variant: 'comparison'`, so the overlay still
+ *   reads as muted while a primary series carrying neither key is untouched.
+ *
+ * This function used to return `null` for anything but a comparison series, so
+ * an authored `opacity` / `dashArray` on a primary series was read by
+ * `normalizeSeries` and then discarded here — the renderer honouring a
+ * spec-declared unconditional override on one variant only. Narrowing the
+ * published declaration to match would have been the renderer's tolerance
+ * dictating the contract, which is the direction AGENTS.md #0.1 forbids.
+ *
+ * Comparison series keep every value they had. The authored branch already won
+ * over the defaults, and the two STROKE defaults no mark ever consumed — bar
+ * and scatter, neither of which this renderer strokes — are now spelled
+ * `undefined` rather than reaching the Bar and Scatter marks that gained
+ * `strokeOpacity` / `strokeDasharray` in the same change.
  */
-const comparisonStyle = (s: any, kind: 'line' | 'area' | 'bar' | 'scatter') => {
-  if (s?.variant !== 'comparison') return null;
-  const strokeOpacity = typeof s.opacity === 'number' ? s.opacity : (kind === 'line' || kind === 'scatter' ? 0.5 : 0.6);
-  const fillOpacity = typeof s.opacity === 'number' ? s.opacity : (kind === 'bar' ? 0.4 : kind === 'area' ? 0.2 : 0.5);
-  const strokeDasharray = s.dashArray ?? (kind === 'line' || kind === 'area' ? '4 4' : undefined);
+const seriesStyle = (s: any, kind: 'line' | 'area' | 'bar' | 'scatter') => {
+  const muted = s?.variant === 'comparison';
+  const authoredOpacity = typeof s?.opacity === 'number' ? s.opacity : undefined;
+  const strokeOpacity = authoredOpacity ?? (muted ? (kind === 'line' ? 0.5 : kind === 'area' ? 0.6 : undefined) : undefined);
+  const fillOpacity = authoredOpacity ?? (muted ? (kind === 'bar' ? 0.4 : kind === 'area' ? 0.2 : 0.5) : undefined);
+  const strokeDasharray = s?.dashArray ?? (muted && (kind === 'line' || kind === 'area') ? '4 4' : undefined);
   return { strokeOpacity, fillOpacity, strokeDasharray };
 };
 
@@ -1822,14 +1842,16 @@ function AdvancedChartImplInner({
           {series.map((s: any, index: number) => {
             const palette = getPalette();
             const color = resolveColor(config[s.dataKey]?.color || palette[index % palette.length]);
-            const cmp = comparisonStyle(s, 'scatter');
+            const pres = seriesStyle(s, 'scatter');
             return (
               <Scatter
                 key={s.dataKey}
                 name={config[s.dataKey]?.label || s.dataKey}
                 data={data}
                 fill={color}
-                fillOpacity={cmp?.fillOpacity}
+                fillOpacity={pres.fillOpacity}
+                strokeOpacity={pres.strokeOpacity}
+                strokeDasharray={pres.strokeDasharray}
                 {...animProps}
                 {...scatterClickProps}
               />
@@ -1889,26 +1911,26 @@ function AdvancedChartImplInner({
               : comboSeriesBase
                 ? 'left'
                 : (seriesType === 'bar' ? 'left' : 'right');
-            const cmp = comparisonStyle(s, seriesType as any);
+            const pres = seriesStyle(s, seriesType as any);
             const stackProps = s.stack ? { stackId: String(s.stack) } : {};
             const valueFormatter = formatterFor((yAxisId === 'right' ? secondaryY : primaryY)?.format);
 
             if (seriesType === 'line') {
               return (
-                <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} {...comboMarkClickProps(s)}>
+                <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={pres.strokeOpacity} strokeDasharray={pres.strokeDasharray} {...animProps} {...comboMarkClickProps(s)}>
                   {dataLabel(valueFormatter)}
                 </Line>
               );
             }
             if (seriesType === 'area') {
               return (
-                <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={cmp?.fillOpacity ?? 0.4} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...animProps} {...comboMarkClickProps(s)}>
+                <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={pres.fillOpacity ?? 0.4} strokeOpacity={pres.strokeOpacity} strokeDasharray={pres.strokeDasharray} {...stackProps} {...animProps} {...comboMarkClickProps(s)}>
                   {dataLabel(valueFormatter)}
                 </Area>
               );
             }
             return (
-              <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...animProps} {...comboMarkClickProps(s)}>
+              <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={pres.fillOpacity} strokeOpacity={pres.strokeOpacity} strokeDasharray={pres.strokeDasharray} {...stackProps} {...animProps} {...comboMarkClickProps(s)}>
                 {dataLabel(valueFormatter)}
               </Bar>
             );
@@ -2032,9 +2054,9 @@ function AdvancedChartImplInner({
             // per series for visual consistency.
             const primaryCount = series.filter((p: any) => p.variant !== 'comparison').length;
             const colorPerCategory = primaryCount === 1 && !isComparison && series.length === 1 && data.length > 1;
-            const cmp = comparisonStyle(s, 'bar');
+            const pres = seriesStyle(s, 'bar');
             return (
-              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...axisProps} {...animProps} {...markClickProps(s)}>
+              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={pres.fillOpacity} strokeOpacity={pres.strokeOpacity} strokeDasharray={pres.strokeDasharray} {...stackProps} {...axisProps} {...animProps} {...markClickProps(s)}>
                 {colorPerCategory && data.map((entry, idx) => (
                   <Cell key={`cell-${idx}`} fill={`url(#bg-${gslug(resolveColor(colorForCategory(entry?.[xAxisKey], idx, palette)))})`} />
                 ))}
@@ -2043,17 +2065,17 @@ function AdvancedChartImplInner({
             );
           }
           if (chartType === 'line') {
-            const cmp = comparisonStyle(s, 'line');
+            const pres = seriesStyle(s, 'line');
             return (
-              <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...axisProps} {...animProps} {...markClickProps(s)}>
+              <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={pres.strokeOpacity} strokeDasharray={pres.strokeDasharray} {...axisProps} {...animProps} {...markClickProps(s)}>
                 {dataLabel(valueFormatter)}
               </Line>
             );
           }
           if (chartType === 'area') {
-            const cmp = comparisonStyle(s, 'area');
+            const pres = seriesStyle(s, 'area');
             return (
-              <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={cmp?.fillOpacity ?? 1} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...axisProps} {...animProps} {...markClickProps(s)}>
+              <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={pres.fillOpacity ?? 1} strokeOpacity={pres.strokeOpacity} strokeDasharray={pres.strokeDasharray} {...stackProps} {...axisProps} {...animProps} {...markClickProps(s)}>
                 {dataLabel(valueFormatter)}
               </Area>
             );
