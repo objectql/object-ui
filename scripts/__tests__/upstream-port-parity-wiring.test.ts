@@ -162,6 +162,59 @@ describe('check-upstream-port-parity is wired, not merely present', () => {
     }
   });
 
+  it('the ref is per ENTRY, and the retired global one is gone (objectui#8288)', () => {
+    // The schema half of the card. The pin used to carry ONE `upstream.ref`
+    // beside per-file digests, and `--resync` set it on every run — so
+    // re-syncing one file re-labelled the others with a ref their digests had
+    // never been taken from (objectui#7749 did exactly that to
+    // `check-half-states.mjs` and `invoked-as.mjs`). Both stayed GREEN, because
+    // the digest is the assertion; only the provenance line was false.
+    //
+    // Asserted structurally, never by value: the refs themselves move on every
+    // re-sync, and a copy of them here would be the second thing to keep honest
+    // that this file's header already refuses.
+    const pin = JSON.parse(fs.readFileSync(path.join(ROOT, PIN), 'utf8'));
+    expect(pin.upstream.ref, 'the global ref is retired, not merely unread').toBeUndefined();
+    expect(pin.files.length).toBeGreaterThan(0);
+    for (const f of pin.files) {
+      expect({ ported: f.ported, ref: f.ref }).toEqual({
+        ported: f.ported,
+        ref: expect.stringMatching(/^[0-9a-f]{40}$/),
+      });
+    }
+  });
+
+  it('the gate prints each file at ITS OWN ref, not one ref for all', () => {
+    // The reporting half. This is the assertion that would have caught the card:
+    // every printed provenance line must name the ref stored beside that file's
+    // own digest. Relational — it reads the expected ref out of the pin — so it
+    // survives any re-sync and fails the moment one file's line borrows
+    // another's ref.
+    const pin = JSON.parse(fs.readFileSync(path.join(ROOT, PIN), 'utf8')) as {
+      files: Array<{ ported: string; ref: string }>;
+    };
+    const out = stripAnsi(execFileSync('node', [GATE], { cwd: ROOT, encoding: 'utf8' }));
+    for (const f of pin.files) {
+      const line = out.split('\n').find((l) => l.includes(f.ported));
+      expect(line, `no verdict line for ${f.ported}`).toBeTruthy();
+      expect({ ported: f.ported, namesOwnRef: line!.includes(f.ref.slice(0, 9)) }).toEqual({
+        ported: f.ported,
+        namesOwnRef: true,
+      });
+    }
+    // The control leg: with more than one distinct ref pinned, a line must NOT
+    // name a ref belonging to a different entry. Without this the loop above is
+    // satisfied by a gate that prints every ref on every line.
+    const distinct = [...new Set(pin.files.map((f) => f.ref))];
+    if (distinct.length > 1) {
+      for (const f of pin.files) {
+        const line = out.split('\n').find((l) => l.includes(f.ported))!;
+        const foreign = distinct.filter((r) => r !== f.ref && line.includes(r.slice(0, 9)));
+        expect({ ported: f.ported, foreignRefs: foreign }).toEqual({ ported: f.ported, foreignRefs: [] });
+      }
+    }
+  });
+
   it('its self-test passes — the half that makes a green comparison mean something', () => {
     const out = execFileSync('node', [GATE, '--self-test'], { cwd: ROOT, encoding: 'utf8' });
     // objectui#7897 — the COUNT, not the shape. `\d+ cases pass` is satisfied

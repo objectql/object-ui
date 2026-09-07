@@ -1,12 +1,12 @@
 {
   "upstream": {
-    "repo": "objectstack-ai/objectstack",
-    "ref": "70e77ec3b566b92d7c6551637d6bc746fb840bb6"
+    "repo": "objectstack-ai/objectstack"
   },
   "files": [
     {
       "ported": "scripts/pm/check-half-states.mjs",
       "upstreamPath": "scripts/pm/check-half-states.mjs",
+      "ref": "bf10debd587f6ba891be9eadc2b76c91e15bd82b",
       "upstreamSha256": "449a0aec0cfa36738e0fc5651ec978faf846316522daeb9ca6efa1714daf6ac9",
       "divergences": [
         {
@@ -80,6 +80,7 @@
     {
       "ported": "scripts/invoked-as.mjs",
       "upstreamPath": "scripts/invoked-as.mjs",
+      "ref": "bf10debd587f6ba891be9eadc2b76c91e15bd82b",
       "upstreamSha256": "90f72bf45a2fd158b19d5774269eb96a6b8b61540251ce68c29ddce7c93bfaa7",
       "divergences": [
         {
@@ -141,6 +142,7 @@
     {
       "ported": ".claude/hooks/guard-main-checkout.selftest.sh",
       "upstreamPath": ".claude/hooks/guard-main-checkout.selftest.sh",
+      "ref": "70e77ec3b566b92d7c6551637d6bc746fb840bb6",
       "upstreamSha256": "1d8d4458c90beb9f673556524e34262a8a0593e1a4d2de20a352f6b5a77c6721",
       "divergences": [
         {
