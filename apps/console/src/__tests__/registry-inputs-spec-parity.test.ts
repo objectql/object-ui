@@ -967,8 +967,17 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
 
 
   // ── objectui#8176: the two lazily-registered blocks, judged for the first ──
-  //     time. Eighteen keys, three owners, every one of them A DECLARATION
+  //     time. Sixteen keys, two owners, every one of them A DECLARATION
   //     SOMEONE OWES (the arm this map's docblock above says must name itself).
+  //
+  //     ⚠️ IT STARTED AT EIGHTEEN, and the two that left are the ledger doing
+  //     its job rather than a correction to it. `object-kanban.filter` and
+  //     `object-calendar.filter` were objectui#7712's two keys; objectui#8186
+  //     landed that declaration on all six registrations while this branch was
+  //     open, which made both entries STALE — `carries no stale unpublished-key
+  //     exemption` named them by name and stayed red until they were deleted
+  //     here. That is the documented exit written into the ⛔ note below,
+  //     observed on a real landing: a declaration retires its own cover.
   //
   //     These are NOT a new divergence. The registrations and the spec entries
   //     are unchanged; what changed is that this file now loads the two plugin
@@ -982,10 +991,23 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   //     ⛔ Not a licence to keep them unpublished — the bar is unchanged. A key
   //     the renderer honours gets DECLARED at its registration site, and the
   //     entry goes stale in the same change.
-  'object-kanban.filter':
-    'Read by the renderer and declared by the spec, published by neither the four `plugin-kanban` registrations nor the two `plugin-calendar` ones. objectui#7712 is open on exactly this key on exactly these two blocks and owns the declaration; this entry is its cover while it is open. Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8176.',
-  'object-calendar.filter':
-    'The `object-calendar` half of the same key and the same card: objectui#7712 measured both renderers reading `schema.filter` while neither registration publishes it. Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8176.',
+  // `object-kanban.filter` and `object-calendar.filter` stood here until
+  // objectui#8186 declared them. Deleted, not updated — see the ⚠️ note above.
+  // ⚠️ THE RIDER objectui#8223 OWES, spelled out here so it is not discovered
+  //    in a merge-queue rebuild. objectui#8171's PR declares `sort` on both
+  //    `plugin-calendar` registrations as `{ name: 'sort', type: 'array' }` and
+  //    does not touch this file. Landing it AFTER this change reddens three
+  //    assertions at once, and all three are this ledger working: (1) this
+  //    entry goes stale, so delete it; (2) `the objectui#8176 backlog has a
+  //    ceiling` is exact, so lower 16 to 15 in the same change; (3) `sort`
+  //    becomes an array-armed input on a newly judged block with no member pin,
+  //    so it needs a `MEMBER_PINS` entry — NOT an exemption, which `the ceiling
+  //    correction admits exactly the four keys objectui#8176 made visible`
+  //    refuses by name. The calendar's `filter` pin next door is the shape to
+  //    copy: `sort` is the same kind of pass-through key
+  //    (`ObjectCalendar.tsx` hands it to the query), so the member claim is the
+  //    same identity-forwarding one. Landing objectui#8223 BEFORE this change
+  //    is the other legal order and moves the same three edits here.
   'object-calendar.sort':
     'objectui#8171 is open on exactly this key — `ObjectCalendar` reads `schema.sort` and the spec declares it, one key over from objectui#7712. That card owns the declaration and its landing deletes this entry. Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8176.',
   'object-kanban.groupBy':
@@ -1806,6 +1828,17 @@ const MULTI_KIND_MEMBER_CONTRACTS: Record<string, string> = {
 // `MEMBER_PIN_EXEMPTION_CEILING` reads 62. objectui#8071's work is unchanged in
 // kind and four keys longer in extent.
 //
+// ⚠️ THE POPULATION THEN GREW BY TWO, and they were answered with PINS rather
+// than with room. objectui#8186 landed objectui#7712's declaration while this
+// branch was open, so `object-calendar.filter` and `object-kanban.filter`
+// became array-armed inputs on newly judged blocks — exactly the case this
+// ceiling exists to refuse absorbing. Both are in `MEMBER_PINS` below: the
+// calendar's is the file objectui#7711 already left behind, the kanban's was
+// written for this change. 83 array/object-armed inputs across 24 blocks, 21
+// pinned, 62 not — and the ceiling does NOT move. A genuinely new array key
+// gets a pin, which is the whole rule, now demonstrated rather than only
+// asserted.
+//
 // 58 is the transition case, and this file already owns the pattern for it —
 // `OFF_SPEC_EXEMPTIONS` / `UNPUBLISHED_EXEMPTIONS` / `OFF_SPEC_ARM_EXEMPTIONS`
 // are explicit, reasoned, issue-backed, and go RED once stale. This is the same
@@ -1922,9 +1955,17 @@ const MEMBER_PINS: Record<string, MemberPin> = {
     file: 'packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts',
     pins: 'The I18nLabel trio — see `element:text_input.description` (objectui#5717).',
   },
+  'object-calendar.filter': {
+    file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.filterIsNotAConfigSlot-7711.test.tsx',
+    pins: 'The members are ObjectQL `$filter` elements, and this renderer adds nothing to that contract and subtracts nothing from it: the authored value reaches `dataSource.find` as `$filter` BY IDENTITY (`toBe`, so a normalising rewrite cannot pass), and the retired `filter.calendar` member spelling yields NO configuration — one authored key read twice with two incompatible meanings is the member-level defect objectui#7711 closed here and objectui#4034 closed on the map. Both member forms are covered (the object form and the array-of-arrays form). The spec side cannot supply this: the `object-calendar` `filter` row is `z.unknown()`, so the wire is the only member contract there is (objectui#7711, registered as a pin by objectui#8176 once objectui#8186 declared the key).',
+  },
   'object-grid.data': {
     file: 'packages/plugin-grid/src/__tests__/gridDataInputContract.test.ts',
     pins: 'The `object` arm is `ViewDataSchema` discriminated on `provider`: each of the four providers parses, none of them is an array, the declaration is one shape across both registered tags so the alias cannot drift, and it is pinned at compile time too (objectui#5090).',
+  },
+  'object-kanban.filter': {
+    file: 'packages/plugin-kanban/src/__tests__/ObjectKanban.filterMembersReachTheWire-8176.test.tsx',
+    pins: 'The `object-kanban` twin of `object-calendar.filter` above, written for this change because the board had no equivalent: the authored array reaches `$filter` BY IDENTITY, a condition on a field named `columns` (this block\'s own configuration key) stays a filter and never reaches a configuration read, both member forms pass through identically, and an unauthored `filter` arrives as `undefined` rather than as a fabricated default — the control that keeps the other three from reading as a coincidence. Same reasoning as the calendar entry: the spec row is `z.unknown()`, so the wire is the whole member contract (objectui#8176).',
   },
   'page:card.title': {
     file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
@@ -2199,7 +2240,7 @@ const MEMBER_PIN_EXEMPTION_CEILING = 62;
  * LAZY on purpose. `eager: true` would inline the raw text of every test file in
  * the repo — 2,000+ files, ~3 MB — into this module on every run of a gate that
  * already loads the whole registration graph. Lazy hands back loaders, so the
- * cost is the glob itself plus one read per REGISTERED pin (19 today).
+ * cost is the glob itself plus one read per REGISTERED pin (21 today).
  */
 const PIN_SOURCES = import.meta.glob(
   [
@@ -2752,12 +2793,19 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // direction — greening a fresh divergence on these two blocks by writing a
     // nineteenth entry instead of declaring the input.
     //
-    // Eighteen is the MEASURED backlog at the moment these blocks entered the
-    // population (objectui#8176), not a budget: eleven undiscoverable keys on
-    // `object-kanban`, seven on `object-calendar`. Landing objectui#8201 /
-    // objectui#7712 / objectui#8171 lowers it. A new divergence on these blocks
-    // is a plain defect and gets declared, exactly as it would on any other
-    // covered block.
+    // Sixteen is the MEASURED backlog today, not a budget: ten undiscoverable
+    // keys on `object-kanban`, six on `object-calendar`. It was EIGHTEEN when
+    // these blocks entered the population; objectui#7712's declaration landed
+    // as objectui#8186 while this branch was open and took its two `filter`
+    // entries with it, which is the first observed round-trip of the exit this
+    // ceiling is paired with. Landing objectui#8201 / objectui#8171 lowers it
+    // again. A new divergence on these blocks is a plain defect and gets
+    // declared, exactly as it would on any other covered block.
+    //
+    // ⚠️ The `toBe` below is EXACT in both directions on purpose, so the card
+    // that lands a declaration must lower this number in the same change. That
+    // is a rider objectui#8171's PR objectui#8223 owes if it lands after this
+    // one — see the note on `object-calendar.sort` in `UNPUBLISHED_EXEMPTIONS`.
     const backlog = Object.keys(UNPUBLISHED_EXEMPTIONS).filter((key) =>
       LAZY_REGISTERED_BLOCKS.includes(splitExemptionKey(key)[0]),
     );
@@ -2766,14 +2814,14 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       'a new unpublished-key exemption was added on a block objectui#8176 newly ' +
         'judged — declare the input at its registration site instead; the ' +
         'backlog list is shrink-only',
-    ).toBeLessThanOrEqual(18);
+    ).toBeLessThanOrEqual(16);
     // Lower it here when the owning cards land, so the ceiling keeps ratcheting
     // rather than banking the headroom their fixes free up.
     expect(
       backlog.length,
       'the objectui#8176 backlog shrank — lower the ceiling above to match, in ' +
         'the same change that declared the input',
-    ).toBe(18);
+    ).toBe(16);
   });
 
   it('the eight tombstoned keys are recognised, not exempted — and not published either', () => {
