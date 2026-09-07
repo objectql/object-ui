@@ -20,7 +20,7 @@ that is not a bar is refused at `validate`, by its own name, at
 are never `major` — the fixed group follows `@objectstack`): this NARROWS a
 published accept set. A document with a `null` (or numeric, string, boolean,
 array) gantt bar used to `safeParse` green and now fails. In-repo stock measured
-before the change on `289d146`: five authored bars across `apps/` · `examples/`
+before the change on `289d146` and re-measured unchanged on `c4b3750`: five authored bars across `apps/` · `examples/`
 · `content/` · `packages/types/examples/`, all well-formed objects, zero `null`
 and zero non-object — positive-controlled, so nothing in this repository moves.
 

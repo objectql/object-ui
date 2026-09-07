@@ -26,7 +26,7 @@
  * ruling: a bar that is not a bar is refused at `validate`, by its own name.
  * objectui#7164's deliberate stop is superseded KNOWINGLY.
  *
- * ## The accept set, before and after (measured on `289d146` + this change)
+ * ## The accept set, before and after (measured on `289d146` + this change; re-measured unchanged on `c4b3750`)
  *
  *     input                                             main     head
  *     items: [{ items: [null] }]                        accept   REFUSE  items[0].items[0]
@@ -58,8 +58,9 @@
  * ## Stock measured before the narrowing, positive-controlled
  *
  * A published accept set narrows here (Clause-② yes), so the in-repo stock of
- * authored bars was counted on `289d146` across `apps/` · `examples/` ·
- * `content/` · `packages/types/examples/`: FIVE bars, all well-formed objects,
+ * authored bars was counted on `289d146`, re-measured unchanged on
+ * `c4b3750`, across `apps/` · `examples/` · `content/` ·
+ * `packages/types/examples/`: FIVE bars, all well-formed objects,
  * ZERO `null` and ZERO non-object. The zero is a READING and not an empty
  * search — the same walker reported the five well-formed bars, and a planted
  * `null` bar plus a planted numeric bar in a scratch copy of the gantt fixture

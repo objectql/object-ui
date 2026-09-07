@@ -743,8 +743,9 @@ const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', '
  * in-repo `type: 'timeline'` fixture (the three schema-catalog documents, the
  * docs page's examples, `examples/data-display-examples.json`) parses green on
  * both sides of it. Measured again before the BAR narrowing (objectui#7365, on
- * `289d146`): FIVE authored bars across `apps/` · `examples/` · `content/` ·
- * `packages/types/examples/`, ALL well-formed objects, ZERO `null` and ZERO
+ * `289d146`, re-measured unchanged on `c4b3750`): FIVE authored bars across
+ * `apps/` · `examples/` · `content/` · `packages/types/examples/`, ALL
+ * well-formed objects, ZERO `null` and ZERO
  * non-object — a positive-controlled reading, not an empty search.
  *
  * Deliberately NOT exported, for the reason `TimelineScaleSchema` above gives:
