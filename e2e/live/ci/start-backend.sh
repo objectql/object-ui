@@ -3,8 +3,10 @@
 # @objectstack/* packages, serving the showcase app the live specs target.
 #
 # What it does (idempotent; a stamp file skips prepare when pins are unchanged):
-#   1. Sparse-checkout `examples/app-showcase` from objectstack-ai/objectstack
-#      at the pinned OBJECTSTACK_REF (backend.env).
+#   1. Resolve the `@objectstack/cli@$OBJECTSTACK_VERSION` release tag to a
+#      commit, and sparse-checkout `examples/app-showcase` from
+#      objectstack-ai/objectstack at it. The commit is DERIVED, never pinned:
+#      see the note above OBJECTSTACK_VERSION in backend.env (objectui#7964).
 #   2. Rewrite its package.json: every `@objectstack/*` workspace dep -> the
 #      pinned published OBJECTSTACK_VERSION; dev-only tooling dropped.
 #   3. `npm install` (published tarballs only — nothing is built from source,
@@ -37,10 +39,53 @@ STAMP="$BACKEND_DIR/.prepared"
 # floating family is the exact outcome this pin exists to prevent, and it costs
 # 300 seconds to discover downstream (objectstack#16186).
 : "${BETTER_AUTH_VERSION:?backend.env must declare BETTER_AUTH_VERSION — see its header and objectstack#16186}"
-# The pin is IN the stamp: without it, a fixture prepared before a pin change
-# satisfies the reuse test and the new pin is never installed. The workflow's
-# fixture cache key is the hash of backend.env, which carries the pin for the
-# same reason.
+
+# The showcase-app commit is DERIVED here, and is declared nowhere: it is
+# whatever the `@objectstack/cli@$OBJECTSTACK_VERSION` release tag points at, so
+# the metadata checked out below and the published packages installed on top of
+# it cannot come from different trees. backend.env used to carry it as a second,
+# hand-moved pin whose stated MUST ("always the commit the release tag points
+# at") nothing could check — and a pair that can disagree eventually does
+# (objectui#7964, objectui#7689 for the version half).
+#
+# Annotated tags resolve in two lines: the tag object, then the peeled `^{}`
+# commit. Take the peeled sha when present, else the tag's own (lightweight tags
+# do not peel). Both patterns are passed explicitly — asking for the tag alone
+# does NOT return its peeled line.
+OBJECTSTACK_TAG="@objectstack/cli@$OBJECTSTACK_VERSION"
+# GIT_TERMINAL_PROMPT=0 so an unreachable/private remote fails in seconds with
+# the message below instead of blocking the job on a credential prompt.
+if ! TAG_LINES="$(GIT_TERMINAL_PROMPT=0 git ls-remote --tags "$REPO_URL" \
+    "refs/tags/$OBJECTSTACK_TAG" "refs/tags/$OBJECTSTACK_TAG^{}" 2>&1)"; then
+  echo "[live-backend] cannot reach $REPO_URL to resolve the release tag" >&2
+  echo "[live-backend] $TAG_LINES" >&2
+  exit 1
+fi
+OBJECTSTACK_REF="$(printf '%s\n' "$TAG_LINES" | awk -v t="refs/tags/$OBJECTSTACK_TAG" '
+  $2 == t "^{}" { peeled = $1 }
+  $2 == t       { plain  = $1 }
+  END { print (peeled != "" ? peeled : plain) }
+')"
+# A missing tag is not an error to `git ls-remote` — it prints nothing and exits
+# 0 — so the shape check below is the actual guard, not a formality. Refuse
+# loudly and by name: the alternative is `git fetch --depth 1 origin ""` failing
+# 300 seconds downstream, in a log nobody reads until the job goes red.
+if [[ ! "$OBJECTSTACK_REF" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "[live-backend] release tag '$OBJECTSTACK_TAG' does not resolve to a commit in" >&2
+  echo "[live-backend]   $REPO_URL" >&2
+  echo "[live-backend] OBJECTSTACK_VERSION=$OBJECTSTACK_VERSION (backend.env) names a version" >&2
+  echo "[live-backend] with no published release tag, or the tag scheme moved. Refusing to" >&2
+  echo "[live-backend] start: there is no showcase-app commit matching that release." >&2
+  exit 1
+fi
+echo "[live-backend] resolved $OBJECTSTACK_TAG -> $OBJECTSTACK_REF"
+
+# The RESOLVED sha, not the version, is in the stamp: without it, a fixture
+# prepared before a pin change satisfies the reuse test and the new pin is never
+# installed — and a re-pointed tag is exactly such a change with no key of its
+# own to hash. The workflow's fixture cache key is the hash of backend.env,
+# which carries the version for the same reason; see the ⚠️ note there for the
+# one path that key can no longer see.
 WANT_STAMP="$OBJECTSTACK_REF $OBJECTSTACK_VERSION better-auth@$BETTER_AUTH_VERSION"
 
 mkdir -p "$BACKEND_DIR"
@@ -50,10 +95,10 @@ prepare() {
     echo "[live-backend] prepare: pins unchanged ($WANT_STAMP), reusing $APP_DIR"
     return
   fi
-  echo "[live-backend] prepare: showcase@${OBJECTSTACK_REF:0:12} on published @objectstack/*@$OBJECTSTACK_VERSION"
+  echo "[live-backend] prepare: showcase@${OBJECTSTACK_REF:0:12} (from $OBJECTSTACK_TAG) on published @objectstack/*@$OBJECTSTACK_VERSION"
   rm -rf "$APP_DIR" "$BACKEND_DIR/src" "$STAMP"
 
-  # Shallow, sparse fetch of the pinned commit — metadata source only.
+  # Shallow, sparse fetch of the resolved commit — metadata source only.
   git init -q "$BACKEND_DIR/src"
   git -C "$BACKEND_DIR/src" remote add origin "$REPO_URL"
   git -C "$BACKEND_DIR/src" sparse-checkout set examples/app-showcase
