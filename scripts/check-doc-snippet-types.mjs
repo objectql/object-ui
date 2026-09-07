@@ -369,10 +369,20 @@
  * SURFACE is stated in the same breath as the coverage rule rather than left to
  * be read off the collector:
  *
- *     every `.mdx` and `.md` page under `content/docs`, every
- *     `packages/<name>/README.md`, every `.md` / `.mdx` page at the TOP LEVEL of
- *     the repository-root `docs/` tree (objectui#7856 card 1 — not its
- *     subdirectories), and the root `README.md`.
+ *     every `.mdx` and `.md` page under `content/docs`, every page under an
+ *     `apps/<app>/docs` tree, every `packages/<name>/README.md`, every `.md` /
+ *     `.mdx` page at the TOP LEVEL of the repository-root `docs/` tree
+ *     (objectui#7856 card 1), every page under `docs/adr/**` and under
+ *     `docs/audits/**` (objectui#7856 card 2, recursively), and the root
+ *     `README.md`.
+ *
+ * ⚠️ Card 2 is the widening whose whole delivery is the LEDGER, and reading it
+ * as coverage would be reading it backwards. Every page in those two subtrees
+ * that carries a `ts` / `tsx` block is named in `UNGATED_DOCS` below with its
+ * measured count: an ADR and a dated audit are RECORDS, so a block inside one is
+ * not this gate's to repair (see those constants). What the widening delivers is
+ * objectui#5174's distinction and only that — a named debt with a number instead
+ * of a tree that no accounting could mention.
  *
  * Stating it here is objectui#5174's finding, and the finding was not the missing
  * extension — it was that a reader had to open `listDocuments` to learn that
@@ -509,9 +519,13 @@ const DOC_EXTENSIONS = ['.mdx', '.md'];
  * reasoning, in the same words, as `APP_DOCS`' "one level of app directory and no
  * deeper": a scan surface says where it stops.
  *
- * So the enumeration below is by DIRECTORY ENTRY and filtered to FILES. Adding
- * `docs/adr/**` later is then an edit to this file that a reviewer sees, never a
- * side effect of a page being moved into a subdirectory.
+ * So the enumeration below is by DIRECTORY ENTRY and filtered to FILES, and that
+ * is what made card 2 an edit a reviewer sees rather than a side effect of a page
+ * being moved into a subdirectory: the two subtrees arrived as `ADR_DOCS` and
+ * `AUDIT_DOCS` below, LEDGER-FIRST, and this leg is byte-for-byte the leg card 1
+ * landed. Re-measured on the current tree, the diagnostics that paragraph
+ * predicted are exactly the ones they brought — which is why they arrived on the
+ * ledger instead of in front of a pull request expected to fix them.
  *
  * Exported — the constant and the enumerator both — so a sibling census can ask
  * this gate what its leg contains instead of re-spelling it. That is what
@@ -542,6 +556,96 @@ export function rootDocsPages(root) {
     .map((entry) => `${ROOT_DOCS.dir}/${entry}`);
 }
 
+/**
+ * The two subtrees BELOW that top level (objectui#7856, card 2).
+ *
+ * Card 1 stopped at `docs/`'s top level and said why: `docs/adr/**` is a GOVERNED
+ * surface (`GOVERNED_SURFACES` id `adr` in `check-governed-queue-guard.mjs`, so a
+ * pull request touching it stops in draft for a human to merge) and
+ * `docs/audits/**` travels with it. A `**`-shaped walk from `docs/` would have
+ * pulled both into a gate whose failures a non-governed pull request is expected
+ * to fix — "which is how a widening turns into a change nobody can land".
+ *
+ * Card 2 is that landing, and it arrives LEDGER-FIRST rather than repair-first.
+ * The 2026-09-07 triage ruling on objectui#7856 is the reason, and it is a
+ * statement about the DOCUMENTS rather than about cost:
+ *
+ *     `docs/audits/**` are dated audit snapshots — records of what was true on
+ *     their date. "Repairing" a code block inside one falsifies the record,
+ *     exactly as it would inside an ADR.
+ *
+ * So an ADR's or an audit's block is not a block this gate may ask an author to
+ * fix on its own authority. What the widening buys is the objectui#5174
+ * distinction and nothing more: a document inside the walk and named on the
+ * ledger is a KNOWN debt with a measured count, where a document outside the walk
+ * is "neither covered NOR declared ungated" — invisible to this gate's own
+ * accounting, which is strictly worse. Paying the debt down is a separate,
+ * per-record decision for whoever owns the record.
+ *
+ * `recursive: true` here, against `ROOT_DOCS`' `false`, and the asymmetry is the
+ * point rather than an inconsistency. Card 1's leg is non-recursive because its
+ * subdirectories are a DIFFERENT review route; these two legs ARE that route, so
+ * inside them there is nothing left to stop above. A page filed under
+ * `docs/adr/superseded/` tomorrow travels into the walk by itself instead of
+ * falling silently out of it — which is objectui#7115's defect, one level down.
+ *
+ * ⚠️ Where the walk still stops, stated rather than left to be read off the
+ * collector: a THIRD subdirectory of `docs/` — one that is neither of these two —
+ * is in no leg, exactly as `docs/adr` was before this card. `docs/screenshots/`
+ * is today's example and holds no page (it is `.png`), so the gap is currently
+ * empty; a new prose subtree under `docs/` is an edit to this file that a
+ * reviewer sees, never a side effect of a directory being created.
+ *
+ * Exported — the constants and the enumerators both — so a sibling census can ask
+ * this gate what its legs contain instead of re-spelling them, which is what
+ * `check-doc-fence-languages.test.ts` does: that guard does NOT gain these legs
+ * (its walk is `check:doc-fences`' own surface, and moving it is not this card),
+ * and its walk-equality pin subtracts these enumerators BY IMPORT rather than a
+ * hand-written list of today's fifteen filenames.
+ */
+export const ADR_DOCS = { dir: 'docs/adr', recursive: true };
+export const AUDIT_DOCS = { dir: 'docs/audits', recursive: true };
+
+/**
+ * Every page under one subtree constant, in a stable order.
+ *
+ * `recursive` is READ here rather than being a comment on the constant: a flag a
+ * reader can see and the walk ignores is the same false friend as a count nothing
+ * re-derives. Directories are visited at their own alphabetical position, files
+ * are filtered to `DOC_EXTENSIONS`, and an absent tree yields `[]` so a throwaway
+ * fixture stays listable — `main` refuses to publish a verdict when one of these
+ * directories is missing from a REAL run, for the reason `ROOT_DOCS`' guard
+ * states.
+ */
+function subtreeDocPages(root, tree) {
+  const base = join(root, tree.dir);
+  if (!existsSync(base) || !statSync(base).isDirectory()) return [];
+  const out = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir).sort()) {
+      const p = join(dir, entry);
+      if (statSync(p).isDirectory()) {
+        if (tree.recursive) walk(p);
+        continue;
+      }
+      if (DOC_EXTENSIONS.some((ext) => entry.endsWith(ext)))
+        out.push(relative(root, p).split(sep).join('/'));
+    }
+  };
+  walk(base);
+  return out;
+}
+
+/** Every page under `ADR_DOCS.dir`, in a stable order. */
+export function adrDocsPages(root) {
+  return subtreeDocPages(root, ADR_DOCS);
+}
+
+/** Every page under `AUDIT_DOCS.dir`, in a stable order. */
+export function auditDocsPages(root) {
+  return subtreeDocPages(root, AUDIT_DOCS);
+}
+
 /** Fence languages treated as compilable TypeScript. `js` / `jsx` are NOT in the
  *  set: they are not type-annotated, so a strict program judges them on rules
  *  their authors never opted into. */
@@ -561,16 +665,21 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  *   README.md                       ✓        ✓       ✓     objectui#7115
  *   packages/<name>/README.md       ✓        ✓       ✗     ships inside `files`
  *   docs/*.md (top level only)      ✗        ✓       ✗     objectui#7856 card 1
+ *   docs/adr/**                     ✗        ✓       ✗     objectui#7856 card 2
+ *   docs/audits/**                  ✗        ✓       ✗     objectui#7856 card 2
  *
- * The `docs/*.md` row is the one leg THIS gate carries alone, and the asymmetry
+ * The three `docs/` rows are the legs THIS gate carries alone, and the asymmetry
  * is deliberate rather than an oversight to be tidied up later: objectui#7856
  * card 1 moves this gate's population only, so `check-doc-fence-languages` and
  * `check-doc-component-types` keep the surface they had. `check-doc-fence-
  * languages.test.ts` therefore no longer compares the two walks for equality
  * flat — it subtracts exactly `rootDocsPages()` and compares the rest, so the
  * divergence is named and bounded instead of being a list that silently drifted.
- * ⛔ The subdirectories are NOT this row: `docs/adr/**` is governed and
- * `docs/audits/**` travels with it (objectui#7856 card 2).
+ * Card 2 EXTENDS that subtraction with `adrDocsPages()` and `auditDocsPages()`
+ * rather than rewriting it — which is why card 1 exported its enumerator in the
+ * first place. ⛔ The two subtrees are their own rows, never this one: a leg says
+ * where it stops, and `docs/adr/**` being GOVERNED is the reason the boundary
+ * between the rows is worth a line of code rather than a comment.
  *
  * `check-doc-component-types` does not read the package READMEs — it asks
  * whether a documented `type` literal is a registered component key, and a
@@ -581,9 +690,7 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * ⚠️ EVERYTHING ELSE authored in markdown is read by no doc gate at all. That is
  * a statement of what the roots are today, ⛔ not a plan and not a promise. In
  * descending order of size, the unscanned population is: non-README `.md` under
- * `packages/**` (by far the largest); `docs/adr/**` and `docs/audits/**` — the
- * root `docs/` tree BELOW its top level, which objectui#7856 card 2 holds and
- * card 1 deliberately left where it was; the PUBLISHED
+ * `packages/**` (by far the largest); the PUBLISHED
  * `skills/objectui/**`; the root pages that are not `README.md` (`AGENTS.md`,
  * `CONTRIBUTING.md`, `ROADMAP.md` and the rest); `examples/**`; the `apps/**`
  * pages that are not under an `apps/<app>/docs/` tree; `.claude/**`;
@@ -603,7 +710,14 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * "which":
  *
  *     git ls-files '*.md' '*.mdx' \
- *       | grep -vE '^(content/docs/|apps/[^/]+/docs/|packages/[^/]+/README\.md$|README\.md$|docs/[^/]+\.mdx?$|\.changeset/)'
+ *       | grep -vE '^(content/docs/|apps/[^/]+/docs/|packages/[^/]+/README\.md$|README\.md$|docs/[^/]+\.mdx?$|docs/adr/|docs/audits/|\.changeset/)'
+ *
+ * ⚠️ A subdirectory of `docs/` that is NEITHER `adr/` NOR `audits/` is in no leg
+ * and therefore still in that population — the exclusion above names the two
+ * subtrees rather than `docs/`, so a third one shows up in the command's output
+ * on the day it is created. Today there is none carrying prose
+ * (`docs/screenshots/` is images), which is exactly why it is written down now
+ * rather than discovered later.
  *
  * ⛔ `skills/objectui/**` is NOT claimed by any gate here, and this line is the
  * opposite of a claim on it: it is a governed, published surface with its own
@@ -615,16 +729,43 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * Documents whose snippets are NOT compiled, each with the reason. The default
  * is covered; this list is the debt, by name, and it can only shrink.
  *
- * ⚠️ The ledger is EMPTY, and that is objectui#5174's finished state rather than a
- * gap: every document the collector reaches is in the covered tier, so the default
- * is now the only tier. There were 19 `.md` entries under `content/docs` when that
+ * ⚠️ The ledger holds objectui#7856 card 2 and NOTHING ELSE, and the distinction
+ * matters more than the length. It had reached zero — objectui#5174's finished
+ * state, every document the collector reached sitting in the covered tier — and
+ * card 2 did not re-open it by parking a page that failed. It re-opened it because
+ * the two subtrees it brought into the walk are RECORDS: an ADR states what was
+ * decided on a date, an audit states what was true on a date, and the 2026-09-07
+ * triage ruling on objectui#7856 drew the consequence in one line —
+ *
+ *     "Repairing" a code block inside one falsifies the record, exactly as it
+ *     would inside an ADR.
+ *
+ * ⇒ For those two subtrees the ledger is not a deferral of the work, it IS the
+ * work: the honest terminal state for a block nobody may rewrite is a named debt
+ * carrying a measured number, not a green. Every entry below therefore says what
+ * was measured, when, and — unlike every entry that came before it — that paying
+ * it down is a decision for whoever owns the record rather than a task waiting
+ * for a spare afternoon.
+ *
+ * ⚠️ The counts in those entries are DATED MEASUREMENTS, not re-derived values,
+ * and this ledger's own rule about numbers applies to them: nothing fails when
+ * one goes stale. What IS re-derived every run is the part that matters — the
+ * entry must name a document in the scan set that really holds a `ts` / `tsx`
+ * block, so an entry cannot outlive its subject. Re-measure with the gate's own
+ * analyzer (`analyze({ ungated: {} })` + `compileSnippets()`) against the built
+ * closure; do not hand-count fences.
+ *
+ * ⛔ None of that licenses a NEW entry outside those two subtrees. For every
+ * other document the default is still COVERED, a new entry is still new debt, and
+ * it still owes a reason that says WHAT would have to change. There were 19 `.md`
+ * entries under `content/docs` when that
  * card made them visible — the collector reads `.md`, and an entry with a measured
  * reason is what a page that cannot pass yet is owed — and the card then walked
  * every one of them, then the `.mdx` pages, then the package READMEs, and last the
  * root `README.md`, back OFF this list rather than re-wording their reasons. Each
  * page left by compiling, never by softening this gate.
  *
- * ⛔ An empty object is NOT an invitation to park the next page that fails. A new
+ * ⛔ This list is NOT an invitation to park the next page that fails. A new
  * entry is new debt and owes the same thing every entry above owed: a reason that
  * says WHAT would have to change, measured on the page rather than estimated. The
  * sentence this replaces carried the literal `12 .mdx pages and 32 package
@@ -748,7 +889,58 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  *
  * @type {Record<string, string>}
  */
-const UNGATED_DOCS = {};
+const UNGATED_DOCS = {
+  // objectui#7856 card 2. Measured on `fedfa3e4` with this gate's own analyzer
+  // against the closure `--build-filter` names (35/35 turbo tasks successful):
+  // `analyze({ ungated: {} })` for the population, `compileSnippets()` for the
+  // phases. Four records, five `ts` blocks, 29 diagnostics — 21 syntax-phase and
+  // 8 semantic — split 26 under `docs/adr/**` and 3 under `docs/audits/**`.
+  //
+  // ⚠️ Read the syntax-phase entries for what they do NOT say. A block that fails
+  // to PARSE never enters the semantic program, so its semantic half is not "0",
+  // it is UNMEASURED — the count in each entry is the whole of what is known, and
+  // making such a block parse is the only way to learn what else is wrong with it.
+  // That is a fact about the instrument, and it is also the reason a marker would
+  // buy nothing here: an ungated document is not compiled at all, so a
+  // `FRAGMENT_MARKER` inside one of these records would declare a block that this
+  // gate already never reads — "a marker on a block the gate no longer collects is
+  // debt nothing would ever fail to prompt the removal of", one level up. ⇒ Card 2
+  // wrote no marker and edited no record.
+  'docs/adr/0001-master-detail-subform.md':
+    '2 `ts` blocks (fences 142, 211), 15 diagnostics, ALL syntax-phase: TS1005 x5, TS1109 x8, TS1011 x1 — ' +
+    'the semantic half is unmeasured, not clean. Both blocks are schema SKETCHES written in prose ' +
+    'TypeScript — bare object literals at statement position, `?:` optionality markers written on values, ' +
+    "`[...]` elisions, and `'create' | 'edit'` standing where a value goes. What would have to change: each " +
+    'sketch rewritten as a real annotated declaration resolving against the shipped `dist/*.d.ts`, or its ' +
+    'fence relabelled to a language this gate does not compile. Neither is this gate\'s to do: ADR-0001 is ' +
+    'the dated record of an accepted decision (2026-06-05), and a sketch edited until it compiles is a ' +
+    'record that no longer says what was decided (objectui#7856 triage, 2026-09-07).',
+  'docs/adr/0036-field-conditional-rules.md':
+    '1 `ts` block (fence 178), 3 diagnostics, ALL syntax-phase: TS1005 x2, TS1109 x1 — the semantic half is ' +
+    'unmeasured, not clean. The block is a fragment of a field map: three `Field.*` property assignments ' +
+    'with no surrounding object and no import, which TypeScript reads as labelled statements. What would ' +
+    'have to change: the excerpt wrapped in the declaration it is excerpted FROM and `Field` imported, ' +
+    'which edits what ADR-0036 shows it decided (accepted 2026-06-07) rather than repairing it — the record ' +
+    'is the excerpt, so a bigger excerpt is a different record.',
+  'docs/adr/0057-console-ai-chat-one-conversation-docked.md':
+    '1 `ts` block (fence 192), 8 diagnostics, ALL semantic-phase: TS7006 x1, TS7031 x3, TS7053 x1, TS2304 x3 ' +
+    '— the ONE block in either subtree that parses, so this is the only entry here whose number is complete. ' +
+    'The block is the ADR\'s resolver sketch: unannotated parameters and a destructured options bag ' +
+    '(implicit any), and three helpers it names but does not define (`isBuildAgent`, `resolveAgentParam`, ' +
+    '`resolveDefaultAgentName`). What would have to change: parameter types written and the three helpers ' +
+    'imported from wherever the console ships them. ⚠️ That is a repair this gate could describe and must ' +
+    'not ask for: ADR-0057 is accepted and IMPLEMENTED IN FULL (2026-07-13), so its sketch is the record of ' +
+    'the resolver that was agreed, and typing it against today\'s console would silently restate the record ' +
+    'as whatever shipped.',
+  'docs/audits/2026-07-objectview-detailview-schema.md':
+    '1 `ts` block (fence 66), 3 diagnostics, ALL syntax-phase: TS1005 x3 — the semantic half is unmeasured, ' +
+    'not clean. The block is a shape excerpt of the ADR-0047 container: a bare brace-delimited list of ' +
+    '`key: Schema` pairs, which is a block statement rather than an object literal. What would have to ' +
+    'change: the excerpt given a declaration to be the initialiser of, and the four schema names imported. ' +
+    '⛔ Ungoverned is not the same as safe to repair: this is a DATED audit snapshot (2026-07) of what the ' +
+    'two schemas were at `@objectstack/spec` 16.1.0, so editing the excerpt to compile against today\'s ' +
+    'types would make the record assert something it never measured (objectui#7856 triage, 2026-09-07).',
+};
 
 // ── Fence scanning ───────────────────────────────────────────────────────────
 
@@ -950,8 +1142,14 @@ export function listDocuments(root = repoRoot) {
   }
   // The root `docs/` tree, TOP LEVEL only (objectui#7856 card 1). Enumerated by
   // directory entry and filtered to files by `rootDocsPages`, so `docs/adr/**`
-  // (governed) and `docs/audits/**` (card 2) cannot arrive here by accident.
+  // (governed) and `docs/audits/**` cannot arrive through THIS leg by accident —
+  // they arrive through their own, immediately below, which is card 2.
   out.push(...rootDocsPages(root));
+  // The two subtrees below it (objectui#7856 card 2), each its own leg for the
+  // same reason the leg above is not recursive: a scan surface says where it
+  // stops, and these two say it separately from the tree that contains them.
+  out.push(...adrDocsPages(root));
+  out.push(...auditDocsPages(root));
   // Root pages last, by name. An absent one is dropped here so a throwaway
   // fixture tree stays listable; `main` refuses to publish a verdict when one is
   // missing from a real run, which is the only place that can bite.
@@ -2177,6 +2375,22 @@ function main() {
         'surface. Re-point it at the tree\'s new path, or remove the leg deliberately.',
     );
     return EXIT_CODES.couldNotRun;
+  }
+
+  // And for card 2's two subtree legs, for exactly the same reason. They are
+  // checked as a PAIR because they arrived as one: a rename that took only one of
+  // them out would leave the other's count looking healthy, which is the shape
+  // this guard exists to refuse.
+  for (const tree of [ADR_DOCS, AUDIT_DOCS]) {
+    if (!existsSync(join(repoRoot, tree.dir))) {
+      console.error(
+        `This gate's scan surface names \`${tree.dir}/\`, which does not exist under ${repoRoot}. That ` +
+          'subtree is part of the surface objectui#7856 card 2 widened onto, so its absence silently ' +
+          'narrows the surface back and every count below would still look healthy. Re-point the leg at ' +
+          "the tree's new path, or remove it deliberately.",
+      );
+      return EXIT_CODES.couldNotRun;
+    }
   }
 
   const state = analyze({});
