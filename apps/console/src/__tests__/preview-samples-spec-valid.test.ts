@@ -386,24 +386,39 @@ describe('preview-samples conform to @objectstack/spec', () => {
  */
 describe('object sample: the deliberate array `fields` shape is its ONLY defect (objectui#6844)', () => {
   /**
-   * The `object` sample with its array `fields` lifted to the record shape
-   * `ObjectSchema` wants — i.e. the sample minus its one deliberate defect.
-   * Nothing else is touched, so every issue this reports belongs to a field.
+   * The sample's `fields` keyed by field name, whichever shape they are
+   * authored in.
+   *
+   * Shape-agnostic ON PURPOSE, even though the array is what this sample
+   * carries: the wrong fix these pins guard against is "tidy it up to a
+   * record", and if these helpers only spoke array then that fix would make
+   * every assertion below explode with a `TypeError` instead of letting the
+   * ONE pin that is about the shape say so. The lift is otherwise verbatim —
+   * no key is stripped, so a retired key re-added to a field still reaches the
+   * parse below.
    */
-  function objectSampleAsRecord(): Record<string, unknown> {
-    const sample = SAMPLES.object as { fields: Array<Record<string, unknown>> };
-    return {
-      ...sample,
-      fields: Object.fromEntries(sample.fields.map((f) => [String(f.name), f])),
-    };
+  function objectFieldsAsRecord(): Record<string, unknown> {
+    const fields = (SAMPLES.object as { fields: unknown }).fields;
+    if (!Array.isArray(fields)) return fields as Record<string, unknown>;
+    return Object.fromEntries(
+      (fields as Array<Record<string, unknown>>).map((f) => [String(f.name), f]),
+    );
   }
 
-  /** The sample's `status` field definition, read off the authored array. */
+  /**
+   * The `object` sample minus its one deliberate defect — i.e. with `fields`
+   * in the record shape `ObjectSchema` wants. Nothing else is touched, so
+   * every issue this reports belongs to a field.
+   */
+  function objectSampleAsRecord(): Record<string, unknown> {
+    return { ...(SAMPLES.object as Record<string, unknown>), fields: objectFieldsAsRecord() };
+  }
+
+  /** The sample's `status` field definition. */
   function statusField(): Record<string, unknown> {
-    const sample = SAMPLES.object as { fields: Array<Record<string, unknown>> };
-    const field = sample.fields.find((f) => f.name === 'status');
+    const field = objectFieldsAsRecord().status;
     if (!field) throw new Error('the `object` sample no longer has a `status` field');
-    return field;
+    return field as Record<string, unknown>;
   }
 
   it('parses clean once the array shape stops short-circuiting the parse', () => {
