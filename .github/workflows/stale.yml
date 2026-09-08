@@ -1,11 +1,14 @@
 name: Stale Issues & PRs
 
 on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 permissions:
-  issues: read
-  pull-requests: read
+  issues: write
+  pull-requests: write
 
 jobs:
   stale:
@@ -57,7 +60,7 @@ jobs:
     # ceiling has to be an edit someone makes on purpose rather than a silent
     # one.
     steps:
-      - uses: actions/stale@28ca1036281a5e5922ead5184a1bbf96e5fc984e  # v9.0.0
+      - uses: actions/stale@e00e804f6792d3fedb5bd3a27df2761c5f86c981  # v9.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           
@@ -82,7 +85,7 @@ jobs:
             Thank you for your understanding!
           stale-issue-label: 'stale'
           exempt-issue-labels: 'pinned,security,critical,bug,enhancement'
-          days-before-issue-stale: 0
+          days-before-issue-stale: 60
           days-before-issue-close: 7
           
           # Pull requests configuration
@@ -106,11 +109,10 @@ jobs:
             Thank you for your understanding!
           stale-pr-label: 'stale'
           exempt-pr-labels: 'pinned,security,in-progress,blocked'
-          days-before-pr-stale: 0
+          days-before-pr-stale: 45
           days-before-pr-close: 14
           
           # General configuration
-          operations-per-run: 500
-          debug-only: true
+          operations-per-run: 100
           remove-stale-when-updated: true
           ascending: true
