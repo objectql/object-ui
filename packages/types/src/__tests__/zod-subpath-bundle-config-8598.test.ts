@@ -48,14 +48,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import viteConfig from '../../vite.config.js';
-
 const PACKAGE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
- * `defineConfig` passes an object literal straight through, so the import above
- * is the config itself. Vite's own `BuildOptions` types every field as optional,
- * which would make each assertion below read through a `?.` and pass on
+ * `defineConfig` passes an object literal straight through, so what is imported
+ * below is the config itself. Vite's own `BuildOptions` types every field as
+ * optional, which would make each assertion read through a `?.` and pass on
  * `undefined` — so the shape is spelled here as what this config MUST declare.
  */
 interface ZodBundleBuild {
@@ -65,8 +63,32 @@ interface ZodBundleBuild {
   rollupOptions: { external: (id: string) => boolean };
 }
 
-const build = ((viteConfig as { build?: Partial<ZodBundleBuild> }).build ??
-  {}) as ZodBundleBuild;
+/**
+ * ⚠️ The specifier is held in a variable, and that is load-bearing rather than
+ * stylistic — the same mechanism `page-header-action-ids.dist.spec.tsx` uses,
+ * for a second reason on top of its one.
+ *
+ * A LITERAL specifier puts `vite.config.ts` into this package's type program:
+ * `tsconfig.test.json` compiles every `src/**` test (deliberately — see its
+ * header), and an import pulls its target in with it. That config imports
+ * `scripts/vitest-invocation-guard.mjs`, which ships no typings anywhere in this
+ * repo, so `pnpm --filter @object-ui/types type-check` fails with TS7016 —
+ * measured, not predicted. No other package hits it because no other package's
+ * checked program has ever imported a `vite.config.ts`.
+ *
+ * ⛔ The alternatives were weighed and rejected: reading the config as TEXT is
+ * the `toContain` weakness this file's header exists to refuse; a
+ * `@ts-expect-error` suppresses a real diagnostic; and a repo-wide `.d.mts` for
+ * the guard is a change to a file 24 vite configs share, for one test's benefit.
+ * TypeScript cannot resolve a non-literal specifier, so the config stays out of
+ * the type program while the RUNTIME import — and every assertion below — is
+ * exactly as strong as before.
+ */
+const CONFIG_SPECIFIER = '../../vite.config.ts';
+const viteConfig = ((await import(CONFIG_SPECIFIER)) as { default?: { build?: Partial<ZodBundleBuild> } })
+  .default;
+
+const build = (viteConfig?.build ?? {}) as ZodBundleBuild;
 
 describe('objectui#8598 — the `./zod` subpath build config', () => {
   it('reads a real config — an empty object would satisfy every negative below', () => {

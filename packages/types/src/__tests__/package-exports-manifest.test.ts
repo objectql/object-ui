@@ -65,10 +65,19 @@ describe('@object-ui/types package.json exports map (objectui#4896)', () => {
     expect(pkg.type).toBe('module');
   });
 
-  it('builds with bare tsc — no bundler that could emit a second (CJS) format', () => {
+  it('emits with bare tsc — no build step emits a second (CJS) format', () => {
     // If this ever changes to a bundler/dual-emit build, the `require`-less
     // exports map below should be revisited rather than assumed to still be
     // correct.
+    //
+    // ⭐ THAT REVISION HAS BEEN DONE, for the `vite build` step objectui#8598
+    // added below. It is a lib-mode build with `formats: ['es']` — ONE format,
+    // asserted by name in `zod-subpath-bundle-config-8598.test.ts` rather than
+    // trusted here — writing a single file, `dist/zod/index.zod.js`, over the
+    // one `tsc` already emitted at that path. It adds no output, no `exports`
+    // entry and no `require` condition, so the map below is still correct for
+    // the reason it always was. ⛔ A SECOND format arriving in that config is
+    // what would reopen this question, and it reds that file, not this one.
     //
     // What that sentence pins is that NOTHING IN THE BUILD EMITS A SECOND
     // FORMAT. `toBe('tsc')` conflated it with the literal string, so appending
@@ -91,7 +100,15 @@ describe('@object-ui/types package.json exports map (objectui#4896)', () => {
     // other.
     const steps = (pkg.scripts?.build ?? '').split('&&').map((step) => step.trim());
     expect(steps[0]).toBe('tsc');
-    expect(steps.slice(1)).toEqual(['node ../../scripts/check-dist-completeness.mjs']);
+    expect(steps.slice(1)).toEqual([
+      // objectui#8598. ⛔ The ORDER is the contract, not a preference: `tsc`
+      // writes all of `dist/` first, this step replaces exactly one of its
+      // outputs in place, and the count then verifies `tsc`'s expected set is
+      // still whole. Reversed, the count runs before the overwrite and stops
+      // covering it.
+      'vite build',
+      'node ../../scripts/check-dist-completeness.mjs',
+    ]);
   });
 
   it('the root "." export carries exactly {types, import} — no "require" condition', () => {
