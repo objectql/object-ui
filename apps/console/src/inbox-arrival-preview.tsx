@@ -40,16 +40,36 @@ import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-// The context itself, not the provider: the provider signs in against a real
-// server, and this fixture only needs a stable user id to scope the session.
-import { AuthCtx, type AuthContextValue } from '@object-ui/auth/AuthContext';
 import { I18nProvider } from '@object-ui/i18n';
 import { ConsoleToaster, ThemeProvider } from '@object-ui/app-shell';
-import { useInboxArrivalNotifier } from '@object-ui/app-shell/hooks/useInboxArrivalNotifier';
-import { __resetInboxArrivals } from '@object-ui/app-shell/hooks/inboxArrivals';
-import { NotificationPreferencesMenu } from '@object-ui/app-shell/layout/NotificationPreferencesMenu';
-import type { InboxNotification } from '@object-ui/app-shell/layout/inboxGrouping';
-import type { SharedFeedStatus } from '@object-ui/app-shell/hooks/sharedUserFeeds';
+// ⚠️ Workspace SOURCE paths below, NOT `@object-ui/<pkg>/<subpath>` specifiers.
+//
+// Neither `@object-ui/app-shell` nor `@object-ui/auth` publishes a subpath —
+// `.` is their whole `exports` map — and none of the six bindings is on either
+// barrel: three are app-shell internals, two are their types, and
+// `__resetInboxArrivals` is a TEST SEAM that must not become public API just so
+// a fixture can mount. Written as subpath specifiers they LOOKED fine, because
+// a Vite string alias matches by PREFIX: `@object-ui/app-shell/hooks/x` went
+// through the `@object-ui/app-shell` -> `packages/app-shell/src` alias in
+// `vite.config.ts`, so the dev server and the browser check were both green,
+// while `tsc` resolved the same specifier through the package's `exports` map,
+// found no subpath, and failed the console build with six TS2307s — taking the
+// `Bundle Analysis` job down before it measured a single chunk.
+//
+// These paths are exactly what that alias already resolved to, so the modules
+// loaded at runtime are unchanged and both packages publish exactly what they
+// published before. Dev-server-only fixture: the production build takes
+// `index.html` as its single input, so none of this ships.
+//
+// The auth CONTEXT itself, not the provider: the provider signs in against a
+// real server, and this fixture only needs a stable user id to scope the
+// session.
+import { AuthCtx, type AuthContextValue } from '../../../packages/auth/src/AuthContext';
+import { useInboxArrivalNotifier } from '../../../packages/app-shell/src/hooks/useInboxArrivalNotifier';
+import { __resetInboxArrivals } from '../../../packages/app-shell/src/hooks/inboxArrivals';
+import { NotificationPreferencesMenu } from '../../../packages/app-shell/src/layout/NotificationPreferencesMenu';
+import type { InboxNotification } from '../../../packages/app-shell/src/layout/inboxGrouping';
+import type { SharedFeedStatus } from '../../../packages/app-shell/src/hooks/sharedUserFeeds';
 import './index.css';
 
 const FIXTURE_USER = 'u_fixture_alice';

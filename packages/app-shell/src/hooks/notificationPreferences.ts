@@ -48,14 +48,49 @@ import {
 /** localStorage key base; `scopedKey` appends `:u:<userId>` when signed in. */
 export const NOTIFICATION_PREFERENCES_KEY = 'objectui.notificationPreferences';
 
-export interface NotificationPreferences {
+/**
+ * The two switches, and why the name is not the plain one.
+ *
+ * ⚠️ This is NOT the `NotificationPreferences` that `@objectstack/spec/api`
+ * publishes, and the name says so on purpose — a local declaration under a spec
+ * export's name is read by the next agent as the spec's own definition
+ * (`check:spec-symbols`, objectstack#4115). Measured against the installed
+ * `@objectstack/spec` 17.3.0, the two are different layers under one word:
+ *
+ * - The spec's is the ACCOUNT's server-persisted delivery routing — which
+ *   transports a notification is sent over and how often — carried by the
+ *   `getNotificationPreferences` / `updateNotificationPreferences` API pair.
+ *   Its keys: `email`, `push`, `inApp`, `digest`, `channels`.
+ * - This one is THIS BROWSER's presentation of a row that has already been
+ *   delivered: may a toast cover this screen, and may this browser's
+ *   Notification API be used. Its keys: `toast`, `desktop`.
+ *
+ * Zero keys in common, and the direction that settles it is not the key count
+ * but the parse: the spec's schema strips both of these
+ * (`NotificationPreferencesSchema.parse({ toast: true, desktop: false })`
+ * returns `{ email: true, push: true, inApp: true, digest: 'none' }`), so
+ * importing or deriving the spec's type cannot express these two switches at
+ * all. Binding to it would change what this feature stores, not merely what the
+ * type is called — so the doctrine's preferred arm (import/derive) is not
+ * available here and this is a renamed dialect instead.
+ *
+ * The tripwire that keeps the new name genuinely free lives in
+ * `src/__tests__/spec-symbol-parity.test.ts`; if the spec ever publishes
+ * `BrowserNotificationPreferences`, that test fails rather than this file
+ * quietly re-creating the collision under the new name.
+ *
+ * The server-persisted object is out of objectui#7011's scope. If it ever
+ * arrives here it is the spec's shape under the spec's name, imported, sitting
+ * beside this one rather than replacing it.
+ */
+export interface BrowserNotificationPreferences {
   /** In-page toast when a message arrives and the tab is visible. */
   toast: boolean;
   /** System notification when a message arrives and the tab is hidden. */
   desktop: boolean;
 }
 
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = Object.freeze({
+export const DEFAULT_NOTIFICATION_PREFERENCES: BrowserNotificationPreferences = Object.freeze({
   toast: true,
   desktop: false,
 });
@@ -68,8 +103,8 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = Object.
  * state, and dropping the user's other choice because of it would be a
  * regression they never asked for.
  */
-export function parseNotificationPreferences(raw: unknown): NotificationPreferences {
-  const value = raw as Partial<NotificationPreferences> | null | undefined;
+export function parseNotificationPreferences(raw: unknown): BrowserNotificationPreferences {
+  const value = raw as Partial<BrowserNotificationPreferences> | null | undefined;
   return {
     toast: typeof value?.toast === 'boolean' ? value.toast : DEFAULT_NOTIFICATION_PREFERENCES.toast,
     desktop: typeof value?.desktop === 'boolean' ? value.desktop : DEFAULT_NOTIFICATION_PREFERENCES.desktop,
@@ -77,7 +112,7 @@ export function parseNotificationPreferences(raw: unknown): NotificationPreferen
 }
 
 /** Read the stored preferences for a user, defaulting on anything unusable. */
-export function readNotificationPreferences(userId?: string | null): NotificationPreferences {
+export function readNotificationPreferences(userId?: string | null): BrowserNotificationPreferences {
   if (typeof window === 'undefined') return DEFAULT_NOTIFICATION_PREFERENCES;
   try {
     const raw = window.localStorage.getItem(scopedKey(NOTIFICATION_PREFERENCES_KEY, userId));
@@ -91,7 +126,7 @@ export function readNotificationPreferences(userId?: string | null): Notificatio
 /** Persist preferences for a user. Best-effort — storage may be unavailable. */
 export function writeNotificationPreferences(
   userId: string | null | undefined,
-  preferences: NotificationPreferences,
+  preferences: BrowserNotificationPreferences,
 ): void {
   if (typeof window === 'undefined') return;
   try {
@@ -126,14 +161,14 @@ export function writeNotificationPreferences(
  * rule `sharedUserFeeds` records for its own store).
  */
 const listeners = new Set<() => void>();
-let cache: { key: string; value: NotificationPreferences } | null = null;
+let cache: { key: string; value: BrowserNotificationPreferences } | null = null;
 
-function snapshot(key: string, userId: string | null | undefined): NotificationPreferences {
+function snapshot(key: string, userId: string | null | undefined): BrowserNotificationPreferences {
   if (!cache || cache.key !== key) cache = { key, value: readNotificationPreferences(userId) };
   return cache.value;
 }
 
-function publish(key: string, value: NotificationPreferences): void {
+function publish(key: string, value: BrowserNotificationPreferences): void {
   cache = { key, value };
   for (const listener of [...listeners]) listener();
 }
@@ -150,7 +185,7 @@ export function __resetNotificationPreferences(): void {
 }
 
 export interface NotificationPreferencesController {
-  preferences: NotificationPreferences;
+  preferences: BrowserNotificationPreferences;
   /** The browser's current verdict, READ (never requested) on every render. */
   desktopPermission: DesktopNotificationPermission;
   /** Whether this browser has a Notification API at all. */
@@ -189,7 +224,7 @@ export function useNotificationPreferences(): NotificationPreferencesController 
   );
 
   // Another tab flipping a switch flips it here too — one browser, one answer.
-  useStorageSync<Partial<NotificationPreferences>>(key, (value) => {
+  useStorageSync<Partial<BrowserNotificationPreferences>>(key, (value) => {
     publish(key, parseNotificationPreferences(value));
   });
 
@@ -203,7 +238,7 @@ export function useNotificationPreferences(): NotificationPreferencesController 
   const desktopSupported = isDesktopNotificationSupported();
 
   const persist = useCallback(
-    (next: NotificationPreferences) => {
+    (next: BrowserNotificationPreferences) => {
       writeNotificationPreferences(userId, next);
       publish(scopedKey(NOTIFICATION_PREFERENCES_KEY, userId), next);
     },
