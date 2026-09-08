@@ -498,7 +498,7 @@ describe('P1.5 Record Components', () => {
       layout: 'stacked',
       sections: [
         { label: 'Basic Info', fields: ['name', 'email', 'phone'], collapsible: true },
-        { label: 'Address', fields: ['street', 'city', 'state'], collapsed: true },
+        { label: 'Address', fields: ['street', 'city', 'state'], defaultCollapsed: true },
       ],
       fields: ['name', 'email'],
       aria: { ariaLabel: 'Account Details' },
