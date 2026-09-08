@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -44,10 +45,18 @@ import { fileURLToPath } from 'node:url';
  * A spawn-based pin fails silently in two ways: the fixtures might not have
  * escaped at all (skipped, or the marker never reached the child), or they
  * might have landed in two workers, where the defect is invisible. So each
- * fixture prints a line when its escape RUNS, and reports whether it found the
- * other fixture's mark on the shared global object — which is only possible in
- * one worker, for the file that ran second. Exactly one `saw_other=yes` is the
- * reading that says "one worker, and one of these was not first in it".
+ * fixture writes a line to a LEDGER FILE when its escape RUNS, and reports
+ * whether it found the other fixture's mark on the shared global object — which
+ * is only possible in one worker, for the file that ran second. Exactly one
+ * `saw_other=yes` is the reading that says "one worker, and one of these was
+ * not first in it".
+ *
+ * A file, not the child's console, and that is measured: vitest's default
+ * reporter shows a passing test's console output nowhere, so a console-based
+ * liveness line is present exactly when the test FAILED. Under the defect the
+ * first draft of this pin went red on "fixture b never ran its escape" while b
+ * had run and passed silently — a red for the wrong reason, which is the shape
+ * the pin exists to refuse. The ledger is independent of the outcome.
  *
  * ## Recursion
  *
@@ -82,8 +91,12 @@ describe('objectui#8537 — the network-escape guard covers every file in a work
     expect(a.length).toBeGreaterThan(500);
     expect(a).not.toBe(b);
     expect(normalise(a)).toBe(normalise(b));
-    // And they are inert outside the child: the escape is behind the marker.
-    for (const src of [a, b]) expect(src).toContain("it.skipIf(!IS_CHILD)");
+    // And they are inert outside the child: the escape is behind the marker,
+    // and the liveness evidence goes to the ledger, not the console.
+    for (const src of [a, b]) {
+      expect(src).toContain('it.skipIf(!IS_CHILD)');
+      expect(src).toContain('appendFileSync(LEDGER');
+    }
   });
 
   it.skipIf(IS_CHILD)(
@@ -93,21 +106,35 @@ describe('objectui#8537 — the network-escape guard covers every file in a work
       // A fresh CLI, not a nested worker of this run.
       for (const key of Object.keys(env)) if (key.startsWith('VITEST')) delete env[key];
       env.OBJECTUI_ESCAPE_PIN_CHILD = '1';
+      const ledgerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'objectui-escape-pin-8537-'));
+      const ledgerPath = path.join(ledgerDir, 'ledger.txt');
+      env.OBJECTUI_ESCAPE_PIN_LEDGER = ledgerPath;
 
-      const child = spawnSync(
-        process.execPath,
-        [vitestCli, 'run', '--project', 'unit', '--maxWorkers=1', '--fileParallelism=false', ...FIXTURES],
-        { cwd: repoRoot, encoding: 'utf8', env, timeout: 300_000 },
-      );
-      const output = `${child.stdout ?? ''}${child.stderr ?? ''}`;
+      const { output, status, ledger } = (() => {
+        try {
+          const child = spawnSync(
+            process.execPath,
+            [vitestCli, 'run', '--project', 'unit', '--maxWorkers=1', '--fileParallelism=false', ...FIXTURES],
+            { cwd: repoRoot, encoding: 'utf8', env, timeout: 300_000 },
+          );
+          return {
+            output: `${child.stdout ?? ''}${child.stderr ?? ''}`,
+            status: child.status,
+            ledger: fs.existsSync(ledgerPath) ? fs.readFileSync(ledgerPath, 'utf8') : '',
+          };
+        } finally {
+          fs.rmSync(ledgerDir, { recursive: true, force: true });
+        }
+      })();
 
-      // Live control 1: both escapes RAN (not skipped, not filtered out).
-      expect(output, 'fixture a never ran its escape').toContain('ESCAPE_PIN_8537 file=a');
-      expect(output, 'fixture b never ran its escape').toContain('ESCAPE_PIN_8537 file=b');
+      // Live control 1: both escapes RAN (not skipped, not filtered out) —
+      // read off the ledger, which does not depend on how the child ended.
+      expect(ledger, 'fixture a never ran its escape').toContain('file=a ');
+      expect(ledger, 'fixture b never ran its escape').toContain('file=b ');
       // Live control 2: ONE worker, and one of the two was not first in it.
       // Under `isolate: false` the second file sees the first file's mark on
       // the shared global; in two workers neither would.
-      const sawOther = output.match(/saw_other=yes/g) ?? [];
+      const sawOther = ledger.match(/saw_other=yes/g) ?? [];
       expect(sawOther, 'the fixtures did not share a worker, so the defect could not show').toHaveLength(1);
 
       // The claim: every file in the worker is covered — BOTH red, each
@@ -119,7 +146,7 @@ describe('objectui#8537 — the network-escape guard covers every file in a work
       for (const fixture of FIXTURES) {
         expect(output, `${fixture} was not named by the guard`).toContain(`  file: ${fixture}`);
       }
-      expect(child.status, 'an escape must fail the child run').toBe(1);
+      expect(status, 'an escape must fail the child run').toBe(1);
     },
     360_000,
   );
