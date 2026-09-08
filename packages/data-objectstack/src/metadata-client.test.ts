@@ -218,8 +218,12 @@ describe('MetadataClient', () => {
     await expect(c.publishDraft('view', 'x')).rejects.toBeTruthy();
   });
 
-  it('publishDraft returns the result (incl. seedApplied) and unwraps the {data} envelope', async () => {
-    // Flat shape (rest-server passes protocol result through).
+  it('publishDraft returns the result (incl. seedApplied) verbatim — no {data} unwrapping', async () => {
+    // The shape the route actually serves, and the ONLY one it serves: the
+    // single REST mount answers `res.json(protocol.publishMetaItem(...))`
+    // straight through, and the `{ success, data }` envelope's one producer
+    // (the runtime dispatcher) does not serve this path at all — no publish
+    // branch in its `/meta` domain, no row in its route ledger (objectui#6962).
     const flat = new MetadataClient({
       baseUrl: '',
       fetch: mockFetch(async () =>
@@ -228,14 +232,18 @@ describe('MetadataClient', () => {
     const r1 = await flat.publishDraft('seed', 'job_sample');
     expect(r1.seedApplied).toEqual({ success: false, error: 'no readable seed bodies' });
 
-    // Dispatcher `{ success, data: {...} }` envelope.
+    // The unwrapping this method used to carry is GONE, so the enveloped body
+    // comes back as it arrived. This half used to assert the opposite; it was
+    // pinning a dialect with no producer, against `publish()` — the same route,
+    // a couple of hundred lines down — which never unwrapped at all.
     const enveloped = new MetadataClient({
       baseUrl: '',
       fetch: mockFetch(async () =>
         jsonResponse({ success: true, data: { success: true, seedApplied: { success: true, inserted: 6, updated: 0 } } })),
     });
     const r2 = await enveloped.publishDraft('seed', 'candidate_sample');
-    expect(r2.seedApplied).toEqual({ success: true, inserted: 6, updated: 0 });
+    expect(r2.seedApplied).toBeUndefined();
+    expect(r2).toEqual({ success: true, data: { success: true, seedApplied: { success: true, inserted: 6, updated: 0 } } });
   });
 });
 

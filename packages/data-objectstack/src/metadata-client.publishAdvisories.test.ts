@@ -267,10 +267,23 @@ describe('MetadataClient.publishDraft — the same door, so the same report', ()
     expect(events[0]!.advisories).toEqual([PURGE_ADVISORY]);
   });
 
-  it('reads them through the dispatcher `{ success, data }` envelope it already unwraps', async () => {
-    // This method tolerates an enveloped body and returns the inner object, so
-    // it must read the advisories from the same place — otherwise the report
-    // would depend on which of two equivalent server shapes answered.
+  /**
+   * REPLACED, not merely re-spelled (objectui#6962). This case used to pin the
+   * `{ success, data }` unwrapping this method carried and `publish()` did
+   * not, and it kept passing for the wrong reason: what it proved was that a
+   * dialect stayed consistent with itself, on a body no server on this route
+   * emits. The route was measured at the producer — one REST mount answering
+   * `res.json(protocol.publishMetaItem(...))` verbatim, and no dispatcher
+   * branch, ledger row or spec declaration putting an envelope on it — so the
+   * unwrapping is gone and both doors read the top level.
+   *
+   * What replaces it asserts the same thing the old case was reaching for —
+   * "the report does not depend on which shape answered" — in the direction
+   * that is now true: an enveloped body reports NOTHING, identically at both
+   * doors. The full shape-agreement pins live in
+   * `metadata-client.publishEnvelope.test.ts`.
+   */
+  it('reports nothing for an enveloped body, and returns it verbatim', async () => {
     const events: MetadataSaveAdvisoryEvent[] = [];
     const client = clientWith(
       { success: true, data: { ...CLEAN_BODY, advisories: [PURGE_ADVISORY] } },
@@ -279,10 +292,13 @@ describe('MetadataClient.publishDraft — the same door, so the same report', ()
 
     const result = await client.publishDraft('flow', 'nightly_purge');
 
-    expect(events).toHaveLength(1);
-    expect(events[0]!.advisories).toEqual([PURGE_ADVISORY]);
-    // and the unwrapping itself is unchanged
-    expect((result as { seq?: number }).seq).toBe(7);
+    // `advisories` is declared at the TOP LEVEL of `PublishMetaItemResponse`;
+    // an enveloped body has none there, and nothing digs for one.
+    expect(events).toEqual([]);
+    // The body comes back untouched — no hoisting, so a caller can still see
+    // it is not the shape this door declares.
+    expect(result).toEqual({ success: true, data: { ...CLEAN_BODY, advisories: [PURGE_ADVISORY] } });
+    expect((result as { seq?: number }).seq).toBeUndefined();
   });
 
   it('says nothing on a clean by-reference publish', async () => {
