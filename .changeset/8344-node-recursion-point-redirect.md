@@ -39,7 +39,7 @@ constraints are measured, and the reasoning lives on `defineNodeComponentUnion` 
 `zod/base.zod.ts`.
 
 
-## Three more accept/reject facts this ships, and one caveat
+## Four more public-surface facts this ships
 
 **1. `DashboardWidgetSchema.component` narrows.** That legacy `{ id, component, layout }`
 envelope names `BaseSchema` explicitly instead of following the redirect, so the widget
@@ -61,13 +61,26 @@ arm refused. Measured, corpus-valid chatbot seed plus `body: { model, temperatur
 accepted at the root before and after; inside `card.body[]` and `div.children[]` REFUSED
 before, ACCEPTED now. It is the only wider redeclaration among 109 base-key
 redeclarations across the union's arms, and no corpus document writes one — which is why
-the 45 to 54 headline does not show it.
+the 45 to 54 headline does not show it. Declared here rather than eliminated, by ruling:
+narrowing a published `chatbot` mirror is its own contract decision, and it is filed as
+objectui#8572.
 
-**⚠️ Caveat for bundled consumers — the redirect can be tree-shaken away.** This package
-declares `"sideEffects": false`, and the arm is filled by a statement in the `./zod`
-barrel body. A bundler that honours that flag and sees no import of `AnyComponentSchema`
-may drop the fill, and then every child slot validates with the PRE-redirect arm — no
-error, no warning, the old accept set. Measured on this repo's own Vite/rollup lib build:
-importing only `CardSchema` accepts a nested off-spec node, and the same bundle built
-with `AnyComponentSchema` also imported refuses it. Until that is settled, a consumer
-that bundles `@object-ui/types/zod` should keep `AnyComponentSchema` in its import graph.
+**⚠️ 4. Caveat for BUNDLED consumers — this redirect can be tree-shaken away, and it is not
+fixed here.** The arm is filled by this package's `./zod` barrel, and the package declares
+`"sideEffects": false`, so a bundler is entitled to drop that fill when a consumer imports one
+schema by name without also importing `AnyComponentSchema`. When it does, every child slot
+validates with the PRE-redirect arm — no error, no warning, the old accept set, and the fill's
+own assertion dropped with it so nothing can announce the failure. Measured on this repo's own
+Vite/rollup lib build: an entry importing only `CardSchema` ACCEPTS a nested off-spec node
+(370,652 bytes, no fill in the output); the same entry with `AnyComponentSchema` also imported
+REFUSES it (1,149,749 bytes, fill present).
+
+Three fixes were measured and none of them is a manifest edit this change may make on its own:
+narrowing `sideEffects` to an array is not a legal declaration for this package (one gate
+requires an array to name every entry form, another refuses a named entry that has no load-time
+effect, and this package's entry forms are pure); a bare top-level call in the barrel is dropped
+too, because `"sideEffects": false` is a package-level promise no in-module spelling can
+override; and removing the field closes it at a measured cost of 16,078 more gzipped bytes in
+this repo's console `framework` chunk, which now FITS its ceiling but moves a workspace census
+a guard pins. ⇒ until that is ruled, a consumer that bundles `@object-ui/types/zod` should keep
+`AnyComponentSchema` in its import graph, which is enough to make the redirect apply.
