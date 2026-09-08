@@ -26,6 +26,10 @@
  * the five discriminants — is pinned in `phase2-schemas.test.ts`, next to the
  * theme refusals. This file pins the SYMBOLS; that one pins the BEHAVIOUR.
  */
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 
 /** Names that lived in `../blocks.ts`. */

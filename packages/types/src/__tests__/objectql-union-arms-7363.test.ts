@@ -32,6 +32,10 @@
  * The TS face is pinned beside it: `ObjectQLComponentSchema` narrows to each
  * declaration by its discriminant, instead of to `never`.
  */
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import type { z } from 'zod';
 import { safeValidateSchema, ObjectQLComponentSchema as ObjectQLComponentZod } from '../zod/index.zod.js';

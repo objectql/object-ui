@@ -50,6 +50,10 @@
  * sites are pinned OFF DISK below as a control — if one stops reading the alias
  * this file turns red, because the retirement's stated boundary moved.
  */
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

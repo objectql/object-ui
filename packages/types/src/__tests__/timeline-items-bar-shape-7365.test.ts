@@ -68,6 +68,10 @@
  * this checkout; it is unmeasured here and named as such on the PR. The
  * fixture census at the foot of this file is the durable half of that reading.
  */
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';

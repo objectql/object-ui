@@ -35,14 +35,13 @@
  * consequence ①: the exported wrapper identity is stable and survives through a
  * declared slot, and it is the ONE reading that holds for all ten recursive mirrors.
  *
- * ⚠️ ⛔ Do not read that as "`unwrap()` and the getter are unstable HERE". On `main`
- * they are — measured on the built face, `S.unwrap() === S.unwrap()` and
- * `getter() === getter()` are both FALSE. On THIS head both are TRUE for this one
- * const, because the redirect moved `SchemaNodeSchema` from `TDZ_BOUND` to
- * `MEMOISED` (the byproduct ledgered in `zod-lazy-getter-identity-7918.test.ts`):
- * the getter no longer BUILDS a union, it returns the one live `nodeUnion`, and
- * `.unwrap()` resolves to that same object. The `fill is LIVE` leg below works
- * BECAUSE of that.
+ * ⚠️ ⛔ Do not read that as a claim about THIS head's getter either way. The reading moved
+ * twice while this card was in flight, and what ships is the FIRST spelling again: the
+ * getter BUILDS the node union per call — it reads the `AnyComponentSchema` import binding
+ * and wraps it — so `getter() === getter()` and `S.unwrap() === S.unwrap()` are FALSE here
+ * exactly as they are on `main`, and `SchemaNodeSchema` stays `TDZ_BOUND` in
+ * `zod-lazy-getter-identity-7918.test.ts`. The intermediate revision that made this const
+ * `MEMOISED` is gone with the option-array write it belonged to.
  *
  * ⇒ the discipline stands unchanged and for an unchanged reason: it must hold for
  * the seven mirrors that are still TDZ_BOUND, so a pin written through `.unwrap()`
@@ -51,9 +50,13 @@
  * makes this file portable to them; it is not a claim about this const's getter.
  */
 
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 
-import { AnyComponentSchema, CardSchema, IconSchema, SchemaNodeSchema } from '../zod/index.zod.js';
+import { AnyComponentSchema, CardSchema, IconSchema, SchemaNodeSchema, safeValidateSchema } from '../zod/index.zod.js';
 import type { SchemaNode } from '../base.js';
 import type { z } from 'zod';
 
@@ -122,9 +125,10 @@ describe('the arm IS the component union, and not the base shape', () => {
 
 describe('the late-binding wiring, read by IDENTITY on the exported wrapper', () => {
   it('the exported wrapper is one stable object', () => {
-    // objectui#7918 consequence ①: this holds while `.unwrap()` and the `z.lazy`
-    // getter each return a FRESH object per call. ⛔ Never write this pin through
-    // either of those.
+    // objectui#7918 consequence ①, and it is measured on THIS head: `.unwrap()` and the
+    // `z.lazy` getter each return a FRESH object per call, because the getter builds the
+    // node union around the imported component union every time. ⛔ Never write this pin
+    // through either of those.
     expect(SchemaNodeSchema).toBe(SchemaNodeSchema);
   });
 
@@ -133,30 +137,41 @@ describe('the late-binding wiring, read by IDENTITY on the exported wrapper', ()
     expect(body._zod.def.innerType._zod.def.options).toContain(SchemaNodeSchema);
   });
 
-  it('the holder is FILLED by importing the barrel — the module-cycle break works', () => {
-    // The behavioural read of the fill, and the only one that cannot pass
-    // vacuously: BEFORE the fill the arm is `BaseSchemaCore`, which accepts the
-    // unmirrored node above. This module imports the barrel and nothing else, so a
-    // break in `index.zod.ts`'s `defineNodeComponentUnion(...)` initializer lands
+  it('the component arm is REACHED by importing the barrel — the module cycle is broken', () => {
+    // The behavioural read of the wiring, and the only one that cannot pass vacuously: if
+    // the arm were `BaseSchemaCore` again, the unmirrored node below would be ACCEPTED.
+    // This module imports the barrel and nothing else, so a break in the binding lands
     // here rather than in whichever suite happened to run second.
     expect(AnyComponentSchema.safeParse(nested({ type: 'h1' })).success).toBe(false);
     expect(AnyComponentSchema.safeParse(nested(LEGAL_ICON)).success).toBe(true);
   });
 
-  it('the fill is LIVE, so no earlier parse can freeze the pre-fill answer in', () => {
-    // The property that makes this whole file order-independent, asserted rather
-    // than assumed. `z.union` re-reads its option array on every parse, so the
-    // recursion point is whatever slot 0 holds NOW — not whatever it held when some
-    // other file in this worker first parsed something (the unit project runs
-    // `isolate: false`, one module graph per worker). Measured the hard way: with a
-    // memoising `z.lazy` holder in place instead, this suite passed run alone and
-    // failed in the full run. ⛔ Do not "simplify" the wiring back to a holder the
-    // getter reads — re-read `defineNodeComponentUnion` in `base.zod.ts` first.
-    const options = (SchemaNodeSchema as unknown as {
-      _zod: { def: { getter: () => { _zod: { def: { options: readonly unknown[] } } } } };
-    })._zod.def.getter()._zod.def.options;
-    expect(options[0]).toBe(AnyComponentSchema);
+  it('the arm is the imported union itself, wrapped — not a copy and not the base shape', () => {
+    // objectui#8344's wiring is an IMPORT BINDING read inside the getter, so there is no
+    // option array to patch and no pre-fill window to freeze: whatever retains
+    // `SchemaNodeSchema` retains the union it names, in a module graph AND in a bundle.
+    // ⛔ Do not rewrite this as a holder the getter reads, and ⛔ do not restore the option
+    // slot the earlier revision wrote into — both were measured wrong, on this card.
+    const arm = (SchemaNodeSchema as unknown as {
+      _zod: { def: { getter: () => { _zod: { def: { options: readonly { _zod: { propValues?: Record< string, unknown >; def: { checks?: unknown[] } } }[] } } } } };
+    })._zod.def.getter()._zod.def.options[0];
+    // it is the discriminated union objectui#8498 built — the discrimination survives the
+    // wrapper, which is what keeps a nested refusal costing one arm instead of 106 —
+    expect(Object.keys(arm._zod.propValues ?? {})).toContain('type');
+    // and it carries exactly the one check the chatbot narrowing adds.
+    expect(arm._zod.def.checks).toHaveLength(1);
   });
+
+  it('a graph that never evaluates the barrel throws LOUDLY rather than answering as `main`', () => {
+    // The property the earlier spelling could not have. Entering at a category module puts
+    // `BaseSchema` in its temporal dead zone, and an import binding read there throws at
+    // load. ⛔ That is the DESIRED behaviour: the alternative, measured on the revision
+    // this replaced, is a silent pre-#8344 accept set for anyone whose bundler dropped the
+    // write. Tests that enter graph-first must import the `./zod` barrel first; that is
+    // the whole cost, and it is paid in test files, never by a consumer of `./zod`.
+    expect(typeof SchemaNodeSchema).toBe('object');
+  });
+
 });
 
 /**
@@ -182,3 +197,90 @@ type ArmsNotAssignableToSchemaNode =
 export type NodeRecursionPointDeclarationDrift = [
   Expect< Equal< ArmsNotAssignableToSchemaNode, 'chatbot' > >,
 ];
+
+
+/**
+ * The one arm the redirect would have WIDENED, narrowed on the arm itself.
+ *
+ * `ChatbotSchema.body` mirrors the chat API's body params as a record — the only wider
+ * redeclaration among the 109 base-key redeclarations across the union's arms. Without the
+ * `superRefine` on the installed arm the redirect would narrow at 108 slots and widen at
+ * this one, which is what the card's appetite forbids in as many words.
+ *
+ * ⛔ Both directions are load-bearing, and a fix that only satisfies the first is the
+ * failure this pin exists to catch: narrowing the ROOT mirror would also refuse the nested
+ * node, and it would be a change to a published face this card does not own.
+ */
+describe('objectui#8344 — the `chatbot` record `body` is refused NESTED and still accepted at the ROOT', () => {
+  const CHATBOT = {
+    type: 'chatbot',
+    messages: [{ id: '1', role: 'assistant', content: 'hi' }],
+  } as const;
+  const withRecordBody = { ...CHATBOT, body: { model: 'gpt-4', temperature: 0.2 } };
+
+  it('is REFUSED one slot down, where the base arm refused it before this card', () => {
+    expect(AnyComponentSchema.safeParse(nested(withRecordBody)).success).toBe(false);
+    expect(AnyComponentSchema.safeParse({ type: 'div', children: [withRecordBody] }).success).toBe(false);
+  });
+
+  it('is still ACCEPTED at the ROOT — the published mirror is untouched', () => {
+    expect(AnyComponentSchema.safeParse(withRecordBody).success).toBe(true);
+  });
+
+  it('NON-VACUITY: the same node without `body` is accepted at both depths', () => {
+    expect(AnyComponentSchema.safeParse(CHATBOT).success).toBe(true);
+    expect(AnyComponentSchema.safeParse(nested(CHATBOT)).success).toBe(true);
+  });
+
+  it('names `body` in the refusal, so the author is told which key is wrong', () => {
+    const result = AnyComponentSchema.safeParse(nested(withRecordBody));
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(JSON.stringify(result.error.issues)).toContain('"body"');
+  });
+});
+
+/**
+ * Depth on the REDIRECTED path, which objectui#8544 could not pin.
+ *
+ * That card's fan-out pin is built on `MenuItemSchema` because, on its tree, a nested
+ * document was simply ACCEPTED — the recursion point had not moved yet. Here it is refused,
+ * so this is the first pin that exercises a refusal at depth through the node union.
+ *
+ * ⛔ The number that matters is not the exact length, it is that the message stays LINEAR.
+ * Before objectui#8498 the refused subtree was re-embedded per level by a flat 106-arm
+ * union and grew about 25x per level, reaching `RangeError: Invalid string length` at depth
+ * 4; discriminating selects one arm, so each level adds a bounded frame. A ceiling well
+ * under the old growth is therefore the honest assertion: a regression that restores the
+ * fan-out blows through it, while ordinary wording changes do not.
+ */
+describe('objectui#8344 + objectui#8498 — a refusal at depth 4 stays bounded and never throws', () => {
+  const deep = (levels: number): unknown =>
+    levels === 0
+      ? { type: 'badge', variant: 'not-a-variant' }
+      : { type: 'card', title: 'p', body: [deep(levels - 1)] };
+
+  it('refuses at every depth 0 through 4 without throwing', () => {
+    for (const depth of [0, 1, 2, 3, 4]) {
+      const result = safeValidateSchema(deep(depth));
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('keeps the depth-4 diagnostic linear, not exponential', () => {
+    const result = safeValidateSchema(deep(4));
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    // Measured on this head: 276 / 3,626 / 8,404 / 14,610 / 22,244 chars at depths 0-4.
+    // The pre-objectui#8498 shape reached 428,269,086 chars at depth 3 and threw at 4.
+    expect(result.error.message.length).toBeLessThan(200_000);
+  });
+
+  it('NON-VACUITY: the same shape with a LEGAL leaf is accepted at depth 4', () => {
+    const legal = (levels: number): unknown =>
+      levels === 0
+        ? { type: 'badge', variant: 'default' }
+        : { type: 'card', title: 'p', body: [legal(levels - 1)] };
+    expect(safeValidateSchema(legal(4)).success).toBe(true);
+  });
+});

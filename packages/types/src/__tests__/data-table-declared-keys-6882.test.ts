@@ -56,6 +56,10 @@
  * now-unused directive rather than quietly passing. That is the property the
  * positive assertions borrow their meaning from.
  */
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import type { DataTableSchema } from '../data-display.js';
 import fs from 'node:fs';

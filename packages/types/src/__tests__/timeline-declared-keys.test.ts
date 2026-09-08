@@ -64,6 +64,10 @@
  * comes, is a deliberate edit against a red test rather than a silent drift.
  */
 
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import { TimelineConfigSchema } from '@objectstack/spec/ui';
 import { TimelineSchema } from '../zod/data-display.zod.js';

@@ -43,6 +43,10 @@
  * so re-adding `icon?` to the interface fails the build on the unused directive.
  */
 
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import type { ToggleGroupItem } from '../disclosure';
 import { ToggleGroupItemSchema } from '../zod/disclosure.zod';

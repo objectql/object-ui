@@ -21,6 +21,10 @@ import { I18nLabelSchema } from '@objectstack/spec/ui';
 import { retirementTombstone } from './tombstone.zod.js';
 import { ExpressionWireSchema } from './expression.zod.js';
 import type { SchemaNode } from '../base.js';
+// ⚠️ CYCLE, deliberately: `index.zod.ts` imports this module. The binding below is read
+// ONLY inside `SchemaNodeSchema`'s `z.lazy` getter, which runs long after both module
+// bodies have evaluated — see that const's docblock for why a binding and not a write.
+import { AnyComponentSchema } from './index.zod.js';
 
 /**
  * A KEYED i18n label — the runtime mirror of `KeyedI18nLabel` in `../base.ts`.
@@ -49,70 +53,6 @@ export const KeyedI18nLabelSchema = z.object({
 });
 
 
-/**
- * Fill the node recursion point with the component union, and hand it straight
- * back — so the fill is part of `AnyComponentSchema`'s own initializer in
- * `index.zod.ts` rather than a bare statement beside it (objectui#8344).
- *
- * ## ⚠️ Why a WRITE INTO the union's option list, and not a `z.lazy` holder
- *
- * The obvious spelling — a `let` the `z.lazy` getter reads — is WRONG here, and
- * measurably so. `z.lazy` MEMOISES: zod 4.4.3 caches the resolved inner on first
- * access, and merely parsing any component schema resolves it (the union arm walk
- * reads every option to compute its own metadata, so a childless `detail-view` node
- * is enough). ⇒ whatever the getter returned FIRST would be the accept set for the
- * rest of the process, decided by whichever module graph parsed first — and this
- * repo's `isolate: false` unit project shares one module graph across every file in
- * a worker. Measured on this branch with that spelling in place: the #8344 pin
- * PASSED run alone and FAILED in the full run, because
- * `__tests__/handler-keys-string-any-mirrors-7344.test.ts` parses from a barrel-free
- * import graph and froze the base shape in first. Refusing instead of falling back
- * converges, but turns that same import order into dozens of red suites.
- *
- * ⭐ A `z.union` does NOT memoise its options: measured on zod 4.4.3, `z.union(opts)`
- * keeps `opts` BY REFERENCE and re-reads it on every parse, so writing slot 0 takes
- * effect immediately — including after parses have already run through it. That is
- * what makes the window disappear rather than merely move: before the fill a child
- * slot answers exactly as it did pre-#8344, after it every parse sees the component
- * union, and no first-parse ever freezes the wrong answer in.
- *
- * ⚠️ That by-reference behaviour is the load-bearing assumption, so it is ASSERTED
- * here rather than trusted: a zod that copied the array would leave this silently
- * under-enforcing — the one failure direction that never announces itself.
- *
- * ⚠️ The parameter bound is `z.ZodType`, not `z.ZodType< SchemaNode, SchemaNode >`,
- * and that too is measured. The tighter bound is the one this wiring wants — "the
- * recursion point may only be filled with something a declared `SchemaNode` slot
- * could already hold" — and `tsc` refuses it TODAY for exactly one arm out of 106:
- * `complex.zod.ts#ChatbotSchema` mirrors the chat API body params under the key
- * `body`, which is `BaseSchema`'s CHILDREN slot (`Record< string, unknown >` where
- * the base says `SchemaNode | SchemaNode[]`). That collision is pre-existing and
- * already recorded — the parity ledger carries it under `KnownDrift`, the TS
- * declaration renamed the key to `requestBody`, and `ChatbotSharedMirrorShape` in
- * `complex.zod.ts` says in as many words that a ruling on `ChatbotSchema`'s own
- * `body` arm is a separate question. ⛔ #8344 does not decide it either. So the bound
- * is loose HERE and the real check is kept EXACT one level out, as a type-level pin
- * naming that single arm in `__tests__/node-recursion-point-8344.test.ts`. ⇒ a SECOND
- * arm drifting the same way turns that pin red instead of passing unnoticed.
- *
- * @internal — the package's only zod entry point is the `./zod` barrel, which is
- * `index.zod.ts`; this exists for that one call site and is not re-exported.
- */
-export function defineNodeComponentUnion<T extends z.ZodType>(union: T): T {
-  nodeUnionOptions[0] = union;
-  // The assertion the paragraph above exists for. ⛔ Do not delete it as noise: it is
-  // the only thing standing between a zod that copies its option array and a
-  // recursion point that silently reverts to the pre-#8344 base shape.
-  const installed = (nodeUnion as unknown as { _zod: { def: { options: readonly unknown[] } } })._zod.def.options[0];
-  if (installed !== union) {
-    throw new Error(
-      'objectui#8344: `z.union` no longer keeps its option array by reference, so the node '
-      + 'recursion point did not take. The redirect is INERT and every nested node is being '
-      + 'judged by `BaseSchemaCore` again — see `defineNodeComponentUnion` in base.zod.ts.',
-    );
-  }
-  return union;
-}
 
 /**
  * Schema Node — what a child slot holds: a COMPONENT document, or a primitive.
@@ -129,43 +69,36 @@ export function defineNodeComponentUnion<T extends z.ZodType>(union: T): T {
  * the registered component mirrors is the whole of this change; ⛔ nothing here is
  * `.strict()`, and `BaseSchemaCore` keeps its passthrough.
  *
- * Priced at 9 newly-refused corpus documents (objectui#8344's R3, 54 / 553 against
- * R1's 45 / 553), each one pre-existing debt this SURFACES rather than creates:
+ * Priced at 9 newly-refused corpus documents — objectui#8344's R3 at **54 / 554** against
+ * R1's **45 / 554**, re-derived on this branch's merged head; the card's own body quotes
+ * 553 because it was measured before the corpus gained a document, and the nine are the
+ * same nine either way. Each is pre-existing debt this SURFACES rather than creates:
  * four whose child `type` resolves in no arm, five already red under their own
  * schema and shielded until now by the recursion point.
  *
- * ## ⚠️ Why the arm is late-bound and not imported
+ * ## ⚠️ Why the arm is an IMPORT BINDING read inside the getter
  *
- * `AnyComponentSchema` is built in `index.zod.ts` out of all 13 category modules,
- * and 14 modules import THIS one — so naming it here is a module cycle, and
- * `z.lazy` defers the EVALUATION, not the module graph. With that import in place,
- * entering the graph at `base.zod.js` evaluates `app.zod.ts`'s body while
- * `BaseSchema` is still in its temporal dead zone and the package throws on import.
- * ⇒ the break is deliberate: `index.zod.ts` fills the holder through
- * {@link defineNodeComponentUnion} as it constructs the union, which is module
- * evaluation and therefore strictly before anything can parse.
+ * `AnyComponentSchema` is built in `index.zod.ts` out of all 13 category modules, and 14
+ * modules import THIS one, so naming it at this module's top level is a cycle that throws:
+ * entering the graph at `base.zod.js` would evaluate `app.zod.ts`'s body while `BaseSchema`
+ * is still in its temporal dead zone. The binding is therefore imported and read ONLY from
+ * inside the `z.lazy` getter, through {@link nodeComponentArm} — deferred to first parse,
+ * which is after both module bodies have completed.
  *
- * ⚠️ BEFORE the fill — a module graph that reaches a parse without ever evaluating
- * `index.zod.js` — the arm is `BaseSchemaCore`, i.e. exactly the pre-#8344 accept
- * set, and it switches the moment the barrel loads. That is a property of the WRITE,
- * not a tolerated fallback: `z.union` re-reads its option array on every parse, so
- * nothing can freeze the pre-fill answer in ({@link defineNodeComponentUnion} carries
- * the measurement, and why the obvious `z.lazy` holder is wrong). No published entry
- * point can reach that window BY MODULE GRAPH: `./zod` is this package's only zod
- * subpath and it IS `index.zod.js`. Pinned in
- * `__tests__/node-recursion-point-8344.test.ts`.
+ * ⭐ Two properties come from that, and the earlier spelling had neither. It wrote the arm
+ * into a live option array from the barrel's body, so (a) a bundler honouring this package's
+ * `"sideEffects": false` could drop the write and leave every child slot judged by
+ * `BaseSchemaCore` again — silently, with the write's own assertion dropped alongside it —
+ * and (b) a module graph that reached a parse without evaluating the barrel got exactly the
+ * pre-#8344 accept set with no diagnostic. A read binding cannot do either: whatever retains
+ * `SchemaNodeSchema` retains the union it names, and a graph that has not evaluated the
+ * barrel throws `ReferenceError` at load rather than answering wrongly. ⇒ ⛔ `"sideEffects":
+ * false` stays TRUE and untouched; there is no load-time write in this module to declare.
  *
- * ⛔ ⚠️ THAT SENTENCE IS ABOUT MODULE GRAPHS, AND A BUNDLER IS NOT ONE. This package
- * declares `"sideEffects": false` and the fill is a statement in this barrel's body,
- * so a bundler that honours the flag and sees no reference to `AnyComponentSchema`
- * may drop the whole const — fill included — and then every child slot validates
- * with the PRE-#8344 arm. Measured on this repo's own Vite/rollup lib build: one
- * entry importing only `CardSchema` ACCEPTS a nested off-spec node (369,733 bytes,
- * no fill in the output), the same entry with `AnyComponentSchema` also imported
- * REFUSES it (1,144,999 bytes, fill present). The guard below cannot see this: it
- * runs inside the code that was dropped. ⇒ this window is silent, it is NOT the
- * pre-fill window this paragraph describes, and its disposition is a ruling in
- * flight on objectui#8344 — ⛔ do not close it by editing this comment.
+ * ⚠️ The cost is real and is paid by TESTS, not by consumers: a test that enters the graph at
+ * a category module rather than at the `./zod` barrel now throws at import. The fix is one
+ * line of import hygiene — import the barrel first — and the files that needed it are listed
+ * in this PR. Entering at `./zod`, the only published zod subpath, is always safe.
  *
  * ## Both type arguments are filled, and that is the whole published input face
  *
@@ -199,14 +132,17 @@ export function defineNodeComponentUnion<T extends z.ZodType>(union: T): T {
  * a declaration or narrowing a mirror to make the annotation fit: either is a
  * contract change wearing a type-annotation's clothes, and both are ruled elsewhere.
  */
-export const SchemaNodeSchema: z.ZodType<SchemaNode, SchemaNode> = z.lazy(() => {
-  // `z.lazy` memoises this getter, and that is FINE — because what it returns is the
-  // one live union, whose option slot 0 IS the recursion point and is written by
-  // {@link defineNodeComponentUnion}. ⛔ Do not move the union's CONSTRUCTION in here:
-  // a getter that builds the union is the memoising spelling objectui#8344 measured
-  // wrong, and it would put the accept set back at the mercy of import order.
-  return nodeUnion;
-});
+export const SchemaNodeSchema: z.ZodType<SchemaNode, SchemaNode> = z.lazy(
+  () =>
+    z.union([
+      nodeComponentArm(),
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.undefined(),
+    ]) as unknown as z.ZodType<SchemaNode, SchemaNode>,
+);
 
 /**
  * Base Schema - Core validation schema that all components extend
@@ -393,39 +329,48 @@ const BaseSchemaCore = z.object({
 export const BaseSchema = BaseSchemaCore;
 
 /**
- * The one node union every child slot recurses through — built HERE, immediately
- * below `BaseSchemaCore`, because slot 0 holds it (objectui#8344).
+ * The COMPONENT arm of the node union, built fresh on every getter call.
  *
- * Slot 0 is the RECURSION POINT and is the only slot that ever changes:
- * `BaseSchemaCore` while `index.zod.ts` has not been evaluated, `AnyComponentSchema`
- * from the moment it has. `z.union` re-reads this array on every parse, so the swap
- * is live and no parse can freeze the pre-fill answer in — the whole reason the
- * arm is a written slot rather than a `z.lazy` holder ({@link defineNodeComponentUnion}
- * carries the measurement).
+ * ## Why a function and not a `const` (objectui#8344)
  *
- * ⛔ Never export this array or this union. `SchemaNodeSchema` is the public handle
- * and identity on it is what objectui#7918 consequence ① says is stable; a second
- * exported name for the same shape would give the parity census a row to compare
- * that has no TS declaration behind it.
+ * `AnyComponentSchema` lives in `index.zod.ts`, which imports THIS module, so at this
+ * module's evaluation time the imported binding is in its temporal dead zone. Reading it
+ * from inside a function body defers the read until `z.lazy` first resolves — after both
+ * module bodies have run. ⇒ the binding is either initialised (barrel entered, the normal
+ * path) or it throws `ReferenceError` at load, LOUDLY. There is no third answer, and in
+ * particular there is no longer a quiet pre-fill window that answers exactly as `main`.
+ *
+ * ⭐ That is also what makes the redirect survive BUNDLING. The previous spelling wrote
+ * the arm into a live option array from the barrel's body; with `"sideEffects": false` a
+ * bundler was entitled to drop that write when a consumer imported one schema by name,
+ * and every child slot silently went back to `BaseSchemaCore` — measured on this repo's
+ * own Vite/rollup build. A USED import binding is retained by construction: whatever
+ * keeps `SchemaNodeSchema` keeps the union it names. ⛔ `"sideEffects": false` stays TRUE
+ * here — this module performs no load-time write at all now.
+ *
+ * ## The `chatbot` guard, and why it is here rather than in the mirror
+ *
+ * `ChatbotSchema.body` mirrors the chat API's body params as a record, which is WIDER
+ * than `BaseSchemaCore.body`. It is the only wider redeclaration among the 109 base-key
+ * redeclarations across the union's arms, so without this guard the redirect would narrow
+ * at 108 slots and WIDEN at one: a `chatbot` node with a record `body` is refused at a
+ * child slot on `main` and would be accepted here. ⛔ The root mirror is deliberately not
+ * touched — it carries the chat API's params on purpose, and that question is its own
+ * card — so the narrowing lives on the arm the recursion point installs and nowhere else.
+ * ⇒ a root `chatbot` with a record `body` still parses; the same node one slot down does
+ * not. Both directions are pinned in `__tests__/node-recursion-point-8344.test.ts`.
  */
-/**
- * ⚠️ Both of these are `const` DECLARATIONS, ⛔ never assignments to a `let` hoisted
- * above `BaseSchemaCore`. `@object-ui/types` declares `"sideEffects": false`, and a
- * bare top-level assignment is a load-time side effect a bundler is entitled to drop
- * whole — `scripts/__tests__/side-effects-declaration-consistency.test.ts` fails on
- * exactly that, and it caught this file mid-#8344. Everything above that names them
- * does so from inside a function body, which runs long after this line.
- */
-const nodeUnionOptions: [z.ZodType, ...z.ZodType[]] = [
-  BaseSchemaCore,
-  z.string(),
-  z.number(),
-  z.boolean(),
-  z.null(),
-  z.undefined(),
-];
+const nodeComponentArm = (): z.ZodType =>
+  AnyComponentSchema.superRefine((value, ctx) => {
+    const node = value as { type?: unknown; body?: unknown } | null | undefined;
+    if (!node || node.type !== 'chatbot' || node.body === undefined) return;
+    const asNodeSlot = BaseSchemaCore.shape.body.safeParse(node.body);
+    if (asNodeSlot.success) return;
+    for (const issue of asNodeSlot.error.issues) {
+      ctx.addIssue({ ...issue, path: ['body', ...issue.path] });
+    }
+  }) as unknown as z.ZodType;
 
-const nodeUnion = z.union(nodeUnionOptions) as unknown as z.ZodType<SchemaNode, SchemaNode>;
 
 /**
  * A spec schema's fields, minus the keys objectui declares locally, as an

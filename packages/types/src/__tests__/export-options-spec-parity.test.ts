@@ -46,6 +46,10 @@
  * `ListViewSchema` type derived from it. Both are `@object-ui/types` surfaces.
  */
 
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import { ListViewSchema as SpecListViewSchema } from '@objectstack/spec/ui';
 import { ListViewSchema as MirrorListViewSchema } from '../zod/objectql.zod.js';

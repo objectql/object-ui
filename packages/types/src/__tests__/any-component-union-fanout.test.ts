@@ -28,13 +28,24 @@
  *     refused node 4 deep        19,311 -> 4,330 chars
  *
  * A bound that also passed on the flat union would assert nothing, which is the
- * failure mode this card is most exposed to: `AnyComponentSchema` does not yet
- * recurse into child slots (objectui#7869 / objectui#8344), so a nested document
- * is simply ACCEPTED and a naive "does not throw at depth 4" test is green for
- * the wrong reason. The depth case below is therefore built on `MenuItemSchema`,
- * which ALREADY refuses at depth on this tree.
+ * failure mode this card was most exposed to. ⚠️ The reason it was exposed has
+ * since changed and this paragraph is corrected in place rather than deleted:
+ * when this file was written `AnyComponentSchema` did not recurse into child
+ * slots, so a nested document was simply ACCEPTED and a naive "does not throw at
+ * depth 4" test was green for the wrong reason — which is why the depth case
+ * below is built on `MenuItemSchema`, one of the few schemas that ALREADY refused
+ * at depth on that tree. objectui#8344 has since redirected the node recursion
+ * point, so a nested off-spec node IS refused now and the `MenuItemSchema` choice
+ * is no longer load-bearing. ⛔ It stays anyway: it is the case this card measured
+ * and re-pointing it would retire the measurement without replacing it. The
+ * redirected path gets its own depth pin in
+ * `node-recursion-point-8344.test.ts`, where the linear-growth reading lives.
  */
 
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { AnyComponentSchema, safeValidateSchema } from '../zod/index.zod.js';

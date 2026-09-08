@@ -44,6 +44,10 @@
  *     this file, so that is real enforcement and not decoration (#3009).
  */
 
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import { ObjectGanttSchema } from '../zod/objectql.zod.js';
 import type { ObjectGanttSchema as ObjectGanttSchemaTS } from '../objectql.js';

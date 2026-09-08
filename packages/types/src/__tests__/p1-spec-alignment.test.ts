@@ -10,6 +10,10 @@
  * P1 Spec Protocol Alignment Tests
  * Tests for all P1 sub-items: ListView, FormView, Dashboard, Page, Record Components, i18n/ARIA
  */
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 // The one runtime import in this otherwise type-only file: the retirement pin
 // below has to read a zod shape, because the TS interfaces here inherit

@@ -69,6 +69,10 @@
  * (objectui#7703, `__tests__/chatbot-dark-keys-retired-7703.test.ts`).
  */
 
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import type { BaseSchema } from '../base';
 import type {

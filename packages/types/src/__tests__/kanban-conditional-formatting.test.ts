@@ -14,6 +14,10 @@
  * `{ field, operator, value }` shape OR the spec `{ condition, style }` CEL
  * shape. This locks both so the two can't drift back apart.
  */
+// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
+// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
+// category module puts `BaseSchema` in its temporal dead zone and throws at load.
+import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import { ObjectKanbanSchema } from '../zod/index.zod';
 import type { KanbanConditionalFormattingRule } from '../objectql';
