@@ -13,7 +13,13 @@
  * to ObjectStack FilterNode AST format.
  */
 
-import { normalizeFilterOperator } from '@objectstack/spec/ui';
+import {
+  normalizeFilterOperator,
+  VIEW_FILTER_OPERATORS,
+  VIEW_FILTER_LIST_VALUE_OPERATORS,
+  VIEW_FILTER_PAIR_VALUE_OPERATORS,
+} from '@objectstack/spec/ui';
+import { isAcceptedFilterComparand } from '@objectstack/spec/data';
 
 /**
  * FilterNode AST type definition
@@ -216,8 +222,17 @@ function falseIdentityLeaf(field: string, value: unknown[]): FilterNode {
  * convertFiltersToAST({ $or: [{ status: 'open' }, { status: 'blocked' }] })
  * // => ['or', ['status', '=', 'open'], ['status', '=', 'blocked']]
  *
- * @throws {FilterOperatorError} If an unknown operator is encountered, or if
- * `$not` is used — see the `$not` arm for why the AST cannot carry it.
+ * @example
+ * // A Date is a comparand, not an operator map (objectui#8555). It lowers as
+ * // the Date INSTANCE — the spec accepts one, and the operator form already
+ * // emits one.
+ * convertFiltersToAST({ created: new Date('2026-01-01') })
+ * // => ['created', '=', Date(2026-01-01)]
+ *
+ * @throws {FilterOperatorError} If an unknown operator is encountered, if
+ * `$not` is used — see the `$not` arm for why the AST cannot carry it — or if a
+ * field's value is a bare ARRAY (`{ tags: ['a', 'b'] }`) — see the array arm for
+ * why that is refused rather than read as `$in`.
  */
 export function convertFiltersToAST(filter: Record<string, any>): FilterNode | Record<string, any> {
   const conditions: FilterNode[] = [];
@@ -253,8 +268,92 @@ export function convertFiltersToAST(filter: Record<string, any>): FilterNode | R
       );
     }
 
+    // A bare ARRAY in comparand position is the third shape this file cannot
+    // lower, after `$regex` and `$not` (objectui#8530). The equality `else`
+    // below used to catch it and emit `[field, '=', [...]]` — an array in a
+    // scalar-equality slot. The spec's own doors pass that node through
+    // unjudged (`isFilterAST` is true and `parseFilterAST` hands back
+    // `{ field: [...] }`; measured against @objectstack/spec 17.3.0, whose
+    // `assertListComparandShapes` rules only on `$in` / `$nin` / `$between`),
+    // so the refusal arrived two layers later: `@objectstack/driver-sql`
+    // answers 400 INVALID_FILTER, and the in-memory matchers
+    // (`@objectstack/formula`, `ValueDataSource` since objectui#8514) refuse
+    // the node and exclude every row. Either way the author learned nothing at
+    // lowering time. Refused HERE instead, where the field name and the
+    // offending value are both still in hand.
+    //
+    // NOT lowered to `in`. `{ tags: ['a', 'b'] }` and `{ tags: { $in: ['a', 'b'] } }`
+    // are different statements and the second is already spellable; rewriting
+    // one into the other guesses at intent and silently changes which rows a
+    // stored view returns — the lenient second contract objectui#8514 was
+    // resolved against on this same data shape one layer down. A lowering to
+    // `in` would be a deliberate, separately-argued change, not a fallback.
+    //
+    // `$in` / `$nin` / `$between` MEMBERS are legitimately arrays and are read
+    // by the operator loop below, never here; `$and` / `$or` carry arrays of
+    // conditions and were consumed by the combinator arm above.
+    if (Array.isArray(value)) {
+      throw new FilterOperatorError(
+        `[ObjectUI] The filter on field '${field}' carries a bare ARRAY as its ` +
+        `equality comparand: ${JSON.stringify(value)}. It cannot be lowered: the ` +
+        `ObjectQL filter AST has no array-equality node, so the lowered node ` +
+        `[${field}, '=', [...]] is refused by @objectstack/driver-sql (400 INVALID_FILTER) ` +
+        `and matches no row in the in-memory matchers — it can never select anything. ` +
+        `It is deliberately NOT read as membership here: { ${field}: [...] } and ` +
+        `{ ${field}: { $in: [...] } } are different statements, and guessing the ` +
+        `second from the first would silently change which rows a stored view ` +
+        `returns (objectui#8530; the same ruling objectui#8514 applied one layer ` +
+        `down). Spell membership as { ${field}: { $in: [...] } }, its negation as ` +
+        `{ ${field}: { $nin: [...] } }, or a range as { ${field}: { $between: [min, max] } }.`
+      );
+    }
+
     // Check if value is a complex operator object
     if (typeof value === 'object' && !Array.isArray(value)) {
+      // A `Date` is a COMPARAND, not an operator map — objectui#8555.
+      //
+      // `typeof new Date()` is `'object'` and a Date is not an array, so it used
+      // to enter the loop below; `Object.entries(someDate)` is `[]`, the body
+      // never ran, and NO condition was pushed for the field. Not refused, not
+      // lowered wrongly — ABSENT, so `{ status: 'a', created: someDate }`
+      // lowered to `['status', '=', 'a']` and the result set got WIDER than the
+      // author asked for, silently. That is the one failure direction this file
+      // exists to avoid. It also made the field's behaviour depend on its
+      // SIBLINGS: a Date alone left `conditions` empty, so the original object
+      // came back untouched and the defect was invisible until a second field
+      // appeared.
+      //
+      // Lowered rather than refused, and the spec is what decides it — the
+      // opposite answer to objectui#8514, which was a refusal precisely because
+      // the spec DECLINED to rule on that shape. Here it rules, twice over
+      // (measured against @objectstack/spec 17.3.0):
+      // `ACCEPTED_FILTER_COMPARAND_TYPES` is
+      // `['string','number','bigint','boolean','null','Date']`, and
+      // `$gt`/`$gte`/`$lt`/`$lte`/`$between` declare `z.ZodDate` in comparand
+      // position. So a Date is a first-class filter comparand, not a shape this
+      // layer has to invent an answer for.
+      //
+      // ⛔ NOT converted to an ISO string or an epoch here. The wire form is not
+      // this adapter's question to answer: `parseFilterAST(['created', '=', d])`
+      // hands back `{ created: d }` with the Date INSTANCE intact (measured), and
+      // `normalizeFilterComparandTypes` accepts it as-is. The operator arm below
+      // already passes a Date through untouched (`{ created: { $gte: d } }` →
+      // `['created', '>=', d]`), so stringifying here would make the shorthand
+      // and the operator form emit two different comparand types for the same
+      // author intent — a second dialect, in the file whose whole job is to have
+      // one.
+      //
+      // The gate is the spec's own predicate rather than a local `instanceof
+      // Date`, the same reason `normalizeFilterOperator` is used below instead of
+      // a second operator map. Today `Date` is its only object-typed member
+      // (pinned in filter-date-comparand-8555.test.ts), so this arm is a Date arm
+      // in practice; if the spec ever accepts another object-shaped literal, this
+      // reads it as a comparand instead of silently dropping it.
+      if (isAcceptedFilterComparand(value)) {
+        conditions.push([field, '=', value]);
+        continue;
+      }
+
       // Handle operator-based filters
       for (const [operator, operatorValue] of Object.entries(value)) {
         // `$regex` is refused, not downgraded. It used to become `contains`
@@ -367,9 +466,135 @@ function isViewFilterRule(value: unknown): value is ViewFilterRuleLike {
  * turns a hole in an array into `null`, and `['x', 'equals', null]` is a real
  * `{x: null}` predicate, i.e. a silently-wrong filter. Same rule the write side
  * applies (`if (c.value !== undefined)`).
+ *
+ * The value's SHAPE is checked too, against the operator's arity — an array on a
+ * single-value operator is refused rather than passed through. See the arm
+ * itself for the reasoning and for why the refusal is a throw (objectui#8557).
+ *
+ * @throws {FilterOperatorError} If the rule carries an ARRAY on an operator the
+ * spec declares single-valued.
  */
+/**
+ * The view-filter operators whose `value` is legitimately an ARRAY.
+ *
+ * Not a local list — both halves are the spec's own, and it exports them for
+ * exactly this question: `VIEW_FILTER_LIST_VALUE_OPERATORS` (`['in', 'not_in']`)
+ * says which operators take a membership list, `VIEW_FILTER_PAIR_VALUE_OPERATORS`
+ * (`['between']`) which take a `[min, max]` pair, and the docblock on the first
+ * of them names a hard-coded `["in", "notIn"]` elsewhere in this repo as the
+ * mistake it exists to prevent (`notIn` is an alias, not the canonical member).
+ * Same reason the operator itself goes through `normalizeFilterOperator` rather
+ * than a second map.
+ */
+const ARRAY_VALUED_VIEW_OPERATORS: ReadonlySet<string> = new Set<string>([
+  ...VIEW_FILTER_LIST_VALUE_OPERATORS,
+  ...VIEW_FILTER_PAIR_VALUE_OPERATORS,
+]);
+
+/**
+ * The view-filter operators that carry NO comparand — their direction comes from
+ * the operator NAME.
+ *
+ * The spec exports the two array-valued sets but no set for these, so this is
+ * the one classification written out here. It is pinned against
+ * `VIEW_FILTER_OPERATORS` (filter-view-rule-arity-8557.test.ts) so the four sets
+ * partition the vocabulary exactly: an operator added to the spec lands in no
+ * class, the pin reddens, and someone classifies it rather than it silently
+ * inheriting a verdict.
+ *
+ * They are excluded from the refusal below deliberately, and on a measurement:
+ * the spec DISCARDS a value on these operators — `parseFilterAST(['tags',
+ * 'is_null', ['a']])` is `{ tags: { $null: true } }` — so a stray array here
+ * cannot produce a node that selects the wrong rows. Refusing it would turn a
+ * harmless input into a render-time throw, and the message would prescribe `in`
+ * for an operator that takes no value at all.
+ */
+const VALUELESS_VIEW_OPERATORS: ReadonlySet<string> = new Set<string>([
+  'is_empty',
+  'is_not_empty',
+  'is_null',
+  'is_not_null',
+]);
+
+/** Every operator spelling the spec knows, canonical forms only. */
+const KNOWN_VIEW_OPERATORS: ReadonlySet<string> = new Set<string>(VIEW_FILTER_OPERATORS);
+
 function viewFilterRuleToNode(rule: ViewFilterRuleLike): FilterNode {
   const operator = normalizeFilterOperator(rule.operator as string);
+
+  // An ARRAY on an operator that takes ONE value is refused here — objectui#8557.
+  //
+  // `rule.value` used to travel through unread, so a stored view rule
+  // `{ field: 'tags', operator: 'equals', value: ['a'] }` became
+  // `['tags', 'equals', ['a']]`. Measured against @objectstack/spec 17.3.0, the
+  // spec's doors pass that node through unjudged — `isFilterAST` is `true` and
+  // `parseFilterAST` hands back `{ tags: ['a'] }` — which is the SAME
+  // array-in-a-scalar-slot shape the object arm above refuses (objectui#8530):
+  // the ObjectQL AST has no array-equality node, `@objectstack/driver-sql`
+  // answers `400 INVALID_FILTER`, and every in-memory matcher excludes every
+  // row. So a hand-authored `{ tags: ['a'] }` already failed fast with a message
+  // naming `$in`, while the same mistake SAVED INTO A VIEW still travelled
+  // silently to a 400 the author could not attribute to their filter. This
+  // closes that asymmetry.
+  //
+  // Keyed on the operator's ARITY, never on `Array.isArray(value)` alone:
+  // `in` / `not_in` / `between` rules legitimately carry arrays through this
+  // very function, and that path had no pin protecting it until this card.
+  // The check runs AFTER normalization so an alias is judged by what it means —
+  // `nin` is `not_in`, and is array-valued.
+  //
+  // An operator the spec does NOT know is left alone. `normalizeFilterOperator`
+  // passes a misspelling through verbatim precisely so `isFilterAST` refuses it
+  // and the server names it; refusing it HERE would report the wrong problem
+  // ("use $in") for what is actually a typo.
+  //
+  // ## Why the refusal is a THROW, and why it belongs here
+  //
+  // It throws from the lowering, which for a saved view means the view fails at
+  // render rather than returning a narrower answer. That is a real blast radius
+  // and it was weighed:
+  //
+  //   - It is not a NEW blast radius. Both sinks already catch a
+  //     `FilterOperatorError` from this same file — `plugin-list`'s
+  //     `buildEffectiveFilter` runs inside `ListView`'s load `try` and lands in
+  //     `setLoadError`, `plugin-view`'s `ObjectView` calls `mergeFilterNodes`
+  //     inside its own load `try` — because the object arm has thrown for
+  //     `$regex`, `$not` and bare arrays since objectui#8530. `classifyLoadError`
+  //     reads this error's `INVALID_FILTER` / `400`, so what a user sees is the
+  //     "filter is malformed" panel, not a crashed page and not a network error.
+  //   - The alternatives are both silent. DROPPING the rule widens the result
+  //     set, the one direction this file exists to avoid — and a stored view's
+  //     whole purpose can be to hide rows. Rewriting `equals` into `in` changes
+  //     the author's meaning, the lenient second contract objectui#8514 was
+  //     resolved against on this same data shape.
+  //   - The rule was authored long ago by someone who is not present, which
+  //     argues for the LOUDER answer, not the quieter one: a silent 400 two
+  //     layers away is attributable to nothing, whereas this names the view's
+  //     field and operator at the moment the filter is built.
+  if (
+    Array.isArray(rule.value)
+    && typeof operator === 'string'
+    && KNOWN_VIEW_OPERATORS.has(operator)
+    && !ARRAY_VALUED_VIEW_OPERATORS.has(operator)
+    && !VALUELESS_VIEW_OPERATORS.has(operator)
+  ) {
+    throw new FilterOperatorError(
+      `[ObjectUI] The stored view rule on field '${rule.field}' carries an ARRAY ` +
+      `as the comparand of '${operator}', which takes a single value: ` +
+      `${JSON.stringify(rule.value)}. It cannot be lowered: the ObjectQL filter ` +
+      `AST has no array-equality node, so the lowered node ` +
+      `[${rule.field}, '${operator}', [...]] is refused by @objectstack/driver-sql ` +
+      `(400 INVALID_FILTER) and matches no row in the in-memory matchers — it can ` +
+      `never select anything. It is deliberately NOT rewritten to 'in': that ` +
+      `would change what the saved view means, and 'in' is already spellable in ` +
+      `the rule itself. Spell membership as ` +
+      `{ field: '${rule.field}', operator: 'in', value: [...] }, its negation as ` +
+      `'not_in', or a range as { operator: 'between', value: [min, max] } — the ` +
+      `three operators the spec declares array-valued, which are untouched ` +
+      `(objectui#8557; the same ruling objectui#8530 applied to the object arm).`
+    );
+  }
+
   return (
     rule.value === undefined
       ? [rule.field, operator]

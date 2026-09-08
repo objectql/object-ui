@@ -59,6 +59,7 @@
 
 import * as React from 'react';
 import { Activity, Database, HardDrive, Lock, Power, ShieldCheck } from 'lucide-react';
+import { EmptyDescription } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 import { ExternalDatasourcePanel } from '../external/ExternalDatasourcePanel.js';
@@ -156,7 +157,7 @@ export function DatasourcePreview({ name, draft }: MetadataPreviewProps) {
           {/* Connection config */}
           <Section title="Connection" icon={Lock}>
             {configEntries.length === 0 ? (
-              <div className="text-xs text-muted-foreground italic">No config keys set.</div>
+              <EmptyDescription className="text-xs italic">No config keys set.</EmptyDescription>
             ) : (
               <div className="rounded border bg-background overflow-hidden">
                 <table className="w-full text-xs">

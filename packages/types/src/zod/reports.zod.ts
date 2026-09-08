@@ -160,7 +160,17 @@ export const ReportComponentSchema = BaseSchema.extend({
   sections: z.array(ReportSectionSchema).optional().describe('Report sections'),
   schedule: ReportScheduleSchema.optional().describe('Schedule configuration'),
   defaultExportFormat: ReportExportFormatSchema.optional().describe('Default export format'),
-  exportConfigs: z.record(z.string(), ReportExportConfigSchema).optional().describe('Export configurations'),
+  /**
+   * Keyed by `ReportExportFormatSchema`, not by `string` (objectui#8556): the
+   * declaration has been `Partial<Record<ReportExportFormat, …>>` since
+   * objectui#6121 and this mirror still admitted any string key.
+   *
+   * `z.partialRecord`, ⛔ never `z.record(ReportExportFormatSchema, …)`:
+   * measured on zod 4.4.3, the plain `z.record` over an enum key REQUIRES every
+   * member, which is exactly the total-`Record` authoring face objectui#6121's
+   * maintainer ruling removed from the TypeScript side.
+   */
+  exportConfigs: z.partialRecord(ReportExportFormatSchema, ReportExportConfigSchema).optional().describe('Export configurations'),
   showExportButtons: z.boolean().optional().describe('Show export buttons'),
   showPrintButton: z.boolean().optional().describe('Show print button'),
   showScheduleButton: z.boolean().optional().describe('Show schedule button'),

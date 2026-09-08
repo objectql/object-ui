@@ -25,7 +25,22 @@ function Empty({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="empty"
       className={cn(
-        "flex min-w-0 flex-1 flex-col items-center justify-center gap-6 rounded-lg border-dashed p-6 text-center text-balance md:p-12",
+        // Padding is 24px, and 48px from `md` up, carried by a custom property
+        // so that the ONE utility writing `padding` is unprefixed. A caller's
+        // plain `px-3 py-8` / `py-10` / `p-4` then wins at every viewport,
+        // which is what a `className` override reads as. The literal `md:p-12`
+        // that stood here was a different tailwind-merge variant from any
+        // unprefixed override, so `cn()` kept it and it won the cascade from
+        // 768px up: three app-shell sites that wrote "less padding" got the
+        // full 48px back on every desktop viewport (objectui#8525).
+        //
+        // No border utility. The `border-dashed` that stood here set only
+        // `border-style`; preflight keeps `border-width` at 0 and no call site
+        // or ancestor supplies one, so it drew nothing at any of the 44 sites
+        // (measured on the console build). A dashed frame, if ever wanted, is
+        // a deliberate `border border-dashed` pair with its own card — never a
+        // width slipped into a cleanup.
+        "flex min-w-0 flex-1 flex-col items-center justify-center gap-6 rounded-lg p-(--empty-padding) [--empty-padding:--spacing(6)] md:[--empty-padding:--spacing(12)] text-center text-balance",
         className
       )}
       {...props}
@@ -86,7 +101,12 @@ function EmptyTitle({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function EmptyDescription({ className, ...props }: React.ComponentProps<"p">) {
+// `"div"`, because a `div` is what ships below. Upstream shadcn spells this
+// `React.ComponentProps<"p">` over the same `div` — the type promised a
+// paragraph the DOM never delivered (objectui#8571). The element itself is
+// deliberate: a `p` cannot hold block content, so making this a real
+// paragraph is a rendered-output change at every call site and its own card.
+function EmptyDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="empty-description"
@@ -116,9 +136,21 @@ function EmptyContent({ className, ...props }: React.ComponentProps<"div">) {
  * EmptyValue — universal inline placeholder for missing cell/field values.
  *
  * Use this anywhere a renderer would otherwise show "-" or "—" for a null,
- * undefined or empty value. It renders a muted, non-interactive en-dash that
- * does not inherit link/button colors from surrounding ancestors, so a missing
- * value never looks clickable.
+ * undefined or empty value. It renders a muted, non-interactive EM-dash (the
+ * `glyph` default below is U+2014, and every call site depends on that width)
+ * that does not inherit link/button colors from surrounding ancestors, so a
+ * missing value never looks clickable. This sentence said "en-dash" until
+ * objectui#8506: the word was wrong, never the code — do not "fix" the glyph
+ * to match a stale docblock.
+ *
+ * ⚠️ A caller that passes a `title` through `...props` must also pass
+ * `pointer-events-auto` in `className`. `pointer-events-none` below stops this
+ * span being a hit target, so a `title` on it never renders a tooltip — the
+ * hover falls through to whichever ancestor has one. The attribute stays in the
+ * DOM either way, which is exactly why nothing catches it: a test that reads
+ * `getAttribute('title')` is green over a tooltip that can never appear
+ * (objectui#8506, where `DetailSection` kept such a `title` and two landed pins
+ * navigate by it).
  */
 function EmptyValue({
   className,

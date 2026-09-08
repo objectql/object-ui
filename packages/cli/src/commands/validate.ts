@@ -108,22 +108,30 @@ export async function validate(schemaPath: string) {
       //
       // The guard here used to be `issue.path.length > 0`, which dropped the
       // line entirely for `path: []` — silent in exactly the case a reader
-      // most needs oriented. That case is not rare: `safeValidateSchema` runs
-      // `AnyComponentSchema`, which is a `z.union` of every component arm, so
-      // ANY document matching no arm reports one top-level issue at the root
-      // (`invalid_union` · `Invalid input` · `path: []`). Measured before this
-      // change, a menu carrying the retired `{ type: 'separator' }` divider
-      // spelling printed `1. Invalid input` and a Code line, and nothing said
-      // whether the whole document or some node inside it had been judged.
+      // most needs oriented. Measured before that change, a menu carrying the
+      // retired `{ type: 'separator' }` divider spelling printed
+      // `1. Invalid input` and a Code line, and nothing said whether the whole
+      // document or some node inside it had been judged.
+      //
+      // ⚠️ WHERE A ROOT ISSUE COMES FROM MOVED (objectui#8498). This block read
+      // "`AnyComponentSchema`, a `z.union` of every component arm, so ANY
+      // document matching no arm reports one top-level issue at the root".
+      // It discriminates on `type` now and both halves are false: a `type` that
+      // SELECTS an arm yields that arm's own issues as the top-level entries,
+      // already absolute, with no union issue at the root; a `type` that matches
+      // nothing is judged at `['type']`. A root path now means a non-object.
       //
       // `(root)` is parenthesised so it cannot be read as a real key literally
       // named `root` — a genuine path to one would print as `root`.
       //
       // The ARM-SELECTION half of objectui#7004 landed on the 2026-09-02
-      // maintainer ruling (option B) and is the block below the three fields:
-      // when the top-level issue is a failing union, `explainUnionIssue` picks
-      // the single arm the document's `type` selects and returns ITS issues,
-      // with their paths rebased to absolute. Everything about WHICH arm lives
+      // maintainer ruling (option B): print the issues of the arm the authored
+      // `type` selects, and nothing from the others. Since objectui#8498 ZOD
+      // does that selecting — a matched discriminator yields the arm's issues
+      // directly, so there is no union issue here to expand. What
+      // `explainUnionIssue` still answers is the other half of the ruling: the
+      // capped candidate note when NO arm accepts, and the undiscriminated
+      // unions still reached at nested slots. Everything about WHICH arm lives
       // in `../utils/union-arm-diagnostics.js`; this file only prints, so it
       // stays the repository's only zod-issue printer.
       result.error.issues.forEach((issue, index) => {

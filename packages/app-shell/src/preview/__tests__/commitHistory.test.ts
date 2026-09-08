@@ -33,6 +33,11 @@ import {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  // `vi.restoreAllMocks()` does NOT undo a global replaced by hand, and this
+  // file runs in the `unit` project, which is `isolate: false` — a `fetch` left
+  // behind here is inherited by every later file in the worker (objectui#8500).
+  // So the doubles below go in through `vi.stubGlobal` and come back out here.
+  vi.unstubAllGlobals();
 });
 
 /** A response whose body is JSON. */
@@ -55,7 +60,7 @@ function unparseableResponse(status: number) {
 }
 
 function mockFetch(response: unknown) {
-  global.fetch = vi.fn(async () => response) as unknown as typeof fetch;
+  vi.stubGlobal('fetch', vi.fn(async () => response) as unknown as typeof fetch);
 }
 
 /**
@@ -172,9 +177,12 @@ describe('fetchCommits — fail-loud, on every failing path', () => {
     [
       'network rejection',
       () => {
-        global.fetch = vi.fn(async () => {
-          throw new TypeError('Failed to fetch');
-        }) as unknown as typeof fetch;
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => {
+            throw new TypeError('Failed to fetch');
+          }) as unknown as typeof fetch,
+        );
       },
     ],
   ])('%s never resolves, and never resolves to an empty history', async (_label, arrange) => {
@@ -189,9 +197,12 @@ describe('fetchCommits — fail-loud, on every failing path', () => {
   });
 
   it('a rejected fetch is NOT dressed up as retryable', async () => {
-    global.fetch = vi.fn(async () => {
-      throw new TypeError('Failed to fetch');
-    }) as unknown as typeof fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }) as unknown as typeof fetch,
+    );
 
     const err = await fetchCommits('com.x').catch((e: unknown) => e);
 

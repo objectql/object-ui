@@ -24,6 +24,7 @@ import React, { useMemo } from 'react';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
   Dialog, DialogContent, DialogHeader, DialogTitle,
+  EmptyValue,
 } from '@object-ui/components';
 import { useSafeFieldLabel, useLocalization, useDisplayLocale } from '@object-ui/i18n';
 import {
@@ -124,7 +125,7 @@ export const RecordDetailDrawer: React.FC<RecordDetailDrawerProps> = ({
           <dt className="text-xs font-medium text-muted-foreground self-center">{row.label}</dt>
           <dd className={`col-span-2 text-sm break-words ${row.numeric ? 'tabular-nums' : ''}`}>
             {row.node === '' || row.node == null
-              ? <span className="text-muted-foreground/60">—</span>
+              ? <EmptyValue />
               : row.node}
           </dd>
         </div>

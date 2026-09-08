@@ -46,6 +46,7 @@ import {
   FileJson,
   Wrench,
 } from 'lucide-react';
+import { EmptyDescription } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
@@ -182,7 +183,7 @@ export function ToolPreview({ name, draft }: MetadataPreviewProps) {
           {/* Parameters */}
           <Section title="Input Parameters" count={Object.keys(props).length}>
             {Object.keys(props).length === 0 ? (
-              <Empty>This tool takes no input parameters.</Empty>
+              <EmptyDescription className="text-xs italic">This tool takes no input parameters.</EmptyDescription>
             ) : (
               <ParamTable props={props} required={required} />
             )}
@@ -291,10 +292,6 @@ function Section({
       {children}
     </div>
   );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="text-xs text-muted-foreground italic">{children}</div>;
 }
 
 // `tone` ('green' for Active, 'amber' for Requires confirmation) went away with

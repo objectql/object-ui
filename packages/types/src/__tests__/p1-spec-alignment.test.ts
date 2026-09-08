@@ -508,6 +508,42 @@ describe('P1.5 Record Components', () => {
     expect(props.layout).toBe('stacked');
   });
 
+  it('accepts the `sections[].group` REFERENCE form, and `fields` without it (objectui#8497)', () => {
+    // `@objectstack/spec` 17.3.0 declares two ways to give a section its
+    // members: enumerate `fields`, or point `group` at one of the object's
+    // declared `fieldGroups` (objectstack#13855, ADR-0085 §5). This type
+    // required `fields` and declared no `group`, so the group-reference form
+    // — the one `RecordDetailsRenderer` now implements — did not COMPILE for a
+    // TypeScript author, which is the same declared-versus-enforced
+    // disagreement the card was filed for, pointed the other way.
+    //
+    // ⚠️ This is a COMPILE-time assertion first: the annotation below is what
+    // does the work, and it is the reason `type-check` (not just `test`) has
+    // to run for this leg to mean anything. The runtime expectations exist so
+    // the leg also fails visibly if the shape is ever silently emptied.
+    //
+    // ⚠️ Measured while writing this: `{ group: 'terms', columns: 2 }` — a
+    // shape `@objectstack/spec` accepts and `DetailSection` honours — does NOT
+    // compile, because this interface declares no `columns` (nor `icon`,
+    // `description`, `showBorder`, `headerColor`, `defaultCollapsed`). That is
+    // a PRE-EXISTING divergence between this type and the spec's section
+    // object, not something objectui#8497 introduced, so it is filed rather
+    // than widened here. Note also that `vitest` was GREEN on the offending
+    // literal — it strips types — and only `type-check` saw it.
+    const props: RecordDetailsComponentProps = {
+      sections: [
+        { group: 'parties' },
+        { group: 'terms', collapsible: true },
+        { name: 'audit', label: 'Audit', fields: ['created_at'] },
+      ],
+    };
+    expect(props.sections).toHaveLength(3);
+    expect(props.sections?.[0]).toEqual({ group: 'parties' });
+    // The enumerated arm still carries its members — a `fields` that became
+    // optional must not have become absent.
+    expect(props.sections?.[2]?.fields).toEqual(['created_at']);
+  });
+
   it('should define RecordHighlightsComponentProps', () => {
     const props: RecordHighlightsComponentProps = {
       fields: ['name', 'status', 'owner', 'amount'],

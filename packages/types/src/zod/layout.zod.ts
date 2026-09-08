@@ -220,9 +220,24 @@ export const StackSchema = BaseSchema.extend({
  */
 export const GridSchema = BaseSchema.extend({
   type: z.literal('grid'),
+  /**
+   * Keyed by the BREAKPOINT VOCABULARY, not by `string` (objectui#8516).
+   *
+   * `z.partialRecord`, ⛔ never `z.record(z.enum([…]), …)`: measured on zod
+   * 4.4.3, the plain `z.record` over an enum key REQUIRES every member, so
+   * `{ md: 2 }` — which the declaration explicitly invites, and which
+   * `grid-breakpoint-columns-7097.test.tsx` pins the renderer as reading —
+   * stops parsing. That spelling trades this divergence for its opposite.
+   *
+   * The six names are the whole of `BreakpointName` (`../mobile.ts`). They are
+   * spelled here rather than derived because `mobile.ts` has no zod mirror to
+   * derive from; the equality is held by a type-level pin in
+   * `__tests__/mirror-partial-record-narrowing-8516.test.ts`, so adding or
+   * dropping a breakpoint on either face fails to compile.
+   */
   columns: z.union([
     z.number(),
-    z.record(z.string(), z.number()),
+    z.partialRecord(z.enum(['xs', 'sm', 'md', 'lg', 'xl', '2xl']), z.number()),
   ]).optional().describe('Number of columns (responsive)'),
   gap: z.number().optional().describe('Gap between items (Tailwind scale 0-8)'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),

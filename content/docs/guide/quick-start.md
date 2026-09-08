@@ -81,8 +81,9 @@ Replace `src/App.tsx` with:
 import '@object-ui/components';
 import '@object-ui/fields';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
+import type { CardSchema } from '@object-ui/types';
 
-const schema = {
+const schema: CardSchema = {
   type: 'card',
   title: 'Team Directory',
   description: 'Rendered from JSON metadata',

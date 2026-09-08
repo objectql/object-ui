@@ -33,9 +33,45 @@
 
 import React from 'react';
 import { EmptyValue } from '@object-ui/components';
+import { coerceToSafeValue } from '../coerceToSafeValue.js';
 import type { CellRendererProps } from '../index.js';
 
 const LazyMarkdownContent = React.lazy(() => import('./MarkdownContent.js'));
+
+/**
+ * The text a rich-content cell formats, or `undefined` when the record holds
+ * nothing to format (objectui#8580).
+ *
+ * `@objectstack/spec` types all three rich-content fields as a plain string
+ * (`STRING_VALUE_TYPES`; the write seam is `z.string()`), the same value
+ * class as `text` / `textarea` / `code`. Both renderers below used to test the
+ * RAW value (`value == null || value === ''`) and then `String()` it, which is
+ * how the two off-contract shapes the census measured came out:
+ *
+ *   - `[]` passed the guard and `String([])` is `''`: the markdown pipeline
+ *     drew a childless `prose` DIV (its Suspense fallback a childless SPAN),
+ *     the HTML pipeline a childless `prose` DIV. Nothing drawn and no
+ *     accessible name, where every other text-like type already answered
+ *     with the shared `EmptyValue` — the objectui#8481 class, one family over.
+ *   - `{}` passed and `String({})` is `[object Object]`: a coercion artefact
+ *     no sibling prints (`text` prints `[Object]`).
+ *
+ * Two shapes, two rulings, one mechanism: test the COERCED text, exactly as
+ * `TextCellRenderer` does. `[]` coerces to `''` and holds no string, so the
+ * cell has no value and says so. `{}` is NOT swept into the affordance — the
+ * record is storing something, so "No value" would be false — and is not
+ * `String()`'d either: it takes the string class's existing answer for an
+ * object (`coerceToSafeValue`: the display name when the object carries one,
+ * `[Object]` otherwise), and that text is then formatted like any other. A
+ * populated string is returned verbatim by `coerceToSafeValue`, so the
+ * populated branch of each renderer below — and the HTML sanitiser it runs
+ * through — sees the same bytes it always did.
+ */
+function richTextSource(value: unknown): string | undefined {
+  const safe = coerceToSafeValue(value);
+  if (safe == null || safe === '') return undefined;
+  return String(safe);
+}
 
 /**
  * Renders `markdown` values as formatted GFM markdown (lazy-loaded, sanitized)
@@ -49,12 +85,17 @@ const LazyMarkdownContent = React.lazy(() => import('./MarkdownContent.js'));
  * pipeline drops all of it; see {@link HtmlCellRenderer}, which is where that
  * type belongs. Loosening this pipeline to pass raw HTML through would have
  * "fixed" one type by moving every `markdown` cell's trust boundary.
+ *
+ * What the cell holds is decided by {@link richTextSource} (objectui#8580):
+ * `[]` is the No-value affordance, never a childless container, and an
+ * object is the text the string class prints for it, never `[object Object]`.
  */
 export function MarkdownCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (value == null || value === '') return <EmptyValue />;
+  const text = richTextSource(value);
+  if (text === undefined) return <EmptyValue />;
   return (
-    <React.Suspense fallback={<span className="text-sm text-muted-foreground">{String(value).slice(0, 80)}</span>}>
-      <LazyMarkdownContent value={String(value)} />
+    <React.Suspense fallback={<span className="text-sm text-muted-foreground">{text.slice(0, 80)}</span>}>
+      <LazyMarkdownContent value={text} />
     </React.Suspense>
   );
 }
@@ -89,13 +130,22 @@ function sanitizeHtml(html: string): string {
  * emits — headings, paragraphs, emphasis, lists, links, quotes all survive, so
  * routing `richtext` here restores the content rather than trading a blank cell
  * for a mangled one.
+ *
+ * What the cell holds is decided by {@link richTextSource} (objectui#8580):
+ * `[]` is the No-value affordance, never a childless `prose` container, and
+ * an object is the text the string class prints for it. The populated branch
+ * stays on {@link sanitizeHtml}: a stored string comes back from
+ * `richTextSource` verbatim, so the bytes that reach the sanitiser are the
+ * bytes that always did — pinned byte-for-byte in
+ * `__tests__/cellRenderers.childlessContainer-8580.test.tsx`.
  */
 export function HtmlCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (value == null || value === '') return <EmptyValue />;
+  const text = richTextSource(value);
+  if (text === undefined) return <EmptyValue />;
   return (
     <div
       className="prose prose-sm max-w-none dark:prose-invert break-words"
-      dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(value)) }}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(text) }}
     />
   );
 }

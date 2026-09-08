@@ -228,12 +228,16 @@ const DOC_EXTENSIONS = ['.mdx', '.md'];
  * four arrived with zero residue, inside fences and outside them.
  *
  * ⛔ `minFiles: 3` for that row -- PER ROOT, never a whole-surface floor, which
- * is the shape that failed: on a day this four-file root reads ZERO the other
- * four roots still return 203 of today's 207 files, so any total floor is green
- * through the whole outage. Seeded the way the others were, under today's count
- * with room for ordinary movement, and still red for the shape that caused this
- * card -- the `objectui-contributor` tree leaving reads 1, the two guides alone
- * leaving reads 2.
+ * is the shape that failed: on a day this root reads ZERO the other four still
+ * return all but its handful of documents, so any total floor is green through
+ * the whole outage. The relation is the whole argument and it needs no figure:
+ * every run prints each root's own population through `summarise()` below, and
+ * that verdict line is where a reader takes today's counts. A count copied into
+ * this comment is true only on the day it is written -- this paragraph carried
+ * two that were not (objectui#8122). Seeded the way the others were, under the
+ * count at the time, with room for ordinary movement, and still red for the
+ * shape that caused this card -- the `objectui-contributor` tree leaving reads
+ * 1, the two guides alone leaving reads 2.
  *
  * ⚠️ The row is `.claude/skills`, not `.claude` -- and the difference is only
  * about files that do not exist yet. Every `.md`/`.mdx` under `.claude/` today

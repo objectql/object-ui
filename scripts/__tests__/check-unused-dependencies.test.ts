@@ -374,9 +374,30 @@ describe('scope', () => {
 
 // ── 7. this repository ───────────────────────────────────────────────────────
 
+/**
+ * One whole-repository scan, shared by the three tests below.
+ *
+ * `analyze(repoRoot)` walks every package in the release group — 47 manifests
+ * and >1000 files — and the three assertions read three different fields of the
+ * SAME verdict, so a call per test paid for the identical walk three times, each
+ * time inside a bounded assertion window. On the push lane, where the suite runs
+ * under v8 coverage instrumentation, a single pass crosses vitest's 15 s
+ * `testTimeout`: all three tests then fail with `Test timed out in 15000ms`
+ * while the gate itself is green, and because the coverage thresholds live only
+ * on the merged 4-shard report, one red shard means the coverage gate does not
+ * run at all (objectui#8479).
+ *
+ * Module scope, not `beforeAll`: the import phase is governed by no timeout,
+ * whereas a hook would trade the 15 s `testTimeout` for the narrower 10 s
+ * `hookTimeout`. Same reasoning, same file family as `check-doc-links.test.ts`'s
+ * `ANCHOR_CORPUS` (objectui#8419). No timeout is raised and no assertion is
+ * weakened — each test asserts exactly what it asserted before.
+ */
+const REPOSITORY_SCAN = analyze(repoRoot);
+
 describe('this repository', () => {
   it('is green: every gated declaration has a consumer', () => {
-    const { findings } = analyze(repoRoot);
+    const { findings } = REPOSITORY_SCAN;
     expect(findings).toEqual([]);
   });
 
@@ -392,14 +413,14 @@ describe('this repository', () => {
   });
 
   it('scans a population big enough for the verdict to mean something', () => {
-    const { counters } = analyze(repoRoot);
+    const { counters } = REPOSITORY_SCAN;
     expect(counters.packages).toBeGreaterThanOrEqual(30);
     expect(counters.gatedDeclared).toBeGreaterThanOrEqual(200);
     expect(counters.files).toBeGreaterThanOrEqual(1000);
   });
 
   it('keeps the non-gated fields VISIBLE rather than absorbed', () => {
-    const { measured } = analyze(repoRoot);
+    const { measured } = REPOSITORY_SCAN;
     // Not an equality: these move with the tree. The pin is that the gate still
     // MEASURES them — a zero here would mean the reporting quietly stopped.
     expect(measured.peerDependencies).toBeGreaterThan(0);
