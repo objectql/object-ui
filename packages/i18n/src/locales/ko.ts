@@ -1083,6 +1083,7 @@ const ko = {
     showEmptyFields: "{{count}}개의 빈 필드 표시",
     hideEmptyFields: "빈 필드 숨기기",
     noValue: "값 없음",
+    unresolvedReference: "확인되지 않은 참조: {{value}}을(를) 사용자로 확인하지 못했습니다",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps

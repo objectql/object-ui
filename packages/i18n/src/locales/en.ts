@@ -1239,6 +1239,7 @@ const en = {
     showEmptyFields: 'Show {{count}} empty fields',
     hideEmptyFields: 'Hide empty fields',
     noValue: 'No value',
+    unresolvedReference: 'Unresolved reference: {{value}} was not resolved to a user',
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps

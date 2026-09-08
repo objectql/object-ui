@@ -1085,6 +1085,7 @@ const fr = {
     showEmptyFields: "Afficher {{count}} champs vides",
     hideEmptyFields: "Masquer les champs vides",
     noValue: "Aucune valeur",
+    unresolvedReference: "Référence non résolue : {{value}} n'a pas été résolue en utilisateur",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
