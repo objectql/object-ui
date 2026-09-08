@@ -1823,3 +1823,169 @@ describe('ci-cd-pipeline.md — Half-State Patrol sweeper wiring (#8043)', () =>
     ).toContain(floor!);
   });
 });
+
+/**
+ * objectui#8238 — the lane promised an artefact its configuration cannot produce.
+ *
+ * `live-e2e.yml`'s header, its job-summary step, its upload glob and this page's Live E2E
+ * section were FOUR spellings of one claim — "failures surface as an uploaded Playwright
+ * report" — and all four were decided by a single line somewhere else entirely:
+ * `playwright.live.config.ts`'s `reporter`. That line reads `[['list']]`; the `list` reporter
+ * writes to stdout and nothing in that config writes `playwright-report/`, so the promised
+ * report was unreachable in EVERY outcome. Measured on a passing run and on a failing run:
+ * absent both times, with an `html` reporter as the control that proves the directory is
+ * observable when a reporter actually writes it.
+ *
+ * Nothing read those four sites against the config, which is exactly how they drifted, and
+ * the cost was not cosmetic: objectui#8084's acceptance criterion was written as "a
+ * `playwright-report/` appears in the uploaded artifact", so a correct fix could never have
+ * satisfied its stated test. An acceptance criterion nobody can pass is the same hazard as a
+ * check nobody can fail, pointed the other way.
+ *
+ * So this block pins the claim to the mechanism rather than to a sentence. It does not care
+ * which way the repository decides the question — it requires only that the reporter list and
+ * everything that describes it move together. Turn the HTML reporter on and this test goes red
+ * naming every site that must be updated with it; leave it off and the sites must keep quoting
+ * the reporter value that makes the absence true.
+ */
+const LIVE_CONFIG_FILE = 'playwright.live.config.ts';
+const liveConfig = fs.readFileSync(path.join(repoRoot, LIVE_CONFIG_FILE), 'utf8');
+
+/**
+ * Source with `//` and block comments removed. The YAML-oriented `withoutComments` above
+ * cannot be reused: this is TypeScript, and `playwright.live.config.ts` opens with a 20-line
+ * block comment that names the config's behaviour in prose. A whole-file regex would read that
+ * prose as configuration — the same class of mistake as counting a commented-out `env:` key.
+ */
+function withoutTsComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+/** The `reporter:` value exactly as written in a Playwright config, e.g. `[['list']]`. */
+function reporterValueOf(source: string): string | undefined {
+  return withoutTsComments(source).match(/^\s*reporter:\s*(.+?),?\s*$/m)?.[1];
+}
+
+describe('ci-cd-pipeline.md + live-e2e.yml — the Playwright report claim (#8238)', () => {
+  const section = sectionForWorkflow('live-e2e.yml');
+  const liveWorkflow = readWorkflow('live-e2e.yml');
+  const header = liveWorkflow.slice(0, liveWorkflow.indexOf('\nname:'));
+  const reporter = reporterValueOf(liveConfig);
+  const declaresHtmlReporter = /['"]html['"]/.test(reporter ?? '');
+
+  it('has all four sides to compare — none may be empty', () => {
+    // The vacuity legs. Each failure below is silent: a renamed heading empties the section, a
+    // restructured config empties the reporter read, and a header that no longer leads the file
+    // empties the header slice. Any one of them would make the assertions pass while comparing
+    // nothing — which is the failure mode this whole block exists to prevent elsewhere.
+    expect(
+      section,
+      'No heading on this page names `live-e2e.yml`, so this block has no section to read and ' +
+        'its assertions below would pass vacuously. The `workflow inventory` block requires ' +
+        'that heading to exist; if it moved, teach `sectionForWorkflow` where it went.',
+    ).not.toBe('');
+
+    expect(
+      reporter,
+      `${LIVE_CONFIG_FILE} no longer declares a \`reporter:\` on a line of its own. That line is ` +
+        'what decides whether `playwright-report/` can exist, and every sentence pinned below ' +
+        'describes it. If the reporter moved to a variable or a spread, this assertion has to ' +
+        'read it from wherever the value now lives — do not delete the comparison, or the four ' +
+        'claim sites go back to being unchecked prose (objectui#8238).',
+    ).toBeDefined();
+
+    expect(header, 'live-e2e.yml must still open with its header comment block').not.toBe('');
+  });
+
+  it('reads the config, not the file as text', () => {
+    // The control for the paragraph above. `playwright.live.config.ts`'s header describes the
+    // config in prose; a whole-file grep cannot tell that prose from a setting. This is the
+    // exact shape of that file, and it is why the parser strips comments first.
+    const specimen = [
+      '/**',
+      " * Run with reporter: [['html']] when you want a browsable report.",
+      ' */',
+      'export default defineConfig({',
+      "  // reporter: [['html']],  — history, not a setting",
+      "  reporter: [['list']],",
+      '});',
+    ].join('\n');
+
+    expect(reporterValueOf(specimen)).toBe("[['list']]");
+  });
+
+  it('uploads no path the reporter cannot produce', () => {
+    // Mechanical and exact: the glob may name `playwright-report/` only when a reporter that
+    // writes it is declared. This is the half of #8238 that is not a matter of wording — the
+    // upload step listed a directory that could not exist in any outcome, and `upload-artifact`
+    // reports that as a warning, not a failure, so nothing ever went red over it.
+    const globsReport = /^\s*playwright-report\/\s*$/m.test(withoutComments(liveWorkflow));
+
+    expect(
+      globsReport,
+      declaresHtmlReporter
+        ? `${LIVE_CONFIG_FILE} declares an HTML reporter (\`${reporter}\`) but live-e2e.yml no ` +
+          'longer uploads `playwright-report/`, so the lane now produces a report and throws it ' +
+          'away. Add the path back to the upload glob.'
+        : `live-e2e.yml's upload glob names \`playwright-report/\`, but ${LIVE_CONFIG_FILE} ` +
+          `declares \`reporter: ${reporter}\` — no reporter in it writes that directory, so the ` +
+          'path matches nothing on a pass, a fail or a crash. Either declare an HTML reporter in ' +
+          'that config, or drop the path. ⛔ Do not do neither: the glob is read by humans as a ' +
+          'promise that the artefact contains a report, and objectui#8084 wrote an acceptance ' +
+          'criterion on exactly that reading which no fix could ever have satisfied.',
+    ).toBe(declaresHtmlReporter);
+  });
+
+  it('quotes the reporter value both prose sites are describing', () => {
+    // The fence, adopted verbatim from #8238: the header, this page's section and the upload
+    // glob are spellings of ONE claim and must move together. Requiring both prose sites to
+    // quote the reporter value as written turns "they must move together" into something a test
+    // can hold: flip the config and both sentences go red until someone rewrites them.
+    for (const [name, text] of [
+      ['live-e2e.yml’s header comment', header],
+      ['the Live E2E section of content/docs/guide/ci-cd-pipeline.md', section],
+    ] as const) {
+      expect(
+        text,
+        `${name} does not quote \`${reporter}\`, the reporter list ${LIVE_CONFIG_FILE} actually ` +
+          'declares. Both sites tell the reader what a failing run leaves behind, and that ' +
+          'answer is decided entirely by this value — a site that describes the artefacts ' +
+          'without naming the line that produces them is how this lane spent its whole ' +
+          'existence promising a Playwright report it could not write (objectui#8238).',
+      ).toContain(reporter!);
+    }
+  });
+
+  it('says that a green run uploads nothing at all', () => {
+    // #8238's second and sharper edge, and the one that outlives whichever way the reporter
+    // question is decided. The upload step is gated on `failure()`, so on a green lane it never
+    // runs: there is no artifact, so there is no file count, so any acceptance criterion
+    // phrased over the artifact's contents is readable ONLY on a run that failed. That trap is
+    // what produced objectui#8084's unpassable criterion, and it is invisible from the prose
+    // unless the prose says it.
+    const uploadStep = withoutComments(liveWorkflow).slice(
+      withoutComments(liveWorkflow).indexOf('name: Upload'),
+    );
+
+    expect(
+      uploadStep,
+      'live-e2e.yml has no `Upload` step, so the sentence pinned below is describing a step ' +
+        'that is gone. Re-point this assertion or drop the sentence with it.',
+    ).not.toBe('');
+
+    expect(
+      /if:.*failure\(\)/.test(uploadStep.split('\n').slice(0, 6).join('\n')),
+      'live-e2e.yml’s upload step is no longer gated on `failure()`. If it now runs on green ' +
+        'runs too, the warning on the page — that a green lane leaves no artifact to inspect — ' +
+        'has become false and must be removed in the same PR.',
+    ).toBe(true);
+
+    expect(
+      section,
+      'The Live E2E section does not mention `failure()`. The upload step is gated on it, so a ' +
+        'green run of this lane produces NO artifact — not an empty one, none — and a reader ' +
+        'who does not know that will write a check against artefact contents that can only ever ' +
+        'be read on a red run. objectui#8084 did exactly that. Say it on the page.',
+    ).toContain('failure()');
+  });
+});

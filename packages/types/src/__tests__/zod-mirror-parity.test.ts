@@ -108,9 +108,15 @@
  *     a delta to this number; count the registry. Nothing asserts it against a written
  *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **42 entries** in `KnownDrift`, **65 keys** across them — 42 / 64 until
+ *   - **41 entries** in `KnownDrift`, **64 keys** across them — 41 / 63 until
  *     objectui#8344 added `component` to `complex.zod.ts#DashboardWidgetSchema`, an
- *     existing entry (so the entry count did not move). 41 / 63 until
+ *     existing entry (so the entry count did not move). 42 / 64 until
+ *     objectui#8338 RETIRED the `feedback.zod.ts#ToastSchema` key on BOTH faces
+ *     (ADR-0049 enforce-or-remove: `?: never` on the declaration, `retirementTombstone()`
+ *     on the mirror), the entry's whole content, so the entry went with it. ⭐ The first
+ *     entry this ledger has lost by RETIRING the key rather than by moving either face
+ *     toward the other — and the only route open: the declaration had NO inhabitant to
+ *     preserve, so "make the faces agree" had no mechanical direction. It was 41 / 63 until
  *     objectui#7760 SEEDED `feedback.zod.ts#ToastSchema` with its one key `action`
  *     (a pair born ledgered, not growth on an existing entry). ⭐ The first entry this
  *     ledger has gained from a face becoming READABLE rather than from a mirror or a
@@ -212,15 +218,22 @@
  *     spelled "six" rots exactly as fast as one spelled `6`, it is just harder to
  *     point a regex at. ⛔ Do not spell a live figure out again, and ⛔ do not
  *     restate one without checking that the pin's spelling still reaches it.
- *   - **23 entries** in `WiderThanDeclared`, **36 keys** across them, and **47 arms**
- *     under those keys — split **6** SCHEMA-NODE, **30** CONCRETE, **0** MIXED, **11** unions.
+ *   - **22 entries** in `WiderThanDeclared`, **35 keys** across them, and **45 arms**
+ *     under those keys — split **6** SCHEMA-NODE, **29** CONCRETE, **0** MIXED, **10** unions.
  *     (objectui#8252 built the arm split; objectui#7760 moved every figure in it.) It
+ *     read 23 / 36 / 47 — 6 / 30 / 0 / 11 — until objectui#8338 RETIRED
+ *     `feedback.zod.ts#ToastSchema::action`, the entry's whole content, so the entry, its
+ *     one key and BOTH its arms left together. ⚠️ Six figures moved on one key, and NOT
+ *     in step: CONCRETE counts KEYS and fell by 1 while `arms` fell by 2 — ⛔ do not step
+ *     these by hand, the derivation reads arms and keys through different reducers and a
+ *     hand-stepped CONCRETE was wrong by one when this was written. It
  *     read 34 / 52 / 61 — 24 / 27 / 1 / 9 — until objectui#7760 gave seven of the ten
  *     recursion-breaking mirrors their existing TypeScript declaration as an explicit
  *     INPUT type argument. ⛔ That repaired no mirror and no declaration: it made a face
  *     READABLE that had been `unknown`. 19 keys across 16 pairs LEFT (13 entries
  *     emptied) because the reading they recorded was the annotation, and 3 keys
- *     ENTERED — `feedback.zod.ts#ToastSchema::action`,
+ *     ENTERED — `feedback.zod.ts#ToastSchema::action` (⚠️ history: that row is GONE,
+ *     retired by objectui#8338 above — ⛔ do not look for it below),
  *     `navigation.zod.ts#HeaderBarSchema::logo`, `overlay.zod.ts#TooltipSchema::content`
  *     — real widenings the erased face had been HIDING. ⭐ All three are the
  *     `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` single-or-list spelling
@@ -293,7 +306,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 42 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 41 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -1183,17 +1196,6 @@ interface KnownDrift {
   'disclosure.zod.ts#CollapsibleSchema': 'onOpenChange';
   /** RUNTIME SLOT (objectui#6124): the `toggle-group` renderer spreads `toggleGroupProps` onto the Radix `ToggleGroup` root. */
   'disclosure.zod.ts#ToggleGroupSchema': 'onValueChange';
-  /**
-   * DISJOINT: TS declares `action?: { label: string; onClick: () => void }`, the mirror
-   * `SchemaNode | SchemaNode[]`. Neither face admits the other's value. SEEDED by
-   * objectui#7760 — ⛔ not drift that card introduced: the mirror's face read `unknown`
-   * until it filled `SchemaNodeSchema`'s input type argument, and `unknown` fits every
-   * declaration, so this pair compared clean on a key nothing could read. The same key
-   * is in `WiderThanDeclared`, measured from the other side; the disposition (the
-   * declaration's function value is the objectui#6124 shape, one member above a
-   * tombstone retired for it) is a ruling of its own.
-   */
-  'feedback.zod.ts#ToastSchema': 'action';
   /**
    * ## The objectui#6124 class — a RUNTIME SLOT on the TS face, a NAMED REFUSAL on the mirror
    *
@@ -2121,19 +2123,6 @@ interface WiderThanDeclared {
    * key and a different class.
    */
   'data-display.zod.ts#TableColumnSchema': 'cell';
-  /**
-   * CONCRETE, and DISJOINT — the pair carries a `KnownDrift` entry for this same key,
-   * born with it. ENTERED under objectui#7760, unmeasurable before it: the mirror is
-   * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` and the declaration states
-   * `action?: { label: string; onClick: () => void }`. Each face refuses what the other
-   * admits — a node is not that object, and that object carries a function value no
-   * JSON document can hold. ⚠️ The DECLARATION is the suspect face here, not the mirror:
-   * `ToastSchema.onDismiss` was retired one member below it under objectui#6124 for
-   * exactly that reason, and its tombstone tells an author to author behaviour as a
-   * node type instead — which is what the mirror already accepts. ⛔ Not repaired here:
-   * this card measured it; the disposition is a ruling of its own.
-   */
-  'feedback.zod.ts#ToastSchema': 'action';
   /** CONCRETE and DISJOINT — the mirror admits a string, the declaration a list of dates; also in `KnownDrift`. */
   'form.zod.ts#CalendarSchema': 'defaultValue' | 'value';
   /** FUNCTION-SLOT. */
@@ -2328,7 +2317,6 @@ const WIDER_ARMS: Readonly< Record< string, readonly WiderArmClass[] > > = {
   'data-display.zod.ts#DataTableSchema::columns': ['CONCRETE'],
   'data-display.zod.ts#DataTableSchema::renderCellEditor': ['CONCRETE'],
   'data-display.zod.ts#TableColumnSchema::cell': ['CONCRETE'],
-  'feedback.zod.ts#ToastSchema::action': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#CalendarSchema::defaultValue': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#CalendarSchema::value': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#FieldConditionSchema::custom': ['CONCRETE'],
