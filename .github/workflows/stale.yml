@@ -82,7 +82,7 @@ jobs:
             Thank you for your understanding!
           stale-issue-label: 'stale'
           exempt-issue-labels: 'pinned,security,critical,bug,enhancement'
-          days-before-issue-stale: 60
+          days-before-issue-stale: 0
           days-before-issue-close: 7
           
           # Pull requests configuration
@@ -106,7 +106,7 @@ jobs:
             Thank you for your understanding!
           stale-pr-label: 'stale'
           exempt-pr-labels: 'pinned,security,in-progress,blocked'
-          days-before-pr-stale: 45
+          days-before-pr-stale: 0
           days-before-pr-close: 14
           
           # General configuration
