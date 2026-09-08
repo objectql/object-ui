@@ -13,18 +13,26 @@ row and logs it; an object `$filter` went to `matchesFilter`, which admitted it 
 included the row. Same file, opposite defaults, and nothing told an author which dialect
 their filter took.
 
-**Now executed** — one arm per member of the spec's `FILTER_OPERATORS`, each answering
-the same question its AST twin already answered: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`,
-`$lte`, `$in`, `$nin`, `$between`, `$contains`, `$icontains`, `$notContains`,
-`$startsWith`, `$endsWith`, `$null`. Eight of those were already implemented; the other
-seven selected every row. `$eq` is the sharpest of them: `{ age: { $eq: 26 } }` selected
-everything while the plain `{ age: 26 }` beside it was correct all along.
+**Now executed** — one arm per member of the spec's `FILTER_OPERATORS`, **all sixteen**,
+each answering the same question its AST twin already answered: `$eq`, `$ne`, `$gt`,
+`$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$between`, `$contains`, `$icontains`,
+`$notContains`, `$startsWith`, `$endsWith`, `$null`, `$exists`. Eight of those were
+already implemented; the other eight selected every row. `$eq` is the sharpest of them:
+`{ age: { $eq: 26 } }` selected everything while the plain `{ age: 26 }` beside it was
+correct all along. `$exists` is the exact inverse of `$null` — `$exists: true` is
+IS NOT NULL — which is the lowering `convertFiltersToAST` already performs, not a
+reading invented here.
+
+**The closed vocabulary matters more than any one arm.** Because nothing the spec
+declares is refused by name, the parity guard in the companion test can assert that the
+case table equals `FILTER_OPERATORS` *exactly* — so a future spec release that adds a
+`$` operator turns this file red instead of letting the new spelling reach the refusal
+arm unannounced. An operator parked on a refused list would have been a hole that guard
+could not see into.
 
 **Now refused** — excluded and logged once per distinct refusal per `find()`, in
-`matchesASTFilter`'s own idiom:
+`matchesASTFilter`'s own idiom. Everything here is OUTSIDE the declared vocabulary:
 
-- `$exists`, with a refusal that names the exact synonym this matcher does execute
-  (`$exists: true` is `$null: false`; `$exists: false` is `$null: true`).
 - `$like` / `$ilike`, declared by `StringOperatorSchema` but deliberately staged out of
   `FILTER_OPERATORS`; this matcher has no pattern engine.
 - `$regex` / `$options`, retired from the protocol — the refusal prints the spec's own
@@ -44,7 +52,7 @@ everything while the plain `{ age: 26 }` beside it was correct all along.
   this repair; the AST array `$filter`, which the sibling arm of `find()` already
   executes, is the door that works today.
 
-**Migration.** A filter that used any of the seven newly-executed operators was
+**Migration.** A filter that used any of the eight newly-executed operators was
 returning unfiltered data; it now returns the rows it names. A filter using a refused
 spelling now returns nothing and says why on the console — rewrite it in the canonical
 spelling the refusal prints, or express it as an AST array `$filter`.

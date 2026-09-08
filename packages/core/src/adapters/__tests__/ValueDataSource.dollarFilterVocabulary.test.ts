@@ -33,19 +33,31 @@
  * carry the `console.warn` assertion as the half that discriminates: the
  * caricature refuses nothing, so it logs nothing.
  *
- * Both were RUN, not reasoned about:
+ * Both were RUN, not reasoned about, and both were RE-RUN after the contract
+ * review flipped `$exists` from refused to executed — the survivor list is not
+ * carried forward across that edit, because the edit changes the shape of one
+ * of the assertions in it:
  *
- * | ablation | red | green |
- * |---|---|---|
- * | the bug — `ValueDataSource.ts` restored to its pre-card bytes | 37 | 24 |
- * | the caricature — `matchesFilter` returns `false` unconditionally | 54 | 7 |
+ * | ablation | red | green | of |
+ * |---|---|---|---|
+ * | the bug — `ValueDataSource.ts` restored to its pre-card bytes | 38 | 24 | 62 |
+ * | the caricature — `matchesFilter` returns `false` unconditionally | 54 | 8 | 62 |
  *
- * The seven survivors of the caricature are named rather than counted, because
+ * The eight survivors of the caricature are named rather than counted, because
  * which ones survive is the finding: the two `{}` cases and the AST-group case
  * never reach `matchesFilter` at all, the `FILTER_OPERATORS` parity guard reads
- * no rows, and the remaining three are the card's own `$nin` / `$startsWith` /
- * `$null` examples — the quotable ones, and they cannot tell this fix from an
- * empty result set. They are kept in §5 and labelled as a scope declaration.
+ * no rows, and the remaining FOUR are the card's own `$nin` / `$startsWith` /
+ * `$null` / `$exists` examples — the quotable ones, and they cannot tell this
+ * fix from an empty result set. They are kept in §5 and labelled as a scope
+ * declaration.
+ *
+ * ⚠️ **The one mover across the flip**, measured rather than predicted:
+ * `$exists false selects neither row` was RED under the caricature before the
+ * flip and is GREEN after it. Nothing else moved — the red count is 54 in both
+ * runs. It discriminated only because it asserted the refusal was LOGGED, and
+ * executing the operator removed the log. §5 therefore has no case left that
+ * tells the fix from the caricature EXCEPT its last one, which asserts the
+ * complement of all four and is four non-empty answers.
  *
  * Assertions name ROWS (`['a','c']`), never a container shape (objectui#8495).
  */
@@ -170,10 +182,23 @@ const EXECUTED_CASES: Record<
     ast: ['nickname', 'is_null'],
     expected: ['b', 'c'],
   },
+  // The exact INVERSE of `$null`, and the platform's own reading of it:
+  // `convertFiltersToAST` lowers `$exists: true` to `is_not_null` three lines
+  // below where it lowers `$null: true` to `is_null`.
+  $exists: {
+    filter: { nickname: { $exists: true } },
+    ast: ['nickname', 'is_not_null'],
+    expected: ['a'],
+  },
 };
 
-/** Refused on purpose. Every one carries its reason in the refusal cases below. */
-const REFUSED_OPERATORS = ['$exists'];
+/**
+ * EMPTY, and that is the point of the parity guard below rather than an
+ * accident: every operator the spec DECLARES is executed, so the guard covers
+ * the whole published vocabulary instead of a subset of it. An operator parked
+ * here would be a hole the guard could not see into.
+ */
+const REFUSED_OPERATORS: string[] = [];
 
 describe('objectui#8447 — every executed operator constrains', () => {
   it.each(Object.entries(EXECUTED_CASES))(
@@ -192,6 +217,27 @@ describe('objectui#8447 — every executed operator constrains', () => {
     const warn = spyWarn();
     expect(await selectedIds({ nickname: { $null: false } })).toEqual(['a']);
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('`$exists: false` is the other direction of ITS operator', async () => {
+    const warn = spyWarn();
+    expect(await selectedIds({ nickname: { $exists: false } })).toEqual(['b', 'c']);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('`$exists` and `$null` are one predicate read from opposite ends', async () => {
+    // Not a restatement of the two cases above: it pins the INVERSION, so an
+    // arm that got the boolean the wrong way round fails here even if each
+    // spelling looks self-consistent. Both directions, and both against a row
+    // set that is a non-empty proper subset either way.
+    expect(await selectedIds({ nickname: { $exists: true } }))
+      .toEqual(await selectedIds({ nickname: { $null: false } }));
+    expect(await selectedIds({ nickname: { $exists: false } }))
+      .toEqual(await selectedIds({ nickname: { $null: true } }));
+    // …and they are NOT the same set as each other, which is what makes the
+    // two assertions above worth anything.
+    expect(await selectedIds({ nickname: { $exists: true } }))
+      .not.toEqual(await selectedIds({ nickname: { $exists: false } }));
   });
 
   it.each(Object.entries(EXECUTED_CASES))(
@@ -247,28 +293,6 @@ describe('objectui#8447 — what the matcher cannot execute, it refuses', () => 
     // One line for three rows: refusals are collected per `find()`, not per row.
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain('$zzz');
-  });
-
-  it('`$exists` is refused and the refusal prescribes the synonym that works', async () => {
-    const warn = spyWarn();
-    expect(await selectedIds({ nickname: { $exists: true } })).toEqual([]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    const message = String(warn.mock.calls[0]?.[0]);
-    expect(message).toContain('$exists');
-    expect(message).toContain('$null: false');
-  });
-
-  it('`$exists: false` prescribes the other direction', async () => {
-    const warn = spyWarn();
-    expect(await selectedIds({ nickname: { $exists: false } })).toEqual([]);
-    expect(String(warn.mock.calls[0]?.[0])).toContain('$null: true');
-  });
-
-  it('the prescription `$exists` points at is itself executed', async () => {
-    // The refusal is only honest if the alternative works. `$exists: true` is
-    // `$null: false` and `$exists: false` is `$null: true`.
-    expect(await selectedIds({ nickname: { $null: false } })).toEqual(['a']);
-    expect(await selectedIds({ nickname: { $null: true } })).toEqual(['b', 'c']);
   });
 
   it.each(['$like', '$ilike'])(
@@ -374,13 +398,19 @@ describe('objectui#8447 — `$and` / `$or` / `$not` are refused, and say so', ()
  * ⚠️ SCOPE DECLARATION, NOT PROOF.
  *
  * These are the four readings objectui#8447 was filed with, reproduced on the
- * two rows it used. Three of the four expect an EMPTY result, so a matcher that
- * answered `false` for everything — strictly worse than the bug — passes them.
- * MEASURED, not predicted: under that caricature exactly these three stayed
- * green and the fourth (`$exists`, which asserts the refusal was LOGGED) went
- * red. They are kept because they are the card's own words and someone will
- * look for them, not because they measure the fix. The discriminating cases
- * are §1-§4.
+ * two rows it used. ALL FOUR expect an EMPTY result, so a matcher that answered
+ * `false` for everything — strictly worse than the bug — passes every one of
+ * them. Before the contract review flipped `$exists` from refused to executed,
+ * that fourth case still discriminated, because it asserted the refusal was
+ * LOGGED; executing it removed the log and with it the only half of §5 that
+ * could tell the fix from the caricature. RE-MEASURED after the flip rather
+ * than carried forward — see the ablation table in this file's header.
+ *
+ * They are kept because they are the card's own words and someone will look for
+ * them, not because they measure the fix. The last case in this block is the
+ * exception and the reason the block is not purely decorative: it asserts the
+ * COMPLEMENT of each of the four, which is four non-empty answers. The
+ * discriminating cases are §1-§4.
  */
 describe('objectui#8447 — the card’s measured examples (scope declaration)', () => {
   const CARD_ROWS = [
@@ -400,18 +430,22 @@ describe('objectui#8447 — the card’s measured examples (scope declaration)',
     expect(await selectedIds({ score: { $null: true } }, CARD_ROWS)).toEqual([]);
   });
 
-  it('`$exists false` selects neither row, and now logs why', async () => {
-    // The one of the four that DOES discriminate against the caricature: it
-    // refuses, and a matcher that answers `false` for everything refuses
-    // nothing and logs nothing.
+  it('`$exists false` selects neither row — both have the key', async () => {
+    // EXECUTED, not refused (the contract review flipped this one), so it no
+    // longer logs — and with the log gone it stopped discriminating against
+    // the caricature. Re-measured after the flip rather than assumed; see the
+    // ablation table in this file's header.
     const warn = spyWarn();
     expect(await selectedIds({ score: { $exists: false } }, CARD_ROWS)).toEqual([]);
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).not.toHaveBeenCalled();
   });
 
-  it('the complements of the first three DO select — the fix is not "exclude everything"', async () => {
+  it('the complements of all four DO select — the fix is not "exclude everything"', async () => {
+    // This is the case that carries §5, and the only one here the caricature
+    // cannot pass: four non-empty answers, each naming rows.
     expect(await selectedIds({ score: { $in: [5, '5'] } }, CARD_ROWS)).toEqual(['n', 's']);
     expect(await selectedIds({ score: { $startsWith: '5' } }, CARD_ROWS)).toEqual(['s']);
     expect(await selectedIds({ score: { $null: false } }, CARD_ROWS)).toEqual(['n', 's']);
+    expect(await selectedIds({ score: { $exists: true } }, CARD_ROWS)).toEqual(['n', 's']);
   });
 });

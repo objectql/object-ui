@@ -245,7 +245,8 @@ function matchesASTFilter(record: any, filterNode: any, refusals: Set<string>): 
  * The vocabulary is the spec's own `FILTER_OPERATORS` (`@objectstack/spec/data`)
  * and each arm answers the same question its AST twin answers in
  * {@link matchesComparisonNode} — `$eq`/`=`, `$nin`/`nin`, `$startsWith`/
- * `starts_with`, and so on, one-to-one across all sixteen. That pairing IS the
+ * `starts_with`, and so on, one-to-one across ALL SIXTEEN: every declared
+ * operator is executed here, none is refused by name. That pairing IS the
  * fix for objectui#8447: `find()` picks between the two matchers on nothing
  * more than whether `$filter` arrived as an array or an object, so any operator
  * one of them executes and the other waves through is a result that changes
@@ -269,10 +270,11 @@ function matchesASTFilter(record: any, filterNode: any, refusals: Set<string>): 
  *
  * ## What is refused, and why each one
  *
- * - **`$exists`** — refused rather than implemented, and the refusal names the
- *   exact synonym that works. `$exists: true` is `$null: false` and
- *   `$exists: false` is `$null: true` (`convertFiltersToAST`,
- *   `../utils/filter-converter.ts`), so nothing is unreachable through it.
+ * Nothing the spec DECLARES is on this list — `REFUSED_OPERATORS` in the
+ * companion test is empty, so the `FILTER_OPERATORS` parity guard covers the
+ * whole published vocabulary rather than a subset of it. What follows is
+ * everything OUTSIDE that vocabulary.
+ *
  * - **`$like` / `$ilike`** — declared by `StringOperatorSchema` but deliberately
  *   kept OUT of `FILTER_OPERATORS` while the faces that cannot execute them are
  *   staged in (objectstack#7536). This matcher has no pattern engine, and the
@@ -333,13 +335,22 @@ function matchesDollarOperator(
         ? value === null || value === undefined
         : value !== null && value !== undefined;
 
+    // `$exists` is the exact INVERSE of `$null`, and that is the platform's own
+    // reading rather than one invented here: `convertFiltersToAST`
+    // (`../utils/filter-converter.ts`) lowers `$exists: true` to `is_not_null`
+    // and `$exists: false` to `is_null`, three lines below where it lowers
+    // `$null` the other way round. Both operators are absent from that file's
+    // `convertOperatorToAST` map and both are special-cased BEFORE it, so that
+    // map's silence is not a decision about either of them. Two producers in
+    // this repo emit `$exists` — `FilterConditionField`'s `exists` /
+    // `notExists` (kept reachable on purpose by objectui#4736) and
+    // `datasetFilterCondition`'s `isEmpty` / `isNotEmpty` — so refusing it
+    // would have turned "every row" into "no rows" on a filter that looks like
+    // it works, which is the one outcome worse than the bug.
     case '$exists':
-      return refuseFilterNode(
-        refusals,
-        `filter operator '$exists' on field '${field}' is not executed by the in-memory `
-        + `matcher; write { ${field}: { $null: ${target ? 'false' : 'true'} } }, which this `
-        + `matcher executes and which the platform lowers $exists to`,
-      );
+      return target
+        ? value !== null && value !== undefined
+        : value === null || value === undefined;
 
     default: {
       const retired = RETIRED_FILTER_OPERATORS[operator];
