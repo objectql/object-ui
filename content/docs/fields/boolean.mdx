@@ -39,6 +39,19 @@ const isActive: BooleanFieldMetadata = {
 The value being edited, and the `className` / `disabled` a host supplies, are **not**
 metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
+## Read-only Display
+
+In a read-only row (a `readonly` field in a generated form, or a detail body), the widget draws
+a real `true` as "Yes" and a real `false` as "No". **Only a real boolean is a value of a boolean
+field.** `@objectstack/spec` declares the runtime value of `boolean` / `toggle` as a bare JS
+boolean on the wire; the SQL `0`/`1` repair and the `'true'` / `'false'` spellings belong to
+the producer boundaries (driver read-coercion, CSV import), never to the widget. So `null`,
+`undefined`, `[]`, `{}`, `0`, `1`, `''`, `'true'` and `'false'` all render the shared
+`EmptyValue` affordance — an em-dash with the accessible name "No value", the same affordance
+every other field widget draws for an absent value — because the record holds no boolean
+there. The widget keeps no second truth table: a `'false'` string that reaches it is a producer
+that skipped its coercion, and the place to fix that is the data source.
+
 ## Use Cases
 
 - **Feature Toggles**: Enable/disable features
