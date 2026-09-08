@@ -11,12 +11,15 @@
  *
  * ## What this exists for
  *
- * `safeValidateSchema` runs `AnyComponentSchema`, a `z.union`. When a document
- * matches no arm, Zod 4 reports ONE top-level issue — `invalid_union` · `Invalid
- * input` · `path: []` — and hangs every arm's real diagnosis off that issue's
+ * `safeValidateSchema` runs `AnyComponentSchema`. When it was a `z.union`, a
+ * document matching no arm got ONE top-level issue — `invalid_union` · `Invalid
+ * input` · `path: []` — with every arm's real diagnosis hung off that issue's
  * `errors` array. `validate.ts` used to print only the top level, so the author
  * got a bare verdict on the whole document even when the schema had diagnosed
- * the defect precisely, remediation text and all.
+ * the defect precisely, remediation text and all. ⚠️ Since objectui#8498 that
+ * union discriminates on `type`: the root issue sits at `['type']` when nothing
+ * matches and there is no root union issue at all when something does; the shape
+ * above still arrives from the undiscriminated unions at nested slots.
  *
  * The 2026-09-02 maintainer ruling chose **B — discriminator-selected arm**:
  * print the issues of the single arm that accepts the authored `type`, and
@@ -105,6 +108,8 @@ export interface UnionIssueLike {
   values?: readonly unknown[];
   /** Present on a discriminated union's `No matching discriminator`. */
   options?: readonly unknown[];
+  /** The key that union dispatches on. ⛔ Not always `type` — see the guard. */
+  discriminator?: string;
   note?: string;
 }
 
@@ -301,9 +306,20 @@ function noMatchingDiscriminator(
   if (issue.note !== NO_MATCHING_DISCRIMINATOR) return undefined;
   if (!Array.isArray(issue.options)) return undefined;
   if ((issue.errors ?? []).length > 0) return undefined;
+  // ⚠️ NOT every discriminated union is keyed on `type`, and this branch is only
+  // correct for the ones that are: `@objectstack/spec`'s `ViewDataSchema` is
+  // `discriminatedUnion('provider', …)` and rides `.data` on `object-grid` and
+  // three siblings. ⛔ Both conditions, establishing different facts: the path
+  // ending at `type` is what makes `slice(0, -1)` the node, the discriminator
+  // being `type` is what makes the note's wording and `authoredTypeAt` right.
+  // Zod 4.4.3 fills both from `def.discriminator` (schemas.js:1189/1191) so they
+  // cannot disagree today — written this way, a shape that ever separates them
+  // falls through to SILENT rather than to WRONG.
+  const path = issue.path ?? [];
+  if (path[path.length - 1] !== 'type') return undefined;
+  if (issue.discriminator !== undefined && issue.discriminator !== 'type') return undefined;
   const literals = issue.options.filter((v): v is string => typeof v === 'string');
   if (literals.length === 0) return undefined;
-  const path = issue.path ?? [];
   return noArmAccepts(path.slice(0, -1), literals, document);
 }
 

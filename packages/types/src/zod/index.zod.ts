@@ -411,7 +411,10 @@ export const AnyComponentSchema = z.discriminatedUnion('type', [
   // union reported here before, so the published root diagnostic is unchanged;
   // the ruling's capped list stays the one place arm names are printed, built by
   // `@object-ui/cli` from `issue.options`, which this does not touch.
-  error: () => 'Invalid input',
+  // ⚠️ Narrowed to `invalid_union`: an unconditional map is scoped to the WHOLE
+  // schema, so it also rewrote this union's `invalid_type` and a non-object root
+  // lost "expected object, received number". `undefined` declines to the locale.
+  error: (issue) => (issue.code === 'invalid_union' ? 'Invalid input' : undefined),
 });
 
 /**

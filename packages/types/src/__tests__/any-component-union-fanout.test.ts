@@ -24,7 +24,7 @@
  * 4.4.3, flat -> discriminated:
  *
  *     known-type leaf refusal    14,624 -> 164 chars   (13 arm subtrees -> none)
- *     unknown `type` refusal     14,624 -> 2,178 chars
+ *     unknown `type` refusal     14,855 -> 2,178 chars
  *     refused node 4 deep        19,311 -> 4,330 chars
  *
  * A bound that also passed on the flat union would assert nothing, which is the
@@ -127,6 +127,17 @@ describe('AnyComponentSchema — a refusal costs one arm, not every arm', () => 
     }
     expect(issueNodeCount(result.error.issues as never)).toBeLessThanOrEqual(4);
     expect(result.error.message.length).toBeLessThanOrEqual(1_000);
+  });
+
+  it('leaves a non-object root its own diagnosis', () => {
+    // The message override is scoped to `invalid_union`; an unconditional one is
+    // scoped to the whole schema and swallowed this, leaving a bare "Invalid
+    // input" for every non-component document.
+    const result = AnyComponentSchema.safeParse(42);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0].code).toBe('invalid_type');
+    expect(result.error.issues[0].message).toContain('expected object, received number');
   });
 
   it('bounds the message when no arm claims the authored `type`', () => {

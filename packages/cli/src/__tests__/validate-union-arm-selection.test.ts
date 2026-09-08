@@ -68,6 +68,13 @@ const UNTYPED_DOCUMENT = { items: [] };
  */
 const OBJECT_GRID_MISSING_OBJECT_NAME = { type: 'object-grid' };
 
+/**
+ * `.data` here is `@objectstack/spec`'s `ViewDataSchema`, a
+ * `z.discriminatedUnion('provider', …)` — the one reachable union in this tree
+ * keyed on something other than `type`.
+ */
+const GRID_WITH_PROVIDERLESS_DATA = { type: 'object-grid', objectName: 'x', data: { type: 'rest' } };
+
 /** A failure that is not a union at all — the control for "nothing changed". */
 const FORM_WITH_UNRESOLVABLE_WIDGET = {
   type: 'form',
@@ -207,6 +214,23 @@ describe('objectui validate — when no arm accepts the type', () => {
   });
 });
 
+describe('objectui validate — a union keyed on something other than `type`', () => {
+  it('says nothing about arms rather than naming the wrong key', async () => {
+    // Unguarded this read `data.type` ('rest'), called it unaccepted, and offered
+    // `ViewDataSchema`'s four PROVIDER names as if they were component types — a
+    // confident sentence in the ruling's own voice about the wrong key. Silence
+    // is right: zod's own message already names `provider` and its literals.
+    await validate(writeSchema('grid.json', GRID_WITH_PROVIDERLESS_DATA));
+
+    expect(exitCodes).toEqual([1]);
+    const text = printed();
+    expect(text).toContain('Path: data → provider');
+    expect(text).not.toContain('No arm accepts type');
+    expect(text).not.toContain('No `type` is declared');
+    expect(armEntries()).toHaveLength(0);
+  });
+});
+
 describe('objectui validate — the non-union path is untouched', () => {
   it('adds no arm entries to an issue that is not a union', async () => {
     await validate(writeSchema('form.json', FORM_WITH_UNRESOLVABLE_WIDGET));
@@ -271,6 +295,23 @@ describe('union-arm-diagnostics — the selection itself', () => {
     expect(note.candidates[0]).toBe('dropdown-menu');
     expect(note.candidates.length).toBeLessThanOrEqual(MAX_UNION_ARMS_REPORTED);
     expect(note.totalArmNames).toBe(6);
+  });
+
+  it('declines a discriminator that is not `type`, on either field', () => {
+    // Both conditions exercised, plus the cases that separate them. Zod fills
+    // path and `discriminator` from one source, so only a hand-built issue can
+    // disagree — and one that does must land on SILENT, never on a wrong note.
+    const doc = { data: { type: 'rest' } };
+    const note = (path: string[], discriminator?: string) => explainUnionIssue(
+      { code: 'invalid_union', note: 'No matching discriminator', errors: [], message: 'x',
+        options: ['object', 'api', 'value', 'schema'], path, discriminator },
+      doc,
+    );
+    expect(note(['data', 'provider'], 'provider')).toEqual([]);
+    expect(note(['data', 'provider'])).toEqual([]);
+    expect(note(['data', 'type'], 'provider')).toEqual([]);
+    // ...and the `type`-keyed shape still routes, or the three above prove nothing.
+    expect(note(['data', 'type'], 'type')).toHaveLength(1);
   });
 
   it('does NOT read that note off a union that still reports arms', () => {
