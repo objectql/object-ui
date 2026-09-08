@@ -67,7 +67,7 @@ a capability expansion with zero runtime and would need its own card. Raise the 
 from the node itself (`title`, `description`, `variant`, `duration`) and label its
 trigger with `buttonLabel` / `buttonVariant`. Measured across this repository: of the
 7 authored `toast` nodes in tracked JSON, **0** carry `action` (control: the same walk
-finds all 7 nodes), and no `.tsx`, `.mdx` or `.ts` source authors one either.
+finds all 7 nodes), and no source file authors one **on a `toast` node**. ⚠️ Stated that narrowly on purpose: `app-shell/src/chrome/notificationToast.tsx:76` and `chrome/toast-helpers.ts:71` DO write `action: { label, onClick }` — for **sonner's** runtime API (`import { toast } from 'sonner'`), a different interface this key never fed. A flat "no source authors one" would be literally false.
 
 **⛔ `EmptySchema.action` is untouched** (objectui#7105 / PR #8330) — the same word on
 a sibling schema in the same file, with the deliberately opposite disposition, and its
