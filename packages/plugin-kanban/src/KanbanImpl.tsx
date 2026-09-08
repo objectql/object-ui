@@ -246,6 +246,30 @@ function QuickAddForm({ columnId, onAdd }: { columnId: string; onAdd: (columnId:
   )
 }
 
+/**
+ * The column-width contract, in ONE place, for BOTH board layouts.
+ *
+ * `KanbanBoardInner` derives `columnInlineStyle` from the board's own slot
+ * (`useResizeObserver`) and hands the SAME object to both layouts: the flat
+ * one through `KanbanColumnView`'s `columnStyle` prop, the swimlane one
+ * straight onto the plain cells it paints itself. Where a container-derived
+ * width is present the viewport-relative classes must step aside rather than
+ * fight the inline value; where it is absent (SSR, or before the first
+ * observation) they are the fallback.
+ *
+ * This is a shared function rather than a ternary copied per call site because
+ * the swimlane layout has no column components to inherit the behaviour from.
+ * The rule previously existed only on the flat path, so a swimlane board stayed
+ * viewport-sized — `w-[85vw]` on every cell — while the docblock over
+ * `columnInlineStyle` claimed those hard-coded classes had been replaced
+ * (objectui#8508). Adding a layout means calling this, not re-deriving it.
+ */
+function columnWidthClasses(columnStyle?: React.CSSProperties): string {
+  return columnStyle && columnStyle.width != null
+    ? "shrink-0"
+    : "w-[85vw] sm:w-80 shrink-0";
+}
+
 function KanbanColumnView({
   column,
   cards,
@@ -287,10 +311,9 @@ function KanbanColumnView({
   const isLimitExceeded = column.limit && safeCards.length >= column.limit
 
   // When the parent passes inline width, drop the viewport-relative classes
-  // so they don't fight with the container-derived value.
-  const widthClasses = columnStyle && columnStyle.width != null
-    ? "shrink-0"
-    : "w-[85vw] sm:w-80 shrink-0";
+  // so they don't fight with the container-derived value. Shared with the
+  // swimlane layout's own cells — see `columnWidthClasses`.
+  const widthClasses = columnWidthClasses(columnStyle);
 
   // Stage progress indicator: the colored top stripe was distracting on
   // boards with many columns ("rainbow stripe" effect). The lane border
@@ -402,6 +425,15 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
    * (viewport-relative) with a width derived from the board's own slot.
    * That way an embedded Kanban (in a panel, drawer, or pop-out window)
    * scales correctly without overflowing or wasting space.
+   *
+   * `boardRef` is on the wrapper that encloses BOTH layouts, and both read this
+   * value: the flat layout passes it to `KanbanColumnView` as `columnStyle`,
+   * the swimlane layout puts it on the header cells and lane cells it paints
+   * itself. Until objectui#8508 only the flat path consumed it, so the sentence
+   * above was true of one of the two layouts and an embedded swimlane board —
+   * the panel/drawer/pop-out case this exists for — stayed viewport-sized.
+   * Whichever layout a cell belongs to, its class list comes from
+   * `columnWidthClasses(columnInlineStyle)` so the two cannot drift apart.
    */
   const boardRef = React.useRef<HTMLDivElement>(null);
   const { width: boardWidth } = useResizeObserver(boardRef);
@@ -663,6 +695,13 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               column cells — so the titles have to be drawn once, above every
               lane, instead of once per column.
 
+              Having no column components is also why the width has to be
+              applied by hand here: these cells and the lane cells below take it
+              from `columnWidthClasses(columnInlineStyle)`, the same source
+              `KanbanColumnView` reads on the flat path (objectui#8508). The two
+              rows must stay on the same width for the titles to sit over their
+              columns, exactly as with the `pl-*` indent noted below.
+
               `shrink-0` is load-bearing, not cosmetic (objectui#7303). This row
               is a flex ITEM of the swimlane region, which is a `flex-col` inside
               a height-bounded board (`h-full`). `overflow-x-auto` makes the row
@@ -684,7 +723,11 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               move on both rows or neither. */}
           <div className="flex shrink-0 gap-3 sm:gap-4 pl-36 sm:pl-44 overflow-x-auto">
             {boardColumns.map(col => (
-              <div key={col.id} className="w-[85vw] sm:w-80 shrink-0 text-center">
+              <div
+                key={col.id}
+                style={columnInlineStyle}
+                className={cn(columnWidthClasses(columnInlineStyle), "text-center")}
+              >
                 <span className=" text-xs sm:text-sm font-semibold tracking-wider text-primary/90 uppercase">{col.title}</span>
                 <span className="ml-2 text-xs text-muted-foreground">({col.cards.length})</span>
               </div>
@@ -718,7 +761,11 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
                         (c[swimlaneField!] != null ? String(c[swimlaneField!]) : UNCATEGORIZED_LANE) === lane
                       )
                       return (
-                        <div key={col.id} className="w-[85vw] sm:w-80 shrink-0 min-h-[60px] rounded-md bg-card/20 p-2">
+                        <div
+                          key={col.id}
+                          style={columnInlineStyle}
+                          className={cn(columnWidthClasses(columnInlineStyle), "min-h-[60px] rounded-md bg-card/20 p-2")}
+                        >
                           <SortableContext items={laneCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
                             <div className="space-y-2" role="list" aria-label={`${col.title} - ${lane} cards`}>
                               {laneCards.map(card => (
