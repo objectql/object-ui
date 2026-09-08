@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,6 +9,7 @@ import { ESLint } from 'eslint';
 
 import {
   CENSUS_FLOORS,
+  GIT_IGNORED_CONTROL,
   PROBE_BASENAME,
   SOURCE_EXTENSIONS,
   UNREACHED_GROUPS,
@@ -16,6 +18,9 @@ import {
   censusCollapse,
   extensionProbeCollapse,
   extensionReach,
+  gitIgnoreCollapse,
+  gitIgnoreReading,
+  isGitWorkTree,
   ruleCountFor,
   walkedFiles,
 } from '../check-lint-rule-coverage.mjs';
@@ -55,6 +60,16 @@ import {
  *  9. **Predicate 2 cannot pass vacuously even once it is fixed.** Its control
  *     is on the probe -- both answers in the same run -- so an empty population
  *     stays a reading rather than becoming a blind spot.
+ * 10. **objectui#8369 -- the census is over the tree GIT tracks.** A build
+ *     output on disk is not a file anybody wrote, so the walk drops what git
+ *     ignores. The load-bearing pin is the card's own control turned into a
+ *     fixture: the same tree analysed with and without a generated file gives
+ *     the IDENTICAL verdict and the identical census. The three git semantics
+ *     it rests on are pinned separately, each against a real `git` process --
+ *     an untracked-and-unignored file is still reported (which is why this is
+ *     not `git ls-files`), a TRACKED file stays counted even when a rule names
+ *     it, and outside a work tree the filter reports itself unavailable rather
+ *     than filtering silently.
  *  6. **The gate is wired** in `package.json`, and its only enforcement path is
  *     the `this repository is green` case above, running inside `pnpm test`.
  *     The absence of a `ci.yml` step is asserted rather than assumed, so the
@@ -411,6 +426,153 @@ describe('the census cannot pass by collapsing', () => {
   });
 });
 
+/**
+ * A fixture tree that IS a git repository. Nothing is committed: `git
+ * check-ignore` reads the ignore files and the index, and neither needs a
+ * commit -- which also keeps these fixtures free of any identity config.
+ */
+function gitTree(label: string, files: Record<string, string>, forceAdd: string[] = []): string {
+  const root = tree(label, files);
+  execFileSync('git', ['init', '-q'], { cwd: root, stdio: 'ignore' });
+  if (forceAdd.length) execFileSync('git', ['add', '-f', ...forceAdd], { cwd: root, stdio: 'ignore' });
+  return root;
+}
+
+describe('objectui#8369 -- the census is over the tree git tracks, not the files on disk', () => {
+  it('gives the identical verdict and census whether or not the tree has been built', async () => {
+    // The card's own control, as a fixture: `built.js` is a generated file --
+    // named in `.gitignore`, absent from any commit -- and before this fix its
+    // mere presence turned the gate red with `unledgered: built.js`.
+    const root = gitTree('git-artifact', {
+      'eslint.config.js': TS_ONLY_CONFIG,
+      ...FILES,
+      '.gitignore': 'built.js\n',
+    });
+
+    const unbuilt = await analyze({ root, groups: LEDGER, unreachedGroups: [] });
+    fs.writeFileSync(path.join(root, 'built.js'), 'export const built = 1;\n');
+    const built = await analyze({ root, groups: LEDGER, unreachedGroups: [] });
+
+    expect(unbuilt.findings).toEqual([]);
+    expect(built.findings).toEqual([]);
+    expect(built.walked).toEqual(unbuilt.walked);
+    expect(built.vacuous).toEqual(unbuilt.vacuous);
+    expect(built.ruleBearing).toEqual(unbuilt.ruleBearing);
+    // The one number that DOES move, and it is reported rather than silent.
+    expect(unbuilt.git.excluded).toEqual([]);
+    expect(built.git.excluded).toEqual(['built.js']);
+    // ...and the census is not trivially empty on either side.
+    expect(built.walked).toContain('src/covered.ts');
+    expect(built.vacuous).toContain('tools/vacuous.mjs');
+  });
+
+  it('still reports a source file git does NOT ignore, before anybody stages it', async () => {
+    // Why this is a git-IGNORE filter and not `git ls-files`: enumerating
+    // tracked files would make the verdict depend on whether the developer had
+    // run `git add`, which is the same defect wearing a different hat.
+    const root = gitTree('git-untracked', {
+      'eslint.config.js': TS_ONLY_CONFIG,
+      ...FILES,
+      '.gitignore': 'built.js\n',
+      'elsewhere/new-tool.mjs': 'export const e = 5;\n',
+    });
+    const result = await analyze({ root, groups: LEDGER, unreachedGroups: [] });
+
+    const unledgered = result.findings.filter((f) => f.kind === 'unledgered');
+    expect(unledgered).toHaveLength(1);
+    expect(unledgered[0].files).toEqual(['elsewhere/new-tool.mjs']);
+    expect(result.git.excluded).toEqual([]);
+  });
+
+  it('keeps a TRACKED file in the census even when an ignore rule names it', async () => {
+    // Measured semantics of `git check-ignore`, pinned because the whole filter
+    // rests on them: it consults the index, so a tracked path is never called
+    // ignored. A file in the repository stays judged whatever `.gitignore` says.
+    const root = gitTree(
+      'git-tracked',
+      { 'eslint.config.js': TS_ONLY_CONFIG, ...FILES, '.gitignore': 'tools/vacuous.mjs\n' },
+      ['tools/vacuous.mjs'],
+    );
+    const result = await analyze({ root, groups: LEDGER, unreachedGroups: [] });
+
+    expect(result.walked).toContain('tools/vacuous.mjs');
+    expect(result.vacuous).toContain('tools/vacuous.mjs');
+    expect(result.git.excluded).toEqual([]);
+    expect(result.findings).toEqual([]);
+  });
+
+  it('narrows the ESLint#lintFiles equivalence by exactly the ignored paths', async () => {
+    // The header's "272 files, 272 matches, zero difference" claim now holds
+    // only up to this filter, so the difference is pinned rather than the
+    // equality -- one file, and it is the generated one.
+    const root = gitTree('git-walk-equiv', {
+      'eslint.config.js': TS_ONLY_CONFIG,
+      ...FILES,
+      '.gitignore': 'built.js\n',
+      'built.js': 'export const built = 1;\n',
+    });
+    const eslint = new ESLint({ cwd: root });
+
+    const mine = await walkedFiles(root, eslint);
+    const theirs = (await eslint.lintFiles(['.']))
+      .map((r) => path.relative(root, r.filePath).split(path.sep).join('/'))
+      .sort();
+
+    expect(theirs).toContain('built.js');
+    expect(mine).not.toContain('built.js');
+    expect(theirs.filter((f) => f !== 'built.js')).toEqual(mine);
+  });
+
+  it('reports itself unavailable outside a git work tree rather than filtering silently', async () => {
+    const root = tree('no-git', { 'eslint.config.js': TS_ONLY_CONFIG, ...FILES });
+    expect(isGitWorkTree(root)).toBe(false);
+
+    const result = await analyze({ root, groups: LEDGER, unreachedGroups: [] });
+    expect(result.git.available).toBe(false);
+    expect(result.git.excluded).toEqual([]);
+    // Nothing is dropped, and the entry point refuses that state for THIS
+    // repository -- an unavailable filter is the broken state, not a lenient one.
+    expect(result.findings).toEqual([]);
+    expect(gitIgnoreCollapse(result.git)).toMatch(/not a git work tree/);
+  });
+
+  it('takes both halves of its control from a real git process, in one run', () => {
+    // The control lives on the INSTRUMENT: an empty ignored set is what an
+    // unbuilt tree legitimately looks like, so "git answered nothing" and "git
+    // did not answer" have to be told apart by something other than the set.
+    const noNodeModulesRule = gitTree('git-control-half', { '.gitignore': 'built.js\n' });
+    const half = gitIgnoreReading(noNodeModulesRule, []);
+    expect(half.available).toBe(true);
+    expect(half.controlVisible).toBe(true);
+    // This fixture ignores nothing under node_modules, so the positive half is
+    // genuinely absent -- and the collapse message says which half.
+    expect(half.controlIgnored).toBe(false);
+    expect(gitIgnoreCollapse(half)).toMatch(new RegExp(GIT_IGNORED_CONTROL.replace(/[/.]/g, '\\$&')));
+
+    const both = gitTree('git-control-both', { '.gitignore': 'node_modules\nbuilt.js\n' });
+    const reading = gitIgnoreReading(both, ['built.js', 'src/covered.ts']);
+    expect(reading.controlIgnored).toBe(true);
+    expect(reading.controlVisible).toBe(true);
+    expect(gitIgnoreCollapse(reading)).toBeNull();
+    // ...and the reading itself discriminates, on paths that need not exist.
+    expect(reading.ignored.has('built.js')).toBe(true);
+    expect(reading.ignored.has('src/covered.ts')).toBe(false);
+  });
+
+  it('names both directions of a collapsed filter', () => {
+    expect(gitIgnoreCollapse({ available: false, controlIgnored: false, controlVisible: false })).toMatch(
+      /not a git work tree/,
+    );
+    expect(gitIgnoreCollapse({ available: true, controlIgnored: false, controlVisible: true })).toMatch(
+      /cannot\s+say "yes"/,
+    );
+    expect(gitIgnoreCollapse({ available: true, controlIgnored: true, controlVisible: false })).toMatch(
+      /cannot\s+say "no"/,
+    );
+    expect(gitIgnoreCollapse({ available: true, controlIgnored: true, controlVisible: true })).toBeNull();
+  });
+});
+
 describe('this repository', () => {
   it('is green, with every ledger row still live and the census standing', async () => {
     const result = await analyze({ root: repoRoot });
@@ -428,6 +590,10 @@ describe('this repository', () => {
     // green here means that file is DECLARED rather than invisible.
     expect(extensionProbeCollapse(result.reach)).toBeNull();
     expect(result.unreached).toEqual(['vitest.config.mts']);
+    // objectui#8369: this run is only a reading of the tree git tracks if the
+    // filter was there and could answer both ways.
+    expect(result.git.available).toBe(true);
+    expect(gitIgnoreCollapse(result.git)).toBeNull();
     for (const row of result.unreachedRows) {
       expect(row.unreachedMatches.length, `unreached row '${row.glob}' declares nothing any more`).toBeGreaterThan(0);
       expect(row.walkedMatches, `unreached row '${row.glob}' over-claims`).toEqual([]);
@@ -495,6 +661,19 @@ describe('this repository', () => {
       expect(row.glob, `row '${row.glob}' must not be a population glob`).not.toMatch(/[*?[\]{]/);
     }
   });
+
+  it('never judges apps/console/plugin.js, built or not (objectui#8369)', async () => {
+    const result = await analyze({ root: repoRoot });
+    // The reading is about PATHS, so it holds whether or not this checkout has
+    // been built -- and its control is a real source file in the same package,
+    // asked in the same run.
+    const reading = gitIgnoreReading(repoRoot, ['apps/console/plugin.js', 'apps/console/src/main.tsx']);
+    expect(reading.ignored.has('apps/console/plugin.js')).toBe(true);
+    expect(reading.ignored.has('apps/console/src/main.tsx')).toBe(false);
+
+    expect(result.walked).not.toContain('apps/console/plugin.js');
+    expect(result.walked).toContain('apps/console/src/main.tsx');
+  }, 60_000);
 
   it('is wired in package.json, and deliberately not in a workflow yet', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
