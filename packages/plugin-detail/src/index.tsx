@@ -16,6 +16,7 @@ import {
 import { withFieldCarrier } from '@object-ui/fields';
 import { DetailView } from './DetailView';
 import { DetailSection } from './DetailSection';
+import { headerColorVocabulary } from './headerColor';
 import { DetailTabs } from './DetailTabs';
 import { RelatedList } from './RelatedList';
 import { RecordDetailsRenderer } from './renderers/record-details';
@@ -333,7 +334,34 @@ ComponentRegistry.register('detail-section', DetailSection, {
     { name: 'defaultCollapsed', type: 'boolean' },
     { name: 'columns', type: 'number' },
     { name: 'showBorder', type: 'boolean' },
-    { name: 'headerColor', type: 'string' },
+    {
+      name: 'headerColor',
+      /**
+       * A CLOSED six-token vocabulary, not free text (objectui#6955).
+       *
+       * The values are `Object.keys(headerColorVocabulary)` rather than a
+       * fourth hand-written copy of the six. `./headerColor` is the renderer's
+       * resolver map, and `headerColor.contractPin-6594.test.ts` already pins
+       * it one-to-one against `DetailViewSection.headerColor` and its
+       * `@object-ui/types/zod` mirror in BOTH directions — so this surface
+       * inherits that pin instead of adding a copy that can drift out of it.
+       *
+       * ONE arm, and deliberately no `'string'` beside it. `['enum','string']`
+       * would clear every value again (any arm accepting a value clears the
+       * prop) and hand the authoring surface its free-text box back — and in
+       * doing so it would DECLARE the resolver's verbatim `bg-*` pass-through,
+       * which maintainer ruling A (2026-08-26, objectstack#12126) refused to
+       * declare because whether such a class renders depends on the host app's
+       * Tailwind build. The pass-through stays an UNDECLARED affordance:
+       * `headerColorClass` still hands a `bg-*` value through untouched, and
+       * this input still refuses it. Pinned as that asymmetry in
+       * `detailSectionHeaderColorEnum-6955.test.ts`.
+       */
+      type: 'enum',
+      enum: Object.keys(headerColorVocabulary),
+      description:
+        'Header tint, from the design system\'s closed palette: one of `muted`, `muted/50`, `accent`, `primary/10`, `secondary/10`, `destructive/10`. Any other value is refused — `@object-ui/types` parses this key as that same six-member enum (objectui#6594), matching @objectstack/spec\'s strict `record:details` section schema. Omit the key for no tint.',
+    },
   ],
 });
 

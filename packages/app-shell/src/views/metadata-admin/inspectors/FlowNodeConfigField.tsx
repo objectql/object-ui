@@ -224,12 +224,20 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
         //    renderer-side alias for off-spec metadata (AGENTS.md #0.1).
         //
         // ⛔ Nothing is rendered NAMING the default — no "(default)" caption,
-        // no help line. Of the two boolean fields the offline table declares a
-        // default for, one (`escalation.enabled`) declares the OPPOSITE of what
-        // the installed spec applies to an omitted key (objectui#6620), so any
-        // caption asserting "this is the declared default" would ship that
-        // wrong claim to authors in words. The seed alone leaves that field
-        // rendering byte-identically to before; a caption would not. Pinned by
+        // no help line. That is triage's arm-A ruling and stands on its own.
+        //
+        // ⚑ Its original SECONDARY argument has been discharged and must not be
+        // cited again: `escalation.enabled` used to declare the OPPOSITE of what
+        // the installed spec applies to an omitted key, so a caption would have
+        // shipped a wrong claim to authors in words. objectui#6620 fixed the
+        // declaration and, from this seed, that field now draws CHECKED — it no
+        // longer renders byte-identically to before, and the argument that the
+        // seed is the safe half of the change no longer applies to it. Both
+        // boolean fields the offline table declares a default for now agree with
+        // the spec, and `flow-node-config.spec-reconciliation.test.ts` keeps the
+        // whole escalation block reconciled against the installed
+        // `ApprovalEscalationSchema`, so a future divergence reddens there rather
+        // than being absorbed by a rendering decision here. Pinned by
         // `FlowNodeInspector.declaredDefault.test.tsx`'s #6620 case.
         const checked = isUnsetFieldValue(value) ? field.defaultValue === 'true' : value === true;
         return (

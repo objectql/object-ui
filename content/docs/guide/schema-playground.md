@@ -103,9 +103,9 @@ A content card with a header, description, and body:
   "icon": "dollar-sign",
   "body": {
     "type": "stack",
-    "direction": "vertical",
-    "gap": "md",
-    "items": [
+    "direction": "col",
+    "gap": 4,
+    "children": [
       {
         "type": "text",
         "content": "$48,250",

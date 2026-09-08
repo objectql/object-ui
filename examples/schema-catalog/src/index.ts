@@ -37,6 +37,7 @@ import components_basic_div_custom_card from './schemas/components-basic-div/cus
 import components_basic_div_flex_layout from './schemas/components-basic-div/flex-layout.json' with { type: 'json' };
 import components_basic_div_grid_layout from './schemas/components-basic-div/grid-layout.json' with { type: 'json' };
 import components_basic_div_nested_divs from './schemas/components-basic-div/nested-divs.json' with { type: 'json' };
+import components_basic_div_use_box_instead from './schemas/components-basic-div/use-box-instead.json' with { type: 'json' };
 import components_basic_div_use_card_instead from './schemas/components-basic-div/use-card-instead.json' with { type: 'json' };
 import components_basic_html_basic_html from './schemas/components-basic-html/basic-html.json' with { type: 'json' };
 import components_basic_icon_basic_icon from './schemas/components-basic-icon/basic-icon.json' with { type: 'json' };
@@ -683,6 +684,15 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-basic-div',
     },
     schema: components_basic_div_nested_divs,
+  },
+  'components-basic-div/use-box-instead': {
+    id: 'components-basic-div/use-box-instead',
+    meta: {
+      title: "Use Box Instead",
+      description: "",
+      category: 'components-basic-div',
+    },
+    schema: components_basic_div_use_box_instead,
   },
   'components-basic-div/use-card-instead': {
     id: 'components-basic-div/use-card-instead',

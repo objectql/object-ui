@@ -50,13 +50,63 @@ function warnDeprecatedOnce(type: string, message: string): void {
  * false for one of its two readers, and it was the reader who could do nothing
  * about it who kept receiving it (objectui#4000).
  *
- * The migration guidance below is byte-for-byte what it was: this issue narrows
- * WHO is told, it does not water down WHAT they are told.
+ * ## The guidance was RE-RULED in objectui#6877 — it is no longer #4000's bytes
+ *
+ * objectui#4000 recorded the migration guidance as "byte-for-byte what it was",
+ * and that pin was right for as long as the guidance was merely INCOMPLETE. It
+ * became FALSE when the neutral `box` container landed (objectui#3965 /
+ * PR #6878). Measured through the real `SchemaRenderer`, on a node carrying an
+ * authored `className` and one text child — every replacement the old bullets
+ * named changes the rendered result:
+ *
+ *   card       + `rounded-lg border bg-card text-card-foreground shadow-sm`,
+ *              and the children move inside an extra `CardContent` element
+ *              (1 element becomes 2)
+ *   flex       + `flex flex-row justify-start items-start gap-1.5 sm:gap-2`
+ *   container  + `w-full max-w-xl mx-auto p-2 sm:p-3 md:p-4`
+ *   stack      + `flex flex-col justify-start items-stretch gap-1.5 sm:gap-2`
+ *   grid       + `grid grid-cols-2 gap-4`
+ *
+ * and four of those five — `flex`, `container`, `stack`, `grid` — read
+ * `children` ONLY, so a node that authored `body` loses its content SILENTLY,
+ * at an unchanged element count. `box` is the one class-transparent swap, and
+ * the old text never named it.
+ *
+ * That is why this is worth a re-ruling rather than a nice-to-have. Deprecation
+ * guidance is followed LITERALLY, by humans and by generating models reading
+ * the console alike, so a notice naming only non-drop-in replacements
+ * manufactures exactly the conversions objectui#3965 measured and rejected.
+ *
+ * ⚠️ `box` is not unconditionally drop-in either, and the text below says so
+ * instead of selling it as one: it too reads `children` only, so `body` content
+ * has to move first. A recommendation that is true WITH a caveat beats a
+ * cleaner one that is false — trading one false recommendation for another
+ * would be worse than leaving the old text alone.
+ *
+ * The four surfaces that state this guidance move in ONE stroke: this notice,
+ * the declaration below, `content/docs/components/basic/div.mdx`, and the
+ * `components-basic-div` catalog category. They are held together by
+ * `__tests__/div-guidance-names-box.test.tsx` (objectui#6877) and, for the
+ * first two, by `__tests__/deprecation-guidance-agreement.test.tsx`
+ * (objectui#6823).
+ *
+ * ⛔ `span`'s notice is a SEPARATE judgement and is deliberately untouched:
+ * `box` is a block-level container, and nothing about the inline replacement
+ * story changed. The same pin file asserts that this edit did not sweep it in.
+ *
+ * ## Quoting convention — load-bearing, not style
+ *
+ * Inside the bullets, DOUBLE QUOTES mean "component type name" and nothing
+ * else; property names take backticks. The objectui#6823 agreement test reads
+ * the offered alternatives out of both statements as their double-quoted runs,
+ * so a `"body"` written with the wrong quotes would arrive as a component type
+ * this notice claims to offer.
  */
 const DIV_DEPRECATION_NOTICE =
   '[ObjectUI] The "div" component is deprecated for JSON-authored pages. Please use Shadcn components instead:\n' +
-  '  - For containers: use "card", "flex", or semantic layout components\n' +
-  '  - For simple wrappers: use layout components like "container", "stack", or "grid"\n' +
+  '  - For a plain wrapper the drop-in swap is "box": same element, your `className` verbatim, no layout of its own.\n' +
+  '  - Reach for "card", "flex", "container", "stack", or "grid" only when you want their layout — each injects classes of its own, and "card" also moves children into an extra element.\n' +
+  '  - Move any `body` content into `children` first: every replacement above except "card" reads `children` only, so a blind retype drops it silently at an unchanged element count.\n' +
   '  This applies to JSON-authored nodes. In a kind:\'html\' page the tag is part of that tier\'s own\n' +
   '  vocabulary, is compiled straight through, and is not reported here.\n' +
   'See documentation at https://www.objectui.org/docs/components for alternatives.';
@@ -131,8 +181,14 @@ ComponentRegistry.register('div',
      */
     deprecated: {
       surfaces: ['json'],
+      /**
+       * Re-ruled with the notice above in objectui#6877 — the two are asserted
+       * to offer the SAME set of alternatives (objectui#6823), so they cannot
+       * be moved one at a time. Same quoting convention: double quotes are
+       * component type names, backticks are property names.
+       */
       replacement:
-        'use "card", "flex", or layout components like "container", "stack", or "grid"',
+        'author "box" for a plain wrapper — the one drop-in swap; reach for "card", "flex", "container", "stack" or "grid" only when you want their layout, and move `body` content into `children` first',
     },
     inputs: [
       { name: 'className', type: 'string' }

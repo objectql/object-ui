@@ -62,20 +62,27 @@ describe('inactiveRetainedKind — the escalation instance the card measured', (
     for (const f of ungated) expect(inactiveRetainedKind(f, node, fields)).toBeNull();
   });
 
-  it('an absent controller value resolves through the spec defaultValue, not to "off"', () => {
-    // `escalation.enabled` declares defaultValue 'false', so an omitted key is
-    // off — and a stored dependent under it is therefore retained-but-inactive.
+  it('an absent controller value resolves through the spec defaultValue — now ON, so the dependent is LIVE', () => {
+    // `escalation.enabled` declares defaultValue 'true', mirroring the installed
+    // spec's `.default(true)`: an omitted key means ENABLED, so a stored dependent
+    // under it is live config, not retained-but-inert.
     //
-    // ⚠️ Coupled to objectui#6620 ON PURPOSE. That card is the mirror defect:
-    // `@objectstack/spec` flipped `ApprovalEscalation.enabled` to `default(true)`
-    // upstream, so once this repo consumes a spec release carrying the flip, this
-    // descriptor's `defaultValue: 'false'` becomes wrong and must follow. When it
-    // does, THIS assertion flips to `toBeNull()` — an omitted key will mean ON,
-    // and a stored dependent under it is live, not retained. Measured here on
-    // 2026-08-29: installed spec is 17.2.0, still `.default(false)`, so the two
-    // agree and #6620 is latent. The failure is the intended signal, not a break.
+    // This assertion flipped from `'controller-off'` to `toBeNull()` when
+    // objectui#6620 made the table follow the spec — exactly the flip the previous
+    // revision of this comment predicted, and the intended signal rather than a
+    // break. (Measured on the spec installed then: 17.2.0 / `.default(false)`.)
+    //
+    // ⚠️ It still reads only the TABLE, so it cannot see a spec bump on its own.
+    // The declaration ↔ installed-spec comparison that CAN detect the next
+    // divergence lives in `flow-node-config.spec-reconciliation.test.ts`; #6620's
+    // root cause was that no such comparison existed for this key.
     const node = { id: 'a', type: 'approval', config: { escalation: { timeoutHours: 24 } } };
-    expect(inactiveRetainedKind(timeout(), node, fields)).toBe('controller-off');
+    expect(inactiveRetainedKind(timeout(), node, fields)).toBeNull();
+    // Lit control on the same node shape — the ONLY difference is the stored gate.
+    // A predicate that had simply stopped flagging anything fails here, so the
+    // `toBeNull()` above is a measurement rather than an absence.
+    const gateOff = { id: 'a', type: 'approval', config: { escalation: { enabled: false, timeoutHours: 24 } } };
+    expect(inactiveRetainedKind(timeout(), gateOff, fields)).toBe('controller-off');
   });
 
   it('flags every dependent in the group, not just the first', () => {

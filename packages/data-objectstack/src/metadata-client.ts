@@ -989,6 +989,44 @@ export class MetadataClient {
    * (`POST /packages/:id/publish-drafts`) is a different route that discards
    * per-draft advisories server-side; that is objectstack#9343 and nothing here
    * compensates for it.
+   *
+   * ## Why there is no `{ success, data }` unwrapping here (objectui#6962)
+   *
+   * This method used to unwrap a dispatcher-shaped envelope before returning,
+   * while {@link publish} — the same route, a couple of hundred lines down —
+   * did not. Two spellings of one wire contract, and nothing said which was
+   * right. The tolerance is gone because the route was MEASURED, at the
+   * producer rather than inferred from the response schema:
+   *
+   *  - The only mount of `POST /api/v1/meta/:type/:name/publish` is the REST
+   *    server's own route-manager registration, which answers
+   *    `res.json(await protocol.publishMetaItem(...))` — the protocol's object
+   *    verbatim, with no envelope branch. The project-scoped mirror
+   *    (`/api/v1/environments/:environmentId/...`) re-mounts that same handler.
+   *  - The `{ success, data }` envelope has exactly one producer, the runtime
+   *    `HttpDispatcher`, and it does not serve this route: its `/meta` domain
+   *    has no publish branch, the dispatcher's own route ledger has no row for
+   *    it, and a three-segment `/meta` path that is not `/published` terminates
+   *    in a located `routeNotFound`. So no composition — REST server, the
+   *    dispatcher-only Hono adapter, or both — puts an envelope on this body.
+   *  - `packages/spec` states the same split in the two docstrings side by
+   *    side: `PublishMetaItemResponseSchema` describes "the FULL body" this
+   *    route returns and records that the REST route hands the producer's
+   *    object to `res.json()` verbatim, while its batch sibling
+   *    `PublishPackageDraftsResponseSchema` describes a body answered
+   *    explicitly "inside the dispatcher's `{ success, data }` envelope".
+   *
+   * ⛔ So an enveloped body on THIS route is not a shape the platform emits,
+   * and unwrapping one is not a kindness: it is Commandment #0.1's lenient
+   * fallback, a second de-facto contract for a route that declares one. It
+   * also fails in the direction that hides the problem — a body that arrived
+   * enveloped is one this door did not actually serve, and unwrapping it
+   * would present that as a successful promotion.
+   *
+   * ⚠️ Sibling tolerances in this file are NOT this defect and must stay:
+   * {@link listDrafts} reads `data?.data?.drafts` because `GET /meta/_drafts`
+   * IS a dispatcher route, and `publishHealthFromResponse` unwraps because the
+   * batch door really is enveloped. The rule is per-route, not per-file.
    */
   async publishDraft(
     type: string,
@@ -1005,14 +1043,12 @@ export class MetadataClient {
     });
     if (!res.ok) throw await parseError(res);
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    // Tolerate the dispatcher's `{ success, data: {...} }` envelope.
-    const inner = (body as any)?.data && typeof (body as any).data === 'object' ? (body as any).data : body;
     // #5026 — this is the SAME single-item publish door `publish()` uses, so it
-    // reports the same way. Read off `inner`, the object this method returns:
-    // `advisories` is declared at the top level of `PublishMetaItemResponse`,
-    // which is what `inner` is once the dispatcher envelope (if any) is off.
-    this.emitAdvisories(inner, { type, name, door: 'publish', mode: 'publish' });
-    return inner as any;
+    // reports the same way, and now off the SAME object: the response body
+    // itself. `advisories` is declared at the TOP LEVEL of
+    // `PublishMetaItemResponse`, which is what this route answers (#6962).
+    this.emitAdvisories(body, { type, name, door: 'publish', mode: 'publish' });
+    return body as any;
   }
 
   /**

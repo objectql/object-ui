@@ -190,12 +190,13 @@ export const RecordReferenceRailRenderer: React.FC<RecordReferenceRailRendererPr
         });
         if (!mountedRef.current) return;
         const items = Array.isArray(res) ? res : res?.data || [];
-        const total =
-          typeof res?.total === 'number'
-            ? res.total
-            : typeof res?.count === 'number'
-              ? res.count
-              : items.length;
+        // `total` is the ONE count member `QueryResult` (`@object-ui/types`)
+        // declares — the reason `$count: true` is sent above. A `count` arm
+        // used to sit between it and the row-length fallback; measured zero
+        // producers emit `count` at this seam (objectui#6917), so it is gone
+        // rather than left as somewhere a non-conforming producer keeps
+        // working unrejected (AGENTS.md #0.1).
+        const total = typeof res?.total === 'number' ? res.total : items.length;
         setStates((prev) => ({ ...prev, [key]: { loading: false, total, items } }));
       } catch (err: any) {
         if (!mountedRef.current) return;

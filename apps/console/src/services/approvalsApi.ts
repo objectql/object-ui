@@ -12,6 +12,7 @@
  * `packages/rest/src/rest-server.ts`.
  */
 import { TokenStorage } from '@object-ui/auth';
+import type { ApprovalCancelReason } from '@objectstack/spec/contracts';
 
 const SERVER_URL = (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, '');
 const API_BASE = `${SERVER_URL}/api/v1`;
@@ -32,7 +33,21 @@ export interface ApprovalRequestRow {
   process_name: string;
   object_name: string;
   record_id: string;
-  status: 'pending' | 'approved' | 'rejected' | 'recalled' | 'returned' | string;
+  status: 'pending' | 'approved' | 'rejected' | 'recalled' | 'returned' | 'cancelled' | string;
+  /**
+   * Why the platform voided this request (objectstack#13568). Present only on
+   * rows whose `status` is `cancelled`, absent everywhere else — so a value on
+   * any other status is a row this console does not understand, never a cause
+   * to act on.
+   *
+   * The union is IMPORTED from `@objectstack/spec` rather than re-spelled here:
+   * the contract calls it a reason CLASS whose next platform-initiated cause
+   * extends the same list, and a hand-copied union would go stale the day it
+   * does. Optional-nullable exactly as the contract declares it — a row written
+   * before the column existed reads as "not recorded", never as "cancelled for
+   * no reason".
+   */
+  cancel_reason?: ApprovalCancelReason | null;
   current_step?: string | null;
   current_step_index?: number | null;
   pending_approvers?: string[] | null;

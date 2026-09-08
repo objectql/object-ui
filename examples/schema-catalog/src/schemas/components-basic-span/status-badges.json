@@ -5,32 +5,17 @@
     {
       "type": "badge",
       "variant": "default",
-      "children": [
-        {
-          "type": "text",
-          "content": "● Active"
-        }
-      ]
+      "label": "● Active"
     },
     {
       "type": "badge",
       "variant": "secondary",
-      "children": [
-        {
-          "type": "text",
-          "content": "● Pending"
-        }
-      ]
+      "label": "● Pending"
     },
     {
       "type": "badge",
       "variant": "destructive",
-      "children": [
-        {
-          "type": "text",
-          "content": "● Inactive"
-        }
-      ]
+      "label": "● Inactive"
     }
   ]
 }

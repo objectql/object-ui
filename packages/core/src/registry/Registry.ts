@@ -397,9 +397,15 @@ type LazyEntry = {
  * because `ELEMENT_DATA_SOURCE_INPUT` carried a hand-written inline type and
  * `binding` had no declared home — and a cast at the one place the key is
  * written is exactly what would have hidden any later drift between the
- * constant and the type. `packages/types/src/__tests__/injected-component-input-6950.test.ts`
- * pins the cast's absence. Keep the local typed: if the shape ever stops
- * fitting, this line is where the compiler should say so.
+ * constant and the type. The absence is held by `eslint.config.js`, which
+ * scopes `@typescript-eslint/consistent-type-assertions` with
+ * `assertionStyle: 'never'` to THIS FILE (objectui#8316) — an AST rule,
+ * because `tsc --noEmit` stays at exit 0 with the cast re-added and the
+ * source-text pin that used to stand here was green for `<ComponentMeta>{…}`,
+ * the same assertion in the other spelling.
+ * `packages/types/src/__tests__/injected-component-input-6950.test.ts` still
+ * pins the positive half, that the local below is ANNOTATED. Keep it typed: if
+ * the shape ever stops fitting, that line is where the compiler should say so.
  */
 export function withElementDataSourceInput<T>(
   component: ComponentRenderer<T>,

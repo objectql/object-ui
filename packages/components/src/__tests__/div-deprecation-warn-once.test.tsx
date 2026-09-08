@@ -90,10 +90,12 @@ describe('div deprecation notice — once per module load (#3965)', () => {
 
     const calls = deprecationCalls(warn);
     expect(calls).toHaveLength(1);
-    // The notice itself is unchanged — the deprecation is still being reported,
-    // with its migration guidance intact.
-    expect(String(calls[0][0])).toContain('"card", "flex", or semantic layout components');
-    expect(String(calls[0][0])).toContain('"container", "stack", or "grid"');
+    // The deprecation is still being reported, with its migration guidance
+    // intact. The guidance text itself was re-ruled in objectui#6877 (it now
+    // names `box`, the one drop-in swap, and states the `body`→`children`
+    // hazard); the ONCE-semantics this file pins are unaffected by that.
+    expect(String(calls[0][0])).toContain('the drop-in swap is "box"');
+    expect(String(calls[0][0])).toContain('"card", "flex", "container", "stack", or "grid"');
   });
 
   it('does not warn again on a later render', () => {

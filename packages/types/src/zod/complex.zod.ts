@@ -815,7 +815,27 @@ export const DashboardWidgetSchema = specFieldsExcept(SpecDashboardWidgetSchema.
   id: z.string().optional().describe('Widget ID'),
   type: DashboardWidgetTypeSchema.optional()
     .describe('Widget visualization type — the spec families plus objectui\'s closed `list`/`custom` and `metric-card` extensions'),
-  component: SchemaNodeSchema.optional().describe('Widget Component (legacy format)'),
+  // ⚠️ `BaseSchema`, ⛔ NOT `SchemaNodeSchema` (objectui#8344). The two were the
+  // same accept set until #8344 redirected the node recursion point at
+  // `AnyComponentSchema`, and this slot is the one place in the package where they
+  // must not be: `metric-card` is objectui's CLOSED widget-slot component
+  // extension (`DASHBOARD_COMPONENT_WIDGET_TYPES`), admitted by the 2026-08-14
+  // ruling (objectstack#8593) and DELIBERATELY not an arm of `AnyComponentSchema` —
+  // {@link DashboardWidgetSlotComponentSchema} says so in as many words: the
+  // routing is an internal property of the widget slot, "not new authoring
+  // surface". So the redirect would refuse `{ id, component: { type:
+  // 'metric-card', … }, layout }` — the legacy envelope this key exists FOR — and
+  // the only repair the card leaves open (a new arm) is the widening that ruling
+  // declined. ⇒ the slot names the passthrough the ruling assigns it instead of
+  // inheriting whatever the recursion point currently means. Pinned by
+  // `__tests__/dashboard-widget-strict-6002.test.ts`'s legacy-envelope case and by
+  // `__tests__/dashboard-widget-slot-component-arm-7952.test.ts`.
+  //
+  // ⚠️ One measured delta from the old spelling, and it is the only one: a PRIMITIVE
+  // in this slot (`component: "text"`) was accepted through `SchemaNodeSchema` and is
+  // refused now. No corpus document, fixture or pin writes one, and the key is
+  // declared "Widget Component (legacy format)" — a node, never a scalar.
+  component: BaseSchema.optional().describe('Widget Component (legacy format)'),
 }).strict();
 
 /**

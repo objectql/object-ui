@@ -75,6 +75,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { APPROVAL_STATUS_LABELS } from '@objectstack/spec/contracts';
 import {
   CheckCircle2,
   XCircle,
@@ -96,6 +97,7 @@ import {
   Circle,
   Paperclip,
   ShieldAlert,
+  Trash2,
 } from 'lucide-react';
 import {
   approvalsApi,
@@ -105,6 +107,7 @@ import {
   type ApprovalActionAttachment,
 } from '../../services/approvalsApi';
 import { useRecordReadability } from './recordReadability';
+import { isDeletedRecordReference, useDeadRecordReferenceLabel } from './deadRecordReference';
 import { useHiddenFieldsByObject } from './hiddenFields';
 import { holdsStudioAccess } from '../../components/studioEntry';
 
@@ -124,6 +127,9 @@ const STATUS_CLASSES: Record<string, string> = {
   rejected: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400',
   recalled: 'border-border bg-muted text-muted-foreground',
   returned: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-400',
+  // objectstack#13568's terminal state: the platform voided the request, nobody
+  // decided it. Muted like `recalled` — the other exit that records no decision.
+  cancelled: 'border-border bg-muted text-muted-foreground',
 };
 
 /**
@@ -138,6 +144,27 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
     <Badge variant="outline" className={cn('font-medium', STATUS_CLASSES[status] ?? '')}>
       {label}
     </Badge>
+  );
+}
+
+/**
+ * The tombstone that replaces a dead record reference (objectui#7108).
+ *
+ * Module scope for the same reason `StatusBadge` is, and the label is a prop
+ * for the same reason its label is: the copy is resolved once by the page from
+ * the platform's own `cancel_reason` option label (see `deadRecordReference`),
+ * never authored here.
+ *
+ * It renders the tombstone TEXT, not merely the absence of a link: a row that
+ * silently drops its record reference is worse than the bare id it replaces,
+ * because the approver loses the fact that an approval exists at all.
+ */
+function DeadRecordReference({ label, className }: { label: string; className?: string }) {
+  return (
+    <div className={cn('flex items-center gap-1.5 text-muted-foreground min-w-0', className)} title={label}>
+      <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span className="truncate italic">{label}</span>
+    </div>
   );
 }
 
@@ -455,10 +482,11 @@ function RequestCell({ r, tr }: { r: ApprovalRequestRow; tr: Translate }) {
  * many objects, so it is a per-row prop and not something this cell could
  * resolve for itself — see the page body, which drives it off one lookup.
  */
-function RecordCell({ r, href, hiddenKeys }: {
+function RecordCell({ r, href, hiddenKeys, deadLabel }: {
   r: ApprovalRequestRow;
   href: string | null;
   hiddenKeys: ReadonlySet<string>;
+  deadLabel: string | null;
 }) {
   // Surface the decision-relevant amount inline so a reviewer can triage the
   // queue without opening each request (#2762 P1-3) — minus anything the
@@ -470,7 +498,14 @@ function RecordCell({ r, href, hiddenKeys }: {
   const title = r.record_title || formatIdentity(r.record_id);
   return (
     <div className="min-w-0">
-      {href === null ? (
+      {/* objectui#7108: the record is GONE (the platform said so), so the
+          reference slot becomes the tombstone rather than degrading to the
+          bare record id. The snapshot's business identifier is not lost —
+          it moves to the meta line below, where it stays readable as history
+          without pretending to address anything. */}
+      {deadLabel !== null ? (
+        <DeadRecordReference label={deadLabel} className="text-sm max-w-full" />
+      ) : href === null ? (
         <div className="text-sm truncate max-w-full" title={r.record_id}>{title}</div>
       ) : (
       <Link
@@ -485,6 +520,9 @@ function RecordCell({ r, href, hiddenKeys }: {
       )}
       <div className="text-xs text-muted-foreground truncate">
         {objectDisplay(r)}
+        {deadLabel !== null && r.record_title && (
+          <span className="ml-1.5">· {r.record_title}</span>
+        )}
         {amount && (
           <span className="ml-1.5 font-medium text-foreground" title={`${amount.label}: ${amount.display}`}>
             · {amount.display}
@@ -661,6 +699,11 @@ export function ApprovalsInboxPage() {
       case 'rejected': return tr('statusRejected', 'Rejected');
       case 'recalled': return tr('statusRecalled', 'Recalled');
       case 'returned': return tr('statusReturned', 'Returned for revision');
+      // objectstack#13568 added this terminal state; without a case the badge
+      // rendered the raw wire token `cancelled`. The default is the CONTRACT's
+      // own authored label rather than a fresh English string here — same
+      // discipline as the tombstone's copy (see `deadRecordReference`).
+      case 'cancelled': return tr('statusCancelled', APPROVAL_STATUS_LABELS.cancelled);
       default: return status;
     }
   }, [tr]);
@@ -694,6 +737,27 @@ export function ApprovalsInboxPage() {
     const app = appName || 'setup';
     return `/apps/${app}/${encodeURIComponent(r.object_name)}/record/${encodeURIComponent(r.record_id)}`;
   }, [appName]);
+
+  /**
+   * [objectui#7108] The tombstone copy, resolved once for the whole page from
+   * the platform's own `cancel_reason` option label.
+   *
+   * `deadLabelFor` answers non-null ONLY for a row the platform itself marked
+   * `cancelled` + `record_deleted`. ⛔ It must never be widened to a failed
+   * lookup: `readability.isUnreadable` (objectui#5211) reports that this viewer
+   * cannot read the target and deliberately says nothing about why — the read
+   * path fuses "deleted" and "hidden by permissions" on purpose (existence
+   * non-disclosure). Rendering a deletion off that answer would tell a viewer
+   * their permissions problem is a deletion (objectstack#7345's case), which is
+   * a worse claim than the bare id it replaces. The two causes stay separate
+   * here exactly as the ruling requires.
+   */
+  const deadReferenceLabel = useDeadRecordReferenceLabel();
+  const deadLabelFor = useCallback(
+    (r: ApprovalRequestRow | null | undefined): string | null =>
+      (isDeletedRecordReference(r) ? deadReferenceLabel : null),
+    [deadReferenceLabel],
+  );
 
   const [tab, setTab] = useState<TabKey>('pending');
   const [rows, setRows] = useState<ApprovalRequestRow[]>([]);
@@ -1625,8 +1689,13 @@ export function ApprovalsInboxPage() {
                           <TableCell>
                             <RecordCell
                               r={r}
-                              href={readability.isUnreadable(r) ? null : recordHref(r)}
+                              // A known-dead reference needs no probe: there is
+                              // nothing to link to, and the probe is async and
+                              // fails open, so leaving it to answer would render
+                              // a live-looking link for the first paint.
+                              href={deadLabelFor(r) !== null || readability.isUnreadable(r) ? null : recordHref(r)}
                               hiddenKeys={hiddenFields.forObject(r.object_name)}
+                              deadLabel={deadLabelFor(r)}
                             />
                           </TableCell>
                           <TableCell>
@@ -1690,17 +1759,33 @@ export function ApprovalsInboxPage() {
                         <div className="font-medium text-sm truncate">{processLabel(r)}</div>
                         <StatusBadge status={r.status} label={statusLabel(r.status)} />
                       </div>
-                      <div className="text-sm truncate">
-                        {r.record_title || formatIdentity(r.record_id)}
-                        <span className="text-muted-foreground text-xs ml-1.5">{objectDisplay(r)}</span>
-                        {(() => {
-                          // objectui#6020: this row's OWN object decides.
-                          const amount = decisionAmountEntry(r, hiddenFields.forObject(r.object_name));
-                          return amount ? (
-                            <span className="text-xs ml-1.5 font-medium" title={amount.label}>· {amount.display}</span>
-                          ) : null;
-                        })()}
-                      </div>
+                      {/* objectui#7108: same tombstone as the desktop row —
+                          the mobile card renders the SAME reference for the
+                          same request, so fixing only the table would leave
+                          the bare id on every phone. */}
+                      {(() => {
+                        const deadLabel = deadLabelFor(r);
+                        return (
+                          <div className="text-sm truncate">
+                            {deadLabel !== null ? (
+                              <span className="italic text-muted-foreground">{deadLabel}</span>
+                            ) : (
+                              r.record_title || formatIdentity(r.record_id)
+                            )}
+                            <span className="text-muted-foreground text-xs ml-1.5">{objectDisplay(r)}</span>
+                            {deadLabel !== null && r.record_title && (
+                              <span className="text-muted-foreground text-xs ml-1.5">· {r.record_title}</span>
+                            )}
+                            {(() => {
+                              // objectui#6020: this row's OWN object decides.
+                              const amount = decisionAmountEntry(r, hiddenFields.forObject(r.object_name));
+                              return amount ? (
+                                <span className="text-xs ml-1.5 font-medium" title={amount.label}>· {amount.display}</span>
+                              ) : null;
+                            })()}
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         {isSystemSubmitter(r) ? (
                           <span className="inline-flex items-center gap-1 truncate italic">
@@ -1902,7 +1987,16 @@ export function ApprovalsInboxPage() {
                           offers the same link to the same record for the same
                           viewer, so fixing only the row would move the dead end
                           one click deeper instead of removing it. */}
-                      {readability.isUnreadable(selected) ? (
+                      {/* objectui#7108: and the same tombstone again — the
+                          drawer addresses the same record, so leaving the bare
+                          id here would move it one click deeper instead of
+                          removing it. */}
+                      {deadLabelFor(selected) !== null ? (
+                        <DeadRecordReference
+                          label={deadLabelFor(selected) as string}
+                          className="text-base font-semibold"
+                        />
+                      ) : readability.isUnreadable(selected) ? (
                         <div className="text-base font-semibold truncate">
                           {selected.record_title || formatIdentity(selected.record_id)}
                         </div>
@@ -1915,7 +2009,12 @@ export function ApprovalsInboxPage() {
                         <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       </Link>
                       )}
-                      <div className="text-xs text-muted-foreground">{objectDisplay(selected)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {objectDisplay(selected)}
+                        {deadLabelFor(selected) !== null && selected.record_title && (
+                          <span className="ml-1.5">· {selected.record_title}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-right text-xs text-muted-foreground shrink-0">
                       <div className="inline-flex items-center gap-1">

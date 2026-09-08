@@ -119,13 +119,26 @@ const NODE_CENSUS: Readonly<Record<string, { rendered: number; noElement: number
   // `components-basic-text/text-with-colors` nodes authored a phantom `color`
   // nothing declared or read, and now author `className`, which the renderer
   // DOES forward — so each one needs an element to carry its colour class.
-  text: { rendered: 701, noElement: 159 },
+  // 701 -> 696 and 159 -> 154 with objectui#6829 (arm A): the five `text`
+  // nodes that were the `children` of five `badge` nodes are gone, folded into
+  // each badge's `label`. `ui:badge` never rendered them (it reads `label` and
+  // `body`, not `children`), and as bare text nodes carrying no className,
+  // `variant` or `align` they sat in the no-element class — so both counts
+  // move by exactly five. Catalog authoring, not a renderer change.
+  // 696 -> 698 with objectui#6877: `components-basic-div/use-box-instead` is
+  // the `div` -> `box` before/after the migration guide was missing, and its
+  // two `text` nodes both carry a className, so both need an element — the
+  // no-element count is unmoved. Catalog authoring, not a renderer change.
+  text: { rendered: 698, noElement: 154 },
   // The objectui#3965 migration population (80 nodes retyped from `div`) plus
   // the 4 nodes of the components-layout-box exemplars. `box` is born on
   // `toDomProps` and class-transparency, so it joins the measured set as a
   // converged renderer from day one — 84 real authored nodes, every one
   // expected to render its element and leak nothing.
-  box: { rendered: 84, noElement: 0 },
+  // 84 -> 86 with objectui#6877: the same new fixture is two `box` nodes (an
+  // outer wrapper and an inner padding box), mirroring the `div` exemplar it
+  // teaches the conversion away from.
+  box: { rendered: 86, noElement: 0 },
 };
 
 /**

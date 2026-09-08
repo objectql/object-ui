@@ -9,9 +9,14 @@ description: "Generic container element - use Shadcn components instead"
     The Div component is deprecated. Please use Shadcn components instead:
   </p>
   <ul className="mt-2 list-inside list-disc text-sm text-yellow-700 dark:text-yellow-300">
-    <li>For containers: use <code>card</code>, <code>flex</code>, or semantic layout components</li>
-    <li>For simple wrappers: use layout components like <code>container</code>, <code>stack</code>, or <code>grid</code></li>
+    <li>For a plain wrapper: use <code>box</code> — the one drop-in swap (same element, your className verbatim, no layout of its own)</li>
+    <li>When you want their layout: use <code>card</code>, <code>flex</code>, <code>container</code>, <code>stack</code>, or <code>grid</code> — each injects classes of its own, and <code>card</code> also moves children into an extra element</li>
   </ul>
+  <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+    Move any content authored under the legacy <code>body</code> key into <code>children</code> first: every
+    replacement listed above except <code>card</code> reads <code>children</code> only, so a blind retype drops
+    that content silently, at an unchanged element count.
+  </p>
 </div>
 
 The Div component is a generic container element. **It is now deprecated in favor of semantic Shadcn-based components** that provide better accessibility, consistency, and design system integration.
@@ -30,7 +35,25 @@ produce no CSS at all when authored in page `source`. `os validate` reports that
 
 ## Migration Guide
 
-Instead of using `div`, use these Shadcn alternatives:
+Which replacement is right depends on whether you want layout or only a wrapper.
+Measured through the real renderer, on a node carrying an authored `className`:
+`box` reproduces `div` exactly, while `card`, `flex`, `container`, `stack` and
+`grid` each add classes of their own — and `card` additionally moves the children
+inside an extra element. So a mechanical `div` → `card`/`flex`/`grid` swap changes
+the page; a `div` → `box` swap does not.
+
+One caveat that applies to every option except `card`: they read `children` and
+never `body`. A node that authored `body` must move that content into `children`
+as part of the swap, or it disappears from the page without changing the element
+count — silently.
+
+### For a Plain Wrapper → Use `box`
+
+The mechanical swap. `box` renders `children` inside a plain block element with
+your `className` passed through verbatim and nothing injected, so retyping a
+`div` node to `box` is the one conversion that leaves the rendered result alone.
+
+<SchemaExample id="components-basic-div/use-box-instead" />
 
 ### For Card-like Containers → Use `card`
 

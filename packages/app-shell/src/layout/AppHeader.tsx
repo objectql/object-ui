@@ -179,13 +179,16 @@ export function AppHeader({
         return;
       }
       const result: any = await client.meta.getItems('doc');
+      // `meta.getItems` answers the `{ type, items: [...] }` envelope (or a
+      // bare array from the ADR-0037 preview path) — the two shapes
+      // `MetadataProvider`'s `extractItems` accepts. A `value` arm used to
+      // trail them; measured zero producers emit `value` at THIS seam
+      // (objectui#6917), so it is gone (AGENTS.md #0.1).
       const items: any[] = Array.isArray(result)
         ? result
         : Array.isArray(result?.items)
           ? result.items
-          : Array.isArray(result?.value)
-            ? result.value
-            : [];
+          : [];
       setHelpDocs(
         items
           .map((it) => ({ name: it?.name, label: it?.label, _packageId: it?._packageId }))

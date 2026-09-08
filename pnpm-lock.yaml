@@ -1876,6 +1876,9 @@ importers:
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
+      '@object-ui/sdui-parser':
+        specifier: workspace:*
+        version: link:../sdui-parser
       '@object-ui/test-support':
         specifier: workspace:*
         version: link:../test-support

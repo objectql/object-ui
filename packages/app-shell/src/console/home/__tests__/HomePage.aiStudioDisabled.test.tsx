@@ -56,7 +56,7 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import { MePermissionsProvider, type MePermissionsResponse } from '@object-ui/permissions';
 
 const navigateMock = vi.fn();
@@ -132,9 +132,97 @@ const serverConfig = (features: Record<string, unknown>) => ({
   branding: { productName: 'ObjectOS', productShortName: 'ObjectOS' },
 });
 
+/* ── The HomePage fetch router (objectui#8033) ────────────────────────────────
+ * These cases boot the REAL `initRuntimeConfig()`, so the global `fetch` has to
+ * answer `GET /api/v1/runtime/config`. It used to answer with a blanket SINK:
+ * one `vi.fn` handing the runtime-config body back for EVERY url. Two things
+ * were wrong with that.
+ *
+ * `HomePage` reaches more than one endpoint. Besides the config read, every
+ * render mounts `PendingDraftsBanner`, whose `usePendingDrafts({})` fetches
+ * `GET /api/v1/meta/_drafts` with the GLOBAL `fetch` — `usePendingDrafts.ts:48`,
+ * no `apiFetch` seam anywhere on the path — from its mount effect
+ * (`usePendingDrafts.ts:116` via `refresh` at `:90`). The sink handed THAT reader
+ * the runtime-config body; it found no `drafts` key and yielded `[]`, so nothing
+ * failed. And nothing could: a sink keeps no record of what it was handed and
+ * asserts nothing about what it served, so a future new escape from `HomePage`
+ * would be answered silently instead of going red.
+ *
+ * So the double is a RECORDING ROUTER — the shape objectui#5225 settled on,
+ * carried by `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx`
+ * and installed by objectui#7307's batches in the four sibling files in this
+ * directory; copied from `HomePage.approvalsTarget.test.tsx` (batch 4, #8032).
+ * It serves exactly the two routes these renders reach, records every url it is
+ * handed, and `afterEach` fails on any url outside that set. This file is NOT on
+ * the network-escape burn-down list — that list reached zero and was retired, and
+ * no gate covers these two routes here — so that assertion is the file's own
+ * evidence rather than a duplicate of one.
+ *
+ * `_drafts` answers a known-EMPTY ledger in the `{ drafts: [...] }` envelope
+ * `fetchPendingDrafts` reads. Empty rather than seeded is load-bearing:
+ * `PendingDraftsBanner` renders `null` for both `count === null` (what the sink's
+ * unparseable answer produced) and `count === 0`, so no assertion in this file
+ * moves. Routes are matched on the PATHNAME because the hook appends a
+ * `?packageId=` scope for package-bound callers; the full url is what is recorded.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+const CONFIG_ROUTE = '/api/v1/runtime/config';
+const DRAFTS_ROUTE = '/api/v1/meta/_drafts';
+const SERVED_ROUTES = [CONFIG_ROUTE, DRAFTS_ROUTE];
+
+/** Every url this file's renders handed the global `fetch`, in request order. */
+let fetchCalls: string[] = [];
+
+/** The route key of a recorded url: its pathname, without the scope query. */
+const routeOf = (url: string) => url.split('?')[0];
+
+/**
+ * What `GET /api/v1/runtime/config` answers for the case now running — set by
+ * `bootOn` / `bootOnNoConfig` before `initRuntimeConfig()`. The per-case default
+ * is the 404 a runtime predating the endpoint gives, so a case that never boots
+ * cannot silently inherit the previous case's payload.
+ */
+let configAnswer: { ok: boolean; status: number; body: unknown } = { ok: false, status: 404, body: {} };
+
+/** Serve the two routes these renders reach; record every url regardless. */
+function installHomeRouter() {
+  fetchCalls = [];
+  configAnswer = { ok: false, status: 404, body: {} };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      fetchCalls.push(url);
+      if (routeOf(url) === CONFIG_ROUTE) {
+        return {
+          ok: configAnswer.ok,
+          status: configAnswer.status,
+          json: async () => configAnswer.body,
+        };
+      }
+      if (routeOf(url) === DRAFTS_ROUTE) {
+        return { ok: true, status: 200, json: async () => ({ drafts: [] }) };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    }),
+  );
+}
+
+beforeEach(installHomeRouter);
+
+/** Boot the REAL runtime-config module over a served `/runtime/config` payload. */
 async function bootOn(body: Record<string, unknown>) {
   resetRuntimeConfigForTesting();
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => body })));
+  configAnswer = { ok: true, status: 200, body };
+  await initRuntimeConfig();
+}
+
+/** Boot against a runtime whose `/api/v1/runtime/config` answers 404. */
+async function bootOnNoConfig() {
+  resetRuntimeConfigForTesting();
+  configAnswer = { ok: false, status: 404, body: {} };
   await initRuntimeConfig();
 }
 
@@ -168,6 +256,17 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of being answered with the runtime-config body. No gate covers
+  // this file, so this line is the evidence that the double only served what it
+  // meant to serve.
+  expect(fetchCalls.filter((url) => !SERVED_ROUTES.includes(routeOf(url)))).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch`. Vitest runs `afterEach` hooks in
+  // reverse registration order, so this file's teardown runs before the root
+  // setup's RTL cleanup: unstubbing first would leave the tree mounted with the
+  // real global back in place, and a read that cleanup()'s act-flush triggers
+  // would reach a live socket (objectui#7439).
+  cleanup();
   vi.unstubAllGlobals();
   resetRuntimeConfigForTesting();
 });
@@ -259,9 +358,7 @@ describe('Home on a runtime that DOES offer AI Studio', () => {
   });
 
   it('fails OPEN when the runtime answers no config at all', async () => {
-    resetRuntimeConfigForTesting();
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })));
-    await initRuntimeConfig();
+    await bootOnNoConfig();
 
     renderHome();
 

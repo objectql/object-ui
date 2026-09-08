@@ -478,6 +478,99 @@ describe('scope — narrow, and out of scope by construction rather than by exem
     }
   });
 
+  /**
+   * THE MEMBERSHIP LEDGER — objectui#8018.
+   *
+   * Every specifier a landed sweep has added, written out ONCE and BY HAND.
+   * The gate's header declares the covered set GROW-ONLY and the ratchet's
+   * whole force rests on that, but `findCallSites` classifies by MEMBERSHIP:
+   * a specifier that leaves the set stops being `covered` and its call sites
+   * become `unjudged`. So a removal does not redden — it makes that
+   * specifier's whole population invisible while the gate reports OK over a
+   * tree it no longer looks at. Measured before this ledger existed, by
+   * dropping each of the 21 members from the constant in turn and running this
+   * file: 18 of them left all 86 cases GREEN, together 384 judged call sites
+   * — `@object-ui/auth` (136) and `@object-ui/permissions` (48) among them.
+   *
+   * ⛔ It is NOT derived from `COVERED_SPECIFIERS`. A pin that reads its
+   * expectation from the thing it pins asserts `x === x` and cannot fail; the
+   * cautionary example is already in this file, where the verdict-line case
+   * builds its expectation with `COVERED_SPECIFIERS.join(', ')` and therefore
+   * ADAPTS to a removal rather than resisting it. That is this repo's
+   * recurring shape and it is the reason these names are typed out.
+   *
+   * The two cases below pin the list in BOTH directions, and the second is
+   * what keeps a hand-written ledger from silently falling behind:
+   *
+   *   - nothing may LEAVE the covered set (the ratchet direction); and
+   *   - nothing may JOIN it without being recorded here in the same PR, so a
+   *     member added tomorrow arrives already pinned rather than joining an
+   *     unprotected majority.
+   *
+   * ⚠ What it still permits, stated so no one reads it as more: an author
+   * who deletes a member from the constant AND its line here in one edit
+   * passes. That is the floor of any literal pin, and it is the point — the
+   * ratchet's promise is that a member cannot leave SILENTLY, not that it can
+   * never leave. Retirement becomes a visible, reviewable edit to a list whose
+   * docblock says the set only grows.
+   *
+   * Names only, deliberately: the gate's own header carries the slice, the
+   * measurement and the PR behind each entry, and a second copy of that
+   * provenance here would be an unchecked hand-copy of exactly the kind this
+   * case exists to catch.
+   */
+  const SWEPT_MEMBERS: readonly string[] = [
+    '@object-ui/react',
+    '@object-ui/i18n',
+    '@object-ui/plugin-markdown',
+    '@object-ui/data-objectstack',
+    '@object-ui/plugin-report',
+    '@object-ui/plugin-charts',
+    '@object-ui/plugin-dashboard',
+    '@object-ui/auth',
+    '@object-ui/collaboration',
+    '@object-ui/plugin-form',
+    '@object-ui/components',
+    '@object-ui/plugin-grid',
+    '@object-ui/permissions',
+    '@object-ui/plugin-detail',
+    '@object-ui/plugin-chatbot',
+    '@object-ui/plugin-designer',
+    '@object-ui/plugin-list',
+    '@object-ui/fields',
+    '@object-ui/app-shell',
+    '@object-ui/plugin-view',
+    '@object-ui/core',
+  ];
+
+  it('NOTHING LEAVES the covered set — every swept specifier is still a member', () => {
+    // The generalisation of the `@object-ui/i18n` pin further down, whose
+    // rationale applies verbatim to all 21: dropping a member makes every one
+    // of its call sites unjudged, so the gate stays GREEN over a population it
+    // no longer looks at — the one direction a ratchet must never be free to
+    // move.
+    const covered = new Set<string>(COVERED_SPECIFIERS);
+    const retired = SWEPT_MEMBERS.filter((spec) => !covered.has(spec));
+    expect(
+      retired,
+      'a landed sweep left COVERED_SPECIFIERS: its call sites are now unjudged and the gate reports OK over them',
+    ).toEqual([]);
+  });
+
+  it('NOTHING JOINS unrecorded — a new member is pinned in the PR that adds it', () => {
+    // Without this half the ledger is a snapshot that decays: every specifier
+    // added after it was written would inherit the same unprotected state the
+    // 18 were measured in. With it, the pin grows with the set by construction
+    // — the sweep PR that widens the constant widens this list too, which is
+    // the same PR the gate's "precondition for widening" already requires.
+    const ledger = new Set<string>(SWEPT_MEMBERS);
+    const unrecorded = COVERED_SPECIFIERS.filter((spec: string) => !ledger.has(spec));
+    expect(
+      unrecorded,
+      'add the new member to SWEPT_MEMBERS in this same PR — until then it has no membership pin',
+    ).toEqual([]);
+  });
+
   it('the header states what it does NOT cover, and the precondition for widening', () => {
     // Triage asked for both in writing, so that a later reader widening the set
     // knows what evidence is owed rather than guessing at it.

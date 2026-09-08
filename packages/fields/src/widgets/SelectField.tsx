@@ -95,7 +95,10 @@ function SingleSelectField({
   // react-hook-form field name spread in by the form renderer (FormField).
   const fieldName = props.name || (config as any)?.name || props.id || '';
 
-  const dependsOn = (config as any)?.dependsOn ?? dependsOnProp;
+  // The cascade key is read THROUGH THE DECLARED TYPE — `BaseFieldMetadata.dependsOn`,
+  // the spec's field-level spelling, which every `FieldMetadata` member inherits
+  // (objectui#6153; formerly reached through an `as any`). Metadata wins over the prop.
+  const dependsOn = field?.dependsOn ?? dependsOnProp;
   const { options, gated, dependsOnFields } = useCascadingOptions(
     rawOptions,
     dependsOn,

@@ -75,7 +75,7 @@ import type { FieldWidgetComponentProps } from './types.js';
  *    because there has never been one to displace.
  *  - `dependsOn`: the FIELD METADATA wins over the prop — the one documented
  *    inversion, stated on the key's own doc comment and implemented as
- *    `config?.dependsOn ?? dependsOnProp` in all four option widgets.
+ *    `field?.dependsOn ?? dependsOnProp` in all four option widgets.
  *  - `emptyHint`: the host's value wins when supplied (objectui#3231).
  *  - `onCreateNew`: the prop wins over `field.onCreateNew`; `onSelectRecord`
  *    has no metadata carrier at all, so the prop is its ONLY one.

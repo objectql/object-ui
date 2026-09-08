@@ -119,18 +119,92 @@ function resolveRoles(userRoles: string[], roleDefinitions: RoleDefinition[]): s
 }
 
 /**
+ * Field names refused outright, before the record is consulted at all.
+ *
+ * `__proto__` and `constructor` resolve on every ordinary object's chain, so
+ * the own-member rule in `readField` would refuse them anyway. `prototype`
+ * earns its place separately: it is NOT present on a plain object's chain
+ * (`'prototype' in {}` is `false`), so without this list it would classify as
+ * an ordinary absent field. The same three names, for the same reasons, as
+ * `PROTOTYPE_FIELD_NAMES` in `DataScopeManager` (`@object-ui/core`).
+ */
+const PROTOTYPE_FIELD_NAMES: ReadonlySet<string> = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+]);
+
+/**
+ * The outcome of reading a condition's field off a record.
+ *
+ * `readable: false` is not "the value was falsy" — it is "this evaluator
+ * refuses to answer this condition from this record", which
+ * `evaluateCondition` turns into a denial.
+ */
+type FieldRead = { readable: true; value: unknown } | { readable: false };
+
+/**
+ * Read a condition's field as an OWN member of the record.
+ *
+ * Measured on the pre-fix source (objectui#8044): the guard refused three
+ * field names by list and read every other name with `hasOwnProperty`. That
+ * read collapses *inherited* into *absent*, and on a negative operator absent
+ * ADMITS — so every prototype member outside the list admitted every record.
+ * Against `{ id: 1, tenant: 'acme' }`, `{ field: 'toString', operator: 'neq' }`
+ * returned `true`, as did `valueOf`, `hasOwnProperty` and `isPrototypeOf`; a
+ * fail-open on a row-level permission boundary. A longer list does not close
+ * it: a list enumerates spellings, and `Object.prototype` has more of them
+ * than any list will hold.
+ *
+ * Three cases, and the third is why this is not simply `hasOwnProperty`:
+ *
+ *   1. A name in `PROTOTYPE_FIELD_NAMES` — refused outright.
+ *   2. An own member — its value, which is the only value ever read. A record
+ *      whose OWN key happens to be spelled `toString` is answered from its own
+ *      data, unchanged.
+ *   3. Not an own member. Here the record is asked whether the name resolves
+ *      on its prototype chain at all:
+ *        - it does (`toString`, `valueOf`, an `Object.create` parent's field)
+ *          → REFUSED. The value exists but is not this record's data.
+ *        - it does not → the field is genuinely absent, and `undefined` is
+ *          returned exactly as before, so the ordinary "this record has no
+ *          `status`" rules keep the verdicts they have always had.
+ *
+ * The second half of case 3 is load-bearing. Refusing every non-own read would
+ * deny records this evaluator should admit, which on a permission boundary is
+ * a worse defect than the one being fixed, and it is what the differential
+ * matrix in `__tests__/evaluator.prototype-guard-8044.test.ts` measures: the
+ * genuinely-absent family changed zero verdicts.
+ *
+ * This is a port of the shape objectui#7751 landed in `readField` in
+ * `packages/core/src/data-scope/DataScopeManager.ts`, which was written
+ * against this evaluator as its reference — and then went further than it,
+ * because this evaluator had the defect it was being used as the standard for.
+ */
+function readField(record: Record<string, unknown>, field: string): FieldRead {
+  if (PROTOTYPE_FIELD_NAMES.has(field)) return { readable: false };
+  if (Object.prototype.hasOwnProperty.call(record, field)) return { readable: true, value: record[field] };
+  if (field in Object(record)) return { readable: false };
+  return { readable: true, value: undefined };
+}
+
+/**
  * Evaluates a permission condition against a record.
  */
 export function evaluateCondition(
   condition: PermissionCondition,
   record: Record<string, unknown>,
 ): boolean {
-  // Prevent prototype pollution via dangerous property access
-  if (['__proto__', 'constructor', 'prototype'].includes(condition.field)) {
+  // Fail closed: a condition this evaluator cannot answer FROM THE RECORD must
+  // not admit the record it exists to hide. Prototype-named and inherited
+  // reads both land here (objectui#8044); the `default` arm below gives the
+  // same answer for an operator this switch does not implement.
+  const read = readField(record, condition.field);
+  if (!read.readable) {
     return false;
   }
 
-  const value = Object.prototype.hasOwnProperty.call(record, condition.field) ? record[condition.field] : undefined;
+  const value = read.value;
 
   switch (condition.operator) {
     case 'eq':

@@ -178,7 +178,7 @@ A styled container with optional header, body, and footer regions.
   "variant": "outline",
   "hoverable": true,
   "header": [
-    { "type": "badge", "label": "Live", "variant": "success" }
+    { "type": "badge", "label": "Live", "variant": "secondary" }
   ],
   "body": [
     { "type": "statistic", "label": "Total Revenue", "value": "$12,400" }
@@ -1281,8 +1281,8 @@ Schemas are designed to compose. Nest any `SchemaNode` inside another to build c
             "type": "dashboard",
             "columns": 2,
             "widgets": [
-              { "id": "w1", "title": "Leads", "body": { "type": "statistic", "value": "142" } },
-              { "id": "w2", "title": "Revenue", "body": { "type": "statistic", "value": "$24k" } }
+              { "type": "metric-card", "title": "Leads", "value": "142" },
+              { "type": "metric-card", "title": "Revenue", "value": "$24k" }
             ]
           }
         },

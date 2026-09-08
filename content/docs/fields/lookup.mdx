@@ -77,6 +77,33 @@ and must never reach authored object metadata
 `dataSource` a host injects and the `onCreateNew` callback it passes are widget props,
 not metadata.
 
+A **dependent lookup** scopes its candidates by a sibling field's value, declared
+with `dependsOn` — the same `BaseFieldMetadata` member the select widgets gate on
+([objectui#6153](https://github.com/objectstack-ai/objectui/issues/6153)), in the
+spec's field-level shape: an array of controlling field names, or `{ field, param }`
+entries when the remote filter parameter differs from the local field name. While
+any controlling value is empty the trigger is gated ("Select account first"); once
+set, every candidate query — the typeahead popover, the Record Picker and the
+people picker — carries the chain as a hard `$filter` no user input can override.
+
+```ts
+import type { LookupFieldMetadata } from '@object-ui/types';
+
+const contact: LookupFieldMetadata = {
+  type: 'lookup',
+  name: 'contact',
+  label: 'Contact',
+  reference_to: 'contacts',
+  // Filter `contacts` by `account_id` equal to the form's current `account`.
+  dependsOn: [{ field: 'account', param: 'account_id' }],
+};
+```
+
+The snake_case `depends_on` is objectui's legacy twin of the same key: still read
+by this widget, never a spec key, and retiring under
+[objectui#7357](https://github.com/objectstack-ai/objectui/issues/7357) — author
+`dependsOn`.
+
 The value being edited, and the `className` / `disabled` a host supplies, are **not**
 metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 

@@ -77,6 +77,12 @@ vi.mock('../previews/useObjectFields', () => ({
 import { FlowNodeInspector } from './FlowNodeInspector';
 import { fieldsForNodeType, FLOW_NODE_TYPE_OPTIONS } from './flow-node-config';
 import type { MetadataSelection } from '../preview-registry';
+// The runtime's own answer for an omitted `escalation` key. Imported so the
+// #6620 rows below compare the RENDERED control against the installed contract
+// instead of against a literal this file would then own a second copy of.
+// ⛔ The subpath is load bearing: `ApprovalEscalationSchema` is NOT on the
+// package root, where it reads `undefined` and any `.parse` on it throws.
+import { ApprovalEscalationSchema } from '@objectstack/spec/automation';
 
 /* ── The `meta/*` double (objectui#7307) ───────────────────────────────
  * `FlowNodeInspector` renders `FlowReferenceField` for every reference-kind key
@@ -276,25 +282,36 @@ describe('boolean: a declared defaultValue seeds the control (objectui#8451, arm
     ).toBe(false);
   });
 
-  it('boolean: the #6620-wrong declaration ships NO worded claim (objectui#6620)', () => {
-    // `escalation.enabled` is the one field in the offline table whose declared
-    // default contradicts what the installed spec applies to an omitted key.
-    // This card ships the SEED and no caption, which is why: the seed renders
-    // that field exactly as it rendered before (unchecked — the declaration
-    // says 'false'), so no new claim about the declaration reaches the author,
-    // while a "(default)" caption would have asserted the wrong one in words.
+  it('boolean: the gate seeds from the SPEC default, still with no worded claim (objectui#6620)', () => {
+    // Was 'the #6620-wrong declaration ships NO worded claim'. `escalation.enabled`
+    // used to be the one field in the offline table whose declared default
+    // contradicted what the installed spec applies to an omitted key, so this row
+    // pinned that the seed shipped no caption asserting the wrong default in words.
+    // objectui#6620 fixed the declaration; the row now pins the repaired half —
+    // the control the author sees agrees with the runtime — and the no-caption rule
+    // still holds, now over a declaration that is right.
     //
-    // ⚠️ Deliberately does NOT compare the declaration against the spec. That
-    // comparison is objectui#6620's tripwire, held disarmed on purpose in
-    // `flow-node-config.spec-reconciliation.test.ts`; arming it here would
-    // discharge an on-hold card from an unrelated PR.
+    // ⭐ The expectation is DERIVED from the installed spec, never the literal
+    // 'true'. A literal would restate the very claim that drifted: it passes just
+    // as happily on the next upstream flip, which is how #6620 stayed invisible.
+    const specEnabled = ApprovalEscalationSchema.safeParse({ timeoutHours: 24 });
+    expect(specEnabled.success, 'a minimal escalation block must parse').toBe(true);
+    const specDefault = (specEnabled.data as { enabled?: unknown } | undefined)?.enabled;
+    // Vacuity guard: without it, a spec that stopped materialising the key would
+    // turn both sides into `undefined` and the comparison into a tautology.
+    expect(typeof specDefault, 'the spec still materialises `enabled` from an omitted key').toBe('boolean');
+
     const gate = fieldsForNodeType('approval').find((f) => f.id === 'escalation.enabled');
-    expect(gate?.defaultValue, 'the gate declares a default at all').toBe('false');
+    // Defaults are strings in this table — the spelling `controllerAdmits` compares.
+    expect(gate?.defaultValue, 'the table declares the default the spec applies').toBe(String(specDefault));
 
     renderInspector(draftWith('approval', { config: { escalation: { timeoutHours: 24 } } }));
     const box = checkbox('SLA escalation');
     expect(box, 'the gate control is on screen').not.toBeNull();
-    expect(box!.checked, 'and it renders as it always did — unchecked').toBe(false);
+    expect(
+      box!.checked,
+      'and the RENDERED toggle carries the spec default — the defect was that it did not',
+    ).toBe(specDefault);
     expect(
       box!.closest('label')?.textContent,
       'the control carries its label and nothing else — no caption naming a default',
@@ -329,11 +346,14 @@ describe('the online writer of defaultValue hits the same dead end', () => {
 describe('the one read site: a declared default on a showWhen CONTROLLER changes visibility', () => {
   /**
    * `controllerAdmits` resolves an UNSET controller through its `defaultValue`.
-   * The hand-written approval group declares `escalation.enabled: 'false'`, so
-   * the offline table cannot demonstrate the effect (an absent default and a
-   * 'false' default both hide the group). The engine-published schema can: the
-   * spec's own `ApprovalEscalationSchema` defaults `enabled` to TRUE, and
-   * `json-schema-to-fields` carries that onto the gate field.
+   *
+   * The hand-written approval group used to declare `escalation.enabled: 'false'`,
+   * so the offline table could not demonstrate the effect at all — an absent
+   * default and a 'false' default both hide the group, which is precisely why the
+   * divergence survived: the two writers of this property answered the same node
+   * differently and only the engine-published one was pinned. objectui#6620 made
+   * the table declare the spec's `.default(true)`, so BOTH writers are exercised
+   * here now, and the offline row below is the one that changed.
    */
   const escalationSchema = {
     type: 'object',
@@ -374,15 +394,45 @@ describe('the one read site: a declared default on a showWhen CONTROLLER changes
     ).toBeNull();
   });
 
-  it('the offline table hides the same siblings, because it declares the gate false', () => {
-    // Recorded, not endorsed: the hand-written 'false' contradicts the spec's
-    // `.default(true)`. That divergence is objectui#6620's subject, not this
-    // card's; pinned here only so a change to either side is visible.
+  it('the offline table REVEALS the same siblings — it declares the gate true (objectui#6620)', () => {
+    // Was 'the offline table hides the same siblings, because it declares the gate
+    // false' — recorded there, explicitly not endorsed, because the hand-written
+    // 'false' contradicted the spec's `.default(true)`. objectui#6620 removed the
+    // divergence, so the two writers now answer this node identically. The row is
+    // updated to the new truth rather than worked around: it exists to make a
+    // change to either side visible, and this was that change.
     renderInspector(draftWith('approval', { config: { escalation: { timeoutHours: 24 } } }));
+    const sibling = checkbox('Notify submitter');
     expect(
-      checkbox('Notify submitter'),
-      'offline, the same node hides the sibling the online schema reveals',
-    ).toBeNull();
+      sibling,
+      'offline, the same node reveals the sibling the online schema reveals',
+    ).not.toBeNull();
+    expect(
+      sibling!.checked,
+      'and the offline table seeds it from its own declared default too',
+    ).toBe(true);
+  });
+
+  /**
+   * NON-REGRESSION (objectui#6620). Derived from a plausible WRONG FIX rather
+   * than from the bug: revealing the sub-fields unconditionally — dropping the
+   * `showWhen` gates, or making `controllerAdmits` fall through to `true` —
+   * satisfies "a node that omits the key now reveals" completely, while
+   * destroying the author's ability to turn escalation OFF.
+   *
+   * So the stored `false` must still beat the declared default, and must still
+   * hide EVERY sibling, not just the first. Four keys, named individually: an
+   * assertion over one of them passes on a fix that leaks the other three.
+   */
+  it('a node that explicitly stores `enabled: false` still hides every sibling', () => {
+    renderInspector(draftWith('approval', { config: { escalation: { enabled: false } } }));
+    expect(checkbox('SLA escalation')!.checked, 'the stored false beats the declared true').toBe(false);
+    for (const label of ['Timeout (hours)', 'On timeout', 'Escalate to', 'Notify submitter']) {
+      expect(
+        screen.queryByText(label),
+        `'${label}' must stay hidden while the author has switched escalation off`,
+      ).toBeNull();
+    }
   });
 });
 
