@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@object-ui/components';
-import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
+import { Empty, EmptyTitle, EmptyDescription, EmptyValue } from '@object-ui/components';
 import { PageShell } from './PageShell.js';
 import { MetadataTypeActions } from './MetadataTypeActions.js';
 import { CreatePackageDialog } from './PackagesPage.js';
@@ -633,7 +633,7 @@ function defaultColumns(primaryKey: string): NonNullable<import('./registry.js')
 
 function defaultCell(value: unknown): React.ReactNode {
   if (value == null || value === '') {
-    return <span className="text-muted-foreground">—</span>;
+    return <EmptyValue />;
   }
   if (typeof value === 'boolean') return value ? '✓' : '✗';
   if (typeof value === 'object') {

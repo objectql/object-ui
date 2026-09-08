@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
-  cn, Button, Badge, Progress, Input, Checkbox, Label,
+  cn, Button, Badge, Progress, Input, Checkbox, Label, EmptyValue,
   Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -269,6 +269,10 @@ export const __testables = {
   get buildSourceRows() { return buildSourceRows; },
   get summarizeSavedMapping() { return summarizeSavedMapping; },
   get savedMappingToDisplayIndexMap() { return savedMappingToDisplayIndexMap; },
+  /** The read-only server-mapping summary table. Exposed so its cells can be
+   *  read directly: reaching it through the wizard means driving a file parse
+   *  and a Radix `Select`, neither of which this component owns. */
+  get SavedMappingSummary() { return SavedMappingSummary; },
 };
 
 /** A reusable column-mapping template, persisted across sessions. Keys are
@@ -1031,7 +1035,7 @@ const SavedMappingSummary: React.FC<{ mapping: SavedMapping }> = ({ mapping }) =
                 <TableCell className="text-center">
                   {r.transform
                     ? <Badge variant="outline" className="text-[10px] font-normal">{r.transform}</Badge>
-                    : <span className="text-muted-foreground">—</span>}
+                    : <EmptyValue />}
                 </TableCell>
               </TableRow>
             ))}

@@ -56,6 +56,7 @@ import {
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
+  EmptyValue,
 } from '@object-ui/components';
 import {
   RefreshCw,
@@ -190,7 +191,7 @@ function safeParseJson(input: string | null | undefined): unknown {
 
 function JsonBlock({ value, max = 320 }: { value: unknown; max?: number }) {
   const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-  if (text == null || text === '') return <span className="text-muted-foreground text-xs">—</span>;
+  if (text == null || text === '') return <EmptyValue className="text-xs" />;
   return (
     <pre
       className="bg-muted/40 rounded text-xs p-2 overflow-auto whitespace-pre-wrap break-all"
@@ -504,11 +505,11 @@ export function AiPendingActionsInbox({
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">{t('aiApprovals.fieldProposedBy')}</Label>
-                  <div className="mt-1 text-xs font-mono break-all">{selected.proposed_by ?? '—'}</div>
+                  <div className="mt-1 text-xs font-mono break-all">{selected.proposed_by ?? <EmptyValue />}</div>
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">{t('aiApprovals.fieldDecidedBy')}</Label>
-                  <div className="mt-1 text-xs font-mono break-all">{selected.decided_by ?? '—'}</div>
+                  <div className="mt-1 text-xs font-mono break-all">{selected.decided_by ?? <EmptyValue />}</div>
                 </div>
                 {selected.conversation_id ? (
                   <div className="col-span-2">
