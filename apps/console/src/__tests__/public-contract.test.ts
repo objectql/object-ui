@@ -27,6 +27,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry, PUBLIC_BLOCKS, type PublicComponentConfig } from '@object-ui/core';
+import { LayoutSchema } from '@object-ui/types/zod';
+import { ComponentPropsMap } from '@objectstack/spec/ui';
 // The two graphs whose registrations this file reads. At module scope, NOT
 // awaited inside a `beforeAll` — there their cold transform is billed to the
 // hook, against `hookTimeout`, which is why this needed a 60s budget. The import
@@ -95,6 +97,7 @@ const EXPECTED_COVERED = [
   'tabs',
   'accordion',
   'container',
+  'box',
   'page:header',
   'text',
   'image',
@@ -350,5 +353,249 @@ describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
     });
 
     expect(nearMisses.filter((m) => m.alsoTry.length > 0)).toEqual([]);
+  });
+});
+
+/**
+ * ── The DERIVED half: the declared layout containers (objectui#6879) ─────────
+ *
+ * Everything above this line asserts an EXACT LIST, and that is right for what
+ * it guards — a SHRINKING contract, which `toContain` sails past. But an exact
+ * list cannot answer the question objectui#6879 was filed about, and the
+ * distinction is the whole content of that card:
+ *
+ *   an exact list goes red when a CURATED type disappears;
+ *   nothing went red when a newly minted type never arrived.
+ *
+ * `box` was minted by the 2026-08-29 ruling as the JSON surface's neutral block
+ * container and landed on every declaration face there is — the `BoxSchema`
+ * interface, its zod mirror, `SchemaRegistry`, the registration in
+ * `@object-ui/components`, a docs page, and 27 catalog fixtures. `PUBLIC_BLOCKS`
+ * was the one face it missed, and `EXPECTED_COVERED` above agreed with the
+ * roster about the omission, because both are hand-carried. Two hand-carried
+ * lists that agree prove only that the same hand wrote both.
+ *
+ * ⭐ So this half DERIVES its population instead of listing it, and a pin over a
+ * derived population fails by ABSENCE. The naive alternative — asserting
+ * `PUBLIC_BLOCKS` contains `box` — passes on a roster that carries `box` AND
+ * has already missed the type minted after it, which is this same defect one
+ * iteration later.
+ *
+ * THE POPULATION, and why these two readings:
+ *
+ *   1. `LayoutSchema.options` — the runtime-enumerable zod authoring union in
+ *      `@object-ui/types/zod`. It is the JSON layout vocabulary as DECLARED:
+ *      a type that has been minted is an arm of it, and a type that has not is
+ *      not. Read from the union's own arms, so minting the next one moves this
+ *      set with no list here to maintain.
+ *   2. `isContainer === true` — the registry's own declared containment
+ *      (objectui#3900 / #6740 / #6764). It is what makes the population the one
+ *      Tier B's layout primitives live in: `box`'s five curated siblings
+ *      (`flex` / `grid` / `stack` / `card` / `container`) are exactly the
+ *      objectui#6764 control set, which is what makes this a reading rather
+ *      than a broken scan — and it is asserted below rather than assumed.
+ *
+ * Scope, stated plainly: this covers the CONTAINER half of the layout
+ * vocabulary. The non-container arms (`span`, `separator`, `scroll-area`,
+ * `resizable`, `page`, and the deprecated `div`) are outside it because
+ * curating any of them is an unruled question of its own, and a ledger is a
+ * forcing function, not a place to park four of those at once.
+ *
+ * ── THE MEASUREMENT THIS CARD WAS DISPATCHED TO MAKE, RECORDED ──────────────
+ *
+ * Before `box` was added to the roster, triage required an answer to: what does
+ * `registry-inputs-spec-parity` (next door) do with a PUBLIC block that has no
+ * `@objectstack/spec` entry? Adding it first is how a gate discovers a new
+ * population at merge time.
+ *
+ * The answer is a third one, neither "it demands a spec entry" nor "it tolerates
+ * the absence": IT CANNOT SEE THE BLOCK AT ALL. That file's coverage set is
+ * SPEC-shaped — `Object.keys(ComponentPropsMap)` filtered to what this repo
+ * registers with inputs — and it never reads `PUBLIC_BLOCKS`.
+ *
+ * ⭐ Membership in this roster is therefore neither NECESSARY nor SUFFICIENT for
+ * being judged, and both halves have live specimens, so the measurement is not a
+ * story about one block:
+ *
+ *   - not necessary — `element:record_picker` is absent from `PUBLIC_BLOCKS` and
+ *     judged anyway, because the spec describes it (the parity file says so
+ *     itself, in its own words about why its coverage is not limited to the
+ *     public tier);
+ *   - not sufficient — `flex` / `grid` / `stack` / `card` / `container` are all
+ *     curated and all unjudged, because `@objectstack/spec@17` carries no entry
+ *     for any Tier B layout primitive.
+ *
+ * So `box` did not arrive as a new spec-less population; it joined one five
+ * types deep that the gate has never judged. Both halves are pinned below.
+ *
+ * ⚠️ ONE THING THIS GAP WAS NOT. "Absent from `PUBLIC_BLOCKS`" never meant "not
+ * on an authoring surface", and saying so would overstate the card. `box`'s
+ * `inputs` have been live all along through the OTHER consumer of the same
+ * metadata: `components/src/renderers/layout/page.tsx` builds the JSX-page
+ * compiler's manifest from `getKnownTypes()` — registry-wide, no roster in it —
+ * and `validateTree` judges authored pages against that. What this roster gates
+ * is `getPublicConfigs()`: the curated AI-authoring vocabulary, and through
+ * `sdui-parser/scripts/gen-manifest.ts` the published `sdui.manifest.json` and
+ * `sdui-intrinsics.d.ts`. That is the surface `box` was missing from — narrower,
+ * and true.
+ */
+
+/**
+ * The JSON layout vocabulary, read from the zod union's own arms.
+ *
+ * A discriminated union member declares its `type` literal to Zod, so the arm
+ * list IS the vocabulary. Filtering to real strings is deliberate: a zod release
+ * that moved this accessor would otherwise yield a population of `undefined` and
+ * make every assertion below vacuously true, which is why the first case
+ * compares the resolved count against the raw arm count.
+ */
+const LAYOUT_UNION_ARMS = (LayoutSchema as unknown as { options: unknown[] }).options;
+const LAYOUT_VOCABULARY: string[] = LAYOUT_UNION_ARMS.map(
+  (arm) => (arm as { shape?: { type?: { value?: unknown } } }).shape?.type?.value,
+).filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+/** …of those, the ones the registry DECLARES it renders a child list for. */
+const DECLARED_LAYOUT_CONTAINERS = LAYOUT_VOCABULARY.filter(
+  (type) => ComponentRegistry.getMeta(type)?.isContainer === true,
+).sort();
+
+/**
+ * objectui#6764's control set — the five that declared containment before that
+ * card, and the five Tier B curates. Asserted, not assumed: if the derivation
+ * ever stops reaching the real registrations, these vanish from the population
+ * and the ledger pin below would pass over a set that means nothing.
+ */
+const CONTAINER_CONTROL_SET = ['card', 'container', 'flex', 'grid', 'stack'];
+
+/** Does `@objectstack/spec` describe this block's props? The parity gate's own reach. */
+const specCarried = (type: string): boolean =>
+  Object.prototype.hasOwnProperty.call(ComponentPropsMap, type);
+
+/**
+ * Declared layout containers deliberately OUTSIDE the curated vocabulary, each
+ * with its reason and a tracking issue.
+ *
+ * ⚠️ This is a forcing function, not an allowlist. A newly minted layout
+ * container is in neither this ledger nor `PUBLIC_BLOCKS`, so it fails the pin
+ * below by ABSENCE — which is the property `box` needed and did not have. An
+ * entry here is the deliberate, reviewable alternative to curating, never a
+ * silent one, and it must name an issue that resolves it.
+ */
+const UNCURATED_LAYOUT_CONTAINERS: Record<string, string> = {
+  'aspect-ratio':
+    'NOT YET RULED, either way — and that is the entry, stated honestly rather than dressed as merits. ' +
+    'It is the only member of this derived population no card has ever asked about: it declares four real ' +
+    'inputs (ratio/image/alt/className) and a container slot, so it is authorable today, and the tree records ' +
+    'only the CONSEQUENCE of its absence (renderers/layout/aspect-ratio.tsx, at its registration: "Not in ' +
+    '`PUBLIC_BLOCKS`, so the react-page scope builder never saw this tag"), never a reason. objectui#6879 ' +
+    'measured the population and filed the decision as objectui#8628 — curate it, or refuse it on stated ' +
+    'merits and replace this text with them. Until then it stays visible here instead of invisible in a gap.',
+};
+
+describe('PUBLIC_BLOCKS ↔ the declared layout containers (derived, objectui#6879)', () => {
+  it('reads the vocabulary off the union rather than restating it', () => {
+    // The anti-vacuity case, and it comes first. Every arm must resolve a real
+    // `type` literal: a population of `undefined`s would make the ledger pin
+    // below pass while asserting nothing at all.
+    expect(LAYOUT_UNION_ARMS.length).toBeGreaterThan(0);
+    expect(LAYOUT_VOCABULARY).toHaveLength(LAYOUT_UNION_ARMS.length);
+    // And it must be the vocabulary we think it is — the minted type this card
+    // is about, plus two of its long-standing siblings.
+    expect(LAYOUT_VOCABULARY).toEqual(expect.arrayContaining(['box', 'flex', 'container']));
+  });
+
+  it('derives a non-empty container population holding the objectui#6764 control set', () => {
+    // The second anti-vacuity case: a roster/census pin iterating an EMPTY set
+    // passes. Both halves of the derivation are checked — the union read above,
+    // and the registry read here. If `isContainer` stopped resolving, this set
+    // empties and every case below would go quietly green.
+    expect(DECLARED_LAYOUT_CONTAINERS.length).toBeGreaterThan(0);
+    expect(DECLARED_LAYOUT_CONTAINERS).toEqual(expect.arrayContaining(CONTAINER_CONTROL_SET));
+    // `box` must be IN the population, or the pin below would be satisfied by a
+    // roster that had silently dropped it again.
+    expect(DECLARED_LAYOUT_CONTAINERS).toContain('box');
+  });
+
+  it('curates every declared layout container, or records why not', () => {
+    // ⭐ The load-bearing case. Derived on both sides: the population from the
+    // union and the registry, the expectation from the ledger's own keys. A
+    // newly minted layout container is in neither, so it lands here BY ABSENCE
+    // — which is exactly what did not happen when `box` was minted.
+    const curated = new Set<string>(PUBLIC_BLOCKS);
+    const uncurated = DECLARED_LAYOUT_CONTAINERS.filter((type) => !curated.has(type));
+
+    expect(uncurated).toEqual(Object.keys(UNCURATED_LAYOUT_CONTAINERS).sort());
+  });
+
+  it('keeps every ledger entry live — a real member, a reason, a tracking issue', () => {
+    for (const [type, reason] of Object.entries(UNCURATED_LAYOUT_CONTAINERS)) {
+      // A dangling entry would be a standing licence for a type that is not even
+      // in the population any more.
+      expect(DECLARED_LAYOUT_CONTAINERS, `${type} is not a declared layout container`).toContain(
+        type,
+      );
+      expect(reason, `${type} states no tracking issue`).toMatch(/#\d+/);
+      expect(reason.length, `${type} states no reason`).toBeGreaterThan(40);
+    }
+  });
+
+  it('carries no stale ledger entry — a curated type must lose its entry', () => {
+    // The other direction, and the reason the list cannot rot into a permanent
+    // allowlist: once a ledgered type IS curated, the entry must be deleted
+    // rather than left standing next to the thing it claims is excluded.
+    const curated = new Set<string>(PUBLIC_BLOCKS);
+    expect(Object.keys(UNCURATED_LAYOUT_CONTAINERS).filter((type) => curated.has(type))).toEqual(
+      [],
+    );
+  });
+
+  it('adds no block that registry-inputs-spec-parity can judge (the objectui#6879 measurement)', () => {
+    // The measurement, kept as an assertion so nobody has to re-run it: this
+    // whole population is outside `ComponentPropsMap`, so the spec-parity gate
+    // next door — whose coverage set is derived from that map's keys, and which
+    // never reads `PUBLIC_BLOCKS` — cannot see any of it. Curating `box` moved
+    // that gate by nothing, and needed no spec entry and no loosening.
+    expect(DECLARED_LAYOUT_CONTAINERS.filter(specCarried)).toEqual([]);
+
+    // ⭐ The LIT CONTROL, on the same command shape and over the right
+    // population: the curated roster at large DOES carry spec-described blocks,
+    // so the empty result above is a reading and not a broken lookup.
+    expect(Object.keys(ComponentPropsMap).length).toBeGreaterThan(0);
+    expect(PUBLIC_BLOCKS.filter(specCarried).length).toBeGreaterThan(0);
+  });
+
+  it('measures that gate as SPEC-shaped — this roster is neither necessary nor sufficient', () => {
+    // The half that stops the measurement above from reading as "curated blocks
+    // are the unjudged ones". Both directions have live specimens, and a pin
+    // that held only one of them would license exactly the wrong conclusion.
+    //
+    // NOT SUFFICIENT — curated, and still outside that gate's reach:
+    expect(CONTAINER_CONTROL_SET.every((type) => PUBLIC_BLOCKS.includes(type))).toBe(true);
+    expect(CONTAINER_CONTROL_SET.filter(specCarried)).toEqual([]);
+
+    // NOT NECESSARY — outside this roster, judged by that gate anyway, because
+    // the spec describes it. `element:record_picker` is the standing specimen;
+    // the parity file records the same block for the same reason.
+    expect(PUBLIC_BLOCKS).not.toContain('element:record_picker');
+    expect(specCarried('element:record_picker')).toBe(true);
+  });
+
+  it('keeps `box` on the authoring surface it was already on, and adds the one it was not', () => {
+    // ⚠️ The overstatement this case exists to refuse: "absent from
+    // `PUBLIC_BLOCKS`" is not "unvalidated". `page.tsx` builds the JSX-page
+    // compiler's manifest from `getKnownTypes()` + these same `inputs`, so
+    // `box`'s declaration has been live there all along — with no roster in the
+    // path. Asserted with its declared input, because a registration present but
+    // declaring nothing would publish no authoring surface at all.
+    expect(ComponentRegistry.getKnownTypes()).toContain('box');
+    expect((ComponentRegistry.getMeta('box')?.inputs ?? []).map((i) => i.name)).toContain(
+      'className',
+    );
+
+    // What this card actually moved: `getPublicConfigs()` — the curated
+    // vocabulary, and the source `gen-manifest.ts` serialises into the published
+    // `sdui.manifest.json` and `sdui-intrinsics.d.ts`.
+    expect(contract.has('box')).toBe(true);
+    expect(contract.get('box')!.type).toBe('box');
   });
 });
