@@ -78,6 +78,38 @@ It implements `$filter` (both MongoDB-style objects and FilterNode AST arrays),
 `aggregate()` and `onMutation()`. `getAll()` returns a cloned snapshot and
 `count` the current length.
 
+#### What `$filter` executes, and what it refuses
+
+`find()` picks a matcher on the SHAPE of `$filter` — a FilterNode **array** goes
+to the AST matcher, an **object** to the `$`-dialect matcher — and since
+objectui#8447 the two answer the same question and refuse in the same way.
+
+The object dialect executes one arm per member of the spec's `FILTER_OPERATORS`:
+
+```text
+$eq  $ne  $gt  $gte  $lt  $lte  $in  $nin  $between
+$contains  $icontains  $notContains  $startsWith  $endsWith  $null
+```
+
+`$contains`, `$notContains`, `$startsWith` and `$endsWith` are **case-sensitive**;
+`$icontains` is the one case-insensitive member and its fold is **ASCII-only**.
+`$null` takes its direction from the value: `$null: true` is IS NULL, `$null: false`
+is IS NOT NULL.
+
+Anything else is **refused**: the row is excluded and the reason is logged once per
+distinct refusal per `find()` — never passed through as "no constraint", which is
+what an unrecognised operator used to mean here. Refused on purpose, each with a
+prescription in the message:
+
+| spelling | why | write instead |
+| --- | --- | --- |
+| `$exists` | not executed here | `$null` (`$exists: true` is `$null: false`) |
+| `$like` / `$ilike` | declared, but staged out of `FILTER_OPERATORS`; no pattern engine in memory | `$contains` / `$icontains` |
+| `$regex` / `$options` | retired from the protocol | `$icontains` |
+| `$startswith`, `$notcontains`, `$notin`, `$ncontains` | non-canonical spellings | the camelCase spelling |
+| `$and` / `$or` / `$not` | combinators, not field operators | an AST array `$filter` |
+| `{ relation: { field: … } }` | this matcher does not descend into relations | filter on the stored key |
+
 ### `resolveDataSource`
 
 Turns a `ViewData` config into a concrete adapter. This is the function a

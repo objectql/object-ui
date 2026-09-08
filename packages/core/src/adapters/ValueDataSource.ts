@@ -18,7 +18,11 @@ import type {
   AggregateParams,
   AggregateResult,
 } from '@object-ui/types';
-import { asciiCaseInsensitiveContains, canonicalAstOperator } from '@objectstack/spec/data';
+import {
+  asciiCaseInsensitiveContains,
+  canonicalAstOperator,
+  RETIRED_FILTER_OPERATORS,
+} from '@objectstack/spec/data';
 import { emulateBatchTransaction } from './batchTransaction.js';
 
 // ---------------------------------------------------------------------------
@@ -236,54 +240,182 @@ function matchesASTFilter(record: any, filterNode: any, refusals: Set<string>): 
 }
 
 /**
- * Simple in-memory filter evaluation.
- * Supports flat key-value equality and basic operators ($gt, $gte, $lt, $lte, $ne, $in).
+ * Evaluate ONE `$`-dialect operator against a record's value for a field.
+ *
+ * The vocabulary is the spec's own `FILTER_OPERATORS` (`@objectstack/spec/data`)
+ * and each arm answers the same question its AST twin answers in
+ * {@link matchesComparisonNode} — `$eq`/`=`, `$nin`/`nin`, `$startsWith`/
+ * `starts_with`, and so on, one-to-one across all sixteen. That pairing IS the
+ * fix for objectui#8447: `find()` picks between the two matchers on nothing
+ * more than whether `$filter` arrived as an array or an object, so any operator
+ * one of them executes and the other waves through is a result that changes
+ * with the SHAPE of the filter rather than with its meaning.
+ *
+ * ## What the `default` arm used to be
+ *
+ * `default: break` — which adds NO constraint. An operator this switch did not
+ * name therefore matched EVERY row, silently, while the array arm of the very
+ * same `if` refused the unknown node, excluded the row and logged it
+ * (objectui#7349). Measured before the fix: `$nin`, `$startsWith`, `$null` and
+ * `$exists` each returned the full set, and so did `$eq` — the most ordinary
+ * operator an author can reach for, whose plain-equality sibling
+ * (`{ age: 26 }`) was correct all along.
+ *
+ * The direction of the change is worth stating plainly, because it MOVES
+ * RESULTS: a filter that silently selected everything now selects the rows it
+ * names, and one this matcher cannot execute selects nothing and says so. Both
+ * are louder than what they replace; neither is "match everything", which was
+ * nobody's intent.
+ *
+ * ## What is refused, and why each one
+ *
+ * - **`$exists`** — refused rather than implemented, and the refusal names the
+ *   exact synonym that works. `$exists: true` is `$null: false` and
+ *   `$exists: false` is `$null: true` (`convertFiltersToAST`,
+ *   `../utils/filter-converter.ts`), so nothing is unreachable through it.
+ * - **`$like` / `$ilike`** — declared by `StringOperatorSchema` but deliberately
+ *   kept OUT of `FILTER_OPERATORS` while the faces that cannot execute them are
+ *   staged in (objectstack#7536). This matcher has no pattern engine, and the
+ *   spec's own note says naming them before an arm exists turns a loud refusal
+ *   into a dropped predicate — i.e. every row, the defect this file just fixed.
+ * - **`$regex` / `$options`** — RETIRED from the protocol (objectstack#4706).
+ *   The refusal prints `RETIRED_FILTER_OPERATORS`' prescription verbatim, the
+ *   way the five driver-side refusal sites do, so six faces say one thing.
+ * - **Anything else**, including a nested relation constraint
+ *   (`{ profile: { verified: true } }`), whose keys are field names rather than
+ *   operators: this matcher does not descend into relations.
  */
-function matchesFilter(record: any, filter: Record<string, any>): boolean {
+function matchesDollarOperator(
+  value: any,
+  operator: string,
+  target: any,
+  field: string,
+  refusals: Set<string>,
+): boolean {
+  switch (operator) {
+    case '$eq':
+      return value === target;
+    case '$ne':
+      return value !== target;
+    case '$gt':
+      return value > target;
+    case '$gte':
+      return value >= target;
+    case '$lt':
+      return value < target;
+    case '$lte':
+      return value <= target;
+    case '$in':
+      return Array.isArray(target) && target.includes(value);
+    case '$nin':
+      return Array.isArray(target) && !target.includes(value);
+    case '$between':
+      return Array.isArray(target) && target.length === 2
+        && value >= target[0] && value <= target[1];
+    // -- Text operators. Same ruling the AST arms carry (objectstack#4706 Q2):
+    // the `$contains` family is case-SENSITIVE and `$icontains` is its one
+    // case-insensitive member, folding ASCII only on both sides.
+    case '$contains':
+      return typeof value === 'string' && value.includes(String(target));
+    case '$icontains':
+      return typeof value === 'string' && asciiCaseInsensitiveContains(value, String(target));
+    case '$notContains':
+      return typeof value === 'string' && !value.includes(String(target));
+    case '$startsWith':
+      return typeof value === 'string' && value.startsWith(String(target));
+    case '$endsWith':
+      return typeof value === 'string' && value.endsWith(String(target));
+    // -- Null-ness. Unlike the AST spelling, direction comes from the VALUE:
+    // `$null: true` is IS NULL and `$null: false` is IS NOT NULL, which is the
+    // lowering `convertFiltersToAST` already performs.
+    case '$null':
+      return target
+        ? value === null || value === undefined
+        : value !== null && value !== undefined;
+
+    case '$exists':
+      return refuseFilterNode(
+        refusals,
+        `filter operator '$exists' on field '${field}' is not executed by the in-memory `
+        + `matcher; write { ${field}: { $null: ${target ? 'false' : 'true'} } }, which this `
+        + `matcher executes and which the platform lowers $exists to`,
+      );
+
+    default: {
+      const retired = RETIRED_FILTER_OPERATORS[operator];
+      if (retired) {
+        return refuseFilterNode(
+          refusals,
+          `filter operator '${operator}' on field '${field}' is retired. ${retired.why}`,
+        );
+      }
+      if (!operator.startsWith('$')) {
+        return refuseFilterNode(
+          refusals,
+          `filter condition on field '${field}' carries the non-operator key `
+          + `'${operator}'; the in-memory matcher does not descend into a nested `
+          + `relation constraint`,
+        );
+      }
+      return refuseFilterNode(
+        refusals,
+        `filter operator '${operator}' on field '${field}' is not implemented by the `
+        + `in-memory matcher`,
+      );
+    }
+  }
+}
+
+/**
+ * In-memory evaluation of an OBJECT-shaped (`$`-dialect) filter.
+ *
+ * Reads a flat key/value equality (`{ age: 26 }`) or a `FieldOperatorsSchema`
+ * condition object (`{ age: { $gte: 25 } }`), one entry per field, ANDed. What
+ * it cannot execute it refuses through {@link refuseFilterNode} — excluded and
+ * logged once per distinct refusal per `find()` — rather than adding no
+ * constraint, which is what its `default: break` used to do (objectui#8447).
+ *
+ * ## Combinators are refused here, not implemented (objectui#8447, its own case)
+ *
+ * `$and` / `$or` / `$not` are `LOGICAL_OPERATORS`, not field names, and this
+ * matcher has no grouping. They were already excluded-and-silent in two of
+ * three cases before this card and fail-OPEN in the third, which is why they
+ * get an arm now rather than being swept into the operator fix:
+ *
+ * - `{ $and: [...] }` / `{ $or: [...] }` carry an ARRAY, so they fell to the
+ *   simple-equality branch below (`record['$and'] !== [...]` is always true) and
+ *   excluded every row with no diagnostic. The rows do not move; the silence does.
+ * - `{ $not: {...} }` carries an OBJECT (`FilterConditionSchema`, not an array),
+ *   so it entered the operator branch, its inner FIELD names were read as
+ *   operator names, and every one of them hit `default: break`. It therefore
+ *   matched EVERY row — the same fail-open direction as the operators, and the
+ *   one behaviour here whose result changes.
+ *
+ * Executing them is a feature with its own semantics to settle (the empty-group
+ * identities and `$not`'s NULL-safe rule, objectstack#5146 / #5322), not part of
+ * this repair. An author who needs a group today writes the AST array `$filter`,
+ * which the sibling arm of `find()` already executes.
+ */
+function matchesFilter(
+  record: any,
+  filter: Record<string, any>,
+  refusals: Set<string>,
+): boolean {
   for (const [key, condition] of Object.entries(filter)) {
+    if (key.startsWith('$')) {
+      return refuseFilterNode(
+        refusals,
+        `filter combinator '${key}' is not implemented by the object-dialect matcher; `
+        + `express the group as an AST array $filter, which this adapter executes`,
+      );
+    }
+
     const value = record[key];
 
     if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
-      // Operator-based filter
+      // Operator-based filter — every operator on the field is ANDed.
       for (const [op, target] of Object.entries(condition)) {
-        switch (op) {
-          case '$gt':
-            if (!(value > (target as any))) return false;
-            break;
-          case '$gte':
-            if (!(value >= (target as any))) return false;
-            break;
-          case '$lt':
-            if (!(value < (target as any))) return false;
-            break;
-          case '$lte':
-            if (!(value <= (target as any))) return false;
-            break;
-          case '$ne':
-            if (value === target) return false;
-            break;
-          case '$in':
-            if (!Array.isArray(target) || !target.includes(value)) return false;
-            break;
-          // The `$` dialect of the same ruling the AST arms carry
-          // (objectui#7379): `$contains` is case-SENSITIVE, `$icontains` is the
-          // case-insensitive one, and the fold is ASCII-only on both sides.
-          // This arm lower-cased both sides, so the two spellings named one
-          // predicate here too — and `$icontains` had no arm at all, which in
-          // this switch means the `default` below and therefore NO constraint:
-          // a case-insensitive filter selected every row. Making `$contains`
-          // exact without adding its twin would have left the dialect with no
-          // working case-insensitive door.
-          case '$contains':
-            if (typeof value !== 'string' || !value.includes(String(target))) return false;
-            break;
-          case '$icontains':
-            if (typeof value !== 'string'
-              || !asciiCaseInsensitiveContains(value, String(target))) return false;
-            break;
-          default:
-            break;
-        }
+        if (!matchesDollarOperator(value, op, target, key, refusals)) return false;
       }
     } else {
       // Simple equality
@@ -399,15 +531,20 @@ export class ValueDataSource<T = any> implements DataSource<T> {
 
     // Filter — support both MongoDB-style objects and AST-format arrays
     if (params?.$filter) {
+      // ONE collector for BOTH arms, drained after the pass: a node either
+      // matcher refuses would otherwise log once PER ROW. Shared on purpose —
+      // the two arms differ only in the SHAPE of `$filter`, and objectui#8447
+      // was exactly the asymmetry of one arm refusing loudly while the other
+      // waved everything through in silence.
+      const refusals = new Set<string>();
       if (Array.isArray(params.$filter) && params.$filter.length > 0) {
-        // One collector per `find()`, drained after the pass: a node the matcher
-        // refuses would otherwise log once PER ROW.
-        const refusals = new Set<string>();
         result = result.filter((r) => matchesASTFilter(r, params.$filter as any[], refusals));
-        for (const message of refusals) console.warn(message);
       } else if (!Array.isArray(params.$filter) && Object.keys(params.$filter).length > 0) {
-        result = result.filter((r) => matchesFilter(r, params.$filter!));
+        result = result.filter(
+          (r) => matchesFilter(r, params.$filter as Record<string, any>, refusals),
+        );
       }
+      for (const message of refusals) console.warn(message);
     }
 
     // Search (simple text search across all string fields)
