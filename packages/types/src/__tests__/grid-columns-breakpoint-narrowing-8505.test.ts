@@ -252,28 +252,28 @@ describe('objectui#8505 — the narrowing broke no producer, and this is why', (
   });
 });
 
-/* ── (e) the other authoring face, REPORTED and left open by this card ────── */
+/* ── (e) the other authoring face — the handoff, now COLLECTED ────────────── */
 
-describe('objectui#8505 — the zod mirror still admits an open record, deliberately', () => {
-  it('the JSON face still accepts `{ xxl: 6 }` — the gap this card did not close', () => {
-    // NOT the desired end state. `GridSchema` in `zod/layout.zod.ts` is
-    // `z.record(z.string(), z.number())`, so `os-ui validate` / `check`
-    // (`@object-ui/cli`, the real consumer of these mirrors) still passes a
-    // grid document whose map is keyed by a spelling no renderer reads.
+describe('objectui#8505 — the zod mirror now refuses what the declaration refuses', () => {
+  it('the JSON face refuses `{ xxl: 6 }` — the gap objectui#8516 closed', () => {
+    // THE HANDOFF PIN, FLIPPED (objectui#8516, the objectui#7070 convention).
+    // It asserted `success: true` for the whole of objectui#8505's life, with
+    // the reason stated rather than assumed: that card narrowed the TypeScript
+    // face only, and this block held the mirror's remaining reading visible so
+    // it could not rot into a silent assumption that both faces closed
+    // together. objectui#8516 narrowed the mirror, so the block is collected
+    // here rather than deleted — the flip IS the record that the handoff was
+    // honoured, and a deletion would leave nothing that fails if the mirror is
+    // ever widened back.
     //
-    // Left open on a measurement, not a preference: closing it ships runtime
-    // bytes into the console's `framework` chunk (`packages/(core|react|types)`),
-    // which measured 70,999 gzip bytes against its 71,000 ceiling on this
-    // branch's base — one byte of headroom. A zod narrowing here would turn
-    // `Bundle Analysis` red and make its own fix a byte-hunt through two other
-    // packages, which is a different card. The TypeScript narrowing this card
-    // ships costs zero runtime bytes.
-    //
-    // This assertion is the HANDOFF (the objectui#7070 convention): when that
-    // card lands, this block flips to a refusal rather than quietly agreeing
-    // with whatever the mirror ends up doing.
+    // ⚠️ The blocker this block used to cite is GONE, and the obsolete number
+    // is left named on purpose: it said a narrowing was unaffordable because
+    // the console's `framework` chunk measured 70,999 gzip bytes against a
+    // 71,000 ceiling. PR #8550 landed the maintainer's raise — that ceiling is
+    // 100,000 against a re-derived 72,245 baseline — so the narrowing cost no
+    // byte-hunt at all.
     const r = GridZodMirror.safeParse({ type: 'grid', columns: { xxl: 6 } });
-    expect(r.success).toBe(true);
+    expect(r.success).toBe(false);
   });
 
   it('CONTROL — the mirror is live: it refuses a non-numeric column count', () => {
@@ -281,5 +281,16 @@ describe('objectui#8505 — the zod mirror still admits an open record, delibera
     // that validates nothing at all.
     const r = GridZodMirror.safeParse({ type: 'grid', columns: { xs: 'two' } });
     expect(r.success).toBe(false);
+  });
+
+  it('CONTROL — and it still ACCEPTS a partial breakpoint map', () => {
+    // ⚠️ Added with the flip, and load-bearing because of it. Both readings
+    // above are now `false`, so on their own they are equally green against a
+    // mirror that refuses EVERYTHING — the caricature the header's table warns
+    // about, one authoring face down. This is also the overshoot guard: the
+    // `z.record(z.enum([…]), …)` spelling objectui#8516 refused reddens exactly
+    // here, because zod 4 makes it require all six members.
+    const r = GridZodMirror.safeParse({ type: 'grid', columns: { md: 2 } });
+    expect(r.success).toBe(true);
   });
 });
