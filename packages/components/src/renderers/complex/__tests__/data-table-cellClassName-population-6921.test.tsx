@@ -14,8 +14,8 @@
  *
  * For three days a census sentence said the schema-level key was "folded into
  * every body cell's `className`". It was false the day it was written and was
- * copied forward into eight texts before a reviewer measured it (objectui#6882
- * review, PR #6918). Re-derived here against `data-table.tsx` on this tree,
+ * copied forward, text to text, for three days before a reviewer measured it
+ * (objectui#6882 review, PR #6918). Re-derived here against `data-table.tsx`,
  * the schema-level key is folded at exactly THREE sites, every one a UTILITY
  * cell:
  *

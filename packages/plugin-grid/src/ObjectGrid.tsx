@@ -852,8 +852,8 @@ export type ObjectGridColumn =
  *     cell does NOT fold this key) and the non-regression (the three utility
  *     cells DO) — and this entry's wording is pinned against that measurement
  *     by `cellClassNameCensusProse-6921.test.ts` beside the slot suite. The
- *     false sentence was copied into eight texts before anyone measured it;
- *     a re-wording here that drops a cell name or revives the hold goes red.
+ *     false sentence was copied forward for three days before anyone measured
+ *     it; a re-wording here that drops a cell name or revives the hold goes red.
  *
  * ⛔ The old closing note ("do not fix either hold by declaring the key on
  * `DataTableSchema` as a rider — that package is published surface with its own
