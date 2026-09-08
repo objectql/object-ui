@@ -1,5 +1,5 @@
 ---
-'@object-ui/types': patch
+'@object-ui/types': minor
 ---
 
 `RecordDetailsComponentProps.sections[]` declares the six member keys
