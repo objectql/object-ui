@@ -42,9 +42,10 @@
  * clears the `WiderThanDeclared` reading and produces the opposite divergence
  * on the same pair. `z.partialRecord` is the spelling that does not.
  *
- * The pins that catch the overshoot are `_columnsFace` / `_columnsIsPartial`
- * and `_exportConfigsIsPartial` below (compile time) and the accepting rows in
- * each `describe` (run time), plus the ledger reconciliation in the sibling
+ * The pins that catch the overshoot are `_columnsFace` / `_columnsIsPartial` and
+ * `_exportConfigsIsPartial` below (compile time — each compares a WHOLE map type,
+ * ⛔ never a `keyof`, which erases the optionality that IS the overshoot) and the
+ * accepting rows in each `describe` (run time), plus the ledger reconciliation in the sibling
  * `zod-mirror-parity.test.ts`, which is the file-level instrument objectui#8556
  * ruled this must be pinned against rather than against an accept set alone.
  *
@@ -117,10 +118,19 @@ describe('objectui#8556 — the report mirror states the declaration, at compile
     // TypeScript face because it made configuring ONE format an error. The
     // forbidden `z.record(z.enum([…]), …)` spelling would re-impose exactly
     // that on the mirror, one authoring face over.
-    const _exportConfigsIsPartial: Eq<
-      keyof MirrorExportConfigs,
-      keyof Partial<Record<ReportExportFormat, unknown>>
-    > = true;
+    //
+    // ⚠️ This pin was FIRST WRITTEN AS `Eq[keyof MirrorExportConfigs, keyof
+    // Partial[Record[ReportExportFormat, unknown]]]` and that spelling was INERT
+    // against the very overshoot this row is named for: `keyof` erases
+    // optionality, so `keyof Record[F, V]` and `keyof Partial[Record[F, V]]` are
+    // the same type and the constant stayed `true` under the forbidden spelling.
+    // Measured, not reasoned: under ablation B it did not appear among the
+    // compile errors, while its grid counterpart `_columnsIsPartial` — which
+    // compares the WHOLE map type — did. A pin that cannot fail is worse than no
+    // pin, because it is counted as coverage. ⛔ Do not reintroduce a `keyof`
+    // comparison here; compare the map to its own `Partial`, which is a fixed
+    // point only when the map is already partial.
+    const _exportConfigsIsPartial: Eq<MirrorExportConfigs, Partial<MirrorExportConfigs>> = true;
     expect(_exportConfigsIsPartial).toBe(true);
   });
 

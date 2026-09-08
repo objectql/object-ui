@@ -31,15 +31,27 @@ being silently ignored; it refuses nothing that works today.
 names the offending key — `Path: columns → xxl`, `Code: invalid_key` — through
 `@object-ui/cli`'s union-arm expansion.
 
-**Measured accept set in the corpus, before grading this.** Across every tracked
-file in this repository and in the `objectstack` sibling checkout: 33 grid nodes
-carry an object-valued `columns`, and every out-of-vocabulary key among them is
-a deliberate negative fixture inside objectui#8505's own test file. The authored
-corpus — `examples/schema-catalog`, `content/docs`, `skills/objectui`,
-`apps/site`, the renderer fixtures — is 28 sites, all six-breakpoint-clean.
-`exportConfigs` has zero authored inhabitants in either repository. So this
-narrowing refuses **zero** documents that exist today, which is why it is graded
-`minor` with the break spelled out rather than escalated.
+**Measured accept set in the corpus, before grading this.** Counted over every
+tracked file in this repository and in the `objectstack` sibling checkout, with
+test fixtures and changeset prose separated out rather than folded in:
+
+- grid nodes carrying an object-valued `columns` — **10 authored sites** (nine in
+  `content/docs`, `examples/schema-catalog` and `skills/objectui`, one in
+  `apps/site`), **all keyed inside the six breakpoints**. Every out-of-vocabulary
+  key in either tree sits in a test fixture written to document the defect, or in
+  objectui#8505's changeset quoting it.
+- `exportConfigs` — **one authored site**, `content/docs/core/report-schema.mdx`,
+  keyed `pdf` / `excel` / `csv`, all **in vocabulary**. None in `objectstack`.
+
+So this narrowing refuses **zero** documents that exist today, which is why it is
+graded `minor` with the break spelled out rather than escalated.
+
+**What it does NOT close.** These mirrors judge the document they are handed. A
+`grid` nested under another node's `children` still reaches
+`SchemaNodeSchema`, a lazy union over the passthrough base that does not re-enter
+the per-type arms, so `{ type: 'container', children: [{ type: 'grid', columns:
+{ xxl: 6 } }] }` still validates green. That is pre-existing and untouched here —
+named so this change is not read as closing the nested case.
 
 **The spelling is `z.partialRecord`, and that is load-bearing.** ⛔ Not
 `z.record(z.enum([…]), …)`: measured on zod 4.4.3, the plain record over an enum
