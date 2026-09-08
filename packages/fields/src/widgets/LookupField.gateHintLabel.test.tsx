@@ -10,7 +10,7 @@
  * A gated lookup names its controlling field by LABEL — objectstack#5407.
  *
  * The gate sentence (`lookup.selectFirst`) is translated in all ten packs, but
- * its `{{fields}}` interpolation came straight off `depends_on`, which holds
+ * its `{{fields}}` interpolation came straight off `dependsOn`, which holds
  * API names. So the rendered hint was localized around a raw identifier in
  * every locale, English included:
  *
@@ -39,7 +39,7 @@ const gatedField = {
   label: 'Contact',
   reference_to: 'crm_contact',
   reference_field: 'name',
-  depends_on: ['crm_account'],
+  dependsOn: ['crm_account'],
 } as any;
 
 const dataSource = { find: vi.fn(async () => ({ data: [], total: 0 })) } as any;
@@ -96,7 +96,7 @@ describe('LookupField gate hint names the controlling field (objectstack#5407)',
   it('joins several controlling fields by their labels', () => {
     render(
       <LookupField
-        field={{ ...gatedField, depends_on: ['crm_account', 'lead_source'] }}
+        field={{ ...gatedField, dependsOn: ['crm_account', 'lead_source'] }}
         value={undefined}
         onChange={vi.fn()}
         readonly={false}

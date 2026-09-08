@@ -182,7 +182,15 @@ export function paramToField(param: ActionParamDef): Record<string, any> {
       lookup_columns: param.lookupColumns,
       lookupFilters: param.lookupFilters,
       lookup_page_size: param.lookupPageSize,
-      depends_on: param.dependsOn,
+      // ⭐ objectui#7357 retired `depends_on`, objectui's snake_case twin of
+      // the spec's field-level cascade key. This emit was the ONE in-repo
+      // framework producer of that spelling on a widget field-metadata bag —
+      // the card's own census said there was none, and it was wrong here — so
+      // leaving it would have handed `LookupField` a key it no longer reads and
+      // silently killed the ActionParamDialog's dependent lookups. The
+      // remaining snake members above are a different question (objectui#7155's
+      // ruling covered four keys and this was not one of them).
+      dependsOn: param.dependsOn,
     });
   }
 

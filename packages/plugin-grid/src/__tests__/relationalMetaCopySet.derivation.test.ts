@@ -83,7 +83,7 @@
  * ANNOTATED ALIAS of it, `const NAME: TYPE = receiver;`, which is the same
  * object read through a declared type (objectui#6153 introduced the first one:
  * `LookupField`'s `cascadeMeta`, the `LookupFieldMetadata` view of `fieldMeta`
- * through which `dependsOn` / `depends_on` are now read; a consumer that
+ * through which `dependsOn` is read; a consumer that
  * de-casts a read this way has not stopped reading, and a scanner that could
  * not see it would have reported two real reads as orphans). Aliases are
  * derived from the consumer's own source on every run, never listed here. A key
@@ -237,12 +237,17 @@ function assertExtractorFoundKnownChains(x: Extraction): void {
   expect(x.cell).toContain('reference_to');
   expect(x['lookup-editor']).toContain('lookup_columns');
   expect(x['lookup-editor']).toContain('lookupColumns');
-  // objectui#6153: these two are read through the ANNOTATED ALIAS `cascadeMeta`
+  // objectui#6153: this one is read through the ANNOTATED ALIAS `cascadeMeta`
   // (`const cascadeMeta: LookupFieldMetadata | undefined = fieldMeta;`), not off
   // `fieldMeta` directly. An extractor that stopped following aliases would drop
-  // both, and the orphan assertion below would then call two real reads stale.
+  // it, and the orphan assertion below would then call a real read stale.
+  // ⭐ objectui#7357 removed the `depends_on` line that stood beside it. That
+  // was a DELETION, not a weakening: the snake arm it controlled for is gone
+  // from `LookupField`, so keeping the line would have pinned a read that no
+  // longer happens. The two-spelling SHAPE this control needs is unaffected —
+  // it lives on the `lookup_columns` / `lookupColumns` pair above, which that
+  // card did not touch.
   expect(x['lookup-editor']).toContain('dependsOn');
-  expect(x['lookup-editor']).toContain('depends_on');
   expect(x['user-editor']).toContain('reference_field');
 }
 

@@ -104,11 +104,15 @@ describe('paramToField', () => {
   });
 
   // ⭐ objectui#7155 converged the lookup dialect: `displayField` / `idField` /
-  // `descriptionField` / `lookupFilters` are emitted in the SPEC spelling now.
+  // `descriptionField` / `lookupFilters` are emitted in the SPEC spelling now,
+  // and objectui#7357 added `dependsOn` to that half when it retired the
+  // snake_case `depends_on` this adapter used to emit — this face was the one
+  // in-repo framework producer of that spelling, so the emit had to move with
+  // the reader or the dialog's dependent lookups would have gone dead silently.
   // The remaining snake members below (`reference_to`, `title_format`,
-  // `lookup_columns`, `lookup_page_size`, `depends_on`) were outside that
-  // ruling's four keys and are unchanged — this mixed shape is deliberate, and
-  // asserting it keeps the two halves visibly separate.
+  // `lookup_columns`, `lookup_page_size`) were outside both rulings and are
+  // unchanged — this mixed shape is deliberate, and asserting it keeps the two
+  // halves visibly separate.
   it('maps the full lookup picker config to the field metadata the widgets read', () => {
     const field = paramToField(p({
       type: 'lookup',
@@ -134,8 +138,13 @@ describe('paramToField', () => {
       lookup_columns: [{ field: 'name' }],
       lookupFilters: [{ field: 'active', operator: '=', value: true }],
       lookup_page_size: 25,
-      depends_on: ['org'],
+      dependsOn: ['org'],
     });
+    // objectui#7357 — the emit moved, so pin that it MOVED rather than that it
+    // gained a second spelling. `LookupField` reads `dependsOn` only now; an
+    // emit that also carried `depends_on` would look green above while
+    // re-seeding the retired dialect onto every action-param field bag.
+    expect(field).not.toHaveProperty('depends_on');
   });
 
   it('lookup param without a referenceTo target falls back to a text input (param-only fallback)', () => {

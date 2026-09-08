@@ -143,11 +143,11 @@ const province: SelectFieldMetadata = {
 A bare parent name (`dependsOn: "country"`, as in the form schema above) is the
 **form-level** shape, `FormField.dependsOn`; on field metadata the spec accepts
 only the array, and `SelectFieldMetadata` refuses the string for the same reason.
-The metadata key wins over the `dependsOn` widget prop a host may pass. The
-snake_case `depends_on` is objectui's legacy twin of the same key — read only by
-the lookup widget and retiring under
-[objectui#7357](https://github.com/objectstack-ai/objectui/issues/7357); author
-`dependsOn`.
+The metadata key wins over the `dependsOn` widget prop a host may pass.
+[objectui#7357](https://github.com/objectstack-ai/objectui/issues/7357) retired
+objectui's snake_case twin `depends_on`, which was never a `@objectstack/spec`
+key; `dependsOn` is the only spelling any widget reads. Metadata that still
+spells it the old way has no effect — rename it.
 
 The value being edited, and the `className` / `disabled` a host supplies, are **not**
 metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
