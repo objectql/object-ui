@@ -846,6 +846,14 @@ export type ObjectGridColumn =
  *     falling out of height alignment with the data beside them, which is why
  *     this grid sets BOTH slots. #6882's declaration is where the authoritative
  *     version of this now lives; this is the local copy agreeing with it.
+ *     ⭐ GUARDED SINCE objectui#6921: the cell set is MEASURED in the rendered
+ *     DOM by `packages/components/src/renderers/complex/__tests__/`
+ *     `data-table-cellClassName-population-6921.test.tsx` — the fence (a data
+ *     cell does NOT fold this key) and the non-regression (the three utility
+ *     cells DO) — and this entry's wording is pinned against that measurement
+ *     by `cellClassNameCensusProse-6921.test.ts` beside the slot suite. The
+ *     false sentence was copied forward for three days before anyone measured
+ *     it; a re-wording here that drops a cell name or revives the hold goes red.
  *
  * ⛔ The old closing note ("do not fix either hold by declaring the key on
  * `DataTableSchema` as a rider — that package is published surface with its own

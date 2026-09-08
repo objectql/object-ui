@@ -144,16 +144,15 @@ export interface BaseFieldMetadata {
    */
   validate?: FieldValidationFunction | FieldConstraints;
   
-  /**
-   * Field dependencies (Phase 3.2.3)
-   * List of fields that this field depends on
-   *
-   * objectui's LEGACY spelling of {@link BaseFieldMetadata.dependsOn} — never a
-   * `@objectstack/spec` key (`FieldSchema` refuses `depends_on` BY NAME,
-   * measured on 17.3.0). Only `LookupField` still reads it; it retires under
-   * enforce-or-remove on objectui#7357. Author `dependsOn`.
+  /*
+   * There is deliberately no `depends_on` here (objectui#7357). It was
+   * objectui's own snake_case twin of {@link BaseFieldMetadata.dependsOn} and
+   * never a `@objectstack/spec` key — `FieldSchema` refuses it BY NAME, so any
+   * producer that authored it produced a document the publish door rejects.
+   * Retired under ADR-0049 enforce-or-remove (maintainer ruling, 2026-09-02,
+   * recommendation A on objectui#6153, and no grace window per the 2026-08-27
+   * ruling). One spelling, one concept: author `dependsOn`.
    */
-  depends_on?: string[];
 
   /**
    * Controlling sibling field(s) — the spec's field-level cascade key, declared

@@ -598,8 +598,8 @@ jobs:
           fetch-depth: 0
           submodules: true
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Enable Corepack and download the pinned pnpm
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Verify pnpm version
         run: pnpm --version

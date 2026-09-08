@@ -1134,7 +1134,7 @@ export interface FormField {
    * The resolved object-field metadata **object** (typically a
    * {@link FieldMetadata} / server-served field definition), stashed by the
    * object-bound form paths so widgets can read `precision`, `currency`,
-   * `reference_to`, `depends_on`, … It feeds the field-widget `field` prop.
+   * `reference_to`, `dependsOn`, … It feeds the field-widget `field` prop.
    *
    * ⚠️ Same key, different layer: in the SPEC form-view vocabulary `field` is
    * a **string** (the referenced object-field name). That authored shape ends

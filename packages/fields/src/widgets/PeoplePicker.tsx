@@ -179,7 +179,7 @@ export function PeoplePicker({
   // Recents and the current value used to ride ONE unfiltered `$in` query
   // (`seedIds = valueIds + recentIds`), which is the defect in #5195: the main
   // candidate query above merges `baseFilter` (the author's `lookupFilters`
-  // plus the `depends_on` cascade the host passes down) and this one merged
+  // plus the `dependsOn` cascade the host passes down) and this one merged
   // nothing, so the "Recently used" rail kept offering records the declared
   // filters exclude — a product from the previously-selected project, still
   // selectable after switching parents.

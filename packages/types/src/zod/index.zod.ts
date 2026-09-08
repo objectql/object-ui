@@ -494,3 +494,36 @@ export function safeValidateSchema(schema: unknown) {
  * Version information
  */
 export const SCHEMA_VERSION = '1.0.0';
+
+// ============================================================================
+// Strict authoring face — the derived, unknown-key-closing twin (objectui#8345)
+// ============================================================================
+
+/**
+ * The strict twin of the node face, derived from the mirrors above rather than
+ * hand-written, under the objectui#5250 ruling (option 2: "each node schema
+ * gets a derived strict variant; `objectui validate` and the doc-snippet gates
+ * run strict; renderer props keep the tolerant face unchanged").
+ *
+ * ⛔ Nothing here changes the accept set of anything exported above. The
+ * rendering face keeps its `.passthrough()`; this is a SECOND face, and no
+ * consumer in this repository is wired to it yet.
+ *
+ * ⚠️ The module is `../strict-authoring-face.ts`, OUTSIDE this directory, and
+ * the placement is deliberate. `__tests__/zod-mirror-parity.test.ts` runs a
+ * census closed over the `export const`s of `src/zod/*.zod.ts`: every one is
+ * either a registered hand-written mirror or a declared exclusion. A DERIVED
+ * twin restates no declaration and has nothing to drift from, so it is not a
+ * member of that population — and it lives outside the directory the census is
+ * closed over, which keeps that closure statement exactly as true as it is
+ * today rather than needing a new row to say "not really one of these".
+ */
+export {
+  deriveStrictAuthoringSchema,
+  StrictAnyComponentSchema,
+  StrictSchemaNodeSchema,
+} from '../strict-authoring-face.js';
+export type {
+  DeriveStrictAuthoringOptions,
+  StrictAuthoringLimit,
+} from '../strict-authoring-face.js';

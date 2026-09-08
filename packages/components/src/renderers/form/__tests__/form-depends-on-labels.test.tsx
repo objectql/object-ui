@@ -11,7 +11,7 @@
  * whose VALUES it already hands them — objectstack#5407.
  *
  * A dependency-gated lookup has to name its controlling field in user-visible
- * copy ("Select Account first"), but the widget only ever sees `depends_on`,
+ * copy ("Select Account first"), but the widget only ever sees `dependsOn`,
  * which holds API names. Only the form knows the label. It already resolves
  * exactly this map for the fixed-option widgets (`emptyHint`); the lookup side
  * had no equivalent, so the gate sentence interpolated `crm_account` into every
@@ -62,7 +62,7 @@ const fields = [
     name: 'contact',
     label: 'Contact',
     type: 'lookup',
-    field: { name: 'contact', reference_to: 'crm_contact', depends_on: ['crm_account'] },
+    field: { name: 'contact', reference_to: 'crm_contact', dependsOn: ['crm_account'] },
   },
   // A widget outside the data-source family, to pin the strip half.
   { name: 'topics', label: 'Topics', type: 'tags' },
@@ -84,7 +84,7 @@ describe('form renderer — dependsOnLabels plumbing (objectstack#5407)', () => 
     );
   });
 
-  it('keys the map by API name, so the widget can resolve its own depends_on', () => {
+  it('keys the map by API name, so the widget can resolve its own dependsOn', () => {
     renderForm();
 
     // The exact lookup the widget performs. Written as the resolution rather
@@ -107,7 +107,7 @@ describe('form renderer — dependsOnLabels plumbing (objectstack#5407)', () => 
             {
               name: 'contact',
               type: 'lookup',
-              field: { name: 'contact', depends_on: ['crm_account'] },
+              field: { name: 'contact', dependsOn: ['crm_account'] },
             },
           ],
         }}

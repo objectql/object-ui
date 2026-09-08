@@ -18,9 +18,11 @@
  *      installed spec refuses it on a field document — so the metadata type
  *      refuses it too, rather than letting an author write metadata the publish
  *      door rejects.
- *   4. The ordering the ruling set up: `LookupField` keeps BOTH arms of its
- *      two-spelling read until objectui#7357 retires `depends_on`; both are
- *      declared today. That card, not this one, drops the snake_case arm.
+ *   4. The ordering the ruling set up: `LookupField` kept BOTH arms of its
+ *      two-spelling read until objectui#7357 retired `depends_on`. That card
+ *      has since landed — it deleted the member, dropped the snake_case arm and
+ *      deleted this file's two pins on them (see the two markers below), so
+ *      `dependsOn` is now the only spelling declared and the only one read.
  *
  * ## Why membership pins are type-level here
  *
@@ -117,14 +119,21 @@ export const _lookupWithDependsOnShorthand: LookupFieldMetadata = {
   dependsOn: ['account'],
 };
 
-/* ── 4. The ordering: the legacy twin is still declared until #7357 ──────── */
-// objectui#7357 retires `depends_on` and deletes this literal in the same
-// stroke — until then both spellings are declared, and `LookupField` reads both.
+/* ── 4. RETIRED PIN — the legacy twin's declaration (objectui#7357) ──────── */
+// DELETED: `_legacyTwinStillDeclaredUntil7357`, an annotated `LookupFieldMetadata`
+// literal carrying `depends_on: ['account']`. It pinned ONE fact — that the
+// snake_case twin was still a DECLARED member of the field-metadata face while
+// both spellings were readable. objectui#7357 removed that member under ADR-0049
+// enforce-or-remove, so the fact it pinned no longer exists and the literal no
+// longer compiles. It is replaced, not merely dropped: the retirement's own
+// direction is pinned below, where the excess-property check now REFUSES the
+// spelling this literal used to prove legal.
 
-export const _legacyTwinStillDeclaredUntil7357: LookupFieldMetadata = {
+export const _retiredTwinIsRefusedByTheType: LookupFieldMetadata = {
   type: 'lookup',
   name: 'contact',
   reference_to: 'contacts',
+  // @ts-expect-error — objectui#7357: `depends_on` is no longer a member of `BaseFieldMetadata`; author `dependsOn`
   depends_on: ['account'],
 };
 
@@ -163,7 +172,7 @@ describe('installed @objectstack/spec — the field-level `dependsOn` that Field
     expect(res.error.issues.some((i) => i.code === 'invalid_type' && i.path.join('.') === 'dependsOn')).toBe(true);
   });
 
-  it('the legacy snake_case twin is refused BY NAME — it was never a spec key (objectui#7357 retires it)', () => {
+  it('the legacy snake_case twin is refused BY NAME — it was never a spec key (objectui#7357 retired it)', () => {
     const { dependsOn, ...rest } = provinceDocument;
     void dependsOn;
     const res = FieldSchema.safeParse({ ...rest, depends_on: ['country'] });
@@ -193,8 +202,15 @@ const readSites: Array<{ file: string; text: string; why: string }> = [
   },
   {
     file: 'packages/fields/src/widgets/LookupField.tsx',
-    text: 'const raw = cascadeMeta?.depends_on ?? cascadeMeta?.dependsOn;',
-    why: 'BOTH arms, through the declared type — objectui#7357 drops the snake_case one, not this card',
+    // RETIRED PIN (objectui#7357). This entry used to pin the text
+    // `const raw = cascadeMeta?.depends_on ?? cascadeMeta?.dependsOn;` — the
+    // TWO-ARM read, and its `why` read "BOTH arms … objectui#7357 drops the
+    // snake_case one, not this card". That card has landed, so the two-arm read
+    // is gone and a pin on its text would assert a line that no longer exists.
+    // The pin MOVES with the code rather than being deleted: read-site coverage
+    // is unchanged, and what it now records is the retirement itself.
+    text: 'const raw = cascadeMeta?.dependsOn;',
+    why: 'the ONE surviving arm, through the declared type — objectui#7357 retired the snake_case twin',
   },
 ];
 

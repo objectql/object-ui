@@ -16,10 +16,14 @@
  * The enforcement being added is a TYPE declaration. `data-table` behaves
  * IDENTICALLY before and after it: both keys were already read on the
  * production path — `renderCellEditor` through an `(schema as any)` cast,
- * `cellClassName` by destructuring into every body cell's class — so no render
- * changes, no runtime value changes, and a rendering test is blind to the whole
- * change. What can fail is a COMPILE. Same reading as
- * `plugin-grid/src/__tests__/dataTableSchemaSlot-6459.test.ts` next door.
+ * `cellClassName` by destructuring into the class of the three UTILITY body
+ * cells (selection, row-number, row-actions; a data cell folds the per-column
+ * `TableColumn.cellClassName` instead, never this key — measured in the DOM by
+ * `components/src/renderers/complex/__tests__/data-table-cellClassName-population-6921.test.tsx`,
+ * objectui#6921) — so no render changes, no runtime value changes, and a
+ * rendering test is blind to the whole change. What can fail is a COMPILE.
+ * Same reading as `plugin-grid/src/__tests__/dataTableSchemaSlot-6459.test.ts`
+ * next door.
  *
  * ## ⚠️ The index signature is what makes the naive pin vacuous
  *

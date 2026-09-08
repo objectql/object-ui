@@ -37,9 +37,9 @@
  *   | plugin-calendar  |       3 |               0 |                 0 |
  *   | plugin-chatbot   |       3 |               0 |                 0 |
  *   | plugin-dashboard |       8 |               2 |             7 / 9 |
- *   | components       |     158 |              95 |          12 .. 15 |
+ *   | components       |     159 |              89 |          12 .. 15 |
  *
- * **97 of 181 targets leak.** The `components` row is objectui#5574 and is
+ * **91 of 182 targets leak.** The `components` row is objectui#5574 and is
  * covered in its own section below; the two `plugin-dashboard` rows are the
  * older tail. Both are in {@link LEAK_LEDGER}:
  * `plugin-dashboard:metric` and `plugin-dashboard:metric-card`, the open tail
@@ -121,7 +121,7 @@
  * have failed. These two differ in exactly one thing: which namespace the extra
  * widget went into.
  *
- * ### The reading — 119 of 158 ON ARRIVAL, in seven shapes; 97 today
+ * ### The reading — 119 of 158 ON ARRIVAL, in seven shapes; 89 today
  *
  * The card named four candidates (`flex`, `stack`, `container`, `text`) and was
  * careful to call them candidates. All four leaked. So did 115 others, and the
@@ -136,7 +136,10 @@
  * (objectui#5632) — which took a SHAPE off this list, not just rows, so the
  * grouping is six mechanisms now and not seven. All twenty-two measure clean,
  * so their rows had to go for the gate to pass — the two-way expiry below,
- * working exactly once it had something to expire. 97 rows remain. What the arrival reading measured is preserved here in prose and in
+ * working exactly once it had something to expire. Later slices took more,
+ * and objectui#5632's `ui:sidebar-trigger` took the last shape that named a
+ * single renderer: **89 rows in FOUR shapes** remain, on a target set that has
+ * itself grown to 159. What the arrival reading measured is preserved here in prose and in
  * the burn-down note on {@link COMPONENTS_LEAK_GROUPS}; what the gate asserts
  * is always current truth, which is the whole point of not writing dates into
  * a ledger.
@@ -862,8 +865,8 @@ const TARGETS: Readonly<Record<string, readonly Target[]>> = {
     // `DashboardRenderer`'s widget grid — the element its `{...props}` lands on.
     { type: 'view:dashboard', ready: '.grid.auto-rows-min' },
   ],
-  // objectui#5574 — 158 targets, built above rather than spelled here because
-  // 138 of them need nothing but the shared readiness class.
+  // objectui#5574 — 159 targets, built above rather than spelled here because
+  // 140 of them need nothing but the shared readiness class.
   components: COMPONENTS_TARGETS,
 };
 
@@ -947,8 +950,8 @@ interface LedgerEntry {
 /* ── objectui#5574: the `packages/components` reading, as a LEDGER ─────────── */
 
 /**
- * 95 of the 158 `packages/components` targets leak, and they do it in exactly
- * FIVE shapes (119 targets in seven shapes did on arrival; see the burn-down
+ * 89 of the 159 `packages/components` targets leak, and they do it in exactly
+ * FOUR shapes (119 targets in seven shapes did on arrival; see the burn-down
  * note below — and note the arrival count of shapes read `eight` here until
  * objectui#5632 counted them: the groups were seven, and the card's own table
  * listed seven). Writing that
@@ -1003,7 +1006,8 @@ interface LedgerEntry {
  *     group above could NOT take: `IconSchema` and `SpinnerSchema` declare only
  *     `icon` / `size` / `color`, and both renderers already consume all three by
  *     name, so nothing legitimate was withheld and no third declaration was
- *     warranted. The group is DELETED, so the grouping is five mechanisms now.
+ *     warranted. The group is DELETED, which took the grouping from six
+ *     mechanisms to five.
  *
  *     ⚠️ What this file could not have graded, recorded here because the next
  *     slice needs the warning: on an SVG host the judge counts `stroke`,
@@ -1019,6 +1023,28 @@ interface LedgerEntry {
  *     asserts the LEGITIMATE attribute sets too — the guard this gate
  *     structurally cannot provide.
  *
+ *   - objectui#5632 (the slice after that one) — `ui:sidebar-trigger`, the
+ *     one-member group that leaked FOURTEEN where the rest of its shape leaks
+ *     thirteen. The extra attribute was `schema` ITSELF, and it was there for a
+ *     SECOND reason, not the group's: every other registration in
+ *     `renderers/navigation/sidebar.tsx` destructures `schema` because it needs
+ *     `schema.body`, while this one renders no children and named only
+ *     `className` — so the node `SchemaRenderer` injects on every render simply
+ *     rode the same spread. One filter closed both, and it is the FORM-CONTROL
+ *     declaration rather than the bare `toDomProps`: the host is the `<button>`
+ *     `SidebarTrigger` renders, where HTML defines `name`. The row's own
+ *     thirteen-not-fourteen shape is the evidence — the judge counts the
+ *     authored `name` LEGITIMATE here, so a bare `toDomProps` would have
+ *     un-named this control without moving one number in this file.
+ *
+ *     ⚠️ Same warning as the SVG group above, in the other host's vocabulary:
+ *     on a `<button>` the legitimate half this gate never reports is `name`,
+ *     `id`, `class`, the resolved `aria-*`, `data-obj-*` and the primitive's own
+ *     `data-sidebar="trigger"` — eight attributes, measured IDENTICAL before and
+ *     after. That reading, plus the fact that the trigger still toggles and
+ *     still carries its "Toggle Sidebar" accessible name, is pinned in
+ *     `examples/schema-catalog/test/sidebar-trigger-dom-leak-5632.test.tsx`.
+ *
  * ## This is a ledger, not an allowlist — the difference, stated once
  *
  * An allowlist says "do not look here". Every row below says "we looked, this
@@ -1027,8 +1053,8 @@ interface LedgerEntry {
  * leaking a NINTH attribute the gate fails, because the measured set no longer
  * equals the recorded one; if it stops leaking, the gate ALSO fails until the
  * row goes. An allowlist has neither property. Nothing below is skipped,
- * `it.skip`-ed, quarantined or excluded from the sweep — all 158 targets render
- * and all 158 are scanned on every run, the 61 clean ones included.
+ * `it.skip`-ed, quarantined or excluded from the sweep — all 159 targets render
+ * and all 159 are scanned on every run, the 70 clean ones included.
  */
 
 /**
@@ -1053,10 +1079,11 @@ const BARE_SPREAD: readonly string[] = [
  * NO GROUP CARRIES THIS SHAPE ANY MORE — objectui#5632 burned all eighteen of
  * its members and DELETED the group, which is why what is left is a bare
  * attribute list. It survives as the base three other groups still derive from
- * (`action:menu`, `ui:form`, `ui:sidebar-trigger`), each of which measures this
- * shape plus or minus one attribute. Deleting it would mean hand-copying
- * thirteen strings into three places and losing the statement that those three
- * ARE this shape, varied.
+ * (`action:menu` and `ui:form`), each of which measures this shape plus or
+ * minus one attribute. It derived a THIRD until objectui#5632 burned
+ * `ui:sidebar-trigger`. Deleting it would mean hand-copying thirteen strings
+ * into two places and losing the statement that those two ARE this shape,
+ * varied.
  *
  * The prediction this docblock carried before the burn-down — "converging these
  * renderers on `toDomProps` will not change that attribute, only the thirteen
@@ -1132,15 +1159,6 @@ const COMPONENTS_LEAK_GROUPS: readonly LedgerGroup[] = [
     issue: 'objectui#5574',
     targets: ['ui:form'],
   },
-  {
-    attributes: [...BARE_SPREAD_MINUS_NAME, 'schema'].sort(),
-    reason:
-      'the only target in this family that leaks `schema` ITSELF — the node ' +
-      '`SchemaRenderer` injects on every render — because the renderer ' +
-      'forwards its prop bag, `schema` included, to the underlying button.',
-    issue: 'objectui#5574',
-    targets: ['ui:sidebar-trigger'],
-  },
 ];
 
 const LEAK_LEDGER: Readonly<Record<string, LedgerEntry>> = {
@@ -1179,7 +1197,7 @@ const LEAK_LEDGER: Readonly<Record<string, LedgerEntry>> = {
     issue: 'objectui#4425',
   },
 
-  /* ── packages/components: 95 of 158 targets, in five measured shapes ───── */
+  /* ── packages/components: 89 of 159 targets, in four measured shapes ───── */
   ...Object.fromEntries(
     COMPONENTS_LEAK_GROUPS.flatMap((group) =>
       group.targets.map((type) => [
@@ -1534,6 +1552,31 @@ describe('the sweep covers a real, non-empty target set (objectui#4425)', () => 
         're-ledgered instead of fixed.',
     ).toEqual([]);
     // …and they are still SWEPT, so "no row" cannot mean "no longer looked at".
+    const sweptTypes = new Set(ALL_TARGETS.map((target) => target.type));
+    expect(converged.filter((type) => !sweptTypes.has(type))).toEqual([]);
+  });
+
+  it('`ui:sidebar-trigger` is CLEAN — the `schema` row may not be re-absorbed', () => {
+    // objectui#5632's slice: the one-member group that leaked FOURTEEN — the
+    // thirteen of `BARE_SPREAD_MINUS_NAME` plus `schema` itself. Its group is
+    // DELETED, and this is the inverted case that keeps it deleted, same
+    // treatment and same reason as the two families directly above.
+    //
+    // What this one adds over both is the SECOND mechanism. `schema` did not
+    // leak here because of the shape the group records; it leaked because this
+    // registration alone never destructured it (it renders no children, so it
+    // had no reason to name `schema` at all) and the injected node rode the
+    // spread. Re-ledgering that is the repair to refuse: the filter drops
+    // `schema` without anyone enumerating it, and a row here would say the
+    // opposite.
+    const converged = ['ui:sidebar-trigger'];
+    expect(
+      converged.filter((type) => LEAK_LEDGER[type]),
+      '`ui:sidebar-trigger` is converged on the form-control DOM declaration ' +
+        '(objectui#5632) and measures clean. A row here means a regression was ' +
+        're-ledgered instead of fixed.',
+    ).toEqual([]);
+    // …and it is still SWEPT, so "no row" cannot mean "no longer looked at".
     const sweptTypes = new Set(ALL_TARGETS.map((target) => target.type));
     expect(converged.filter((type) => !sweptTypes.has(type))).toEqual([]);
   });

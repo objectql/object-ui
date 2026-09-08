@@ -90,7 +90,7 @@ function renderWith(fieldTypes: string[]) {
               name: `f_${t}`,
               label: `F ${t}`,
               type: `field:${t}`,
-              field: { name: `f_${t}`, depends_on: ['parent'] },
+              field: { name: `f_${t}`, dependsOn: ['parent'] },
             })),
           ],
         }}
