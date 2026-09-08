@@ -217,15 +217,20 @@ describe('objectui#7051 — `form.sections[].group` resolves through the single 
   });
 
   it('SECTION_GROUP_LABEL_IS_THE_GROUPS_OWN — presentation comes from the object, not from the section', async () => {
-    await renderForm('simple', [{ group: 'contact_info' }, ANCHOR]);
+    // ⚠️ `billing`, the SECOND declared group, deliberately — measured: with
+    // `contact_info` (the first) this leg stayed GREEN under the "every section
+    // resolves to the same group" caricature, because the first group is what
+    // that caricature happens to return. A leg that a caricature satisfies by
+    // accident is not testing the thing it names.
+    await renderForm('simple', [{ group: 'billing' }, ANCHOR]);
     const form = requireLiveForm();
     // The referencing section cannot declare a label (the spec refuses it), so
-    // a heading reading "Contact Info" can only have come from the object's
+    // a heading reading "Billing Details" can only have come from the object's
     // `fieldGroups` entry through `deriveFieldGroupLayout`.
     expect(formOutline(form)).toEqual([
-      'H:Contact Info',
-      'F:email',
-      'F:phone',
+      'H:Billing Details',
+      'F:invoice_no',
+      'F:po_number',
       'H:Harness Anchor',
       'F:anchor_note',
     ]);
@@ -348,23 +353,26 @@ describe('objectui#7051 — `form.sections[].group` resolves through the single 
  * `tabbed` renders only the ACTIVE tab, so the group section is first there.
  */
 const CONTAINERS: Array<[string, any[]]> = [
-  ['tabbed', [{ group: 'contact_info' }, ANCHOR]],
-  ['split', [{ group: 'contact_info' }, ANCHOR]],
-  ['drawer', [{ group: 'contact_info' }, ANCHOR]],
-  ['modal', [{ group: 'contact_info' }, ANCHOR]],
+  ['tabbed', [{ group: 'billing' }, ANCHOR]],
+  ['split', [{ group: 'billing' }, ANCHOR]],
+  ['drawer', [{ group: 'billing' }, ANCHOR]],
+  ['modal', [{ group: 'billing' }, ANCHOR]],
 ];
 
 describe.each(CONTAINERS)(
   'objectui#7051 — %s inherits the resolution from the one site above the fork',
   (formType, sections) => {
     it('renders the referenced group\'s OWN members', async () => {
+      // `billing` — the SECOND declared group, for the reason spelled out on
+      // SECTION_GROUP_LABEL_IS_THE_GROUPS_OWN: referencing the first one let a
+      // constant-resolution caricature satisfy these rows by accident.
       await renderForm(formType, sections);
       const form = requireLiveForm();
-      expect(form.querySelectorAll('input[name="email"]').length).toBe(1);
-      expect(form.querySelectorAll('input[name="phone"]').length).toBe(1);
+      expect(form.querySelectorAll('input[name="invoice_no"]').length).toBe(1);
+      expect(form.querySelectorAll('input[name="po_number"]').length).toBe(1);
       // Exclusive: not somebody else's members.
-      expect(form.querySelectorAll('input[name="invoice_no"]').length).toBe(0);
-      expect(form.textContent).toContain('Contact Info');
+      expect(form.querySelectorAll('input[name="email"]').length).toBe(0);
+      expect(form.textContent).toContain('Billing Details');
       expect(uiErrors).toEqual([]);
     });
   },
