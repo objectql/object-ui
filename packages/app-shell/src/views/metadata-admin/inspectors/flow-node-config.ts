@@ -762,7 +762,16 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     }),
     // Per-node SLA escalation (spec ApprovalEscalationSchema, nested under
     // config.escalation). Sub-fields reveal once escalation is enabled.
-    { id: 'escalation.enabled', path: ['config', 'escalation', 'enabled'], label: 'SLA escalation', kind: 'boolean', defaultValue: 'false', help: 'Escalate when a decision is not recorded within the timeout.' },
+    //
+    // `defaultValue` mirrors the spec's `.default(true)` (objectui#6620). An
+    // approval node whose escalation block OMITS `enabled` parses as ENABLED,
+    // so a table declaring 'false' drew the gate OFF and hid four sub-fields
+    // that are live at runtime — the inspector said "no escalation" about a
+    // node that escalates. The value is NOT a constant of this file:
+    // `flow-node-config.spec-reconciliation.test.ts` derives every default in
+    // this block from the installed `ApprovalEscalationSchema`, so the next
+    // upstream flip reddens there rather than diverging silently again.
+    { id: 'escalation.enabled', path: ['config', 'escalation', 'enabled'], label: 'SLA escalation', kind: 'boolean', defaultValue: 'true', help: 'Escalate when a decision is not recorded within the timeout.' },
     { id: 'escalation.timeoutHours', path: ['config', 'escalation', 'timeoutHours'], label: 'Timeout (hours)', kind: 'number', placeholder: '24', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
     {
       id: 'escalation.action', path: ['config', 'escalation', 'action'], label: 'On timeout', kind: 'select', defaultValue: 'notify',
