@@ -35,13 +35,12 @@
  * consequence ①: the exported wrapper identity is stable and survives through a
  * declared slot, and it is the ONE reading that holds for all ten recursive mirrors.
  *
- * ⚠️ ⛔ Do not read that as a claim about THIS head's getter either way. The reading moved
- * twice while this card was in flight, and what ships is the FIRST spelling again: the
- * getter BUILDS the node union per call — it reads the `AnyComponentSchema` import binding
- * and wraps it — so `getter() === getter()` and `S.unwrap() === S.unwrap()` are FALSE here
- * exactly as they are on `main`, and `SchemaNodeSchema` stays `TDZ_BOUND` in
- * `zod-lazy-getter-identity-7918.test.ts`. The intermediate revision that made this const
- * `MEMOISED` is gone with the option-array write it belonged to.
+ * ⚠️ ⛔ Do not read that as "`unwrap()` and the getter are unstable HERE". On `main` they are
+ * — measured on the built face, `S.unwrap() === S.unwrap()` and `getter() === getter()` are
+ * both FALSE. On THIS head both are TRUE for this one const, because the redirect builds the
+ * node union once below `BaseSchemaCore` and the getter returns it: the row moves to
+ * `MEMOISED` in `zod-lazy-getter-identity-7918.test.ts`, as a byproduct rather than a goal.
+ * The `fill is LIVE` leg below works BECAUSE of that.
  *
  * ⇒ the discipline stands unchanged and for an unchanged reason: it must hold for
  * the seven mirrors that are still TDZ_BOUND, so a pin written through `.unwrap()`
@@ -50,10 +49,6 @@
  * makes this file portable to them; it is not a claim about this const's getter.
  */
 
-// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
-// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
-// category module puts `BaseSchema` in its temporal dead zone and throws at load.
-import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 
 import { AnyComponentSchema, CardSchema, IconSchema, SchemaNodeSchema, safeValidateSchema } from '../zod/index.zod.js';
@@ -125,10 +120,11 @@ describe('the arm IS the component union, and not the base shape', () => {
 
 describe('the late-binding wiring, read by IDENTITY on the exported wrapper', () => {
   it('the exported wrapper is one stable object', () => {
-    // objectui#7918 consequence ①, and it is measured on THIS head: `.unwrap()` and the
-    // `z.lazy` getter each return a FRESH object per call, because the getter builds the
-    // node union around the imported component union every time. ⛔ Never write this pin
-    // through either of those.
+    // objectui#7918 consequence ①: the EXPORTED wrapper is the stable handle, and it is the
+    // one reading that holds for all ten recursive mirrors. ⛔ Never write this pin through
+    // `.unwrap()` or a re-invoked getter — on the seven mirrors that are still `TDZ_BOUND`
+    // those return a fresh object per call, and a pin written through them would compare two
+    // fresh objects and fail for a reason that has nothing to do with this contract.
     expect(SchemaNodeSchema).toBe(SchemaNodeSchema);
   });
 
@@ -137,39 +133,32 @@ describe('the late-binding wiring, read by IDENTITY on the exported wrapper', ()
     expect(body._zod.def.innerType._zod.def.options).toContain(SchemaNodeSchema);
   });
 
-  it('the component arm is REACHED by importing the barrel — the module cycle is broken', () => {
-    // The behavioural read of the wiring, and the only one that cannot pass vacuously: if
-    // the arm were `BaseSchemaCore` again, the unmirrored node below would be ACCEPTED.
-    // This module imports the barrel and nothing else, so a break in the binding lands
-    // here rather than in whichever suite happened to run second.
+  it('the holder is FILLED by importing the barrel — the module-cycle break works', () => {
+    // The behavioural read of the fill, and the only one that cannot pass vacuously: BEFORE
+    // the fill the arm is `BaseSchemaCore`, which accepts the unmirrored node below. This
+    // module imports the barrel and nothing else, so a break in `index.zod.ts`'s
+    // `defineNodeComponentUnion(...)` initializer lands here rather than in whichever suite
+    // happened to run second.
     expect(AnyComponentSchema.safeParse(nested({ type: 'h1' })).success).toBe(false);
     expect(AnyComponentSchema.safeParse(nested(LEGAL_ICON)).success).toBe(true);
   });
 
-  it('the arm is the imported union itself, wrapped — not a copy and not the base shape', () => {
-    // objectui#8344's wiring is an IMPORT BINDING read inside the getter, so there is no
-    // option array to patch and no pre-fill window to freeze: whatever retains
-    // `SchemaNodeSchema` retains the union it names, in a module graph AND in a bundle.
-    // ⛔ Do not rewrite this as a holder the getter reads, and ⛔ do not restore the option
-    // slot the earlier revision wrote into — both were measured wrong, on this card.
+  it('the fill is LIVE, and slot 0 holds the WRAPPED union, not the bare one', () => {
+    // `z.union` re-reads its option array on every parse, so the recursion point is whatever
+    // slot 0 holds NOW — not whatever it held when some other file in this worker first
+    // parsed something (the unit project runs `isolate: false`, one module graph per worker).
+    // ⛔ Do not assert `toBe(AnyComponentSchema)` here: what is installed is deliberately the
+    // `superRefine` WRAPPER that keeps the `chatbot` arm from widening the node slot, and a
+    // pin on the bare union would go green the moment that narrowing was dropped.
     const arm = (SchemaNodeSchema as unknown as {
       _zod: { def: { getter: () => { _zod: { def: { options: readonly { _zod: { propValues?: Record< string, unknown >; def: { checks?: unknown[] } } }[] } } } } };
     })._zod.def.getter()._zod.def.options[0];
-    // it is the discriminated union objectui#8498 built — the discrimination survives the
-    // wrapper, which is what keeps a nested refusal costing one arm instead of 106 —
+    expect(arm).not.toBe(AnyComponentSchema);
+    // it is still the discriminated union objectui#8498 built — the discrimination survives
+    // the wrapper, which is what keeps a nested refusal costing one arm instead of 106 —
     expect(Object.keys(arm._zod.propValues ?? {})).toContain('type');
-    // and it carries exactly the one check the chatbot narrowing adds.
+    // and it carries exactly the one check that narrowing adds.
     expect(arm._zod.def.checks).toHaveLength(1);
-  });
-
-  it('a graph that never evaluates the barrel throws LOUDLY rather than answering as `main`', () => {
-    // The property the earlier spelling could not have. Entering at a category module puts
-    // `BaseSchema` in its temporal dead zone, and an import binding read there throws at
-    // load. ⛔ That is the DESIRED behaviour: the alternative, measured on the revision
-    // this replaced, is a silent pre-#8344 accept set for anyone whose bundler dropped the
-    // write. Tests that enter graph-first must import the `./zod` barrel first; that is
-    // the whole cost, and it is paid in test files, never by a consumer of `./zod`.
-    expect(typeof SchemaNodeSchema).toBe('object');
   });
 
 });

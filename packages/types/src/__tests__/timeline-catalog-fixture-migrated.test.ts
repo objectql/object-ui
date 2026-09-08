@@ -31,10 +31,6 @@
  * so a rename that left the document invalid, or a value that stopped being
  * reachable, fails here.
  */
-// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
-// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
-// category module puts `BaseSchema` in its temporal dead zone and throws at load.
-import '../zod/index.zod.js';
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';

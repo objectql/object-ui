@@ -3,10 +3,6 @@
  * Testing AppSchema, ReportComponentSchema and Enhanced ActionSchema, plus the
  * retirement pins for the theme and block component kinds.
  */
-// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
-// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
-// category module puts `BaseSchema` in its temporal dead zone and throws at load.
-import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import {
   AppComponentSchema,

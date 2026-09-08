@@ -57,10 +57,6 @@
  * declaration fails the build on the unused directive.
  */
 
-// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
-// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
-// category module puts `BaseSchema` in its temporal dead zone and throws at load.
-import '../zod/index.zod.js';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';

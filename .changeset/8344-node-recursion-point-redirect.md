@@ -62,21 +62,26 @@ none. The published `ChatbotSchema` is untouched — whether its own `body` shou
 chat API's params is a separate question, recorded on objectui#8572 and deliberately not
 decided here.
 
-**3. The redirect survives BUNDLING, and that is a property of how it is wired.** The arm
-is an import binding read inside `SchemaNodeSchema`'s `z.lazy` getter, ⛔ not a write into
-a live option array from the barrel's body. The difference is measurable, on this repo's
-own Vite/rollup lib build, with an entry that imports only `CardSchema` from
-`@object-ui/types/zod`: with the write, the bundler dropped it and a nested off-spec node
-was ACCEPTED — the pre-redirect accept set, with no error and no warning; with the
-binding, the same entry REFUSES it, because whatever retains `SchemaNodeSchema` retains
-the union it names. ⚠️ The cost is real and is stated rather than hidden: that entry grows
-from 113,887 to 342,193 bytes gzipped, and this repo's own console `framework` chunk from
-72,248 to 90,969 (its ceiling is 100,000). That is the price of the redirect being real
-for bundled consumers rather than a promise that depends on a bundler flag.
+**3. ⚠️ KNOWN GAP, stated rather than papered over: the redirect can still be tree-shaken away
+for a bundled consumer.** This package declares `"sideEffects": false` and the arm is filled by
+a statement in the `./zod` barrel's body, so a bundler that honours the flag and sees no
+reference to `AnyComponentSchema` may drop the fill — and then every child slot validates with
+the PRE-redirect arm, with no error and no warning. Measured on this repo's own Vite/rollup lib
+build: an entry importing only `CardSchema` ACCEPTS a nested off-spec node (370,652 bytes, no
+fill in the output); the same entry with `AnyComponentSchema` also imported REFUSES it
+(1,149,749 bytes, fill present).
 
-⚠️ `"sideEffects": false` is unchanged and stays true: with the write gone, this package
-performs no load-time side effect at all. ⚠️ One cost is paid inside this repo: a test
-that entered the zod graph at a category module rather than at the `./zod` barrel now
-throws `ReferenceError` at import instead of silently validating against the old arm, and
-102 `packages/types` test files took a one-line barrel-first import because of it.
-Consumers cannot hit that: `./zod` is the package's only zod subpath.
+⛔ It is NOT closed here, and the reason is measured rather than argued. The route that closes
+it by binding the union inside `SchemaNodeSchema`'s `z.lazy` getter was implemented and pushed,
+and CI refused it: `Build Docs` failed with `ReferenceError: Cannot access 'BaseSchema' before
+initialization` out of `packages/types/dist/zod/app.zod.js`, because that import makes
+`base.zod.ts` depend on the barrel and a bundler is free to evaluate the resulting cycle
+category-module-first. Reproduced locally in one line — importing `dist/zod/app.zod.js` throws
+with the binding in place and loads clean without it. The other three candidates were measured
+too: a narrowed `sideEffects` array is not a legal declaration for this package (one gate
+requires every entry form to be named, another refuses a named entry with no load-time effect,
+and this package's entry forms are pure), a bare top-level call is dropped by the same flag,
+and dropping the flag costs 16,078 gzipped bytes on the console `framework` chunk and moves a
+workspace census a guard pins. ⇒ until a route survives CI, a consumer that bundles
+`@object-ui/types/zod` should keep `AnyComponentSchema` in its import graph, which is enough to
+make the redirect apply.

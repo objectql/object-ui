@@ -64,10 +64,6 @@
  * as before. Neither a row's nor a bar's own keys are declared, and refining
  * by `variant` is still a wider contract than either ruling named.
  */
-// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
-// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
-// category module puts `BaseSchema` in its temporal dead zone and throws at load.
-import '../zod/index.zod.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';

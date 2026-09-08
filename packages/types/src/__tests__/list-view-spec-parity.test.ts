@@ -30,10 +30,6 @@
  * field belongs upstream in `@objectstack/spec` (promote it) or is a genuine objectui-only
  * extension (add it to SANCTIONED_LOCAL with a rationale). See #2231.
  */
-// objectui#8344: the `./zod` barrel must be the FIRST zod module this graph evaluates.
-// `base.zod.ts` reads `AnyComponentSchema` as an import binding, so entering at a
-// category module puts `BaseSchema` in its temporal dead zone and throws at load.
-import '../zod/index.zod.js';
 import { describe, it, expect } from 'vitest';
 import {
   ListViewSchema as SpecListViewSchema,

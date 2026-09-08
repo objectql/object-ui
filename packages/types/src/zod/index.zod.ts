@@ -350,6 +350,7 @@ export {
 // ============================================================================
 
 import { z } from 'zod';
+import { defineNodeComponentUnion } from './base.zod.js';
 import { AppComponentSchema } from './app.zod.js';
 import { LayoutSchema } from './layout.zod.js';
 import { FormComponentSchema } from './form.zod.js';
@@ -369,17 +370,17 @@ import { ViewComponentSchema } from './views.zod.js';
  * Use this for generic component rendering where the type is determined at runtime.
  *
  * ⭐ It is ALSO the node recursion point (objectui#8344): every child slot is
- * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`, and `SchemaNodeSchema` builds
- * its component arm FROM THIS CONST, so a nested node is judged by its own component
- * schema at every depth instead of by the ~21 base keys.
+ * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`, and `SchemaNodeSchema`
+ * resolves its component arm to THIS union, so a nested node is judged by its own
+ * component schema at every depth instead of by the ~21 base keys. The wiring is a
+ * late-binding holder rather than an import because 14 modules import `base.zod.js`
+ * and this module is built from all 13 category modules — the full reasoning, and
+ * what the UNFILLED holder answers, live on `SchemaNodeSchema` in `base.zod.ts`.
  *
- * ⚠️ The wiring lives in `base.zod.ts`, not here, and it is an IMPORT BINDING read inside
- * that const's `z.lazy` getter — ⛔ no write into this module's body, no holder, no
- * option-array patching. This module therefore performs no load-time side effect, which is
- * what keeps `"sideEffects": false` true and what keeps the redirect alive through a
- * bundler: a binding that is READ is retained, while the write this replaced could be
- * dropped silently. The reasoning, the measurement and the `chatbot` narrowing that rides
- * on the same arm all live on `SchemaNodeSchema` and `nodeComponentArm` in `base.zod.ts`.
+ * ⚠️ The fill is written as this const's own initializer, not as a statement beside
+ * it, so no bundler can keep the union and drop the wiring, and no future edit can
+ * reorder the two. ⛔ Do not "simplify" it back into a bare
+ * `defineNodeComponentUnion(AnyComponentSchema)` call underneath.
  *
  * ## Why this is discriminated (objectui#8498)
  *
@@ -404,10 +405,12 @@ import { ViewComponentSchema } from './views.zod.js';
  *
  * ⚠️ BOTH of the above are live here, and the composition is the whole resolution:
  * objectui#8498 changed WHICH arm reports, objectui#8344 changed WHERE this union is
- * consulted. They compose because they touch different things — the discrimination is in
- * this initializer, the recursion wiring is a binding `base.zod.ts` reads.
+ * consulted. The discriminated union is what gets written into the node option slot,
+ * so `defineNodeComponentUnion` wraps it rather than replacing it. The slot itself is
+ * still a plain `z.union` in `base.zod.ts` — that is what keeps its option array by
+ * reference, and it is untouched by the discrimination.
  */
-export const AnyComponentSchema = z.discriminatedUnion('type', [
+export const AnyComponentSchema = defineNodeComponentUnion(z.discriminatedUnion('type', [
   AppComponentSchema,
   LayoutSchema,
   FormComponentSchema,
@@ -433,7 +436,7 @@ export const AnyComponentSchema = z.discriminatedUnion('type', [
   // schema, so it also rewrote this union's `invalid_type` and a non-object root
   // lost "expected object, received number". `undefined` declines to the locale.
   error: (issue) => (issue.code === 'invalid_union' ? 'Invalid input' : undefined),
-});
+}));
 
 /**
  * Validate a schema against the AnyComponentSchema
