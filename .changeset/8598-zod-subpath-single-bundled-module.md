@@ -34,6 +34,18 @@ that a full-barrel consumer already validated is unaffected — but metadata tha
 only ever passed through a tree-shaken entry may now be refused at a child slot,
 and refusals there are pre-existing debt this SURFACES rather than creates.
 
+**One thing this does NOT change, and it matters if you reach past the package
+name.** Only the `./zod` entry is bundled. The per-category sibling files under
+`dist/zod/` are still `tsc`'s output and still carry the pre-#8344 accept set, so
+a nested off-spec node is ACCEPTED through them. They are not a published entry —
+`import '@object-ui/types/dist/zod/layout.zod.js'` is refused with
+`ERR_PACKAGE_PATH_NOT_EXPORTED`, because the `exports` map has no wildcard — and
+the only way to reach one is a raw filesystem path that bypasses `exports`
+entirely. ⚠️ Doing that alongside the normal entry also gives you TWO schema
+instances rather than one (measured: the two `CardSchema` values are not
+identical), so `instanceof`-style identity and any shared mutation break. Import
+from `@object-ui/types/zod` and nothing else.
+
 **Cost.** The subpath is now indivisible: a consumer that imports one schema pulls
 the whole `./zod` module. Measured with Vite 8.2.1 / rolldown 1.2.3, `zod` and
 `@objectstack/spec` external, consumer bundle esbuild-minified: a `CardSchema`-only

@@ -83,6 +83,24 @@ interface ZodBundleBuild {
  * TypeScript cannot resolve a non-literal specifier, so the config stays out of
  * the type program while the RUNTIME import — and every assertion below — is
  * exactly as strong as before.
+ *
+ * ⚠️ ⭐ IMPORTING THE CONFIG RUNS ITS GUARD, and that is worth stating because the
+ * same gate went on to break CI. `vite.config.ts` opens with
+ * `if (process.env.VITEST) { assertCanonicalVitestInvocation(...) }`, and vitest
+ * sets `VITEST`, so the import below EXECUTES that guard. It passes here for one
+ * reason only: this file is reached through the canonical root invocation, which
+ * is exactly what the guard checks for. ⛔ Run this suite from
+ * `packages/types/` and the guard refuses — correctly, and loudly.
+ *
+ * That is the benign face of the class. Its harmful face is objectui#8598's
+ * `Test (shard 2/4)` failure: `VITEST` is inherited by CHILD processes too, so a
+ * test that spawns `pnpm --filter PKG run build` handed the same guard a cwd of
+ * `packages/PKG` and it killed the build before the bundler started. The repair
+ * landed at the spawn (`BUILD_ENV` in `packages/cli/src/__tests__/cli-bin.test.ts`)
+ * and is kept there by `scripts/__tests__/spawned-build-vitest-env-8598.test.ts`.
+ * ⛔ Not repaired by loosening the gate in this config: that would diverge 1 of 24
+ * identical guard blocks, and `scripts/__tests__/vitest-invocation-guard.test.ts`
+ * refuses the divergence mechanically.
  */
 const CONFIG_SPECIFIER = '../../vite.config.ts';
 const viteConfig = ((await import(CONFIG_SPECIFIER)) as { default?: { build?: Partial<ZodBundleBuild> } })

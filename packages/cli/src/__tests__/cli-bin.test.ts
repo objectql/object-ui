@@ -39,6 +39,40 @@ const SUBCOMMANDS = [
   'analyze',
 ] as const;
 
+/**
+ * The environment a build SPAWNED BY THIS TEST runs in (objectui#8598).
+ *
+ * ⛔ `VITEST` must not reach it, and that is a correctness requirement rather
+ * than hygiene.
+ *
+ * Vitest sets `VITEST=true` in the worker, and a child process inherits it. But
+ * the variable means "vitest is loading this config" — and in a build this test
+ * starts, that is FALSE. Every one of the 24 `packages/*` vite configs opens
+ * with `if (process.env.VITEST) { assertCanonicalVitestInvocation(...) }`, and
+ * that guard derives its "vitest root" from `cwd` when argv carries no `--root`.
+ * `pnpm --filter PKG run build` sets cwd to the package directory, so an
+ * inherited `VITEST` makes the guard compare `packages/PKG` against the repo
+ * root, decide it is a vitest run launched from the wrong place, and
+ * `process.exit(1)` before the bundler starts.
+ *
+ * ⭐ The ratchet that keeps the 24 configs identical states this property as its
+ * own name — `scripts/__tests__/vitest-invocation-guard.test.ts`, "gates that
+ * call on VITEST, **so `vite build` is never refused**". A leaked `VITEST` is
+ * exactly what falsifies it, from the outside, where no config can see it. ⇒ the
+ * repair belongs at the spawn, which is the only place that knows the child is a
+ * BUILD and not a test run.
+ *
+ * Measured on objectui#8598: with `VITEST` inherited, `@object-ui/types`
+ * (the first vite-built package a test ever builds) failed `Test (shard 2/4)`
+ * in CI; with it scrubbed, the same build exits 0. `scripts/__tests__/
+ * spawned-build-vitest-env-8598.test.ts` keeps every future build spawn here.
+ */
+const BUILD_ENV: NodeJS.ProcessEnv = (() => {
+  const env = { ...process.env };
+  delete env.VITEST;
+  return env;
+})();
+
 function run(args: string[], opts: { cwd?: string } = {}) {
   const res = spawnSync('node', [CLI_BIN, ...args], {
     cwd: opts.cwd ?? process.cwd(),
@@ -69,7 +103,7 @@ describe('@object-ui/cli bin', () => {
       const result = spawnSync(
         'pnpm',
         ['--filter', '@object-ui/types', 'run', 'build'],
-        { cwd: repoRoot, encoding: 'utf-8', stdio: 'pipe' },
+        { cwd: repoRoot, encoding: 'utf-8', stdio: 'pipe', env: BUILD_ENV },
       );
       if (result.status !== 0 || !existsSync(TYPES_ZOD)) {
         throw new Error(
@@ -86,6 +120,7 @@ describe('@object-ui/cli bin', () => {
         cwd: pkgRoot,
         encoding: 'utf-8',
         stdio: 'pipe',
+        env: BUILD_ENV,
       });
       if (result.status !== 0 || !existsSync(CLI_BIN)) {
         throw new Error(
