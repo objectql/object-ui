@@ -40,15 +40,32 @@
  * type-checks its tests through `tsconfig.test.json`, so re-widening a
  * declaration fails the build on the unused directive.
  *
- * ## Why two of the pins read SOURCE TEXT
+ * ## Why two of the pins read SOURCE TEXT, and what no longer does
  *
  * A cast is invisible to every runtime and every type-level assertion — that
  * is what a cast is for. `as ComponentMeta` returning to the splice would
  * compile, pass every runtime limb, and hide the next drift exactly as it hid
- * this one. So the absence is read off the file, the way
+ * this one. So the POSITIVE claims are read off the file, the way
  * `packages/core/src/registry/__tests__/component-meta-derives-from-canonical.test.ts`
  * reads its import line: a source-identity assertion is the only kind that
  * can see a cast.
+ *
+ * The cast's ABSENCE used to be read here too, as two `not.toMatch` regexes
+ * over the spliced function's body. objectui#8316 retired them and moved that
+ * claim to `eslint.config.js`, which scopes
+ * `@typescript-eslint/consistent-type-assertions` with `assertionStyle:
+ * 'never'` to `packages/core/src/registry/Registry.ts`. The two regexes were
+ * measured on 4dc80d0fc before they were removed: re-adding `as ComponentMeta`
+ * to the return did turn them red, so they were LIVE, not already broken — but
+ * re-adding the same assertion as `<ComponentMeta>{…}` left this file green at
+ * 9 passed. An AST rule reports both spellings, survives a reflow, and fails
+ * loudly rather than asserting an absence, which is also what a pattern that
+ * has stopped matching returns.
+ *
+ * What stays here is the pin's other half: the spliced local is ANNOTATED
+ * `InjectedComponentInput`. That is a positive claim about text that must be
+ * present, so it cannot go quiet the way an absence pin can, and it is a
+ * different claim from "no assertion" — ESLint would not notice its deletion.
  */
 
 import { readFileSync } from 'node:fs';
@@ -140,7 +157,7 @@ describe('the write sites are typed by `InjectedComponentInput` and carry no cas
     expect(src).toMatch(/import type \{[^}]*\bInjectedComponentInput\b[^}]*\} from '@object-ui\/types';/);
   });
 
-  it('the splice in `withElementDataSourceInput` names the type and has no `as ComponentMeta`', () => {
+  it('the splice in `withElementDataSourceInput` annotates the local with the injected type', () => {
     const src = read('packages/core/src/registry/Registry.ts');
     const start = src.indexOf('export function withElementDataSourceInput<');
     const end = src.indexOf('export class Registry<', start);
@@ -148,10 +165,9 @@ describe('the write sites are typed by `InjectedComponentInput` and carry no cas
     expect(end).toBeGreaterThan(start);
     const body = src.slice(start, end);
     expect(body).toContain('const injected: InjectedComponentInput = { ...ELEMENT_DATA_SOURCE_INPUT };');
-    // The cast the card measured. Any `as` assertion here would hide drift
-    // between the constant and the type, which is the defect this closed.
-    expect(body).not.toMatch(/\bas\s+ComponentMeta\b/);
-    expect(body).not.toMatch(/\}\s*as\s+[A-Za-z]/);
+    // The cast's ABSENCE is no longer asserted here — objectui#8316 moved it to
+    // the `assertionStyle: 'never'` rule `eslint.config.js` scopes to this file,
+    // which sees `<ComponentMeta>{…}` too and cannot go quiet on a reflow.
   });
 
   it('the declaration extends `ComponentInput` rather than restating its members', () => {
