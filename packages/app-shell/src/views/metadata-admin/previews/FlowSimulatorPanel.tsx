@@ -9,7 +9,7 @@
 
 import * as React from 'react';
 import { Play, StepForward, RotateCcw, ChevronRight, AlertTriangle, CircleAlert, Plus, Trash2 } from 'lucide-react';
-import { Button, Input, Label, cn } from '@object-ui/components';
+import { Button, EmptyDescription, Input, Label, cn } from '@object-ui/components';
 import { t as tr, tFormat } from '../i18n.js';
 import { FlowSimulator } from './simulator/flow-simulator.js';
 import { ScreenPreview } from './ScreenPreview.js';
@@ -321,7 +321,7 @@ export function FlowSimulatorPanel({ nodes, edges, variables, locale, onRunState
             </button>
           </div>
           {scratch.length === 0 ? (
-            <div className="italic text-muted-foreground">{tr('engine.flowSim.setVariablesHint', locale)}</div>
+            <EmptyDescription className="text-xs italic">{tr('engine.flowSim.setVariablesHint', locale)}</EmptyDescription>
           ) : (
             scratch.map((row, i) => (
               <div key={i} className="flex items-center gap-1.5">
@@ -380,7 +380,7 @@ export function FlowSimulatorPanel({ nodes, edges, variables, locale, onRunState
           <section className="space-y-1.5">
             <div className="font-medium text-muted-foreground">{tr('engine.flowSim.variables', locale)}</div>
             {Object.keys(snapshot.variables).length === 0 ? (
-              <div className="italic text-muted-foreground">{tr('engine.flowSim.noVars', locale)}</div>
+              <EmptyDescription className="text-xs italic">{tr('engine.flowSim.noVars', locale)}</EmptyDescription>
             ) : (
               <ul className="space-y-1">
                 {Object.entries(snapshot.variables).map(([k, val]) => (

@@ -31,6 +31,7 @@ import {
   Variable,
   Zap,
 } from 'lucide-react';
+import { EmptyDescription } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 import { uniqueId, appendArray } from '../inspectors/_shared.js';
@@ -343,7 +344,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
               <Variable className="h-3 w-3" /> {tr('engine.flowPreview.variables', locale)}
             </div>
             {variables.length === 0 ? (
-              <div className="text-muted-foreground italic">{tr('engine.flowPreview.noVars', locale)}</div>
+              <EmptyDescription className="text-xs italic">{tr('engine.flowPreview.noVars', locale)}</EmptyDescription>
             ) : (
               <ul className="space-y-1.5">
                 {variables.map((v, i) => (

@@ -38,6 +38,7 @@ import {
   RotateCcw,
   Timer,
 } from 'lucide-react';
+import { EmptyDescription } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
@@ -345,7 +346,7 @@ export function JobPreview({ name, draft }: MetadataPreviewProps) {
                 </ScheduleLine>
               )}
               {!cron && !every && !at && (
-                <div className="text-muted-foreground italic">No schedule set — runs only when triggered manually.</div>
+                <EmptyDescription className="text-xs italic">No schedule set — runs only when triggered manually.</EmptyDescription>
               )}
             </div>
           </Section>
