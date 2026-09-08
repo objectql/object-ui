@@ -122,6 +122,15 @@ function EmptyContent({ className, ...props }: React.ComponentProps<"div">) {
  * missing value never looks clickable. This sentence said "en-dash" until
  * objectui#8506: the word was wrong, never the code — do not "fix" the glyph
  * to match a stale docblock.
+ *
+ * ⚠️ A caller that passes a `title` through `...props` must also pass
+ * `pointer-events-auto` in `className`. `pointer-events-none` below stops this
+ * span being a hit target, so a `title` on it never renders a tooltip — the
+ * hover falls through to whichever ancestor has one. The attribute stays in the
+ * DOM either way, which is exactly why nothing catches it: a test that reads
+ * `getAttribute('title')` is green over a tooltip that can never appear
+ * (objectui#8506, where `DetailSection` kept such a `title` and two landed pins
+ * navigate by it).
  */
 function EmptyValue({
   className,
