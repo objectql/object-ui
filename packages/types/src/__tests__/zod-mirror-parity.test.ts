@@ -68,12 +68,33 @@
  * it is now, so it rots when the file moves; the many figures that name a reading at
  * a NAMED PAST revision ("42 / 63 until objectui#7542 …", "121 when objectui#6058
  * seeded it") are historical and cannot rot — they are readings of a tree that is
- * fixed. Exactly one live figure is excluded rather than pinned, and it says so
- * where it stands: the seed decomposition under `UnmirroredDeclared`, which needs a
- * key's PROVENANCE and no ledger in this file records that. ⛔ Do not add a live
- * figure here without a pin, and ⛔ do not pin one by writing a second constant —
+ * fixed. Exactly one figure is excluded rather than pinned, and it says so where it
+ * stands: the seed decomposition under `UnmirroredDeclared`, which needs a
+ * key's PROVENANCE and no ledger in this file records that. ⚠️ It was LIVE when that
+ * exclusion was written and is HISTORICAL now — objectui#8243 anchored the statement
+ * at named revisions — so it is no longer an exception to the sentence above, and
+ * ⛔ the exclusion is not licence to pin or refresh it (objectui#8248). ⛔ Do not add
+ * a live figure here without a pin, and ⛔ do not pin one by writing a second constant —
  * every pin below reads the header's OWN spelling, so the count a human edits stays
  * exactly one per site (objectui#7733's principle, and objectui#7433's before it).
+ *
+ * ⭐ **The LIVE / HISTORICAL split governs this file's ASSERTION MESSAGES too**
+ * (objectui#8248; maintainer ruling, decision batch #71). Judge a message CLAUSE, not
+ * a whole message:
+ *
+ *   - a clause that RECORDS A MEASUREMENT ("we measured X at revision R", "the header
+ *     carries no copy") is HISTORICAL — ⛔ never rewritten by a later card, because
+ *     rewriting it erases what was true when it was written;
+ *   - a clause that GIVES GUIDANCE ("do Y next", "⛔ do not add Z", "this figure is
+ *     live") is LIVE — it must be true NOW, and a later card MAY and MUST amend it
+ *     when the world moves under it, citing the card that moved it.
+ *
+ * ⛔ Neither licence extends to the other half: amend the guidance clause, leave the
+ * record clauses byte-identical beside it, and name the card that moved the world.
+ * Guidance that has gone stale is the exact failure this file exists to catch, and it
+ * misleads toward DOING work — a reader told a historical figure is "live" goes off to
+ * pin or exclude it. The first application is objectui#8248's amendment to
+ * objectui#8222's exclusion note, at the bottom of this file.
  *
  * On a file whose entire subject is measurement that is worth stating explicitly:
  *
@@ -108,7 +129,13 @@
  *     a delta to this number; count the registry. Nothing asserts it against a written
  *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **42 entries** in `KnownDrift`, **64 keys** across them — 41 / 63 until
+ *   - **41 entries** in `KnownDrift`, **63 keys** across them — 42 / 64 until
+ *     objectui#8338 RETIRED that same `feedback.zod.ts#ToastSchema` key on BOTH faces
+ *     (ADR-0049 enforce-or-remove: `?: never` on the declaration, `retirementTombstone()`
+ *     on the mirror), the entry's whole content, so the entry went with it. ⭐ The first
+ *     entry this ledger has lost by RETIRING the key rather than by moving either face
+ *     toward the other — and the only route open: the declaration had NO inhabitant to
+ *     preserve, so "make the faces agree" had no mechanical direction. It was 41 / 63 until
  *     objectui#7760 SEEDED `feedback.zod.ts#ToastSchema` with its one key `action`
  *     (a pair born ledgered, not growth on an existing entry). ⭐ The first entry this
  *     ledger has gained from a face becoming READABLE rather than from a mirror or a
@@ -210,34 +237,55 @@
  *     spelled "six" rots exactly as fast as one spelled `6`, it is just harder to
  *     point a regex at. ⛔ Do not spell a live figure out again, and ⛔ do not
  *     restate one without checking that the pin's spelling still reaches it.
- *   - **25 entries** in `WiderThanDeclared`, **38 keys** across them, and **50 arms**
- *     under those keys — split **6** SCHEMA-NODE, **32** CONCRETE, **0** MIXED, **12** unions.
- *     It read 23 / 36 / 47 — 6 / 30 / 0 / 11 — until objectui#8517 taught the operator
- *     to tell an OPEN record from a partial one over a finite key union. ⛔ That
- *     repaired no mirror and no declaration either: 2 keys across 2 pairs ENTERED
- *     (`layout.zod.ts#GridSchema::columns`,
- *     `reports.zod.ts#ReportComponentSchema::exportConfigs`), none left, and both are
- *     CONCRETE. ⚠️ ⇒ Every earlier reading of this ledger, objectui#7759's census
- *     included, is a FLOOR for the open-record shape and not a count, and the two keys
- *     do not carry the same correction. Dated on a full checkout rather than inferred:
- *     `exportConfigs` has had its partial-record declaration since 2026-08-30
- *     (`ee851c32a`, an ancestor of this branch's base) against a mirror unchanged since
- *     2026-01-30 (`a204bf0e7`), so it was ALREADY diverging and already invisible at
- *     objectui#8252's re-derivation and at every reading quoted in this bullet — those
- *     readings are each one CONCRETE key low. `columns` is not a missed key: its
- *     declaration was narrowed on 2026-09-08 (`512c84b16`, objectui#8505), after all of
- *     them. ⛔ Do not restate this as "the census was two low"; it is one, plus one that
- *     did not yet exist. ⚠️ The correction is DERIVED from those dates and the operator
- *     was ⛔ not re-run at those revisions.
+ *   - **22 entries** in `WiderThanDeclared`, **35 keys** across them, and **45 arms**
+ *     under those keys — split **6** SCHEMA-NODE, **29** CONCRETE, **0** MIXED, **10** unions.
+ *     ⭐ objectui#8517 taught the operator to tell an OPEN record — `z.record(z.string(), V)`
+ *     — from a partial record over a finite key union, and NOT ONE figure on this line moved
+ *     with it. ⛔ Do not read that as the clause measuring nothing. It was built on two live
+ *     keys, `layout.zod.ts#GridSchema::columns` and
+ *     `reports.zod.ts#ReportComponentSchema::exportConfigs`, and reported BOTH at that card's
+ *     base (`3f775eeb8`); objectui#8516 / objectui#8556 then narrowed both MIRRORS to
+ *     `z.partialRecord` (`d4733f27e`, PR #8573) while the card was in review, so on the tree it
+ *     landed on (`main` at `7bf133d58`) the two faces agree and the operator reports neither.
+ *     Both readings are of FIXED trees and ⛔ neither can rot. ⇒ Every earlier reading of this
+ *     ledger, objectui#7759's census included, was a FLOOR for the open-record shape and not a
+ *     count; the two keys it was short are closed at the MIRROR instead of ledgered here. ⛔ Do
+ *     not delete the clause as unused: it is what makes a re-widening of either mirror fail
+ *     HERE, which is the file-level instrument objectui#8556 ruled that repair had to be
+ *     pinned against rather than against an accept set alone. Its discrimination is pinned on
+ *     synthetics at `assertionOpenRecordWideningIsReported`, with the `.passthrough()`
+ *     caricature beside it.
  *     (objectui#8252 built the arm split; objectui#7760 moved every figure in it.) It
+ *     read 23 / 36 / 47 — 6 / 30 / 0 / 11 — until objectui#8338 RETIRED
+ *     `feedback.zod.ts#ToastSchema::action`, the entry's whole content, so the entry, its
+ *     one key and BOTH its arms left together. ⚠️ Six figures moved on one key, and NOT
+ *     in step: CONCRETE counts KEYS and fell by 1 while `arms` fell by 2 — ⛔ do not step
+ *     these by hand, the derivation reads arms and keys through different reducers and a
+ *     hand-stepped CONCRETE was wrong by one when this was written. It
  *     read 34 / 52 / 61 — 24 / 27 / 1 / 9 — until objectui#7760 gave seven of the ten
  *     recursion-breaking mirrors their existing TypeScript declaration as an explicit
  *     INPUT type argument. ⛔ That repaired no mirror and no declaration: it made a face
- *     READABLE that had been `unknown`. 19 keys across 16 pairs LEFT (13 entries
- *     emptied) because the reading they recorded was the annotation, and 3 keys
- *     ENTERED — `feedback.zod.ts#ToastSchema::action`,
+ *     READABLE that had been `unknown`. 19 keys across **18** pairs LEFT
+ *     (**13 emptied + 5 reduced = 18**) because the reading they recorded was the
+ *     annotation, and 3 keys
+ *     ENTERED — `feedback.zod.ts#ToastSchema::action` (⚠️ history: that row is GONE,
+ *     retired by objectui#8338 above — ⛔ do not look for it below),
  *     `navigation.zod.ts#HeaderBarSchema::logo`, `overlay.zod.ts#TooltipSchema::content`
- *     — real widenings the erased face had been HIDING. ⭐ All three are the
+ *     — real widenings the erased face had been HIDING. ⚠️ **pairs** there counts every
+ *     entry the move TOUCHED — an entry that lost a key and KEPT others is still one it
+ *     moved — and `emptied` is the subset that lost its whole content. Both readings are
+ *     written down because a bare pairs figure had already forked: this line read `16`,
+ *     which is NEITHER of the two readings above — ⛔ and they are not restated here as
+ *     digits, because a restatement no pin reaches is the objectui#7733 shape one line
+ *     further in. It was the one figure in this paragraph no pin reached, while every
+ *     other one moved correctly with objectui#7760.
+ *     objectui#8458 re-derived it by running this file's own `ledgerEntryMembers` over
+ *     `WiderThanDeclared` at `645ecb98c` and `a480f797a` — PR #8354's parent and its
+ *     merge — and diffing entry → key pairs; the decomposition is pinned by 'the
+ *     objectui#7760 movement figures reconcile with themselves' at the bottom of this
+ *     file. ⛔ That pin reads this sentence and nothing else: the movement is a
+ *     HISTORICAL reading of two fixed trees, and pointing it at the live ledger is the
+ *     hand re-derivation objectui#8243 removed. ⭐ All three are the
  *     `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` single-or-list spelling
  *     objectui#7069 called systematic and could not judge, which is the whole reason
  *     that card's ledger declared this region EXCLUDED. MIXED is 0 because its one
@@ -308,7 +356,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 42 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 41 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -615,9 +663,12 @@ type FiniteKeyedArms< T > =
  * `number | undefined` is wanted. ⇒ `[A] extends [B]` and `[B] extends [A]` are
  * BOTH true, so neither this direction's operator nor `NarrowerThanDeclared`
  * reports the pair. That is not one direction missing a case; the pair is
- * invisible to that predicate outright. Measured on `GridSchema.columns`, where
- * `safeParse({ type: 'grid', columns: { xxl: 6 } })` returns green and `tsc`
- * refuses the same node.
+ * invisible to that predicate outright. Measured on `GridSchema.columns` at this
+ * card's base (`3f775eeb8`), where `safeParse({ type: 'grid', columns: { xxl: 6 } })`
+ * returned green and `tsc` refused the same node. ⚠️ That reading is HISTORICAL:
+ * objectui#8516 (`d4733f27e`) narrowed that mirror to a `z.partialRecord`, so the
+ * pair is clean on both faces today and this clause is what would report it if the
+ * mirror were widened back. ⛔ Do not restate it as a live one.
  *
  * ## The bound, stated because a predicate that does not state one reads as wider
  *
@@ -633,9 +684,12 @@ type FiniteKeyedArms< T > =
  *
  * It runs ONLY on the branch the assignability test already called clean. A key
  * this file reports today therefore cannot stop being reported by anything here —
- * the change is additive by construction, not by assertion. The 18 ledgered pairs
- * are pinned against that below anyway (`assertionOpenRecordClauseIsAdditive`),
- * because a guarantee nobody has watched fail is not a guarantee.
+ * the change is additive by construction, not by assertion. Every ledgered pair is
+ * reconciled against the measurement anyway by `assertionWiderMatchesLedger`, and
+ * the additivity itself is pinned on a synthetic carrying BOTH classes at once
+ * (`assertionOpenRecordClauseIsAdditive`), because a guarantee nobody has watched
+ * fail is not a guarantee. ⛔ A bare count of the pairs stood here and was removed:
+ * no pin reached it, which is the objectui#7733 shape this file is about.
  */
 type MirrorAdmitsOpenRecord< MirrorIn, DeclaredType > =
   Unconstrained< DeclaredType > extends true
@@ -884,7 +938,10 @@ export type assertionOpenRecordWideningIsReported =
  *
  * ⚠️ What that run also measured, recorded because the intuition is wrong and was
  * wrong here first. The naive clause does NOT flood the ledger — it moved 3 registry
- * pairs where this one moves 2. The blast radius is small because the clause sits on
+ * pairs where this one moved 2, both read at this card's base (`3f775eeb8`); on the
+ * tree this landed on, objectui#8516's narrowing has taken those two and this clause
+ * moves none, which is the header bullet's subject and ⛔ does not change the
+ * comparison below. The blast radius is small because the clause sits on
  * the branch the assignability test already called clean and `Unconstrained` gates
  * ahead of both, so nearly every loose face is spoken for before it is reached. Its
  * one extra report is `objectql.zod.ts#ObjectViewSchema::form`, an inline `z.lazy`
@@ -1462,17 +1519,6 @@ interface KnownDrift {
   'disclosure.zod.ts#CollapsibleSchema': 'onOpenChange';
   /** RUNTIME SLOT (objectui#6124): the `toggle-group` renderer spreads `toggleGroupProps` onto the Radix `ToggleGroup` root. */
   'disclosure.zod.ts#ToggleGroupSchema': 'onValueChange';
-  /**
-   * DISJOINT: TS declares `action?: { label: string; onClick: () => void }`, the mirror
-   * `SchemaNode | SchemaNode[]`. Neither face admits the other's value. SEEDED by
-   * objectui#7760 — ⛔ not drift that card introduced: the mirror's face read `unknown`
-   * until it filled `SchemaNodeSchema`'s input type argument, and `unknown` fits every
-   * declaration, so this pair compared clean on a key nothing could read. The same key
-   * is in `WiderThanDeclared`, measured from the other side; the disposition (the
-   * declaration's function value is the objectui#6124 shape, one member above a
-   * tombstone retired for it) is a ruling of its own.
-   */
-  'feedback.zod.ts#ToastSchema': 'action';
   /**
    * ## The objectui#6124 class — a RUNTIME SLOT on the TS face, a NAMED REFUSAL on the mirror
    *
@@ -2400,19 +2446,6 @@ interface WiderThanDeclared {
    * key and a different class.
    */
   'data-display.zod.ts#TableColumnSchema': 'cell';
-  /**
-   * CONCRETE, and DISJOINT — the pair carries a `KnownDrift` entry for this same key,
-   * born with it. ENTERED under objectui#7760, unmeasurable before it: the mirror is
-   * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` and the declaration states
-   * `action?: { label: string; onClick: () => void }`. Each face refuses what the other
-   * admits — a node is not that object, and that object carries a function value no
-   * JSON document can hold. ⚠️ The DECLARATION is the suspect face here, not the mirror:
-   * `ToastSchema.onDismiss` was retired one member below it under objectui#6124 for
-   * exactly that reason, and its tombstone tells an author to author behaviour as a
-   * node type instead — which is what the mirror already accepts. ⛔ Not repaired here:
-   * this card measured it; the disposition is a ruling of its own.
-   */
-  'feedback.zod.ts#ToastSchema': 'action';
   /** CONCRETE and DISJOINT — the mirror admits a string, the declaration a list of dates; also in `KnownDrift`. */
   'form.zod.ts#CalendarSchema': 'defaultValue' | 'value';
   /** FUNCTION-SLOT. */
@@ -2443,35 +2476,6 @@ interface WiderThanDeclared {
    * false literal alone, so `true` parses green and `tsc` refuses it.
    */
   'layout.zod.ts#ContainerSchema': 'maxWidth';
-  /**
-   * CONCRETE, OPEN-RECORD, and the key objectui#8517 was filed on. The mirror's
-   * second arm is `z.record(z.string(), z.number())` — an OPEN key set — while the
-   * declaration states `number | Partial[Record[BreakpointName, number]]`, a map over
-   * six breakpoint names. So `safeParse({ type: 'grid', columns: { xxl: 6 } })`
-   * returns green and `tsc` refuses the same node.
-   *
-   * ⭐ ENTERED under objectui#8517, and the way it entered is the point: no mirror and
-   * no declaration moved. It is the first key this ledger has gained from the
-   * OPERATOR learning to see a shape, where objectui#7760's three came from a FACE
-   * becoming readable. The pair had been registered and watched the whole time — a
-   * different mutation of the same declaration (dropping the bare-number arm) reddens
-   * this file at two sites — so the ledger was not silent here, it was CONFIDENTLY
-   * silent. ⛔ Read that as the class's warning label, not as this key's history.
-   *
-   * ⛔ Not repaired here. The disposition — narrowing the mirror to a breakpoint-keyed
-   * record — is objectui#8516, filed separately and deliberately: this card calibrates
-   * the instrument, and repairing its only known sample first would have erased it.
-   *
-   * ⚠️ One hazard for whoever takes that card, MEASURED here rather than guessed. The
-   * obvious repair, `z.record(z.enum([…the six names…]), z.number())`, OVERSHOOTS: zod 4
-   * reads a record over an enum key as REQUIRING every member, so the mirror stops
-   * accepting `{ md: 2 }` — which the declaration invites — and the pair moves straight
-   * into the opposite drift. Run against this file, that repair clears this entry and
-   * reddens `assertionDriftMatchesLedger` on the same pair. The spelling that lands both
-   * directions at once is the PARTIAL one; ⛔ do not read a green `WiderThanDeclared`
-   * alone as the repair being finished.
-   */
-  'layout.zod.ts#GridSchema': 'columns';
   /**
    * MIXED: `aria` carries the inline-locale widening one level down; `slots` is
    * SCHEMA-NODE. (`regions` left under objectui#7760 — its element's content is a
@@ -2510,26 +2514,6 @@ interface WiderThanDeclared {
    * sat inside the region that card could not look at.
    */
   'overlay.zod.ts#TooltipSchema': 'content';
-  /**
-   * CONCRETE, OPEN-RECORD. ENTERED under objectui#8517 with the key above and
-   * unmeasurable before it — the SECOND live instance of the class, and it was not
-   * known to exist when that card was filed. The mirror is
-   * `z.record(z.string(), ReportExportConfigSchema)`; the declaration is
-   * `Partial[Record[ReportExportFormat, ReportExportConfig]]` over five format names.
-   * `safeParse` accepts `exportConfigs: { xml: … }` and `tsc` refuses it.
-   *
-   * ⚠️ The declaration's own docblock in `../reports.ts` says this key was made
-   * `Partial[Record[…]]` under objectui#6121 so that it would agree with a validator
-   * "whose keys are all optional". The two faces agree on OPTIONALITY and not on the
-   * KEY SET, and the sentence reads as though they agree on both — which is exactly
-   * the reading this operator could not contradict until now.
-   *
-   * ⛔ Not repaired here, and the direction is not obvious: the contract-first move is
-   * to narrow the mirror to `z.record(ReportExportFormatSchema, …)`, but the same
-   * docblock records a maintainer ruling about this key's authoring ergonomics, so the
-   * disposition is a card of its own.
-   */
-  'reports.zod.ts#ReportComponentSchema': 'exportConfigs';
   /** CONCRETE: an inline option shape against the named `SelectOptionMetadata`. */
   'views.zod.ts#DetailViewFieldSchema': 'options';
   /** SCHEMA-NODE. (`tabs` left under objectui#7760; `fields` and `sections` did not.) */
@@ -2656,7 +2640,6 @@ const WIDER_ARMS: Readonly< Record< string, readonly WiderArmClass[] > > = {
   'data-display.zod.ts#DataTableSchema::columns': ['CONCRETE'],
   'data-display.zod.ts#DataTableSchema::renderCellEditor': ['CONCRETE'],
   'data-display.zod.ts#TableColumnSchema::cell': ['CONCRETE'],
-  'feedback.zod.ts#ToastSchema::action': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#CalendarSchema::defaultValue': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#CalendarSchema::value': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#FieldConditionSchema::custom': ['CONCRETE'],
@@ -2669,7 +2652,6 @@ const WIDER_ARMS: Readonly< Record< string, readonly WiderArmClass[] > > = {
   'form.zod.ts#SliderSchema::defaultValue': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#SliderSchema::value': ['CONCRETE', 'CONCRETE'],
   'layout.zod.ts#ContainerSchema::maxWidth': ['CONCRETE', 'CONCRETE'],
-  'layout.zod.ts#GridSchema::columns': ['CONCRETE', 'CONCRETE'],
   'layout.zod.ts#PageNodeSchema::aria': ['CONCRETE'],
   'layout.zod.ts#PageNodeSchema::slots': ['SCHEMA-NODE'],
   'navigation.zod.ts#HeaderBarSchema::logo': ['CONCRETE', 'CONCRETE'],
@@ -2678,7 +2660,6 @@ const WIDER_ARMS: Readonly< Record< string, readonly WiderArmClass[] > > = {
   'objectql.zod.ts#ObjectGridSchema::description': ['CONCRETE', 'CONCRETE'],
   'objectql.zod.ts#ObjectViewSchema::table': ['SCHEMA-NODE'],
   'overlay.zod.ts#TooltipSchema::content': ['CONCRETE', 'CONCRETE'],
-  'reports.zod.ts#ReportComponentSchema::exportConfigs': ['CONCRETE'],
   'views.zod.ts#DetailViewFieldSchema::options': ['CONCRETE'],
   'views.zod.ts#DetailViewSchema::fields': ['SCHEMA-NODE'],
   'views.zod.ts#DetailViewSchema::sections': ['SCHEMA-NODE'],
@@ -3682,12 +3663,24 @@ sentence fails there instead — and that is route 1, which objectui#6141 predic
 objectui#7433 measured recurring four more times, and objectui#8222 was filed to stop
 being taken for the key totals specifically.
 
-⚠️ ONE live figure in the header is deliberately NOT here: the seed decomposition
+⚠️ ONE figure in the header is deliberately NOT here: the seed decomposition
 under \`UnmirroredDeclared\` ("what 121 used to mean"). It needs each key's PROVENANCE
 and no ledger in this file records that, so nothing here can derive it. It is
 excluded in writing where it stands, which is the other half of objectui#8222 — every
 live figure in that header is pinned or excluded with its reason, and ⛔ a new one
-that is neither should not be added.`)
+that is neither should not be added.
+
+⚠️ AMENDED (objectui#8248; maintainer ruling, decision batch #71). This note called
+that figure LIVE, which it was on the day the note was written. It is not one now:
+objectui#8243 rewrote the deferred-to statement as a reading at NAMED REVISIONS, and a
+statement anchored that way is HISTORICAL — nothing landing later can make it false.
+So it carries none of a live figure's obligations, and the action the word "live"
+sends you off to do — pin it, or exclude it afresh — is the WRONG one for a
+historical reading. ⛔ Only that word moved. The clauses above are this note's
+MEASUREMENT record — the header carries no copy of the decomposition, and no ledger
+here records key provenance so nothing here can derive it — and they are untouched,
+still exactly right, and ⛔ not rewritable by a later card. The rule that separates
+the two is stated ONCE, in this file's header.`)
       .toEqual({
         knownDriftKeys: keyTotal('KnownDrift'),
         runtimeOnlyKeys: keyTotal('RuntimeOnlyDeclared'),
@@ -3806,10 +3799,14 @@ stale copy survives beside a corrected one, which is the shape objectui#8243 rec
     //
     // ⚠️ objectui#8222's own exclusion note calls that deferred-to statement a LIVE
     // figure, which it was when the note was written. It is not one any more — read it
-    // as the historical reading described below. That note is left exactly as it
-    // stands: it is an assertion message objectui#8243 has no business editing, and
+    // as the historical reading described below. That note was left exactly as it
+    // stood: it is an assertion message objectui#8243 has no business editing, and
     // what it says about the FILE HEADER (no copy there, and none to be added back)
-    // is unchanged.
+    // is unchanged. ⭐ objectui#8248 later amended the one stale WORD in it, under the
+    // maintainer ruling now written in this file's header: a clause that RECORDS a
+    // measurement is never rewritten, a clause that GIVES GUIDANCE is live and must be
+    // amended when the world moves. The record clauses this comment names are still
+    // byte-identical there; ⛔ that ruling is not licence to edit them.
     //
     // ⭐ objectui#8243 took neither route. The statement was rewritten as a reading at
     // NAMED REVISIONS — 98 keys at `beccf1c6b`, of which 85 survive and 13 have left at
@@ -4058,56 +4055,6 @@ const UNNAMED_LAZY_SLOTS: readonly string[] = [
   'objectql.zod.ts#ObjectViewSchema.table',
 ];
 
-describe('the OPEN-RECORD entries are accept-set gaps, not instrument readings (objectui#8517)', () => {
-  // ⚠️ This leg is at RUNTIME on purpose, and it is the half a type-level pin cannot
-  // supply. Everything above measures the two FACES against each other; nothing above
-  // shows that the divergence is reachable by an author. These two cases run the
-  // published validator on a document the published types refuse, so the entries
-  // cannot be read as an artifact of the new clause the way the SCHEMA-NODE class is
-  // read as an artifact of an annotation.
-  //
-  // Each case is two assertions that must BOTH hold and neither of which implies the
-  // other: `safeParse` returns green, and `tsc` refuses the same object literal. The
-  // second is spelled as a `@ts-expect-error`, so it is checked by
-  // `tsc -p tsconfig.test.json` and would fail LOUDLY — "unused '@ts-expect-error'" —
-  // on the day someone repairs the mirror without touching this file. ⛔ That is the
-  // point of spelling it this way rather than as a comment: the repair reddens here,
-  // which is where the ledger entry above is, instead of passing silently.
-
-  it('GridSchema accepts a breakpoint name its declaration does not have', () => {
-    expect(GridSchema.safeParse({ type: 'grid', columns: { xxl: 6 } }).success).toBe(true);
-    // @ts-expect-error `xxl` is not a `BreakpointName`; the mirror's `z.record(z.string(), …)` arm took it.
-    const refusedByTsc: Ts_GridSchema = { type: 'grid', columns: { xxl: 6 } };
-    expect(refusedByTsc.columns).toEqual({ xxl: 6 });
-  });
-
-  it('ReportComponentSchema accepts an export format its declaration does not have', () => {
-    // ⚠️ `as const` on `type`, and it is not style. Written as a plain `const` the
-    // property widens to `string`, and the `@ts-expect-error` below then fires on
-    // `Type 'string' is not assignable to type '"report"'` — an error about the
-    // DISCRIMINANT, which every node in this file would produce, while the `xml` key
-    // it was written for is never reached. Measured, on the first draft of this
-    // block: the directive was green and the assertion had never once observed the
-    // divergence it names. ⛔ Do not relax it back.
-    const authored = { type: 'report' as const, exportConfigs: { xml: { format: 'pdf' as const } } };
-    expect(ReportComponentSchema.safeParse(authored).success).toBe(true);
-    // @ts-expect-error `xml` is not a `ReportExportFormat`; same class, second instance.
-    const refusedByTsc: Ts_ReportComponentSchema = authored;
-    expect(refusedByTsc.exportConfigs).toEqual({ xml: { format: 'pdf' } });
-  });
-
-  it('the two documents are otherwise valid — the key name is the only thing wrong', () => {
-    // Non-vacuity, both directions. Without this, a document rejected for an unrelated
-    // reason would make the `safeParse` assertions above green for the wrong reason,
-    // and a `@ts-expect-error` that fires on some other error would look identical to
-    // one that fires on the key.
-    expect(GridSchema.safeParse({ type: 'grid', columns: { xs: 6 } }).success).toBe(true);
-    expect(
-      ReportComponentSchema.safeParse({ type: 'report', exportConfigs: { pdf: { format: 'pdf' } } }).success,
-    ).toBe(true);
-  });
-});
-
 describe('the blind region of the wider direction is bounded (objectui#7069)', () => {
   it('the walk can actually see a lazy node (non-vacuity)', () => {
     // A walk that stopped following zod's nesting would report an empty region and
@@ -4299,5 +4246,95 @@ describe("the WIDER ledger's header figures are derived from its ARMS (objectui#
       // a mirror moves and the ledger does not.
       unions: rows.filter(({ pair, key }) => (measureMirrorArms(pair, key)?.length ?? 0) > 1).length,
     });
+  });
+});
+
+/* ── The objectui#7760 MOVEMENT figures reconcile with themselves (objectui#8458) ── */
+
+describe("the objectui#7760 movement figures reconcile with themselves (objectui#8458)", () => {
+  it('the pairs that move touched equal its emptied entries plus its reduced ones', () => {
+    // The one figure in that paragraph no instrument reached. Its neighbours — the
+    // ledger's entry / key / arm totals either side of the move and the arm split —
+    // are pinned by the blocks above and all moved correctly with objectui#7760;
+    // `16 pairs` sat between them unpinned, and a reader cannot tell by looking which
+    // digits in a checked paragraph are the checked ones. That is the whole shape:
+    // the header's authority rests on the others being derived, so an unwatched digit
+    // inherits an authority nothing gave it.
+    //
+    // ⛔ This is a HISTORICAL reading and nothing here may compare it to the live
+    // ledger. `WiderThanDeclared` today is NEITHER of the two trees the sentence
+    // describes (objectui#8338 moved it again afterwards), and the moment a figure
+    // here is derived from it the statement is live, rots on the next ledger move, and
+    // costs a hand re-derivation at every future repair — which is exactly what
+    // objectui#8243 removed for the seed decomposition. What IS checked is the
+    // statement's INTERNAL arithmetic, so a digit "refreshed" by hand — the way `16`
+    // got here — is red.
+    //
+    // ⭐ Re-derived, not inherited. objectui#8458's card carried the figure 18 from a
+    // contract reviewer and said in as many words not to adopt it, because adopting an
+    // unchecked figure is the defect the card is about. It was measured again by
+    // running THIS FILE'S `ledgerEntryMembers('WiderThanDeclared')` — the same
+    // instrument the pins above use, sliced out of the file rather than retyped — over
+    // the file at `645ecb98c` and at `a480f797a` (PR #8354's parent and its merge) and
+    // diffing entry -> key pairs: 19 rows left and 3 entered, across 18 distinct
+    // entries of which 13 lost their whole content and 5 kept keys. Both movements
+    // close against figures ALREADY pinned at those two revisions — 52 - 19 + 3 = 36
+    // keys and 34 - 13 + 2 = 23 entries — so the reading is anchored on both sides
+    // instead of asserted. The 5 reduced entries are `AppComponentSchema`,
+    // `DashboardComponentSchema`, `PageNodeSchema`, `ObjectViewSchema` and
+    // `DetailViewSchema`.
+    //
+    // ⚠️ The DEFINITION is the other half of this pin and it lives in the prose beside
+    // the figure: "pairs" counts every entry the move TOUCHED, not the emptied subset.
+    // ⛔ Do not write the figure back as a bare digit — `16` was wrong under BOTH
+    // readings (13 emptied, 18 touched), and a number with no definition forks again.
+    const [keysLeft, pairsTouched] = headerFigures(/(\d+) keys across \*\*(\d+)\*\* pairs LEFT/);
+    const [emptied, reduced, decomposed] = headerFigures(/\*\*(\d+) emptied \+ (\d+) reduced = (\d+)\*\*/);
+
+    expect({
+      decomposition: emptied + reduced,
+      restatedTotal: decomposed,
+      everyTouchedPairLostAKey: pairsTouched <= keysLeft,
+    }, `
+The objectui#7760 movement sentence no longer adds up.
+
+Every figure in it is a reading of two FIXED trees (\`645ecb98c\` and \`a480f797a\`), so
+none of them moves when the ledger moves. If you got here:
+
+  * you "refreshed" one of them to chase a ledger movement => put it back. The current
+    ledger is neither of those trees, and the live figures for it are the entry / key /
+    arm totals at the top of that bullet, pinned by the objectui#8252 block above.
+
+  * you re-derived the movement and got different numbers => that is a FINDING, not a
+    prose edit. The two commits are fixed, so a different reading means the INSTRUMENT
+    changed, not the history. Re-run \`ledgerEntryMembers('WiderThanDeclared')\` against
+    the file at both revisions and diff entry -> key pairs before touching a digit.
+
+  * you reworded the sentence => the spellings this pin reads are
+    \`N keys across **M** pairs LEFT\` and \`**E emptied + R reduced = M**\`, each exactly
+    once. A reword that drops one is red here rather than quietly unpinned, which is
+    the objectui#7733 principle; ⛔ do not "fix" it by deleting the pin.
+
+⛔ Never reconcile this by pointing a figure at the live ledger. That reintroduces the
+hand re-derivation on every future repair (objectui#8243), and it cannot be pinned
+that way anyway: no ledger in this file records what it held at a past revision.`)
+      .toEqual({
+        decomposition: pairsTouched,
+        restatedTotal: pairsTouched,
+        everyTouchedPairLostAKey: true,
+      });
+
+    // Non-vacuity: a spelling that matched something other than the reading — or an
+    // all-zero rewrite — would satisfy `0 + 0 = 0` while stating nothing. Each leg is
+    // a fact about the movement, not about the reader.
+    for (const [name, value] of Object.entries({ keysLeft, pairsTouched, emptied, reduced })) {
+      expect(value, `the historical movement figure ${name} read as 0 — the spelling matched something that is not the reading`)
+        .toBeGreaterThan(0);
+    }
+    // Both halves of the decomposition are non-empty: a move with no reduced entries
+    // would make "pairs" and "emptied" the same quantity, and the ambiguity that
+    // produced objectui#8458 could not be seen from the sentence.
+    expect(reduced, 'the reduced half read as 0 — then "pairs" and "emptied" state one quantity twice')
+      .toBeGreaterThan(0);
   });
 });

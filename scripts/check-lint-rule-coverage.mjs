@@ -138,6 +138,12 @@
  * was compared with the `filePath` set of a real
  * `eslint . --ignore-pattern ... --format json` run at the `lint:root` scope on
  * `fedfa3e4a`. 272 files, 272 matches, zero difference in either direction.
+ *
+ * ⚠️ That equivalence is exact only up to the git filter below: since
+ * objectui#8369 the walk drops paths GIT ignores, so on a tree that has been
+ * built this enumeration is deliberately SMALLER than `eslint .`'s. The
+ * difference is always exactly the ignored paths, and the pin asserts that
+ * shape rather than plain equality.
  * `scripts/__tests__/check-lint-rule-coverage.test.ts` re-pins that equivalence
  * against `ESLint#lintFiles` on a fixture tree, where it costs milliseconds.
  *
@@ -250,6 +256,61 @@
  * unreachable (so the probe is able to say "no" at all). If those two hold and
  * the unreachable set is empty, the emptiness is a reading.
  *
+ * ## Why the walk asks git what is in the repository (objectui#8369)
+ *
+ * A file on disk is not the same thing as a file in the repository, and this
+ * gate used to conflate them. `apps/console/plugin.js` is a build OUTPUT --
+ * `apps/console/.gitignore` names it, it is absent from `HEAD`, and it appears
+ * only after `turbo run build` -- so the gate reported it as unledgered vacuity
+ * and exited 1 on any developer who had built. Measured on `1cca4415e`:
+ *
+ *   before any build       pnpm check:lint-rule-coverage   exit 0
+ *   after turbo run build                                  exit 1
+ *                            unledgered: apps/console/plugin.js
+ *   control: rm that one file, re-run                      exit 0
+ *
+ * ⭐ That is the failure a coverage gate can least afford: the verdict was a
+ * property of the WORKING TREE rather than of the tree under test, which makes
+ * its green as unexplainable as its red. It also collides with this
+ * repository's own workflow -- `check-doc-snippet-types.mjs` and
+ * `check-skill-examples.mjs` both exit 2 with "run the build first", so obeying
+ * them reddens this gate, and the red points at a file nobody wrote and nobody
+ * can fix at the site.
+ *
+ * The remedy is NOT a ledger row: {@link VACUOUS_GROUPS} is a list of decisions
+ * about files that are in the repository, and a row for a generated path would
+ * be a permanent waiver nobody can ever check or shrink. Nor is it a second
+ * ignore list here -- that would be a copy of `.gitignore` needing to be kept
+ * in sync with it, which is the defect one level up.
+ *
+ * So the walk asks git, which is the only thing entitled to answer. One batched
+ * `git check-ignore --stdin -z` over the candidates, and the paths it names are
+ * dropped from BOTH populations before anything is judged. Its semantics are
+ * exactly the wanted ones, measured rather than assumed:
+ *
+ *   untracked + matched by an ignore rule  -> reported   DROPPED (build output)
+ *   TRACKED, even when a rule matches it   -> not reported, stays in the census
+ *   untracked + matched by nothing         -> not reported, stays in the census
+ *
+ * ⭐ That last row is why this is a git-IGNORE filter and not `git ls-files`.
+ * Enumerating tracked files would drop a source file that exists but has not
+ * been `git add`ed yet -- and then the verdict would depend on whether the
+ * developer happened to stage, which is the same defect wearing a different
+ * hat. A brand-new unstaged `scripts/check-foo.mjs` is still reported.
+ *
+ * The reading has its own control, on the INSTRUMENT and in the same run --
+ * {@link gitIgnoreReading} appends two synthetic paths to the batch and
+ * {@link gitIgnoreCollapse} requires both answers: `node_modules/<probe>` must
+ * come back IGNORED (the process ran and can say yes) and the same probe at the
+ * repository root must come back VISIBLE (it can say no). An empty ignored set
+ * is then a reading -- which is what an unbuilt tree legitimately looks like --
+ * rather than a `git` that failed and silently answered "nothing".
+ *
+ * Outside a git work tree there is nothing to ask, so the filter reports itself
+ * unavailable and the walk is what it always was. That is the state the fixture
+ * trees in the pin test are in, and {@link main} refuses it: for THIS
+ * repository an unavailable filter is the broken state, not a lenient one.
+ *
  * ## Cost
  *
  * Measured on `fedfa3e4a`, this branch's base: 4438 walked files out of 6699 on disk. Directory
@@ -259,6 +320,16 @@
  * ESLint startup per file, seconds each. The per-file API call is 3.65ms
  * amortised, so there is no need to resolve per file-GROUP instead of per file,
  * and this gate does not.
+ *
+ * The git filter adds two short-lived processes to that, not one per file:
+ * `rev-parse --is-inside-work-tree`, then a single `check-ignore --stdin -z`
+ * fed every candidate path at once. Measured on `1cca4415e` over a built tree,
+ * 4523 candidates, three runs: 6ms for the work-tree probe and 407 / 414 /
+ * 484ms for the batch, against 2.5s for the walk it sits on -- about a sixth
+ * more, for one process. Per-path spawning was never a candidate at this
+ * scale, for the same reason `eslint --print-config` per file was not. The
+ * candidates are also filtered BEFORE `calculateConfigForFile` runs, so the
+ * dropped paths cost no rule resolution at all.
  *
  * ## Wiring, and what actually enforces this
  *
@@ -278,6 +349,7 @@
  * this session's declared file surface, exactly as in objectui#8301.
  */
 
+import { spawnSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { extname, join, matchesGlob, relative, sep } from 'node:path';
 import { dirname, resolve } from 'node:path';
@@ -306,6 +378,124 @@ export const STRUCTURAL_SKIP_DIRS = new Set(['.git', 'node_modules']);
  * should be.
  */
 export const PROBE_BASENAME = 'eslint-rule-coverage-probe.js';
+
+/**
+ * Basename of the synthetic path pair that controls the git reading. Never
+ * written to disk, like every other probe here: `git check-ignore` answers
+ * about a PATH, and the path need not exist.
+ */
+export const GIT_PROBE_BASENAME = 'eslint-git-ignore-probe.ts';
+
+/**
+ * The positive half of the git probe's control: a path git must call IGNORED.
+ * `node_modules` is the one directory whose ignored-ness this gate can assert
+ * without reading anybody's `.gitignore` -- it is in {@link
+ * STRUCTURAL_SKIP_DIRS} for the same reason, this file cannot even load
+ * without it, and a repository that did NOT ignore it would have its
+ * dependencies in the census, which is a state this gate would already be
+ * shouting about.
+ */
+export const GIT_IGNORED_CONTROL = `node_modules/${GIT_PROBE_BASENAME}`;
+
+/**
+ * The negative half: the same probe at the repository root, which no ignore
+ * rule names, so a filter able to say "no" at all must say it here. Without it
+ * a `check-ignore` that answered "ignored" to everything would empty the census
+ * -- loudly, via {@link censusCollapse}, but for the wrong stated reason.
+ */
+export const GIT_VISIBLE_CONTROL = GIT_PROBE_BASENAME;
+
+/**
+ * Is `root` inside a git work tree at all? Asked separately from the reading
+ * itself because the two failures are different: OUTSIDE a work tree there is
+ * no question to put (the pin test's fixture trees live in `os.tmpdir()`, which
+ * is not a repository -- exit 128, `not a git repository`), while INSIDE one a
+ * failing `check-ignore` is a broken instrument and throws.
+ *
+ * @param {string} root absolute
+ * @returns {boolean}
+ */
+export function isGitWorkTree(root) {
+  const probe = spawnSync('git', ['-C', root, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' });
+  return probe.status === 0 && probe.stdout.trim() === 'true';
+}
+
+/**
+ * Which of `candidates` git ignores, as one batched question with its own
+ * control inside the same run.
+ *
+ * @param {string} root absolute
+ * @param {string[]} candidates paths relative to `root`, forward slashes
+ * @returns {{ available: boolean, ignored: Set<string>, controlIgnored: boolean, controlVisible: boolean }}
+ */
+export function gitIgnoreReading(root, candidates) {
+  if (!isGitWorkTree(root)) {
+    return { available: false, ignored: new Set(), controlIgnored: false, controlVisible: false };
+  }
+
+  const asked = [...candidates, GIT_IGNORED_CONTROL, GIT_VISIBLE_CONTROL];
+  const run = spawnSync('git', ['-C', root, 'check-ignore', '--stdin', '-z'], {
+    input: asked.map((path) => `${path}\0`).join(''),
+    encoding: 'utf8',
+    maxBuffer: 256 * 1024 * 1024,
+  });
+
+  if (run.error) {
+    throw new Error(
+      `git check-ignore could not be run in ${root}: ${run.error.message}. This tree IS a git work ` +
+        'tree, so the question is a real one and answering it with "nothing is ignored" would put build ' +
+        'output back in the census.',
+    );
+  }
+  // 0 = at least one path is ignored, 1 = none of them are. Both are answers;
+  // anything else is git failing, and a failure must never read as "nothing".
+  if (run.status !== 0 && run.status !== 1) {
+    throw new Error(
+      `git check-ignore exited ${run.status} in ${root}: ${(run.stderr || '').trim()}. Only 0 and 1 are ` +
+        'answers here.',
+    );
+  }
+
+  const ignored = new Set(run.stdout.split('\0').filter(Boolean));
+  return {
+    available: true,
+    ignored,
+    controlIgnored: ignored.has(GIT_IGNORED_CONTROL),
+    controlVisible: !ignored.has(GIT_VISIBLE_CONTROL),
+  };
+}
+
+/**
+ * The control on the git filter, the same shape as {@link
+ * extensionProbeCollapse}: both answers in one run, so an empty ignored set is
+ * a reading rather than a silence. Applied by {@link main} only -- {@link
+ * analyze} runs on fixture trees that are deliberately not repositories.
+ *
+ * @param {{ available: boolean, controlIgnored: boolean, controlVisible: boolean }} reading
+ * @returns {string | null} the collapse message, or null when the filter discriminates
+ */
+export function gitIgnoreCollapse(reading) {
+  if (!reading.available) {
+    return (
+      'The git filter is unavailable: this tree is not a git work tree, so the walk cannot tell a ' +
+      'build output from a source file. Every generated file on disk would be judged as if somebody ' +
+      'had written it -- which is objectui#8369, and it made this gate red for anyone who had built.'
+    );
+  }
+  if (!reading.controlIgnored) {
+    return (
+      `The git filter collapsed: '${GIT_IGNORED_CONTROL}' came back NOT ignored. The filter cannot ` +
+      'say "yes", so an empty ignored set would mean nothing rather than meaning this tree is unbuilt.'
+    );
+  }
+  if (!reading.controlVisible) {
+    return (
+      `The git filter collapsed: '${GIT_VISIBLE_CONTROL}' at the repository root came back IGNORED. ` +
+      'The filter cannot say "no", so it would drop the very files this gate exists to judge.'
+    );
+  }
+  return null;
+}
 
 /**
  * The JS/TS module extensions ESLint could lint here, as the CLOSED set Node
@@ -516,9 +706,20 @@ export async function isIgnoredDirectory(eslint, dir) {
  * is why `packages/core/dist/x.mts` never reaches predicate 2: a build output
  * is not an extension gap.
  *
+ * Paths GIT ignores are dropped from both populations for the same reason one
+ * level out (objectui#8369): they are not in the repository, so no ledger row
+ * could ever own them and no author could act on a finding about them. The
+ * question is put to git once, after the walk, because that is one process
+ * instead of one per directory -- see the header. Outside a git work tree
+ * nothing is dropped and `git.available` says so.
+ *
  * @param {string} root absolute
  * @param {ESLint} eslint an instance whose `cwd` is `root`
- * @returns {Promise<{ walked: string[], unwalkedSource: string[] }>}
+ * @returns {Promise<{
+ *   walked: string[],
+ *   unwalkedSource: string[],
+ *   git: { available: boolean, controlIgnored: boolean, controlVisible: boolean, excluded: string[] },
+ * }>}
  */
 export async function walkTree(root, eslint) {
   /** @type {string[]} */
@@ -556,7 +757,19 @@ export async function walkTree(root, eslint) {
   await descend(root);
   walked.sort();
   unwalkedSource.sort();
-  return { walked, unwalkedSource };
+
+  const reading = gitIgnoreReading(root, [...walked, ...unwalkedSource]);
+  const excluded = [...walked, ...unwalkedSource].filter((file) => reading.ignored.has(file)).sort();
+  return {
+    walked: walked.filter((file) => !reading.ignored.has(file)),
+    unwalkedSource: unwalkedSource.filter((file) => !reading.ignored.has(file)),
+    git: {
+      available: reading.available,
+      controlIgnored: reading.controlIgnored,
+      controlVisible: reading.controlVisible,
+      excluded,
+    },
+  };
 }
 
 /**
@@ -649,6 +862,7 @@ export async function ruleCountFor(eslint, file) {
  *   vacuous: string[],
  *   ruleBearing: string[],
  *   unwalkedSource: string[],
+ *   git: { available: boolean, controlIgnored: boolean, controlVisible: boolean, excluded: string[] },
  *   reach: { reachable: string[], unreachable: string[], controlUnreachable: boolean },
  *   unreached: string[],
  *   rows: { glob: string, reason: string, card: string, vacuousMatches: string[], ruleBearingMatches: string[] }[],
@@ -671,7 +885,7 @@ export async function analyze({ root, groups = VACUOUS_GROUPS, unreachedGroups =
   }
 
   const eslint = new ESLint({ cwd: root });
-  const { walked, unwalkedSource } = await walkTree(root, eslint);
+  const { walked, unwalkedSource, git } = await walkTree(root, eslint);
   const reach = await extensionReach(eslint, root);
   const unreached = await unreachedByExtension(eslint, root, unwalkedSource, reach.reachable);
 
@@ -734,7 +948,18 @@ export async function analyze({ root, groups = VACUOUS_GROUPS, unreachedGroups =
     }
   }
 
-  return { walked, vacuous, ruleBearing, unwalkedSource, reach, unreached, rows, unreachedRows, findings };
+  return {
+    walked,
+    vacuous,
+    ruleBearing,
+    unwalkedSource,
+    git,
+    reach,
+    unreached,
+    rows,
+    unreachedRows,
+    findings,
+  };
 }
 
 /**
@@ -756,7 +981,7 @@ async function main() {
   const root = resolve(scriptDir, '..');
   const result = await analyze({ root });
 
-  const collapse = censusCollapse(result) ?? extensionProbeCollapse(result.reach);
+  const collapse = censusCollapse(result) ?? extensionProbeCollapse(result.reach) ?? gitIgnoreCollapse(result.git);
   if (collapse) {
     console.error(collapse);
     process.exit(1);
@@ -780,6 +1005,12 @@ async function main() {
     for (const row of result.unreachedRows) {
       console.log(`      ${String(row.unreachedMatches.length).padStart(3)}  ${row.glob}  (${row.card})`);
     }
+    console.log(
+      `\n    ${result.git.excluded.length} path(s) on disk are git-ignored and therefore outside the census ` +
+        'entirely --\n    build output and local scratch, which nobody wrote and no ledger row could own ' +
+        '(objectui#8369).\n    The verdict is a property of the tree git tracks, not of whether you have ' +
+        'built.',
+    );
     console.log(
       '\n    A zero-rule file is one ESLint parses and has nothing to say about. It is not clean; it is\n' +
         '    unjudged, and every exit code downstream reads it as clean. An unreached file is one step\n' +
@@ -856,7 +1087,8 @@ async function main() {
     `    census: ${result.walked.length} walked, ${result.ruleBearing.length} rule-bearing, ` +
       `${result.vacuous.length} zero-rule; ${result.unwalkedSource.length} source file(s) not walked, ` +
       `${result.unreached.length} of them only because of their extension ` +
-      `(unreached: ${result.reach.unreachable.map((e) => `.${e}`).join(' ') || 'none'}).\n` +
+      `(unreached: ${result.reach.unreachable.map((e) => `.${e}`).join(' ') || 'none'}); ` +
+      `${result.git.excluded.length} git-ignored path(s) excluded before judging.\n` +
       '    See https://github.com/objectstack-ai/objectui/issues/7908 (predicate 1) and\n' +
       '    https://github.com/objectstack-ai/objectui/issues/8337 (predicate 2) for why this gate exists.',
   );

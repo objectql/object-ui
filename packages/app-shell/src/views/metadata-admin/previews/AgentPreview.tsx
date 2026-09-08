@@ -133,7 +133,7 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
                   {instructions}
                 </pre>
               ) : (
-                <Empty>No system prompt set yet.</Empty>
+                <EmptyDescription className="text-xs italic">No system prompt set yet.</EmptyDescription>
               )}
             </Section>
 
@@ -189,7 +189,7 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
               </RailBlock>
             )}
             {!planning && !memory && !guardrails && permissions.length === 0 && (
-              <div className="text-muted-foreground italic">Defaults in use.</div>
+              <EmptyDescription className="text-xs italic">Defaults in use.</EmptyDescription>
             )}
           </div>
         </div>
@@ -216,10 +216,6 @@ function Section({
       {children}
     </div>
   );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="text-xs text-muted-foreground italic">{children}</div>;
 }
 
 /**
@@ -253,7 +249,7 @@ function ChipList({
     <div>
       <div className="text-[10px] uppercase text-muted-foreground tracking-wider mb-1">{label}</div>
       {items.length === 0 ? (
-        <div className="text-xs text-muted-foreground italic">{emptyHint}</div>
+        <EmptyDescription className="text-xs italic">{emptyHint}</EmptyDescription>
       ) : (
         <div className="flex flex-wrap gap-1">
           {items.map((it) => (

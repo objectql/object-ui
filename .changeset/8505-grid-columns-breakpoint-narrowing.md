@@ -31,13 +31,17 @@ from a computed `Record<string, number>` still type-checks, and only fresh objec
 LITERALS meet excess-property checking. The narrowing is therefore a check on the
 authoring spelling, which is where the defect was authored.
 
-**The zod mirror is deliberately NOT narrowed here.** `zod/layout.zod.ts` still
-validates `columns` as `z.record(z.string(), z.number())`, so the JSON authoring
-face — `os-ui validate` / `check` in `@object-ui/cli`, the real consumer of these
-mirrors — still admits `{ xxl: 6 }`. That is reported for its own card, on a
-measurement: closing it ships runtime bytes into the console's `framework` chunk
-(`packages/(core|react|types)`), which measured 70,999 gzip bytes against its
-71,000 ceiling on this branch's base — one byte of headroom. The current reading is
-held visible by a handoff assertion in the new test, with a lit control next to it,
-so it flips to a refusal when that card lands rather than rotting into an
-assumption that both faces closed together.
+**The zod mirror WAS deliberately not narrowed here — corrected in #8573.** This
+paragraph said `zod/layout.zod.ts` still validates `columns` as
+`z.record(z.string(), z.number())`, so the JSON authoring face — `os-ui validate`
+/ `check` in `@object-ui/cli`, the real consumer of these mirrors — still admits
+`{ xxl: 6 }`. #8573 narrowed that mirror to a partial record over the six
+breakpoints (objectui#8516), so the JSON face now refuses `{ xxl: 6 }` exactly as
+the declaration above does. Its two supporting statements went with it, and #8573
+quotes each in its current state rather than re-arguing it: the byte measurement
+that deferred the narrowing — 70,999 gzip bytes against a 71,000 `framework`
+ceiling, one byte of headroom — is retired, because PR #8550 landed the
+maintainer's raise to `PER_CHUNK_GZIP_CEILINGS.framework` `100_000` against a
+`PER_CHUNK_BASELINE.framework` of `72_245`; and the handoff assertion described
+here as holding the current reading visible is flipped to a refusal in #8573, so
+it no longer asserts acceptance.

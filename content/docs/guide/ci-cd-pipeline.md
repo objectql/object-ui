@@ -508,7 +508,25 @@ header comment in the workflow file (#2835).
 What it does: runs an allowlist of the live specs (`pnpm test:e2e:live:ci`) against a real
 `objectstack dev` backend booted from **published** `@objectstack/*` packages serving the
 showcase app, catching the class of bug only a real browser against a real backend can see.
-Failures still surface as a red step plus an uploaded Playwright report and job summary.
+Failures still surface as a red step, a job summary, and a `live-e2e-artifacts` upload.
+
+**What that upload actually contains — and what it does not.** It carries `test-results/` (the
+failure screenshots and videos the config's `use.screenshot` / `use.video` settings write) plus
+`backend.log` and `console-preview.log`. It carries **no Playwright HTML report**:
+`playwright.live.config.ts` declares `reporter: [['list']]`, and the `list` reporter writes to
+stdout, so nothing in that config ever produces a `playwright-report/` directory. The durable
+record of what the specs did is the `Run live E2E allowlist` step's own log. This page and the
+workflow header both promised an "uploaded Playwright report" for as long as the lane has
+existed, and no run could ever have produced one (objectui#8238) — so if you want a report to
+open, the reporter list in `playwright.live.config.ts` is the one line that decides it, and it
+must move together with this paragraph and the workflow's upload glob.
+
+⚠️ **The upload step is gated `if: ${{ !cancelled() && failure() }}`.** On a **green** lane it
+does not run at all, so there is no artifact and nothing to count. Any acceptance criterion
+phrased over this artifact's contents — "the uploaded artifact has more than N files", "a
+directory X appears in it" — is therefore readable **only on a run that failed**. Phrase checks
+about this lane against the `Run live E2E allowlist` step's log instead, which exists in both
+outcomes.
 
 **Which specs are in the allowlist:** whatever the `test:e2e:live:ci` script in `package.json`
 names — that script is the single source of truth, and this page deliberately does not repeat

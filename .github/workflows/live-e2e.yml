@@ -16,8 +16,13 @@
 # art for why a new lane must prove itself outside the merge gate first).
 # Do NOT add this job to required checks, and do not remove
 # `continue-on-error`, until the lane has run clean for long enough to trust
-# (watch the nightly schedule). Failures still surface: red step + uploaded
-# report + job summary.
+# (watch the nightly schedule). Failures still surface: red step + job summary
+# + the `live-e2e-artifacts` upload. That upload carries `test-results/` (the
+# failure screenshots and videos `use.screenshot` / `use.video` write) and the
+# two server logs — it does NOT carry a Playwright HTML report, because
+# `playwright.live.config.ts` declares `reporter: [['list']]` and the `list`
+# reporter writes to stdout only (objectui#8238). The durable record of what
+# the specs actually did is the `Run live E2E allowlist` step's own log.
 #
 # Growing the allowlist: add specs to `test:e2e:live:ci` in package.json a
 # few at a time, only after they prove flake-free here — do not switch all
@@ -227,17 +232,32 @@ jobs:
             echo "## Live E2E failed (informational lane — does not block merge)"
             echo ""
             echo "Backend: published \`@objectstack/*\` per \`e2e/live/ci/backend.env\`."
-            echo "See the \`live-e2e-artifacts\` upload for the Playwright report and server logs."
+            echo "What the specs did is in this job's \`Run live E2E allowlist\` step log (the \`list\` reporter writes to stdout; there is no HTML report to open)."
+            echo "See the \`live-e2e-artifacts\` upload for the failure screenshots and videos (\`test-results/\`) and the two server logs."
             echo "If this failure reproduces on re-run it is a real console x backend integration bug — treat it as such even though the lane cannot block your merge."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload report and server logs
+      # ⛔ Do not add `playwright-report/` back to this glob without changing
+      # `playwright.live.config.ts` in the same PR. That config declares
+      # `reporter: [['list']]`; the `list` reporter writes to stdout and no
+      # reporter in it writes `playwright-report/`, so the path matched nothing
+      # in EVERY outcome — measured on a passing and on a failing run, absent
+      # both times — while this workflow's header and
+      # `content/docs/guide/ci-cd-pipeline.md` promised readers a report they
+      # could open (objectui#8238). The reporter list is the one line that
+      # decides it, and the claim is pinned in
+      # `scripts/__tests__/ci-cd-pipeline-doc.test.ts`.
+      #
+      # ⚠️ This step is gated on `failure()`, so on a GREEN lane it does not run
+      # and there is NO artifact at all. Any acceptance criterion phrased over
+      # this artifact's contents is therefore readable only on a run that
+      # failed; a green run leaves nothing to count (objectui#8238).
+      - name: Upload failure artefacts and server logs
         uses: actions/upload-artifact@v7
         if: ${{ !cancelled() && failure() }}
         with:
           name: live-e2e-artifacts
           path: |
-            playwright-report/
             test-results/
             ${{ runner.temp }}/live-backend/backend.log
             ${{ runner.temp }}/console-preview.log

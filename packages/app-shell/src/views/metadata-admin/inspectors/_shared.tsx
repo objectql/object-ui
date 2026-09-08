@@ -253,6 +253,31 @@ export function InspectorSelectField({
   // renders the real `button[role=combobox]`, which is a labelable element, so
   // one `for`/`id` pair names it (no second `aria-labelledby` channel needed).
   const id = React.useId();
+  // `SelectValue`'s own `placeholder` is unreachable here, and was at all 45
+  // call sites (objectui#8450). Radix shows it only when its value is `''` or
+  // `undefined`, and the sentinel bridge above guarantees the value is never
+  // either — a controlled value matching no `SelectItem` renders as nothing at
+  // all, so every empty select in the designer drew a BLANK trigger.
+  //
+  // The repair renders the placeholder here instead of handing Radix an
+  // `undefined` value. Passing `undefined` would work, but it makes the Radix
+  // `Select` UNCONTROLLED for exactly as long as the field is empty, so the
+  // first selection at every call site flips it back — measured: Radix logs
+  // `Select is changing from uncontrolled to controlled`, and the same flip
+  // fires with the value untouched when a late-arriving `options` list gains or
+  // loses its `''` row (async pickers: `useMetaOptions`, `datasetOptions`,
+  // `fieldOptions`). While uncontrolled, Radix also keeps its OWN value, so a
+  // pick the owner declines to persist stays on screen. Rendering the text is
+  // the same predicate with none of that.
+  //
+  // "No selection" is the narrow state: no value AND no option standing for
+  // none. When the caller DOES offer a `''` row (a "— None —" choice), `''` is
+  // a selection like any other and that row's label wins — the case pinned in
+  // `_shared.select.test.tsx`. A non-empty value matching no option keeps
+  // rendering blank, unchanged: that is a stale/unknown value, not an empty
+  // one, and the call sites that care already synthesise a visible row for it.
+  const hasNoneOption = options.some((o) => o.value === '');
+  const showPlaceholder = (value ?? '') === '' && !hasNoneOption;
   return (
     <div className="space-y-1">
       <Label htmlFor={id} className="text-xs text-muted-foreground">{label}</Label>
@@ -261,8 +286,17 @@ export function InspectorSelectField({
         onValueChange={(v) => onCommit(fromInner(v))}
         disabled={disabled}
       >
-        <SelectTrigger id={id} className="h-8 text-sm">
-          <SelectValue placeholder={placeholder} />
+        {/* `data-placeholder` is Radix's own trigger flag and the hook Shadcn's
+            `data-[placeholder]:text-muted-foreground` styles the empty state
+            with. Radix cannot derive it through the sentinel, and the trigger
+            spreads caller props AFTER its own attributes, so setting it here
+            restores the real placeholder styling instead of hand-rolling it. */}
+        <SelectTrigger
+          id={id}
+          className="h-8 text-sm"
+          data-placeholder={showPlaceholder ? '' : undefined}
+        >
+          {showPlaceholder ? <span>{placeholder}</span> : <SelectValue />}
         </SelectTrigger>
         <SelectContent>
           {options.map((o) => (

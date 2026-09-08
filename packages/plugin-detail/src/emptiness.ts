@@ -68,8 +68,57 @@ import { recordDisplayValueAt } from '@object-ui/core';
  * display chain, any other object as JSON — none of which carries a name-ish key
  * in the general case, so delegating this half would replace populated cells
  * with `No value`, drop them out of `filledCount`, and let auto-hide bury them.
- * An object is therefore a VALUE here: this function moves whitespace-only
- * strings and nothing else.
+ * A POPULATED object is therefore a VALUE here.
+ *
+ * ## The one object shape that is NOT a value: `[]` (objectui#8474)
+ *
+ * Every example above is a POPULATED object. `typeof [] === 'object'`, so until
+ * objectui#8474 an EMPTY array took the same branch and was a value — and there
+ * the reasoning stops holding, because the type-aware renderer has nothing to
+ * draw. `SelectCellRenderer` tests `value == null || value === ''`, which `[]`
+ * passes, and then maps it over zero entries: the cell renders as
+ * `<div class="flex flex-wrap gap-1"></div>`, a visually blank cell — the exact
+ * UI the em-dash exists to prevent, reached through the function that exists to
+ * prevent it. And it brought the whole objectui#8376 triple with it: the row
+ * escaped `emptyCount` so the toggle read one too low, `canCopy` offered to copy
+ * it, and because `shouldAutoHideEmpty` only needs `filledCount > 0` a section
+ * whose one non-null value was `[]` auto-hid every genuinely empty row around it
+ * and rendered a lone label over a blank.
+ *
+ * ⚠️ The declared cost, measured rather than waved past: a `json`-family field
+ * holding `[]` used to render the literal two-character text `[]` through
+ * `JsonCellRenderer`, and now draws the `No value` placeholder. That is
+ * intended — "no items" is what the placeholder says — but it IS a render
+ * change, and it is pinned as one.
+ *
+ * ## Why `{}` is NOT included — measured on this surface, not argued by symmetry
+ *
+ * `{}` is a VALUE here, and that is a measurement rather than an oversight.
+ * Rendered in a real `DetailSection`, `{}` on a `json`, an `object` and a
+ * `location` field all draw the literal `{}` through `JsonCellRenderer`
+ * (`location` falls back to it when the lat/lng chain yields nothing) — a terse
+ * cell, but a DRAWN one. There is no blank cell, so there is no defect of the
+ * kind above to fix, and turning a visible `{}` into an em-dash would be a taste
+ * change dressed up as a bug fix.
+ *
+ * ⛔ And the shape that would sweep `{}` in is actively unsafe here:
+ * `Object.keys(value).length === 0` is ALSO true of `new Date(0)`, of a
+ * populated `Map`, of a populated `Set`, and of any class instance whose state
+ * sits behind getters (all four measured). Widening that way would call those
+ * EMPTY — a false-empty on values that render, strictly worse than the bug it
+ * set out to fix. So this function moves whitespace-only strings and empty
+ * arrays, and nothing else.
+ *
+ * ## Agreement with `RelatedList`'s local predicate (objectui#8459)
+ *
+ * `RelatedList.isValueEmpty` has drawn this finer line for some time, and
+ * objectui#8459 / PR #8476 measured it as the better-shaped answer for a grid,
+ * declining to delegate here BECAUSE of this hole. After objectui#8474 the two
+ * agree on every probe measured (`[]` empty; `{}`, `[1]`, `{ a: 1 }`, `0` and a
+ * `Date` all values). ⛔ Note the DIRECTION: the SHARED authority moved toward
+ * the local predicate. `RelatedList.isValueEmpty` is untouched and must stay
+ * that way — a grid column and a record row ask this at two granularities, and
+ * the local one is pinned in its own file.
  *
  * ## Not every emptiness question on this page is THIS question
  *
@@ -80,8 +129,9 @@ import { recordDisplayValueAt } from '@object-ui/core';
  * to tell apart. Converging it would delete information rather than add it.
  *
  * Pinned end-to-end (DOM, not predicate) in
- * `__tests__/DetailSection.emptinessAuthority-8376.test.tsx` and
- * `__tests__/detailPage.emptinessAuthority-8394.test.tsx`, whose NON-REGRESSION
+ * `__tests__/DetailSection.emptinessAuthority-8376.test.tsx`,
+ * `__tests__/detailPage.emptinessAuthority-8394.test.tsx` and
+ * `__tests__/DetailSection.emptyArray-8474.test.tsx`, whose NON-REGRESSION
  * cases are red for a wholesale delegation and red for an emptiness test that
  * answers EMPTY for everything.
  */
@@ -89,7 +139,15 @@ export function hasCellValue(value: unknown): boolean {
   // Object/array values belong to the cell renderers, not to the display-name
   // chain — see the docblock above. `typeof null === 'object'`, so null is
   // excluded here and answered by the authority below.
-  if (value !== null && typeof value === 'object') return true;
+  if (value !== null && typeof value === 'object') {
+    // …with exactly one exception: an EMPTY array, which no cell renderer has
+    // anything to draw for (objectui#8474). Answered HERE rather than by
+    // falling through to the authority below: that function answers "does this
+    // resolve to a NAME", and it calls `{}` and a `Date` empty too — correct
+    // for a title, a false-empty for a cell.
+    if (Array.isArray(value) && value.length === 0) return false;
+    return true;
+  }
   // A one-key synthetic record is how a VALUE asks the authority its question:
   // `recordDisplayValueAt` is keyed `(record, field)` because its callers read
   // a field off a record, while a call site's value has several sources (the

@@ -416,8 +416,32 @@ function matchesComparisonNode(
     // folds ASCII only, so a Unicode promise here is one the wire cannot keep.
     case 'icontains':
       return typeof value === 'string' && asciiCaseInsensitiveContains(value, String(target));
+    // objectui#8452 — this arm answers the PREDICATE, not a TYPE TEST. It used
+    // to read `typeof value === 'string' && !value.includes(...)`, so a row
+    // whose value is the number 5 failed `contains '5'` (right: a number cannot
+    // contain a substring) AND failed `not_contains '5'` (wrong: for the very
+    // same reason it cannot contain it, it does not contain it). Measured on
+    // this fixture before the fix, `not_contains '5'` answered `['sx']` where
+    // it now answers seven of eight rows: six rows sat outside BOTH halves of
+    // the partition, so no filter answer included them and the opposite filter
+    // — the one thing a user has to debug with — was silent too.
+    //
+    // The direction is objectstack#14079 (maintainer ruling 2026-09-05,
+    // option A), quoted from `filter-text-conformance.ts`, the contract that
+    // carries it: "a stored value that is not a string never satisfies a
+    // positive text operator (`$contains` / `$startsWith` / `$endsWith` /
+    // `$icontains` / `$like` / `$ilike`) and satisfies `$notContains` —
+    // complementarity holds, on every face." `FILTER_TEXT_CASES`' `score` rows
+    // pin it, and `driver-memory`'s reference matcher — the face the defect was
+    // measured on — carries the same expression negated the same way.
+    //
+    // So this is the exact complement of the `contains` arm above, and it has
+    // to STAY spelled that way: the type gate on the positive operators is the
+    // other half of the same ruling, not a leftover to clean up. A `null` or an
+    // absent key is admitted by the same predicate (they are not strings),
+    // which is also what objectstack#13166 ruled for this operator.
     case 'not_contains':
-      return typeof value === 'string' && !value.includes(String(target));
+      return !(typeof value === 'string' && value.includes(String(target)));
     case 'starts_with':
       return typeof value === 'string' && value.startsWith(String(target));
     case 'ends_with':
@@ -603,8 +627,14 @@ function matchesDollarOperator(
       return typeof value === 'string' && value.includes(String(target));
     case '$icontains':
       return typeof value === 'string' && asciiCaseInsensitiveContains(value, String(target));
+    // objectui#8452 — the `$` spelling of the same cell, and the same fix: the
+    // complement of the `$contains` arm above rather than a `typeof` test
+    // standing in for the predicate. objectstack#14079 option A: a stored value
+    // that is not a string never satisfies a positive text operator and
+    // satisfies `$notContains`, so complementarity holds on every face. The two
+    // dialects are pinned against each other so this one cannot drift back.
     case '$notContains':
-      return typeof value === 'string' && !value.includes(String(target));
+      return !(typeof value === 'string' && value.includes(String(target)));
     case '$startsWith':
       return typeof value === 'string' && value.startsWith(String(target));
     case '$endsWith':

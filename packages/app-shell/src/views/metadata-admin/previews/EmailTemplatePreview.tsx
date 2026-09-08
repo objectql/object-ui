@@ -15,6 +15,7 @@
 
 import * as React from 'react';
 import { Mail } from 'lucide-react';
+import { EmptyDescription } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
@@ -95,7 +96,7 @@ export function EmailTemplatePreview({ draft }: MetadataPreviewProps) {
               <Mail className="h-3 w-3" /> Variables
             </div>
             {variables.length === 0 ? (
-              <div className="text-muted-foreground italic">No <code>{'{{var}}'}</code> placeholders found.</div>
+              <EmptyDescription className="text-xs italic">No <code>{'{{var}}'}</code> placeholders found.</EmptyDescription>
             ) : (
               <div className="space-y-2">
                 {variables.map((v) => (
