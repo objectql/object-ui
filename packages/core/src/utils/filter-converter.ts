@@ -14,6 +14,7 @@
  */
 
 import { normalizeFilterOperator } from '@objectstack/spec/ui';
+import { isAcceptedFilterComparand } from '@objectstack/spec/data';
 
 /**
  * FilterNode AST type definition
@@ -216,6 +217,13 @@ function falseIdentityLeaf(field: string, value: unknown[]): FilterNode {
  * convertFiltersToAST({ $or: [{ status: 'open' }, { status: 'blocked' }] })
  * // => ['or', ['status', '=', 'open'], ['status', '=', 'blocked']]
  *
+ * @example
+ * // A Date is a comparand, not an operator map (objectui#8555). It lowers as
+ * // the Date INSTANCE — the spec accepts one, and the operator form already
+ * // emits one.
+ * convertFiltersToAST({ created: new Date('2026-01-01') })
+ * // => ['created', '=', Date(2026-01-01)]
+ *
  * @throws {FilterOperatorError} If an unknown operator is encountered, if
  * `$not` is used — see the `$not` arm for why the AST cannot carry it — or if a
  * field's value is a bare ARRAY (`{ tags: ['a', 'b'] }`) — see the array arm for
@@ -297,6 +305,50 @@ export function convertFiltersToAST(filter: Record<string, any>): FilterNode | R
 
     // Check if value is a complex operator object
     if (typeof value === 'object' && !Array.isArray(value)) {
+      // A `Date` is a COMPARAND, not an operator map — objectui#8555.
+      //
+      // `typeof new Date()` is `'object'` and a Date is not an array, so it used
+      // to enter the loop below; `Object.entries(someDate)` is `[]`, the body
+      // never ran, and NO condition was pushed for the field. Not refused, not
+      // lowered wrongly — ABSENT, so `{ status: 'a', created: someDate }`
+      // lowered to `['status', '=', 'a']` and the result set got WIDER than the
+      // author asked for, silently. That is the one failure direction this file
+      // exists to avoid. It also made the field's behaviour depend on its
+      // SIBLINGS: a Date alone left `conditions` empty, so the original object
+      // came back untouched and the defect was invisible until a second field
+      // appeared.
+      //
+      // Lowered rather than refused, and the spec is what decides it — the
+      // opposite answer to objectui#8514, which was a refusal precisely because
+      // the spec DECLINED to rule on that shape. Here it rules, twice over
+      // (measured against @objectstack/spec 17.3.0):
+      // `ACCEPTED_FILTER_COMPARAND_TYPES` is
+      // `['string','number','bigint','boolean','null','Date']`, and
+      // `$gt`/`$gte`/`$lt`/`$lte`/`$between` declare `z.ZodDate` in comparand
+      // position. So a Date is a first-class filter comparand, not a shape this
+      // layer has to invent an answer for.
+      //
+      // ⛔ NOT converted to an ISO string or an epoch here. The wire form is not
+      // this adapter's question to answer: `parseFilterAST(['created', '=', d])`
+      // hands back `{ created: d }` with the Date INSTANCE intact (measured), and
+      // `normalizeFilterComparandTypes` accepts it as-is. The operator arm below
+      // already passes a Date through untouched (`{ created: { $gte: d } }` →
+      // `['created', '>=', d]`), so stringifying here would make the shorthand
+      // and the operator form emit two different comparand types for the same
+      // author intent — a second dialect, in the file whose whole job is to have
+      // one.
+      //
+      // The gate is the spec's own predicate rather than a local `instanceof
+      // Date`, the same reason `normalizeFilterOperator` is used below instead of
+      // a second operator map. Today `Date` is its only object-typed member
+      // (pinned in filter-date-comparand-8555.test.ts), so this arm is a Date arm
+      // in practice; if the spec ever accepts another object-shaped literal, this
+      // reads it as a comparand instead of silently dropping it.
+      if (isAcceptedFilterComparand(value)) {
+        conditions.push([field, '=', value]);
+        continue;
+      }
+
       // Handle operator-based filters
       for (const [operator, operatorValue] of Object.entries(value)) {
         // `$regex` is refused, not downgraded. It used to become `contains`
