@@ -136,6 +136,13 @@ AST format**. This is what keeps it compatible with the ObjectStack Protocol
 | `$startswith` | `startswith` | `{ email: { $startswith: 'admin' } }` → `['email', 'startswith', 'admin']` |
 | `$between` | `between` | `{ age: { $between: [18, 65] } }` → `['age', 'between', [18, 65]]` |
 
+A bare array as a field's value — `{ tags: ['a', 'b'] }` — is **refused** at
+lowering time with a `FilterOperatorError` (`INVALID_FILTER` / 400) naming the
+field and the comparand, not read as `$in` (objectui#8530): the ObjectQL AST
+has no array-equality node, so `['tags', '=', ['a', 'b']]` was answered by a
+`400` from the wire or an empty list from every in-memory matcher. Spell
+membership as `{ tags: { $in: ['a', 'b'] } }` (or `$nin` for its negation).
+
 #### Complex Filter Examples
 
 **Multiple conditions** are combined with `'and'`:
