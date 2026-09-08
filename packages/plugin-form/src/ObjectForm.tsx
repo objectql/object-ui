@@ -42,6 +42,7 @@ import {
   inferColumns,
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
+import { hasSectionGroupReference, resolveSectionGroupReferences } from './sectionGroups';
 import { sanitizeFormData } from './sanitize';
 import { noSubmitTargetError } from './submitTarget';
 import {
@@ -137,6 +138,43 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
   dataSource,
 }) => {
   const perms = usePermissions();
+
+  // ── `sections[].group` — the ADR-0085 §5 REFERENCE form (objectui#7051) ───
+  //
+  // A section may point `group` at one of the object's declared `fieldGroups`
+  // instead of enumerating members (`@objectstack/spec` 17.3.0,
+  // objectstack#13855). Resolving it needs the OBJECT definition, and this
+  // dispatcher — unlike the six bodies below it — has never loaded one.
+  //
+  // It is resolved HERE, above the routing, on purpose: every variant's
+  // `sections` prop is rebuilt key by key in the maps below, so a `group` left
+  // in place would be dropped before any container could see it, and each
+  // container would need its own copy of the resolution. One site above the
+  // fork is what makes "one assembler" true for all six layouts at once —
+  // including `simple`, whose section loop read `section.fields.map(...)`
+  // unguarded and threw `Cannot read properties of undefined (reading 'map')`
+  // on a spec-legal `{ group }` section, blanking the WHOLE form (measured on
+  // this file at `origin/main`; the other five silently dropped the section
+  // instead, because `buildSectionFields` spells the same read `?? []`).
+  //
+  // The load is gated on an authored `group` being present, so a form that
+  // does not use the reference form issues no request and takes no new path.
+  const needsGroupLayout = hasSectionGroupReference((rawSchema as any)?.sections);
+  const canResolveGroups = typeof (dataSource as any)?.getObjectSchema === 'function';
+  const [groupObjectDef, setGroupObjectDef] = useState<any>(null);
+  useEffect(() => {
+    if (!needsGroupLayout || !canResolveGroups) return;
+    let alive = true;
+    Promise.resolve((dataSource as any).getObjectSchema(rawSchema.objectName))
+      .then((def: any) => { if (alive) setGroupObjectDef(def ?? null); })
+      // A failed load leaves the references unresolved (their sections render
+      // empty). It is deliberately NOT reported as a dangling reference: the
+      // body below owns the load error for the object, and claiming the group
+      // does not exist would be a second, wrong diagnosis of one failure.
+      .catch(() => { if (alive) setGroupObjectDef(null); });
+    return () => { alive = false; };
+  }, [needsGroupLayout, canResolveGroups, dataSource, rawSchema.objectName]);
+
   // Apply field-level permissions to the entire schema (sections + flat
   // fields) BEFORE dispatching to any variant. This way all variants
   // (Tabbed/Wizard/Split/Drawer/Modal/Simple) transparently honour FLS.
@@ -168,7 +206,22 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             })),
           }
         : folded;
-    if (!perms?.isLoaded) return base;
+    /**
+     * Resolve every `{ group }` section into the section that group declares.
+     *
+     * Returns its input UNCHANGED — same array reference — when no section
+     * uses the reference form, so this memo cannot perturb any existing form.
+     */
+    const withGroups = (s: ObjectFormComponentProps['schema']) => {
+      const resolved = resolveSectionGroupReferences(s.sections as any, {
+        objectName: s.objectName,
+        formType: s.formType,
+        objectDef: groupObjectDef,
+        resolvable: canResolveGroups,
+      });
+      return resolved === (s.sections as any) ? s : { ...s, sections: resolved as any };
+    };
+    if (!perms?.isLoaded) return withGroups(base);
     const gateField = (f: any) => {
       if (!f?.name) return f;
       const canRead = perms.checkField(base.objectName, f.name, 'read');
@@ -181,15 +234,15 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
     };
     const filterArr = (arr?: any[]) =>
       Array.isArray(arr) ? arr.map(gateField).filter(Boolean) : arr;
-    return {
+    return withGroups({
       ...base,
       fields: filterArr(base.fields as any[]),
       sections: base.sections?.map((s: any) => ({
         ...s,
         fields: filterArr(s.fields),
       })),
-    } as ObjectFormComponentProps['schema'];
-  }, [rawSchema, perms]);
+    } as ObjectFormComponentProps['schema']);
+  }, [rawSchema, perms, groupObjectDef, canResolveGroups]);
   const { sectionLabel } = useSafeFieldLabel();
   const tSec = (s: any) =>
     s?.name ? sectionLabel(schema.objectName, s.name, s.label || s.name) : s?.label;
@@ -277,7 +330,16 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             label: tSec(s),
             description: s.description,
             columns: s.columns,
-            fields: s.fields,
+            // `?? []` because `ObjectFormSection.fields` is OPTIONAL since objectui#7051
+            // — `group` is the other way a section declares its members. A `{ group }`
+            // section has already been resolved into one carrying `fields` before this
+            // map runs (and an unresolvable one into `fields: []`), so this default is
+            // reached only by a programmatic caller sending a section with neither,
+            // which the spec door refuses. These per-layout config types stay
+            // `fields`-required on purpose: they are the programmatic React-mount
+            // shapes, not the authorable surface, and the reference form is resolved
+            // above them.
+            fields: s.fields ?? [],
             // ADR-0089 section predicate (objectui#6237) — key-by-key rebuild,
             // so an uncopied key is silently dropped before TabbedForm ever
             // sees it, exactly as it was on this route until this card. The
@@ -348,7 +410,8 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             label: tSec(s),
             description: s.description,
             columns: s.columns,
-            fields: s.fields,
+            // `?? []` — see the tabbed arm above (objectui#7051).
+            fields: s.fields ?? [],
             // `className` / `gridClassName`: deliberately not copied — see the
             // tabbed arm above (objectstack#13626, ruled 2026-09-01).
           })),
@@ -375,7 +438,8 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             label: tSec(s),
             description: s.description,
             columns: s.columns,
-            fields: s.fields,
+            // `?? []` — see the tabbed arm above (objectui#7051).
+            fields: s.fields ?? [],
             // Explicit pane placement (spec FormSection.pane). This mapping
             // rebuilds each section key by key, so a key it doesn't copy is
             // silently dropped — exactly how `visibleOn` once vanished here.
@@ -410,7 +474,8 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             label: tSec(s),
             description: s.description,
             columns: s.columns,
-            fields: s.fields,
+            // `?? []` — see the tabbed arm above (objectui#7051).
+            fields: s.fields ?? [],
             collapsible: (s as any).collapsible,
             collapsed: (s as any).collapsed,
             // ADR-0089 section predicate (#6111) — key-by-key rebuild, so an
@@ -445,7 +510,8 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             label: tSec(s),
             description: s.description,
             columns: s.columns,
-            fields: s.fields,
+            // `?? []` — see the tabbed arm above (objectui#7051).
+            fields: s.fields ?? [],
             // ADR-0089 section predicate (#6111) — key-by-key rebuild, so an
             // uncopied key is silently dropped before ModalForm ever sees it.
             visibleWhen: (s as any).visibleWhen,
@@ -1269,7 +1335,18 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
         // legitimately be the spec identity STRING (the cast is the boundary,
         // not a leak; on runtime FormFields the declared `field` slot is
         // always the metadata object, #3090).
-        section.fields.map(f => [typeof f === 'string' ? f : ((f as any).field ?? f.name), f]),
+        // ⚠️ `?? []`, not a bare `.map` — the second containment layer for
+        // objectui#7051. The group-reference resolution above this component
+        // means a `{ group }` section never arrives here carrying no `fields`,
+        // but this loop runs in `SimpleObjectForm`'s own body, ABOVE the JSX it
+        // returns: a throw here is outside every per-section subtree, so no
+        // error boundary that a section could own would contain it. That is
+        // exactly how a spec-legal section blanked the entire form — the
+        // well-formed siblings with it — before this card. The five container
+        // variants have always spelled this read `section.fields ?? []` in
+        // `buildSectionFields`; this is the sixth joining them, so no section
+        // shape can take the form down again through this line.
+        (section.fields ?? []).map(f => [typeof f === 'string' ? f : ((f as any).field ?? f.name), f]),
       );
       const sectionFieldNames = Array.from(sectionDefByName.keys());
       const sectionFields = applyFieldPerms(sourceFields.filter(f => sectionFieldNames.includes(f.name)))
