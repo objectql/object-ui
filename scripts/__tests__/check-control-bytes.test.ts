@@ -306,8 +306,13 @@ describe('repo state — the gate is green on this tree', () => {
  * GNU grep prefixes `grep: <file>: `, older builds print `Binary file <file>
  * matches` on stdout. Reading BOTH streams means this does not depend on which.
  */
-function contentSearch(needle: string, file: string, cwd: string = repoRoot) {
-  const run = spawnSync('grep', ['-n', needle, file], { cwd, encoding: 'utf8' });
+function contentSearch(
+  needle: string,
+  file: string,
+  cwd: string = repoRoot,
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  const run = spawnSync('grep', ['-n', needle, file], { cwd, encoding: 'utf8', env });
   const both = `${run.stdout ?? ''}${run.stderr ?? ''}`;
   return {
     status: run.status,
@@ -356,7 +361,15 @@ describe('objectstack#5425 — the file that started this is readable again', ()
       fs.writeFileSync(probe, `const includeKey = 1;${String.fromCharCode(0)}\n`);
       const declined = contentSearch('includeKey', probe, dir);
       expect(declined.refusedAsBinary, 'grep must decline a NUL-bearing file').toBe(true);
-      expect(declined.stdout, 'and print no line at all — that is the search outage').toBe('');
+      expect(
+        declined.stdout,
+        'and print no MATCHING LINE — that is the search outage. ⚠️ objectui#8404: this read ' +
+          "`toBe('')` until a stock macOS host reddened it on bytes CI called green. An empty " +
+          'stdout is not the outage, it is one userland\'s way of reporting it: GNU grep >= 3.5 ' +
+          'writes its refusal to stderr and leaves stdout empty, BSD grep writes ' +
+          '`Binary file <path> matches` to STDOUT. Both refuse, both print no line of the file, ' +
+          'and the refusal itself is already pinned by `refusedAsBinary` above.',
+      ).not.toMatch(/^\d+:/m);
       expect(declined.status, 'while exiting 0, which is what makes the outage silent').toBe(0);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -375,6 +388,58 @@ describe('objectstack#5425 — the file that started this is readable again', ()
  * there would be a fabricated pin, so it is asserted only on the byte's absence,
  * which is the harm it actually had: an unreviewable literal.
  */
+/**
+ * ⭐ objectui#8404 — the two assertions above hold on EITHER grep userland.
+ *
+ * Established without a macOS host, because the discriminator is not the
+ * platform: it is which stream grep writes its refusal to. GNU grep 3.11 (this
+ * container, and what CI runs) writes `grep: <f>: binary file matches` to
+ * stderr and leaves stdout empty; BSD grep writes `Binary file <f> matches` to
+ * stdout. Both exit 0 and both print no line of the file. A shim first on PATH
+ * stands in for the second, so the host-independence is pinned here, on Linux,
+ * on every run — ⛔ not left as a claim nobody can re-measure.
+ */
+describe('objectui#8404 — the refusal is read the same on either grep userland', () => {
+  it('recognises the BSD spelling, which arrives on stdout', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'control-bytes-bsd-grep-'));
+    try {
+      const shim = path.join(dir, 'grep');
+      fs.writeFileSync(
+        shim,
+        [
+          '#!/bin/sh',
+          '# Stands in for BSD grep declining a binary file: the refusal on STDOUT,',
+          '# exit 0, and no line of the file. $3 is the path, after `-n <needle>`.',
+          'printf "Binary file %s matches\\n" "$3"',
+          'exit 0',
+          '',
+        ].join('\n'),
+      );
+      fs.chmodSync(shim, 0o755);
+      fs.writeFileSync(path.join(dir, 'probe.ts'), 'const includeKey = 1;\n');
+
+      const bsd = contentSearch('includeKey', 'probe.ts', dir, {
+        ...process.env,
+        PATH: `${dir}${path.delimiter}${process.env.PATH ?? ''}`,
+      });
+
+      // The control: the shim really is the grep that ran, or this measures GNU
+      // grep again and proves nothing about the other userland.
+      expect(bsd.stdout, 'the shim on PATH was not the grep that ran').toMatch(/^Binary file /m);
+      expect(bsd.refusedAsBinary, 'the BSD spelling must be read as the refusal it is').toBe(true);
+      expect(
+        bsd.stdout,
+        'and it is not a line of the file — which is why the search-outage assertion is written ' +
+          "against matching lines rather than against an empty stdout (the `toBe('')` spelling " +
+          'was false here, and only here, which is how objectui#8404 was found).',
+      ).not.toMatch(/^\d+:/m);
+      expect(bsd.status, 'exit 0 either way — that is what makes the outage silent').toBe(0);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('objectstack#5450 — the four baselined files are clean', () => {
   const cleaned = [
     { file: 'packages/core/src/evaluator/listConditional.ts', grepFor: 'warnedError' },

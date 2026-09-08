@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import { UndoManager, type UndoableOperation } from '../UndoManager';
 
 function makeOp(id: string, type: 'create' | 'update' | 'delete' = 'update'): UndoableOperation {
@@ -232,6 +232,15 @@ describe('UndoManager', () => {
         setItem: vi.fn((key: string, value: string) => { storage[key] = value; }),
         removeItem: vi.fn((key: string) => { delete storage[key]; }),
       });
+    });
+
+    // Handed back, not left standing: this file runs in the `unit` project,
+    // which is `isolate: false`, so `vi`'s stub registry is shared across FILES
+    // in the worker and a stub left here is undone by whichever later file calls
+    // `vi.unstubAllGlobals()` first — restoring a value that file never
+    // installed (objectui#8500).
+    afterEach(() => {
+      vi.unstubAllGlobals();
     });
 
     it('round-trips undo/redo stacks through localStorage', () => {

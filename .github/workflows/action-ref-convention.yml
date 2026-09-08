@@ -1,0 +1,94 @@
+name: Action Ref Convention
+
+# ── THE CONVENTION THIS REPOSITORY USES FOR ACTION REFERENCES ────────────────
+#
+# Default spelling: a floating major tag, `owner/action@vN`. Every `uses:` in
+# this directory is written that way.
+#
+# An exception is marked by an entry in `DECLARED_EXCEPTIONS` in
+# `scripts/check-action-ref-convention.mjs`, carrying the workflow file, the
+# action path, the issue that owns the decision, and a real reason. That is the
+# only form an exception takes. A trailing `# v9.0.0`-style comment beside a ref
+# is a version HINT, not a reason, and the gate does not read it as one.
+#
+# ── WHY IT IS WRITTEN DOWN, WHICH IS NOT THE SAME AS WHICH SPELLING IT PICKS ──
+#
+# objectui#8465. There were 13 distinct action references in this directory.
+# Exactly ONE was spelled differently from the other twelve — a commit SHA on
+# `actions/stale` — and it was the only reference in the repository that had
+# never resolved: 236 scheduled runs since 2026-01-16, 0 successes, every one
+# failing in `Set up job`, unnoticed for eight months because nothing downstream
+# consumes that job. The broken reference itself is objectui#8126.
+#
+# ⛔ The finding is the SOLE INSTANCE, not the pinning. SHA pinning is normally
+# the MORE secure spelling and supply-chain guidance recommends it. What failed
+# was one ref written in a form nothing else in the tree used, with no convention
+# that would have made the odd one out visible and nothing verifying it. A
+# floating tag that stops resolving is loud on the next run of every workflow
+# that uses it; a lone off-convention ref that never resolved is silent for as
+# long as nobody happens to look.
+#
+# ⛔ Do NOT read the default as a ruling against SHA pinning, and ⛔ do not
+# "unify" this directory in either direction under cover of this gate. Moving the
+# repository's pinning posture is a supply-chain decision and belongs on its own
+# card (objectui#8465 triage, 2026-09-08). The value of the convention is
+# independent of which spelling it names: once one exists, the next odd one out
+# is loud instead of visible-only-if-you-look.
+#
+# ── WHY THIS IS ITS OWN WORKFLOW ─────────────────────────────────────────────
+#
+# Same reason as `control-bytes.yml`, and its header says it at length: a change
+# that touches only `.github/workflows/**` runs nothing expensive in `ci.yml` or
+# `lint.yml`, so a gate living inside one of those would be least likely to run
+# on exactly the pull requests it exists to read. Dependabot opens
+# `github-actions` update pull requests monthly here, and
+# `dependabot-auto-merge.yml` can merge them — action refs are a surface that
+# changes without a human choosing each edit.
+#
+# It needs no install and no build — a checkout plus one `node` call over
+# `.github/workflows/`, a few seconds. Keep it that way.
+#
+# No `paths` and no `paths-ignore`, deliberately: the population it scans is this
+# directory, so a pull request that edits only this directory must start it.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue: this gate reports on a queue build so it can be required later
+  # without stalling the queue. See `ci.yml`'s trigger block for the full note —
+  # a required context that does not report on a queue build does not fail the
+  # queue, it stalls it until the ruleset's 60-minute status-check timeout.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: action-ref-convention-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  action-ref-convention:
+    name: Action Ref Convention
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # Reads `.github/workflows/` off the checkout, so no install is required.
+      # The gate refuses to report a verdict at all if its own census collapses:
+      # a scan that stops finding references renders identically to a clean
+      # repository, which is the one way a check like this lies.
+      - name: Check action reference spelling against the declared convention
+        run: node scripts/check-action-ref-convention.mjs
