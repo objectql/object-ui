@@ -17,7 +17,8 @@ the same node gets the same verdict at every depth.
 ⛔ **Nothing here is `.strict()`.** `BaseSchemaCore` keeps its passthrough, no schema
 gained a `catchall`, and no declaration was repaired. Measured over the catalog +
 docs corpora on `c90395b2` (431 catalog files + the `json` fences under
-`content/docs`, 554 node documents): **45 refused before, 54 after** — nine documents,
+`content/docs`, 554 node documents): **45 refused before, 54 after** — re-derived
+unchanged after merging `main` `3f775eeb8`, same pair, same instrument — nine documents,
 each one pre-existing debt this SURFACES rather than creates. Four have a child whose
 `type` resolves in no arm; five carry a child already red under its own schema and
 shielded until now by the recursion point.
@@ -36,3 +37,37 @@ the module graph. It is a written option slot that `index.zod.ts` fills inside
 module graph parsed first decide the accept set for the whole process. Both
 constraints are measured, and the reasoning lives on `defineNodeComponentUnion` in
 `zod/base.zod.ts`.
+
+
+## Three more accept/reject facts this ships, and one caveat
+
+**1. `DashboardWidgetSchema.component` narrows.** That legacy `{ id, component, layout }`
+envelope names `BaseSchema` explicitly instead of following the redirect, so the widget
+slot keeps admitting `metric-card`, objectui's closed widget-slot extension. One measured
+delta and only one: a PRIMITIVE in that slot (`component: 'text'`) was accepted through
+`SchemaNodeSchema` and is refused now. No corpus document, fixture or pin writes one.
+
+**2. `SchemaNodeSchema` moves from `TDZ_BOUND` to `MEMOISED`.** Its `z.lazy` getter now
+returns the one live union rather than building one per call, so `getter() === getter()`
+and `.unwrap() === .unwrap()` are TRUE for this export where they were FALSE. The
+supported handle is unchanged and is still the exported wrapper; the other seven mirrors
+in that ledger are untouched.
+
+**3. ⚠️ One WIDENING, in the same stroke: `chatbot` nodes with a record `body`.**
+`ChatbotSchema.body` mirrors the chat API's body params as
+`z.record(z.string(), z.unknown())`, which is WIDER than `BaseSchemaCore.body`. Judging a
+child by its own schema therefore admits, at every child slot, a document that the base
+arm refused. Measured, corpus-valid chatbot seed plus `body: { model, temperature }`:
+accepted at the root before and after; inside `card.body[]` and `div.children[]` REFUSED
+before, ACCEPTED now. It is the only wider redeclaration among 109 base-key
+redeclarations across the union's arms, and no corpus document writes one — which is why
+the 45 to 54 headline does not show it.
+
+**⚠️ Caveat for bundled consumers — the redirect can be tree-shaken away.** This package
+declares `"sideEffects": false`, and the arm is filled by a statement in the `./zod`
+barrel body. A bundler that honours that flag and sees no import of `AnyComponentSchema`
+may drop the fill, and then every child slot validates with the PRE-redirect arm — no
+error, no warning, the old accept set. Measured on this repo's own Vite/rollup lib build:
+importing only `CardSchema` accepts a nested off-spec node, and the same bundle built
+with `AnyComponentSchema` also imported refuses it. Until that is settled, a consumer
+that bundles `@object-ui/types/zod` should keep `AnyComponentSchema` in its import graph.

@@ -32,10 +32,23 @@
  *
  * ⚠️ Recognising the recursion point by IDENTITY is pinned on the EXPORTED WRAPPER,
  * ⛔ never through `.unwrap()` or a re-invoked `z.lazy` getter. That is objectui#7918
- * consequence ①, measured: the exported wrapper identity is stable and survives
- * through a declared slot, while `S.unwrap() === S.unwrap()` and `getter() ===
- * getter()` are both FALSE. A pin written through either would compare two fresh
- * objects and fail for a reason that has nothing to do with this contract.
+ * consequence ①: the exported wrapper identity is stable and survives through a
+ * declared slot, and it is the ONE reading that holds for all ten recursive mirrors.
+ *
+ * ⚠️ ⛔ Do not read that as "`unwrap()` and the getter are unstable HERE". On `main`
+ * they are — measured on the built face, `S.unwrap() === S.unwrap()` and
+ * `getter() === getter()` are both FALSE. On THIS head both are TRUE for this one
+ * const, because the redirect moved `SchemaNodeSchema` from `TDZ_BOUND` to
+ * `MEMOISED` (the byproduct ledgered in `zod-lazy-getter-identity-7918.test.ts`):
+ * the getter no longer BUILDS a union, it returns the one live `nodeUnion`, and
+ * `.unwrap()` resolves to that same object. The `fill is LIVE` leg below works
+ * BECAUSE of that.
+ *
+ * ⇒ the discipline stands unchanged and for an unchanged reason: it must hold for
+ * the seven mirrors that are still TDZ_BOUND, so a pin written through `.unwrap()`
+ * or a re-invoked getter would compare two fresh objects THERE and fail for a
+ * reason that has nothing to do with this contract. Pinning the wrapper is what
+ * makes this file portable to them; it is not a claim about this const's getter.
  */
 
 import { describe, it, expect } from 'vitest';
