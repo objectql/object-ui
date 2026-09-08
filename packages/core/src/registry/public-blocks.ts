@@ -113,13 +113,27 @@ export const PUBLIC_BLOCKS: readonly string[] = [
   // MEASURED before it was added, because "add it and see" is how a gate
   // discovers a new population at merge time. `registry-inputs-spec-parity`
   // (apps/console) does NOT judge it, and not by tolerance: its coverage set is
-  // derived from `Object.keys(ComponentPropsMap)`, it never reads this list,
-  // and `@objectstack/spec@17` carries NO entry for any Tier B layout primitive
-  // -- `flex`, `grid`, `stack`, `card` and `container` are all equally absent.
-  // So `box` joins a spec-less population that gate has never covered; it needs
-  // no spec entry, and no gate needed loosening to accept it. The measurement is
-  // pinned next to the roster census in `apps/console`, over the DERIVED
-  // container population rather than over this list.
+  // SPEC-shaped -- `Object.keys(ComponentPropsMap)`, filtered to what this repo
+  // registers with inputs. It never reads this list, and membership here is
+  // neither necessary nor sufficient for being judged: `element:record_picker`
+  // is judged while absent from this list, and `flex` / `grid` / `stack` /
+  // `card` / `container` are all listed here and all unjudged, because
+  // `@objectstack/spec@17` carries no entry for ANY Tier B layout primitive. So
+  // `box` joins a spec-less population five types deep rather than opening a
+  // new one; it needs no spec entry, and no gate needed loosening to accept it.
+  //
+  // ⚠️ And "not on this list" never meant "not on an authoring surface". `box`
+  // has been validated all along through the OTHER consumer of the same
+  // `inputs`: `components/src/renderers/layout/page.tsx` builds the JSX-page
+  // compiler's manifest from `getKnownTypes()`, registry-wide. What this list
+  // gates is `getPublicConfigs()` -- the curated AI-authoring vocabulary, and
+  // through `sdui-parser/scripts/gen-manifest.ts` the published
+  // `sdui.manifest.json` and `sdui-intrinsics.d.ts`. THAT is the surface `box`
+  // was missing from, which is a narrower and truer statement of the gap than
+  // "the contract does not know it".
+  //
+  // The measurement is pinned next to the roster census in `apps/console`, over
+  // the DERIVED container population rather than over this list.
   'box',
   'page:header',
   'text',

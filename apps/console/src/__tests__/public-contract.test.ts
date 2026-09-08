@@ -410,12 +410,34 @@ describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
  *
  * The answer is a third one, neither "it demands a spec entry" nor "it tolerates
  * the absence": IT CANNOT SEE THE BLOCK AT ALL. That file's coverage set is
- * `Object.keys(ComponentPropsMap)` filtered to what this repo registers with
- * inputs; it never reads `PUBLIC_BLOCKS`, and the spec carries no entry for ANY
- * Tier B layout primitive. So `box` did not arrive as a new spec-less
- * population — it joined one five types deep that the gate has never judged.
- * Pinned below, over the derived population, with a lit control on the same
- * command shape so the empty result is a measurement and not a broken query.
+ * SPEC-shaped — `Object.keys(ComponentPropsMap)` filtered to what this repo
+ * registers with inputs — and it never reads `PUBLIC_BLOCKS`.
+ *
+ * ⭐ Membership in this roster is therefore neither NECESSARY nor SUFFICIENT for
+ * being judged, and both halves have live specimens, so the measurement is not a
+ * story about one block:
+ *
+ *   - not necessary — `element:record_picker` is absent from `PUBLIC_BLOCKS` and
+ *     judged anyway, because the spec describes it (the parity file says so
+ *     itself, in its own words about why its coverage is not limited to the
+ *     public tier);
+ *   - not sufficient — `flex` / `grid` / `stack` / `card` / `container` are all
+ *     curated and all unjudged, because `@objectstack/spec@17` carries no entry
+ *     for any Tier B layout primitive.
+ *
+ * So `box` did not arrive as a new spec-less population; it joined one five
+ * types deep that the gate has never judged. Both halves are pinned below.
+ *
+ * ⚠️ ONE THING THIS GAP WAS NOT. "Absent from `PUBLIC_BLOCKS`" never meant "not
+ * on an authoring surface", and saying so would overstate the card. `box`'s
+ * `inputs` have been live all along through the OTHER consumer of the same
+ * metadata: `components/src/renderers/layout/page.tsx` builds the JSX-page
+ * compiler's manifest from `getKnownTypes()` — registry-wide, no roster in it —
+ * and `validateTree` judges authored pages against that. What this roster gates
+ * is `getPublicConfigs()`: the curated AI-authoring vocabulary, and through
+ * `sdui-parser/scripts/gen-manifest.ts` the published `sdui.manifest.json` and
+ * `sdui-intrinsics.d.ts`. That is the surface `box` was missing from — narrower,
+ * and true.
  */
 
 /**
@@ -444,6 +466,10 @@ const DECLARED_LAYOUT_CONTAINERS = LAYOUT_VOCABULARY.filter(
  * and the ledger pin below would pass over a set that means nothing.
  */
 const CONTAINER_CONTROL_SET = ['card', 'container', 'flex', 'grid', 'stack'];
+
+/** Does `@objectstack/spec` describe this block's props? The parity gate's own reach. */
+const specCarried = (type: string): boolean =>
+  Object.prototype.hasOwnProperty.call(ComponentPropsMap, type);
 
 /**
  * Declared layout containers deliberately OUTSIDE the curated vocabulary, each
@@ -529,9 +555,6 @@ describe('PUBLIC_BLOCKS ↔ the declared layout containers (derived, objectui#68
     // next door — whose coverage set is derived from that map's keys, and which
     // never reads `PUBLIC_BLOCKS` — cannot see any of it. Curating `box` moved
     // that gate by nothing, and needed no spec entry and no loosening.
-    const specCarried = (type: string): boolean =>
-      Object.prototype.hasOwnProperty.call(ComponentPropsMap, type);
-
     expect(DECLARED_LAYOUT_CONTAINERS.filter(specCarried)).toEqual([]);
 
     // ⭐ The LIT CONTROL, on the same command shape and over the right
@@ -539,5 +562,40 @@ describe('PUBLIC_BLOCKS ↔ the declared layout containers (derived, objectui#68
     // so the empty result above is a reading and not a broken lookup.
     expect(Object.keys(ComponentPropsMap).length).toBeGreaterThan(0);
     expect(PUBLIC_BLOCKS.filter(specCarried).length).toBeGreaterThan(0);
+  });
+
+  it('measures that gate as SPEC-shaped — this roster is neither necessary nor sufficient', () => {
+    // The half that stops the measurement above from reading as "curated blocks
+    // are the unjudged ones". Both directions have live specimens, and a pin
+    // that held only one of them would license exactly the wrong conclusion.
+    //
+    // NOT SUFFICIENT — curated, and still outside that gate's reach:
+    expect(CONTAINER_CONTROL_SET.every((type) => PUBLIC_BLOCKS.includes(type))).toBe(true);
+    expect(CONTAINER_CONTROL_SET.filter(specCarried)).toEqual([]);
+
+    // NOT NECESSARY — outside this roster, judged by that gate anyway, because
+    // the spec describes it. `element:record_picker` is the standing specimen;
+    // the parity file records the same block for the same reason.
+    expect(PUBLIC_BLOCKS).not.toContain('element:record_picker');
+    expect(specCarried('element:record_picker')).toBe(true);
+  });
+
+  it('keeps `box` on the authoring surface it was already on, and adds the one it was not', () => {
+    // ⚠️ The overstatement this case exists to refuse: "absent from
+    // `PUBLIC_BLOCKS`" is not "unvalidated". `page.tsx` builds the JSX-page
+    // compiler's manifest from `getKnownTypes()` + these same `inputs`, so
+    // `box`'s declaration has been live there all along — with no roster in the
+    // path. Asserted with its declared input, because a registration present but
+    // declaring nothing would publish no authoring surface at all.
+    expect(ComponentRegistry.getKnownTypes()).toContain('box');
+    expect((ComponentRegistry.getMeta('box')?.inputs ?? []).map((i) => i.name)).toContain(
+      'className',
+    );
+
+    // What this card actually moved: `getPublicConfigs()` — the curated
+    // vocabulary, and the source `gen-manifest.ts` serialises into the published
+    // `sdui.manifest.json` and `sdui-intrinsics.d.ts`.
+    expect(contract.has('box')).toBe(true);
+    expect(contract.get('box')!.type).toBe('box');
   });
 });
