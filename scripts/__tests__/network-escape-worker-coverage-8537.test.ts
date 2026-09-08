@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { stripAnsi } from './helpers/child-verdict';
 
 /**
  * objectui#8537 — the network-escape guard covers EVERY test file in a worker
@@ -57,6 +58,28 @@ import { fileURLToPath } from 'node:url';
  * first draft of this pin went red on "fixture b never ran its escape" while b
  * had run and passed silently — a red for the wrong reason, which is the shape
  * the pin exists to refuse. The ledger is independent of the outcome.
+ *
+ * ## Why the child's output is read ANSI-stripped
+ *
+ * The child colours its own output, so every assertion below is made against
+ * `stripAnsi(...)` and never against the raw bytes. `Test Files  2 failed (2)`
+ * arrives as `SGR Test Files SGR SGR 2 failed SGR SGR (2) SGR`: `\s+` cannot
+ * match an SGR sequence and the count is split across two coloured spans, so a
+ * pattern written against the rendered text cannot match. That is objectui#7897
+ * — the reason `helpers/child-verdict.ts` exists — and it landed here anyway,
+ * because it is invisible locally:
+ *
+ *   - vitest calls `disableDefaultColors()` when `std-env`'s `isAgent` is true,
+ *     and an agent container sets `CLAUDECODE` / `AI_AGENT`. The child inherits
+ *     those (only `VITEST*` keys are dropped below), so an agent's local run is
+ *     UNCOLOURED and green while CI is coloured and red. Measured: same tree,
+ *     `env -u CLAUDECODE -u AI_AGENT` flips the child from 0 to 264 escape
+ *     bytes and this file's `Test Files` assertion from pass to fail.
+ *
+ * Stripping at the READER, rather than putting `NO_COLOR` on the child's env,
+ * is deliberate: the child's reporting environment stays byte-for-byte what CI
+ * gives it — including the GitHub-Actions annotation reporter it adds itself —
+ * so what is asserted on is what CI actually produces.
  *
  * ## Recursion
  *
@@ -118,7 +141,9 @@ describe('objectui#8537 — the network-escape guard covers every file in a work
             { cwd: repoRoot, encoding: 'utf8', env, timeout: 300_000 },
           );
           return {
-            output: `${child.stdout ?? ''}${child.stderr ?? ''}`,
+            // ANSI-STRIPPED AT THE READER (objectui#7897, the failure the
+            // helper was extracted for). Everything below reads plain text.
+            output: stripAnsi(`${child.stdout ?? ''}${child.stderr ?? ''}`),
             status: child.status,
             ledger: fs.existsSync(ledgerPath) ? fs.readFileSync(ledgerPath, 'utf8') : '',
           };
