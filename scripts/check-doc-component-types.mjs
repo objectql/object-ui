@@ -282,11 +282,25 @@ export function appDocsDirs(root) {
  * ⚠️ Why the leg is NOT here yet, and what has to happen first. The `domain:ui`
  * ruling on objectui#7896 orders this move census-first: a change that moves a
  * gate's scan population reports before it enforces, and the widening may land in
- * the same pull request ONLY if the census reads zero. It does not. All 39 files
- * were walked with this gate's own extractor and registry, and the census read
- * **26 unregistered `type` literals across 12 files**, plus 4 blind spots (four
- * unquoted YAML scalars in `packages/data-objectstack/README.md`, an object
- * field-type vocabulary the same-line string-literal matcher cannot read).
+ * the same pull request ONLY if the census reads zero. It does not. Re-derived on
+ * `c30026715` with this gate's own `deriveRegistryKeys`, fence walker and `type`
+ * matcher over all 39 `packages/NAME/README.md`, the census read
+ * **26 unregistered `type` literals across 8 files**, plus 4 blind spots (four
+ * unquoted YAML scalars in `packages/data-objectstack/README.md:603-606`, an
+ * object field-type vocabulary the same-line string-literal matcher cannot read).
+ * That reading is DATED, not a live claim: it belongs to the commit named above,
+ * and the instrument named beside it is how the next reader re-derives it rather
+ * than inheriting it. It is written that way because the sentence it replaces was
+ * not — it said `12 files`, a number contradicted by the per-file table of the
+ * very census PR that landed it (#8111, 8 files with a non-zero column), and it
+ * had already been quoted onward into objectui#8115's brief, which instructs its
+ * implementer not to re-derive the census. A file COUNT is what a later reader
+ * uses to judge whether a fix is complete, so `8 of 12` reads as unfinished work
+ * that does not exist (objectui#8484). This is the same class objectui#7448 ruled
+ * on one file over — a count in a header that nothing re-measures will rot — and
+ * the same remedy `check-doc-fence-languages.mjs` already uses for its own census
+ * (`273537957`: 83 files, 105 blocks): anchor the reading to a commit instead of
+ * restating a bare number and restarting the clock.
  * Landing the leg today would turn `main` red on 26 sites this card is not
  * authorised to touch. Twenty-five of the 26 are other vocabularies with real declaration sites
  * — dashboard widget kinds (`DashboardRenderer.tsx`), flow-graph node kinds,

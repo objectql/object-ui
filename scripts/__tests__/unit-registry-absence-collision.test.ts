@@ -18,6 +18,10 @@ import {
   resolveSpecifier,
   unitProjectFiles,
 } from '../unit-registry-collision.mjs';
+import {
+  healGlobalLeaks,
+  snapshotGlobals,
+} from '../../vitest.setup.shared-global-leak';
 
 /**
  * objectui#7134 — the `unit` project's `isolate: false` is safe only while a
@@ -141,8 +145,23 @@ function derive(): Population {
 const CORE_SPECIFIER = '@object-ui/core';
 type Singleton = { getAllTypes(): string[] };
 
-/** Import `ids` into a private module graph and report what they registered. */
+/**
+ * Import `ids` into a private module graph and report what they registered.
+ *
+ * The globals are snapshotted and put back around the measurement, and that is
+ * not hygiene — it is a measured repair (objectui#8500). `ids` is derived from
+ * what the project's test files IMPORT, and one of them names a root setup
+ * module: `scripts/__tests__/network-escape-ledger.test.ts` imports
+ * `vitest.setup.network-escape-guard`. `vi.resetModules()` drops it from the
+ * registry, so importing it here RE-EXECUTES it, and its body assigns a second
+ * `guardedFetch` over the first. Both wrappers are named `guardedFetch`, so
+ * nothing downstream could see the swap — every file after this one in the
+ * worker ran with a doubled wrapper whose `afterEach` belonged to a module
+ * instance the run had already discarded.
+ */
 async function registryAfterImporting(ids: string[]) {
+  const scope = globalThis as unknown as Record<string, unknown>;
+  const globalsBefore = snapshotGlobals(scope);
   vi.resetModules();
   const { ComponentRegistry } = (await import(/* @vite-ignore */ CORE_SPECIFIER)) as {
     ComponentRegistry: Singleton;
@@ -159,6 +178,10 @@ async function registryAfterImporting(ids: string[]) {
     }
   }
   const added = ComponentRegistry.getAllTypes().filter((k) => !before.has(k));
+  // Before anything else can observe them: a re-executed setup module leaves its
+  // own globals behind, and this file's job is to measure the project, not to
+  // change it out from under the files that run after it.
+  healGlobalLeaks(scope, globalsBefore);
   return { added, failures, imported, startedEmpty: before.size === 0 };
 }
 

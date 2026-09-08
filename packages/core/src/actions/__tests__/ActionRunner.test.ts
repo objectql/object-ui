@@ -508,9 +508,17 @@ describe('ActionRunner', () => {
   // ==========================================================================
 
   describe('api action type', () => {
+    // `vi.stubGlobal` rather than `global.fetch = ...`, and handed back here:
+    // this file runs in the `unit` project, which is `isolate: false`, so a raw
+    // assignment to a shared global outlives the file and every later file in
+    // the worker inherits it (objectui#8500).
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
     it('should call fetch with simple string endpoint', async () => {
       const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({ id: 1 }) };
-      global.fetch = vi.fn().mockResolvedValue(mockResponse);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockResponse));
 
       const result = await runner.execute({
         type: 'api',
@@ -527,7 +535,7 @@ describe('ActionRunner', () => {
 
     it('should use endpoint field as alias', async () => {
       const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({ ok: true }) };
-      global.fetch = vi.fn().mockResolvedValue(mockResponse);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockResponse));
 
       const result = await runner.execute({
         type: 'api',
@@ -540,7 +548,7 @@ describe('ActionRunner', () => {
 
     it('should support complex API config', async () => {
       const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({ done: true }) };
-      global.fetch = vi.fn().mockResolvedValue(mockResponse);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockResponse));
 
       const result = await runner.execute({
         type: 'api',
@@ -565,11 +573,11 @@ describe('ActionRunner', () => {
     });
 
     it('should handle HTTP errors', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: false,
         status: 404,
         statusText: 'Not Found',
-      });
+      }));
 
       const result = await runner.execute({
         type: 'api',
@@ -581,7 +589,7 @@ describe('ActionRunner', () => {
     });
 
     it('should handle network errors', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
 
       const result = await runner.execute({
         type: 'api',

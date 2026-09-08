@@ -56,6 +56,73 @@ DEPS_TIMEOUT=${OS_CHROMIUM_DEPS_TIMEOUT:-240}
 DEPS_CMD=${OS_CHROMIUM_DEPS_CMD:-"pnpm exec playwright install-deps chromium"}
 PROBE_CMD=${OS_CHROMIUM_PROBE_CMD:-}
 
+# ── Bounding the recovery call on a host that has no GNU coreutils ────────────
+# `timeout` is GNU coreutils, and a stock macOS host has neither it nor
+# Homebrew's `gtimeout` (objectui#8404). Written as a bare `timeout`, the bound
+# did not merely go missing there: the call itself failed at 127 before
+# `install-deps` ever ran, so the recovery path could not recover and reported
+# only "install-deps failed with exit 127". A contributor running this script on
+# their own machine is exactly the reader this repo floors its shell for.
+#
+# Three resolutions, in order, and ⛔ there is no fourth branch that runs the
+# command unbounded — an unbounded dependency install IS objectui#5304.
+#
+# ⚠️ The floor is bash 3.2 (scripts/check-bash32-floor.mjs), so the fallback
+# uses no `wait -n`, no `$EPOCHSECONDS` and no bash-4 operator. It polls with
+# `kill -0` and reports the deadline through a marker file, because `wait`
+# cannot tell a watchdog's TERM from any other TERM.
+run_bounded() {
+  bounded_secs=$1
+  bounded_cmd=$2
+
+  if command -v timeout > /dev/null 2>&1; then
+    timeout -k 15s "${bounded_secs}s" bash -c "$bounded_cmd"
+    return $?
+  fi
+  if command -v gtimeout > /dev/null 2>&1; then
+    gtimeout -k 15s "${bounded_secs}s" bash -c "$bounded_cmd"
+    return $?
+  fi
+
+  echo "Neither 'timeout' nor 'gtimeout' is on this host; bounding the call from bash itself."
+  bounded_fired="${TMPDIR:-/tmp}/os-chromium-deps-deadline.$$"
+  rm -f "$bounded_fired"
+
+  bash -c "$bounded_cmd" &
+  bounded_pid=$!
+
+  # Redirected to /dev/null on purpose: a background child holding the inherited
+  # stdout keeps the pipe open, and a caller that reads this script's output to
+  # completion (the test does) would wait for the watchdog rather than the work.
+  (
+    bounded_left=$bounded_secs
+    while [ "$bounded_left" -gt 0 ]; do
+      kill -0 "$bounded_pid" 2> /dev/null || exit 0
+      sleep 1
+      bounded_left=$((bounded_left - 1))
+    done
+    : > "$bounded_fired"
+    kill -TERM "$bounded_pid" 2> /dev/null
+    sleep 15
+    kill -KILL "$bounded_pid" 2> /dev/null
+  ) > /dev/null 2>&1 &
+  bounded_watchdog=$!
+
+  wait "$bounded_pid"
+  bounded_status=$?
+  kill -TERM "$bounded_watchdog" 2> /dev/null
+  wait "$bounded_watchdog" 2> /dev/null
+
+  if [ -f "$bounded_fired" ]; then
+    rm -f "$bounded_fired"
+    # 124 is `timeout`'s own "deadline expired", so the caller below reads one
+    # verdict whichever of the three branches produced it.
+    return 124
+  fi
+  rm -f "$bounded_fired"
+  return $bounded_status
+}
+
 # Launches the bundled Chromium exactly as `playwright.config.ts` does — its
 # `chromium` project is `devices['Desktop Chrome']` with no `channel`, so the
 # default launch is the representative one.
@@ -83,8 +150,9 @@ echo "Falling back to 'playwright install-deps', bounded at ${DEPS_TIMEOUT}s so 
 echo "stalled Ubuntu mirror cannot hang this job the way it did in objectui#5304."
 
 # `-k` escalates to KILL if apt ignores the TERM: a process blocked in a socket
-# read is exactly the shape that does. 124 is timeout's own "deadline expired".
-timeout -k 15s "${DEPS_TIMEOUT}s" bash -c "$DEPS_CMD"
+# read is exactly the shape that does. 124 is timeout's own "deadline expired",
+# and `run_bounded` reports the same 124 from whichever branch bounded the call.
+run_bounded "$DEPS_TIMEOUT" "$DEPS_CMD"
 deps_status=$?
 
 if [ "$deps_status" -eq 124 ] || [ "$deps_status" -eq 137 ]; then

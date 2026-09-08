@@ -10,6 +10,7 @@ import * as React from 'react';
 import {
   cn,
   Button,
+  EmptyValue,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -249,12 +250,26 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
                           </span>
                         )
                       ) : isEmpty ? (
-                        <span
-                          className="block text-sm text-muted-foreground/60 select-none"
-                          aria-label={t('detail.noValue', { defaultValue: 'No value' })}
-                        >
-                          —
-                        </span>
+                        // The SHARED placeholder (objectui#8506). This span
+                        // spelled its own em-dash and resolved its own
+                        // `aria-label` from `detail.noValue`; `EmptyValue`
+                        // resolves EXACTLY that key with the same `"No value"`
+                        // English fallback, so the accessible name survives
+                        // byte-for-byte in every locale. Unlike the body grid's
+                        // placeholder this one carries NO `title`, so nothing
+                        // here needs `pointer-events` back — the strip's chip
+                        // keeps its own `onDoubleClick`, which fires from the
+                        // chip, not from the dash.
+                        //
+                        // `block` is layout, not typography: the filled branch
+                        // below is a `block` span inside the same
+                        // `min-w-0 flex-1` box, and an inline dash would sit on
+                        // a different baseline. The retired
+                        // `text-sm text-muted-foreground/60` IS a deliberate
+                        // typography change — it made the strip's own dash a
+                        // different grey from the one a cell renderer draws for
+                        // a chip two columns over.
+                        <EmptyValue className="block" />
                       ) : (
                         <span
                           // Hover reveals the full value; for option-backed
