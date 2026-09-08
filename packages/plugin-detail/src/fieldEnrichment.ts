@@ -145,6 +145,69 @@ function isExcludedForDetail(fieldType: unknown): boolean {
 }
 
 /**
+ * Field types whose CELL the fields package renders as a mask (`••••••`)
+ * instead of as the value — the read-side counterpart of the credential entry
+ * in `INLINE_EXCLUDED_FIELD_TYPES`.
+ *
+ * ## ⚠️ A MIRROR, NOT AN AUTHORITY — and that is a declared cost, not an oversight
+ *
+ * The mask itself is two anonymous renderers registered inside
+ * `getCellRenderer`'s standard map in `@object-ui/fields`
+ * (`password: () => <span>••••••</span>`, and the same for `secret`). The fields
+ * package exports NO way to ask "is type T masked?" — searched for on this card
+ * and not found — so honouring the mask on this surface at all requires naming
+ * the types once more, here. Two consequences are accepted deliberately:
+ *
+ *  - a THIRD masked type registered in `@object-ui/fields` tomorrow would render
+ *    masked and stay copy-interactive here until someone edits this line;
+ *  - `registerFieldRenderer('password', …)` can replace the mask at RUNTIME, and
+ *    no static set can see that either.
+ *
+ * Both are properties of "the mask has no queryable authority", filed as its own
+ * card. ⛔ Do not grow this set into that authority: the fix is a predicate
+ * exported by the package that OWNS the registrations, and every consumer
+ * (this one included) reading it — exactly the shape
+ * {@link isInlineExcludedDetailFieldType} already has for the write direction.
+ *
+ * ## Why RAW spellings, with no alias resolution — measured
+ *
+ * Unlike the inline-edit tables, the cell path does NOT resolve aliases:
+ * `resolveCellRendererType` only promotes a textual base type through a
+ * `format` hint (never onto a credential type), and `getCellRenderer` is an
+ * exact-key lookup into the registry and then into its standard map, falling
+ * back to `TextCellRenderer`. So EXACTLY these two spellings draw the mask, and
+ * every other spelling — including the form-alias target `field:password` —
+ * renders in the clear. Matching raw spellings is therefore the faithful
+ * mirror, and an alias-aware widening here would withdraw the affordance from
+ * rows that show their value.
+ */
+const MASKED_CELL_FIELD_TYPES = new Set<string>(['password', 'secret']);
+
+/**
+ * Is this row's cell drawn as a mask, given the type authored on the view entry
+ * and the type declared on the object schema?
+ *
+ * **Narrow-only, like {@link isComputedFieldType} and
+ * {@link isInlineExcludedDetailFieldType}** — the answer is the UNION of the
+ * two, so an authored display `type` can withdraw the copy affordance but never
+ * restore it (objectui#3355). The direction matters here more than anywhere: an
+ * object column declared `secret` keeps its refusal even when a view authors
+ * `type: 'text'` over it, because a PRESENTATION override has no business
+ * widening access to a credential. The declared cost of the union is the mirror
+ * case — an object `text` column authored as `password` masks AND refuses the
+ * copy, which is the same answer the cell already gives.
+ */
+export function isMaskedDetailFieldType(
+  viewFieldType: unknown,
+  objectFieldType: unknown,
+): boolean {
+  return (
+    MASKED_CELL_FIELD_TYPES.has(viewFieldType as string) ||
+    MASKED_CELL_FIELD_TYPES.has(objectFieldType as string)
+  );
+}
+
+/**
  * Object-metadata keys carried onto a detail-view field so the read cell and
  * the inline editor see the SAME resolved field shape the object form does.
  *
