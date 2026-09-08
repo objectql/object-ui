@@ -82,5 +82,11 @@ effect, and this package's entry forms are pure); a bare top-level call in the b
 too, because `"sideEffects": false` is a package-level promise no in-module spelling can
 override; and removing the field closes it at a measured cost of 16,078 more gzipped bytes in
 this repo's console `framework` chunk, which now FITS its ceiling but moves a workspace census
-a guard pins. ⇒ until that is ruled, a consumer that bundles `@object-ui/types/zod` should keep
-`AnyComponentSchema` in its import graph, which is enough to make the redirect apply.
+a guard pins — a maintainer-floor authorisation, deliberately not taken here.
+
+⇒ **Declared, follow-ups filed**, not an accepted permanent state: objectui#8577 carries the
+leak and that manifest decision with every figure, and objectui#8578 carries the reason the gate
+built to see load-time effects scored this package zero — it counts top-level call statements and
+cannot see an effect performed inside a `const` initializer. Until objectui#8577 is ruled, a
+consumer that bundles `@object-ui/types/zod` should keep `AnyComponentSchema` in its import
+graph, which is enough to make the redirect apply.
