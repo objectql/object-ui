@@ -467,6 +467,7 @@ export type {
 // ============================================================================
 export type {
   BaseFieldMetadata,
+  FieldDependsOn,
   VisibilityCondition,
   FieldValidationFunction,
   TextFieldMetadata,

@@ -16,6 +16,29 @@
  * @packageDocumentation
  */
 
+import type { Field as SpecField } from '@objectstack/spec/data';
+
+/**
+ * A field's `dependsOn` in the shape `@objectstack/spec` declares at FIELD
+ * level — derived from `@objectstack/spec/data`'s `Field` by reference rather
+ * than restated (objectui#6153), so the two cannot drift: a list of controlling
+ * sibling field names, or `{ field, param }` entries mapping a sibling onto the
+ * remote query parameter a dependent lookup filters by.
+ *
+ * Measured on the installed `@objectstack/spec` 17.3.0, `FieldSchema` declares
+ * `dependsOn` as an OPTIONAL ARRAY of `string | { field, param? }` — never a
+ * bare string. That is deliberately narrower than `DependsOnInput` (`form.ts`),
+ * the shape the widget prop `FieldWidgetComponentProps.dependsOn` and
+ * `FormField.dependsOn` take, which also admits a bare parent name and `null`:
+ * `FieldSchema.safeParse` answers `invalid_type` at `dependsOn` to a bare
+ * string on a field document, with the same field carrying `['country']`
+ * accepted as the control — so declaring the wider shape here would let an
+ * author write metadata the publish door refuses. Every runtime reader takes
+ * `DependsOnInput`, and this type is assignable to it (pinned in
+ * `__tests__/field-metadata-depends-on-declared-6153.test.ts`).
+ */
+export type FieldDependsOn = NonNullable<SpecField['dependsOn']>;
+
 /**
  * Base field metadata interface
  * Common properties shared by all field types
@@ -124,8 +147,37 @@ export interface BaseFieldMetadata {
   /**
    * Field dependencies (Phase 3.2.3)
    * List of fields that this field depends on
+   *
+   * objectui's LEGACY spelling of {@link BaseFieldMetadata.dependsOn} — never a
+   * `@objectstack/spec` key (`FieldSchema` refuses `depends_on` BY NAME,
+   * measured on 17.3.0). Only `LookupField` still reads it; it retires under
+   * enforce-or-remove on objectui#7357. Author `dependsOn`.
    */
   depends_on?: string[];
+
+  /**
+   * Controlling sibling field(s) — the spec's field-level cascade key, declared
+   * here so every field-metadata member carries it THROUGH THE DECLARED TYPE
+   * (objectui#6153, maintainer ruling A, 2026-09-02). The option widgets
+   * (`SelectField`, `MultiSelectField`, `RadioField`, `CheckboxesField`) gate
+   * their authored option list behind it — a "select the parent first" hint
+   * while any controlling value is empty — and prune a selection the parent no
+   * longer offers; `LookupField` scopes its candidate queries by it.
+   *
+   * Two shapes, both {@link FieldDependsOn}:
+   *  - `['country']` — the sibling's value is sent as both the filter field and
+   *    the value (`country = ${country}`).
+   *  - `[{ field: 'account', param: 'account_id' }]` — the remote parameter
+   *    name differs from the local field name (dependent lookups).
+   *
+   * Precedence: this metadata key wins over the `dependsOn` WIDGET PROP
+   * (`FieldWidgetComponentProps.dependsOn`) — the one documented inversion, see
+   * `toHostProps.ts` in `@object-ui/fields`. Before this member existed the
+   * widgets reached the key through an `as any`, so it worked at runtime while
+   * no annotated literal could carry it — the declared/enforced gap the card
+   * measured.
+   */
+  dependsOn?: FieldDependsOn;
   
   /*
    * There is deliberately no `indexed` here (objectui#4679). The ObjectStack
