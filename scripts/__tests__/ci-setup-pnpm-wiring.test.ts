@@ -110,7 +110,6 @@ describe('the shared CI pnpm setup is wired everywhere pnpm is used', () => {
   it('ships an executable script at the path the workflows name', () => {
     const abs = path.join(ROOT, SETUP);
     expect(fs.existsSync(abs), `${SETUP} must exist — 18 workflow steps call it by this path`).toBe(true);
-    // eslint-disable-next-line no-bitwise
     expect((fs.statSync(abs).mode & 0o111) !== 0, `${SETUP} must be executable`).toBe(true);
   });
 
