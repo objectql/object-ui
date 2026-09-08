@@ -68,6 +68,39 @@
  * `afterEach` that fails ANY escape in ANY file. Every escape is now unknown,
  * every escape is red on its first run, and the remedy is the `Fix:` text at the
  * bottom of this file — serve the probe from a double.
+ *
+ * ## Two halves, registered at two different times (objectui#8537)
+ *
+ * "ANY file" was not true in the `unit` project until objectui#8537, and the way
+ * it was false is worth keeping in view because it is silent by construction.
+ *
+ * That project runs `isolate: false`: one module graph per worker. Vitest still
+ * re-executes each `setupFiles` entry for every test file — it invalidates the
+ * setup file's own module node before importing it again — but a module the
+ * setup file IMPORTS is not invalidated, so it is evaluated once per worker.
+ * This file is imported by `vitest.setup.base.ts`; it is not a `setupFiles`
+ * entry. So an `afterEach` registered in its module scope attached to the
+ * FIRST test file of each worker and to no other. Measured on `1cca4415e` with
+ * three byte-identical escaping files: in one worker, `1 failed | 2 passed`;
+ * the same three files across three workers, `3 failed`; each alone, red. The
+ * guard covered one file per worker — on a 4-shard CI run, a handful of the
+ * ~1000 `unit` files — and read as covering all of them.
+ *
+ * The two halves of the guard therefore live at two different times:
+ *
+ *   - the RECORDING half — the `fetch` wrapper — is a module-scope assignment
+ *     on a shared global, and once per worker is exactly right for it. Under
+ *     `isolate: false` re-wrapping per file would stack a wrapper per file;
+ *   - the ASSERTING half — the `afterEach` — must be registered per test file,
+ *     so it is exported as `installNetworkEscapeGuard()` and CALLED from
+ *     `vitest.setup.base.ts`, which Vitest does re-execute per file. Same
+ *     split, same reason, as `installI18nGlobalReset()` next to it.
+ *
+ * `scripts/__tests__/network-escape-worker-coverage-8537.test.ts` pins the
+ * repair behaviourally: a real vitest runs two escaping files in ONE worker of
+ * the `unit` project and both must red, each naming itself. That is also the
+ * pin against the caricature of this repair — a hook that re-registers per
+ * file and no longer detects anything would cover every file and catch none.
  */
 import { afterEach, expect } from 'vitest';
 
@@ -148,42 +181,54 @@ globalThis.fetch = function guardedFetch(input: any, init?: any) {
   return realFetch.call(globalThis, input, init);
 } as typeof globalThis.fetch;
 
-afterEach(() => {
-  const seen = pending;
-  pending = [];
-  // No known/unknown split: the burn-down list reached zero on objectui#7307,
-  // so every escape is a defect on its first run.
-  if (seen.length === 0) return;
+/**
+ * Register the asserting half for the CURRENT test file.
+ *
+ * Called from `vitest.setup.base.ts` on every execution of that setup file —
+ * which under `isolate: false` is every test file, while this module's body
+ * above runs once per worker (objectui#8537, header). Nothing else in this file
+ * registers a hook, so importing it registers nothing: that is what lets
+ * `scripts/__tests__/unit-registry-absence-collision.test.ts` re-execute it in a
+ * private module graph without arming a stray hook there.
+ */
+export function installNetworkEscapeGuard(): void {
+  afterEach(() => {
+    const seen = pending;
+    pending = [];
+    // No known/unknown split: the burn-down list reached zero on objectui#7307,
+    // so every escape is a defect on its first run.
+    if (seen.length === 0) return;
 
-  const byUrl = [...new Set(seen.map((e) => e.url))];
-  const file = seen[0].file;
-  throw new Error(
-    `Network escape: this test reached a REAL socket at ${byUrl.join(', ')}.\n` +
-      `  file: ${file}\n` +
-      `  test: ${seen[0].test}\n` +
-      `\n` +
-      `happy-dom's default document URL is http://localhost:3000, so a relative\n` +
-      `fetch from a component under test resolves to a live TCP connection. The\n` +
-      `product call site catches the failure by design, so the test stayed green\n` +
-      `while printing an unattributable ECONNREFUSED stack — that is objectui#6640.\n` +
-      `\n` +
-      `Fix: serve the probe from a double rather than the network. See\n` +
-      `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx for the\n` +
-      `shape (vi.stubGlobal('fetch', router) + vi.unstubAllGlobals()).\n` +
-      `\n` +
-      `WHERE that pair is torn down is part of the shape, not a detail\n` +
-      `(objectui#7439). Vitest runs afterEach hooks in REVERSE registration order,\n` +
-      `so a teardown written in THIS file runs FIRST — before the root setup's\n` +
-      `RTL cleanup() and before this assertion. Unstubbing there restores the real\n` +
-      `fetch while the tree is still mounted, so even a read that cleanup()'s\n` +
-      `act-flush triggers escapes. So:\n` +
-      `  - call cleanup() BEFORE vi.unstubAllGlobals(), as that\n` +
-      `    DatasetReportRenderer afterEach already does; and\n` +
-      `  - if the component can issue a read AFTER the test body returns — any\n` +
-      `    refreshAfter, any notifyDataChanged consumer, any fire-and-forget\n` +
-      `    refresh no barrier awaits — do not tear the double down at all.\n` +
-      `    Install ONE at module scope and leave it up for the whole file, so no\n` +
-      `    test can ever end with the real fetch back in place. Worked example:\n` +
-      `    packages/app-shell/src/views/RecordDetailView.approvalDeclaredActions.test.tsx`,
-  );
-});
+    const byUrl = [...new Set(seen.map((e) => e.url))];
+    const file = seen[0].file;
+    throw new Error(
+      `Network escape: this test reached a REAL socket at ${byUrl.join(', ')}.\n` +
+        `  file: ${file}\n` +
+        `  test: ${seen[0].test}\n` +
+        `\n` +
+        `happy-dom's default document URL is http://localhost:3000, so a relative\n` +
+        `fetch from a component under test resolves to a live TCP connection. The\n` +
+        `product call site catches the failure by design, so the test stayed green\n` +
+        `while printing an unattributable ECONNREFUSED stack — that is objectui#6640.\n` +
+        `\n` +
+        `Fix: serve the probe from a double rather than the network. See\n` +
+        `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx for the\n` +
+        `shape (vi.stubGlobal('fetch', router) + vi.unstubAllGlobals()).\n` +
+        `\n` +
+        `WHERE that pair is torn down is part of the shape, not a detail\n` +
+        `(objectui#7439). Vitest runs afterEach hooks in REVERSE registration order,\n` +
+        `so a teardown written in THIS file runs FIRST — before the root setup's\n` +
+        `RTL cleanup() and before this assertion. Unstubbing there restores the real\n` +
+        `fetch while the tree is still mounted, so even a read that cleanup()'s\n` +
+        `act-flush triggers escapes. So:\n` +
+        `  - call cleanup() BEFORE vi.unstubAllGlobals(), as that\n` +
+        `    DatasetReportRenderer afterEach already does; and\n` +
+        `  - if the component can issue a read AFTER the test body returns — any\n` +
+        `    refreshAfter, any notifyDataChanged consumer, any fire-and-forget\n` +
+        `    refresh no barrier awaits — do not tear the double down at all.\n` +
+        `    Install ONE at module scope and leave it up for the whole file, so no\n` +
+        `    test can ever end with the real fetch back in place. Worked example:\n` +
+        `    packages/app-shell/src/views/RecordDetailView.approvalDeclaredActions.test.tsx`,
+    );
+  });
+}
