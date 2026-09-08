@@ -256,14 +256,29 @@ fields when they differ.
 
 ### With ObjectQL Integration
 
+Every key below is one `ObjectCalendarSchema` declares. Spelling the start-date
+key anything else is not a partial failure: `getCalendarConfig` gates the whole
+configuration on it, so a calendar whose title and end keys are spelled correctly
+still renders the "Calendar configuration required" refusal screen and never
+reads them.
+
 ```typescript
-const schema = {
+import type { ObjectCalendarSchema } from '@object-ui/types';
+
+// What this annotation buys, and what it does not - measured, objectui#7925.
+// It type-checks the VALUES of the declared keys: `defaultView: 'agenda'` and
+// `titleField: 42` are both compile errors, and `check:doc-snippets` re-runs
+// that check on every commit. It does NOT check key NAMES - this interface
+// extends `BaseSchema`, whose `[key: string]: any` admits any spelling, so a
+// misspelt key still compiles clean. Read the block as type-checked values,
+// never as a guarded key set.
+const schema: ObjectCalendarSchema = {
   type: 'object-calendar',
-  object: 'events',
+  objectName: 'events',
   titleField: 'name',
-  startField: 'startDate',
-  endField: 'endDate',
-  colorField: 'category.color'
+  startDateField: 'startDate',
+  endDateField: 'endDate',
+  defaultView: 'month'
 };
 ```
 
@@ -298,28 +313,34 @@ Authored JSON reacts to clicks through the node's action channel instead
 
 ## ObjectQL Integration
 
-When using with ObjectStack, the calendar can automatically fetch and display events:
+When using with ObjectStack, the calendar can automatically fetch and display
+events. The adapter is **not** a schema key: `ObjectCalendarRenderer` reads it
+from the renderer context that `SchemaRendererProvider` supplies. The schema
+names the object and its fields with the same flat keys as above - there is no
+`fields` container.
 
 ```typescript
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import type { ObjectCalendarSchema } from '@object-ui/types';
 
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
   token: 'your-auth-token'
 });
 
-const schema = {
+// The annotation checks the values of the declared keys, not the key names -
+// see the note on the first `object-calendar` block above.
+const schema: ObjectCalendarSchema = {
   type: 'object-calendar',
-  dataSource,
-  object: 'calendar_events',
-  fields: {
-    title: 'title',
-    start: 'start_time',
-    end: 'end_time',
-    color: 'category_color'
-  }
+  objectName: 'calendar_events',
+  titleField: 'title',
+  startDateField: 'start_time',
+  endDateField: 'end_time',
+  defaultView: 'month'
 };
 ```
+
+Pass the adapter to `SchemaRendererProvider` to wire the fetch up.
 
 ## Customization
 

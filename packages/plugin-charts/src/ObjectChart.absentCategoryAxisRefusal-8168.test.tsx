@@ -175,7 +175,7 @@ describe('ObjectChart — absent category axis refusal (objectui#8168)', () => {
  * theirs reach it exactly when the author declared nothing — which is the point.
  */
 describe('objectui#8168 stop condition — the refusal fires on NO producer that renders today', () => {
-  it('plugin-list ListView `case chart` legacy leg (ListView.tsx:2767-2768)', async () => {
+  it('plugin-list ListView `case chart` legacy leg', async () => {
     // `const valueField = chartBinding.valueField || 'value';`
     // `const categoryField = chartBinding.categoryField || 'name';`
     renderChart({
@@ -189,7 +189,7 @@ describe('objectui#8168 stop condition — the refusal fires on NO producer that
     await expectNoRefusal();
   });
 
-  it('plugin-view ObjectView `case chart` legacy leg (ObjectView.tsx:1535-1536)', async () => {
+  it('plugin-view ObjectView `case chart` legacy leg', async () => {
     renderChart({
       objectName: 'crm_opportunity',
       aggregate: { field: 'value', function: 'count', groupBy: 'name' },
@@ -200,7 +200,7 @@ describe('objectui#8168 stop condition — the refusal fires on NO producer that
     await expectNoRefusal();
   });
 
-  it('app-shell ObjectView chart viewDef legacy leg (views/ObjectView.tsx:2218/2220)', async () => {
+  it('app-shell ObjectView chart viewDef legacy leg', async () => {
     // `const categoryField = chartConfig.xAxisField || 'name';`
     // `const valueField = (Array.isArray(...yAxisFields) && ...[0]) || 'value';`
     renderChart({
@@ -214,7 +214,7 @@ describe('objectui#8168 stop condition — the refusal fires on NO producer that
     await expectNoRefusal();
   });
 
-  it('DashboardRenderer object-provider widget WITH a provider aggregate (DashboardRenderer.tsx:620)', async () => {
+  it('DashboardRenderer object-provider widget WITH a provider aggregate', async () => {
     // `const xAxisKey = options.xField || 'name';` — floored before the
     // provider is consulted, so this leg carries a category unconditionally.
     renderChart({
@@ -239,7 +239,7 @@ describe('objectui#8168 stop condition — the refusal fires on NO producer that
     await expectNoRefusal();
   });
 
-  it('DashboardGridLayout object-provider widget, both legs (DashboardGridLayout.tsx:241)', async () => {
+  it('DashboardGridLayout object-provider widget, both legs', async () => {
     renderChart({
       objectName: 'crm_opportunity',
       aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },
