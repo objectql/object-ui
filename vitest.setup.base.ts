@@ -9,7 +9,27 @@
 
 import { vi } from 'vitest';
 import { installI18nGlobalReset } from './vitest.setup.i18n-global';
-import './vitest.setup.network-escape-guard';
+import { installNetworkEscapeGuard } from './vitest.setup.network-escape-guard';
+
+// objectui#8537 — the network-escape guard's `afterEach` is registered HERE,
+// per execution of this setup file, and not by importing the guard.
+//
+// The `unit` project runs `isolate: false`. Vitest re-executes this setup file
+// for every test file, but a module it imports is evaluated once per worker —
+// so a hook registered in that module's body attached to the first test file
+// of each worker and to no other (measured: three byte-identical escaping
+// files in one worker, `1 failed | 2 passed`). The guard's `fetch` wrapper is a
+// module-scope assignment on a shared global and is unaffected; only the
+// asserting half needs to be per file, so only that half is a function. Same
+// split as `installI18nGlobalReset()` below, whose header carries the same
+// reason.
+//
+// First, deliberately: hooks run in REVERSE registration order, and this one
+// registered first (as the side-effect import it replaced) so that it runs
+// LAST — after the i18n reset below and after the DOM setups' RTL `cleanup()`,
+// whose act-flush can itself issue the read this hook exists to catch. The
+// guard's own `Fix:` text describes that ordering to test authors.
+installNetworkEscapeGuard();
 
 // objectui#4514 — put react-i18next's GLOBAL default-instance pointer back
 // after every test, so a provider-less render resolves the same way whether it

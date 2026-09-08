@@ -46,7 +46,76 @@ export interface RecordDetailsComponentProps {
     /** Stable identifier for i18n key resolution (e.g. 'info', 'forecast'). */
     name?: string;
     label?: string;
-    fields: string[];
+    /**
+     * Field names shown in this section, in order.
+     *
+     * OPTIONAL since objectui#8497, and optional ONLY in the sense that
+     * `group` below is the other way to declare the same fact —
+     * `@objectstack/spec` refuses a section carrying neither (and refuses one
+     * carrying both). It was required here while `RecordDetailsRenderer` read
+     * `group` nowhere, so this type refused the exact shape the spec declares
+     * and a TypeScript author could not write the group-reference form at all.
+     */
+    fields?: string[];
+    /**
+     * Reference a declared field GROUP instead of enumerating members
+     * (`@objectstack/spec` 17.3.0, objectstack#13855, ADR-0085 §5).
+     *
+     * `{ group: 'contact_info' }` inherits the object's `fieldGroups` entry
+     * with that key — its members and its presentation (label, icon,
+     * description, collapse) both. Mutually exclusive with `fields` and with
+     * every key the group itself declares; a page keeps only `columns`,
+     * `showBorder` and `headerColor`, which describe how THIS page lays the
+     * section out.
+     */
+    group?: string;
+    /**
+     * Field-grid columns for THIS section, an integer 1-4
+     * (`@objectstack/spec` `RecordDetailsProps.sections[].columns`). Omit it
+     * and `DetailSection` derives the width from the field count. Permitted
+     * beside `group`: it describes how this page lays the section out, not
+     * anything the group itself declares.
+     */
+    columns?: number;
+    /**
+     * Heading icon, a lucide name (`sections[].icon`). `DetailSection` draws it
+     * wherever the heading renders: a titled section, or any collapsible one.
+     * Refused beside `group` — the group's own `icon` applies there.
+     */
+    icon?: string;
+    /**
+     * Sub-heading text under the section heading (`sections[].description`).
+     * `DetailSection` renders it as-is, with no translation lookup, unlike
+     * `label`; a collapsible section hides it while collapsed. Refused beside
+     * `group`.
+     */
+    description?: string;
+    /**
+     * Draw the section's Card chrome (`sections[].showBorder`). Unauthored,
+     * `RecordDetailsRenderer` derives it — on for a titled section, off for an
+     * untitled one; an authored value wins. Permitted beside `group`.
+     */
+    showBorder?: boolean;
+    /**
+     * Start a `collapsible: true` section collapsed
+     * (`sections[].defaultCollapsed`). `DetailSection` reads it once, as the
+     * initial open state; a non-collapsible section never reads it. Refused
+     * beside `group`.
+     */
+    defaultCollapsed?: boolean;
+    /**
+     * Section-header background tint (`sections[].headerColor`): the closed
+     * six-token vocabulary `DetailSection` resolves through `headerColorClass`.
+     * The contract refuses any other value at authoring time rather than
+     * silently not painting. Permitted beside `group`.
+     */
+    headerColor?:
+      | 'muted'
+      | 'muted/50'
+      | 'accent'
+      | 'primary/10'
+      | 'secondary/10'
+      | 'destructive/10';
     collapsible?: boolean;
     collapsed?: boolean;
   }>;

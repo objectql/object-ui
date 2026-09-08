@@ -569,15 +569,49 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  * read as a derivation of it. What is recorded here is what the raise COSTS,
  * because that is the half a later reader cannot recover from the constant.
  *
- * ⛔ What the bytes buy: NOTHING IDENTIFIABLE, and that is the finding, not an
- * omission. The failure message this raise silences asks the author to "say in
- * the PR what the bytes buy". Nobody can: `Bundle Analysis` went red on `main`
- * at `f76f43628` with `40a7c538a` the last green, and the commits in that window
- * have never been bisected — this checker is a two-build predicate over them and
- * no one has run it. ⚠️ So this raise does not answer the attribution question,
- * it makes it HARDER TO ASK: the line that was holding the unexplained bytes in
- * view now passes over them. objectui#8542 owns that attribution and stays open;
- * objectui#8541 recorded the same red first and is closed as its duplicate.
+ * ⛔ What the bytes buy — MEASURED, but AFTER this constant moved. When the raise
+ * landed nobody could answer the question its own failure message asks — "say in
+ * the PR what the bytes buy" — because the window had not been bisected, and this
+ * section recorded that as the finding. objectui#8542 has since run it: one
+ * `apps/console` build per point, each from the repo ROOT, `framework` read out
+ * of the `apps/console/dist/eager-closure.json` the build itself writes.
+ *
+ *   | build       | landed by | `framework` gzip | moved by                 |
+ *   | `40a7c538a` | #8503     | 70,999           | last GREEN, 1 byte under |
+ *   | `512c84b16` | #8519     | 70,999           |                        0 |
+ *   | `f76f43628` | #8512     | 71,261           |                     +262 |
+ *   | `e76634cc8` | #8529     | 72,245           |                     +984 |
+ *   | `e411c3e58` | #8562     | 72,248           |                       +3 |
+ *
+ * ⚠️ TWO commits own the overage and the LARGER one is OUTSIDE the window this
+ * section bounded. `e76634cc8` landed after the red had already started and
+ * carries 984 of the 1,246 bytes the pair added — 79% — against 262 for the
+ * commit the red first appeared on. ⛔ A repair scoped to the window would have
+ * left `main` red. `512c84b16` emitted a byte-identical chunk to `40a7c538a`
+ * (the same `framework-nDOJv2Ij.js` content hash), so the three commits between
+ * them moved this chunk by ZERO — and objectui#8541's named suspect
+ * `270f2825b` is measurably innocent: it touches no file under
+ * `packages/(core|react|types)` at all.
+ *
+ * ⇒ So the bytes are identifiable, and they are two silent-wrong-answer fixes on
+ * ONE file's filter path, `packages/core`'s `ValueDataSource`. `f76f43628`
+ * (#8512): an unrecognised `$` operator ended the switch on `default: break`,
+ * adding no constraint, so it matched EVERY row. `e76634cc8` (#8529): an array
+ * comparand and a `{ $field }` reference were compared by REFERENCE, selecting
+ * every row under `$ne` and no rows under `$eq`, neither of them saying so. The
+ * bytes ARE the refusals and the prescriptions that replaced that silence.
+ *
+ * ⛔ None of which retires the cost above: the line that was holding these bytes
+ * in view now passes over them, and the attribution arrived after the constant
+ * moved rather than before it. ⚠️ Nor is trimming the alternative it looks like
+ * — deleting every refusal message string these two commits ship was measured at
+ * 610 gzip bytes against the 1,245 the overage needed (recorded on
+ * objectui#8542, ⛔ not re-measured here), so the whole diagnostic surface is
+ * worth under half the payload it gets blamed for. ⭐ Why `main` was one byte from
+ * this line in the first place is objectui#8554: it sat at 70,999 against 71,000
+ * — headroom 0.00x — and printed a GREEN sensitivity row while it did, because
+ * {@link evaluateHeadroomSensitivity} has no floor. objectui#8541 recorded the
+ * same red first and is closed as this card's duplicate.
  *
  * ⚠️ This also makes `framework` the LOOSEST ceiling in this object, measured
  * rather than asserted. All four were read from the one `3f775eeb8` console
@@ -622,8 +656,10 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
   'vendor-objectstack': 1_254_000,
   'i18n-locales': 455_000,
   // Raised by the maintainer ruling of 2026-09-08, ⛔ not by a measurement here:
-  // `main` had been red on this line since `f76f43628` and the bytes that put it
-  // there are UNATTRIBUTED. Headroom 27,755 bytes = 0.30x
+  // `main` had been red on this line since `f76f43628`. The bytes that put it
+  // there were UNATTRIBUTED when this moved and have since been measured to
+  // `f76f43628` (+262) and `e76634cc8` (+984) — see the table under "Why
+  // `framework` moved UP" above. Headroom 27,755 bytes = 0.30x
   // REGRESSION_THIS_GATE_MUST_CATCH_BYTES on `3f775eeb8` — the loosest of the
   // four. See "Why `framework` moved UP" above for what that costs.
   framework: 100_000,

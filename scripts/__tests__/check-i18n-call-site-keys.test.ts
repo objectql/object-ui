@@ -1502,6 +1502,23 @@ export const useBTranslation = createSafeTranslation({ ...ELSEWHERE }, 'common.s
     // should never grow unnoticed.
     expect(counters.factoryUnreadableTables).toBe(0);
     expect(counters.factoryUnreadableRows).toBe(0);
+    // objectui#8423 — the abstention lines the hand-rolled half already pins in
+    // 'and main is measured, not merely green', mirrored onto the half that
+    // actually moves. This half takes its population from the SOURCE, so it
+    // absorbs a new table without anybody choosing to: when objectui#7887
+    // retired the `timeline.relative.*` rows, `factoryRowsNoEnKey` went 5 to 0
+    // and nothing in this repository failed, because the only carriers of that
+    // number were comments. Zero is a READING here only because the two lower
+    // bounds above say the scan had something to judge — measured on this tree,
+    // 32 tables and 846 rows compared, 846 of them matching. ⛔ Do not read the
+    // `.toBe(1)` assertions on these two counters further up this file as this
+    // pin: those are synthetic fixtures ('leaves a key en does not define to
+    // class 1' and 'counts rather than judges a plural family'), they prove the
+    // counters CAN move, and a grep that only asks whether the symbol is ever
+    // expected somewhere confuses them with a reading taken on main.
+    expect(counters.factoryRowsNoEnKey).toBe(0);
+    expect(counters.factoryUnjudgedRows).toBe(0);
+    expect(counters.factoryMatchingRows).toBe(counters.factoryComparedRows);
   });
 
   it('the factory-name set is the one the objectui#3512 test uses, not a second opinion', () => {

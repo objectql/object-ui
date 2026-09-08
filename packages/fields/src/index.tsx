@@ -319,57 +319,35 @@ export interface CellRendererProps {
   onChange?: (value: any) => void;
 }
 
+// `coerceToSafeValue` lives in `./coerceToSafeValue.ts` (objectui#8580) so
+// that `./widgets/richTextDisplay.js` — a module this barrel imports — can
+// reach it without importing the barrel back (the objectui#5498 cycle). It is
+// re-exported here unchanged: it is part of this package's published surface.
+import { coerceToSafeValue } from './coerceToSafeValue.js';
+export { coerceToSafeValue };
+
 /**
- * Coerce a value to a safe primitive for rendering.
- * Handles MongoDB wrapper types ($numberDecimal, $oid, $date), expanded
- * reference objects, and arrays so that no raw object is ever passed as
- * a React child — preventing React error #310.
+ * A coerced cell text with nothing in it is NOT a cell value (objectui#8490).
  *
- * A STRING is returned verbatim, whatever its shape. This helper is reached by
- * every text-like cell (`text`, `textarea`, `code`, `time`, `auto_number`,
- * `qrcode` all register to `TextCellRenderer`), so it may not classify a value
- * by looking at its characters. It used to: any string starting `{`/`[` and
- * ending `}`/`]` was `JSON.parse`d and the result run through the
- * reference-label extraction below, which answers `[Object]` for an object
- * carrying no name/label/externalId/id. That turned the showcase Field Zoo's
- * `code` value `{"ok": true}` into the literal `[Object]`, and `[1, 2, 3]` in a
- * text field into `1, 2, 3` (objectui#7246).
+ * `coerceToSafeValue([])` joins zero entries into `''`, and every renderer
+ * below that fed that string on to a coercion drew something the record never
+ * held: `Number('')` is `0`, so the number / currency / percent family printed
+ * a digit (and a 0% progress bar); the email / url / phone family wrapped it
+ * in a live anchor whose `href` was `mailto:` / `tel:` / nothing; and
+ * `DateCellRenderer` handed it to `formatDate`, whose own hand-rolled em-dash
+ * is a bare punctuation mark to a screen reader. A stored `''` reaches the
+ * same `Number('')` fabrication one input-shape over, so the test is on the
+ * coerced TEXT, not on the array: there is no number, address or date in a
+ * blank string, whatever produced it. Whitespace counts as blank for the same
+ * reason — `Number('  ')` is `0` too.
  *
- * Shape is not a type. The reference case the parse was written for
- * (objectui#1426 — an unresolved external-id ref arriving as
- * '{"externalId":"Website Relaunch"}') belongs to reference-TYPED columns and
- * is handled there: `LookupCellRenderer` carries its own JSON-string branch,
- * which resolves the label through the referenced object's schema and links to
- * the record — neither of which this type-blind helper could ever do. Scoped,
- * not dropped; both halves are pinned in
- * `__tests__/textCellJsonText-7246.test.tsx`.
+ * ⛔ Not the package's general emptiness predicate — see `isEmptyMultiValue`
+ * below for why there is none. This answers ONE question for the renderers
+ * that coerce to text before they draw: "did the coercion leave anything to
+ * draw?". `BooleanCellRenderer` does not coerce to text and does not ask it.
  */
-export function coerceToSafeValue(value: unknown): string | number | boolean | null | undefined {
-  if (value == null) return value as null | undefined;
-  if (typeof value === 'number' || typeof value === 'boolean') return value;
-  if (typeof value === 'string') return value;
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) {
-    return value.map((v) => {
-      if (v != null && typeof v === 'object') {
-        const obj = v as Record<string, unknown>;
-        return String(obj.name || obj.label || obj.externalId || obj.id || obj._id || '[Object]');
-      }
-      return String(v);
-    }).join(', ');
-  }
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    // MongoDB numeric wrapper: { $numberDecimal: "250000" }
-    if ('$numberDecimal' in obj) return Number(obj.$numberDecimal);
-    // MongoDB ObjectId wrapper: { $oid: "abc123" }
-    if ('$oid' in obj) return String(obj.$oid);
-    // MongoDB date wrapper: { $date: "2024-01-01T00:00:00Z" }
-    if ('$date' in obj) return String(obj.$date);
-    // Expanded reference / general object: extract name/label/externalId/id
-    return String(obj.name || obj.label || obj.externalId || obj.id || obj._id || '[Object]');
-  }
-  return String(value);
+function isBlankCellText(safe: ReturnType<typeof coerceToSafeValue>): boolean {
+  return safe == null || (typeof safe === 'string' && safe.trim() === '');
 }
 
 /**
@@ -638,9 +616,12 @@ export function NumberCellRenderer({ value, field }: CellRendererProps): React.R
   // and set must not change the hook count between renders (same rule as
   // CurrencyCellRenderer below).
   const locale = useDisplayLocale();
-  if (value == null) return <EmptyValue />;
-
   const safe = coerceToSafeValue(value);
+  // Tested on the coerced text, not on `value == null` (objectui#8490): `[]`
+  // and `''` both coerce to `''`, and `Number('')` is `0` — a digit the record
+  // never held, indistinguishable from a real stored zero.
+  if (isBlankCellText(safe)) return <EmptyValue />;
+
   const numField = field as any;
   // Decimal places come from `scale` (the `s` in a `decimal(p, s)` column),
   // NOT `precision` — `precision` is the TOTAL digit count (`p`), and reading
@@ -679,9 +660,11 @@ export function CurrencyCellRenderer({ value, field }: CellRendererProps): React
   // null and set must not change the hook count between renders.
   const { currency: tenantCurrency } = useLocalization();
   const locale = useDisplayLocale();
-  if (value == null) return <EmptyValue />;
-
   const safe = coerceToSafeValue(value);
+  // Same fabrication as `NumberCellRenderer` (objectui#8490), one step worse:
+  // a currency column sums and aligns a fabricated `0` like money.
+  if (isBlankCellText(safe)) return <EmptyValue />;
+
   // Resolve the display currency via the shared precedence: field `currency` →
   // `currencyConfig.defaultCurrency` → the tenant default (ADR-0053). When none
   // is known, render a plain number — never a guessed symbol (silently assuming
@@ -706,9 +689,11 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
   // and set must not change the hook count between renders (same rule as
   // NumberCellRenderer / CurrencyCellRenderer above).
   const locale = useDisplayLocale();
-  if (value == null) return <EmptyValue />;
-
   const safe = coerceToSafeValue(value);
+  // Same fabrication as `NumberCellRenderer` (objectui#8490): `[]` drew a 0%
+  // progress bar with a `progressbar` role and `aria-valuenow` of 0.
+  if (isBlankCellText(safe)) return <EmptyValue />;
+
   const percentField = field as any;
   const precision = percentField.precision ?? 0;
   const numValue = Number(safe);
@@ -776,7 +761,31 @@ const STATUS_FIELD_NAMES = new Set([
  * and warning badge for active/enabled fields when false.
  */
 export function BooleanCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
-  if (value == null) {
+  // Only a real boolean is a value of a boolean column (objectui#8582).
+  //
+  // `@objectstack/spec`'s runtime value contract for `boolean` / `toggle` is a
+  // bare `z.boolean()` (`data/field-value.zod.ts`, `valueSchemaFor`): the class
+  // is declared "a JS boolean on the wire (driver read-coercion repairs SQL
+  // 0/1)" and listed under `NON_TEXT_STORED_VALUE_TYPES` — stored "never text
+  // on any backend". The truth table that turns `'true'` / `1` / `'0'` into a
+  // boolean lives at the PRODUCER boundaries (objectql's `coerceBooleanFields`
+  // on the read path and its `invalid_boolean` write-path refusal; `rest`'s
+  // `parseBooleanCell` on CSV import), so a non-boolean reaching this renderer
+  // is a producer that skipped its repair, and a second copy of that table
+  // here would be the renderer-side dialect AGENTS.md #0.1 forbids.
+  //
+  // Before this guard every branch below read the value by TRUTHINESS. The
+  // string `'false'`, the string `'0'` and `{}` drew a CHECKED box — a
+  // completion field its green "Completed" indicator, an `active`-style field
+  // skipped its "Off" badge — an affirmative answer the record never gave;
+  // `0` and `''` drew an UNCHECKED box (an `active` field its "Off" badge), a
+  // `false` the record never stored either. Both directions are the same
+  // fabrication and both now land on the shared affordance, whose accessible
+  // name ("No value") is a statement about the field's TYPE: the record holds
+  // no boolean here. `null` / `undefined` and `[]` (objectui#8490: an empty
+  // array holds no boolean) are the same answer for the same reason. A real
+  // `false` is a value and stays an unchecked box.
+  if (typeof value !== 'boolean') {
     return <span className="flex items-center justify-center"><EmptyValue /></span>;
   }
 
@@ -801,7 +810,7 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
   }
 
   // Warning badge for active/enabled fields when false
-  if (STATUS_FIELD_NAMES.has(fieldName) && !value) {
+  if (STATUS_FIELD_NAMES.has(fieldName) && value === false) {
     return (
       <Badge variant="destructive" className="text-xs" data-testid="boolean-warning-badge">
         {field?.label || humanizeLabel(fieldName)} — Off
@@ -811,7 +820,7 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
 
   return (
     <div className="flex items-center justify-start">
-      <Checkbox checked={!!value} disabled className="pointer-events-none" />
+      <Checkbox checked={value} disabled className="pointer-events-none" />
     </div>
   );
 }
@@ -831,6 +840,10 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
   const t = useFieldTranslate();
   if (!value) return <EmptyValue />;
   const safe = coerceToSafeValue(value);
+  // `[]` is truthy, so it passed the guard above and reached `formatDate` as
+  // `''`, whose own em-dash is a bare punctuation mark with no accessible
+  // name (objectui#8490). The shared affordance says "No value" instead.
+  if (isBlankCellText(safe)) return <EmptyValue />;
   const dateField = field as any;
   const style = dateField.format || 'relative';
 
@@ -1450,8 +1463,14 @@ export function getSemanticHex(name?: string, fallback: string = '#3b82f6'): str
  * (objectui#8474 measured and kept that), `FileCellRenderer` states "0 files",
  * `BooleanCellRenderer` treats `false` as a value while `DateCellRenderer`'s
  * `!value` treats the epoch as empty. This helper answers ONE question — "is
- * this a multi-value container with no entries to draw?" — for the three
- * renderers that ask it. Unifying the rest is a separate, contested change.
+ * this a multi-value container with no entries to draw?" — for the renderers
+ * that ask it: the three below. `BooleanCellRenderer` asked it too between
+ * objectui#8490 and objectui#8582; its guard is now `typeof value !== 'boolean'`,
+ * which answers the same question for `[]` (an array is not a boolean) and for
+ * every non-boolean scalar besides. The renderers that coerce
+ * to text before they draw ask `isBlankCellText` instead — the same ruling,
+ * taken on the coerced string. Unifying the rest is a separate, contested
+ * change.
  */
 function isEmptyMultiValue(value: unknown): boolean {
   return Array.isArray(value) && value.length === 0;
@@ -1562,7 +1581,12 @@ export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElem
   const [copied, setCopied] = React.useState(false);
   if (!value) return <EmptyValue />;
 
-  const safe = String(coerceToSafeValue(value) ?? '');
+  const coerced = coerceToSafeValue(value);
+  // `[]` is truthy and coerces to `''`, which used to become a live anchor
+  // with `href="mailto:"` and no text — an affordance with nothing to link to
+  // (objectui#8490). No address, no link.
+  if (isBlankCellText(coerced)) return <EmptyValue />;
+  const safe = String(coerced);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1608,8 +1632,13 @@ export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElem
  */
 export function UrlCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <EmptyValue />;
-  
-  const safe = String(coerceToSafeValue(value) ?? '');
+
+  const coerced = coerceToSafeValue(value);
+  // `[]` used to become a `target="_blank"` anchor with an EMPTY `href`
+  // (objectui#8490) — same ruling as `EmailCellRenderer`: nothing to link to,
+  // no link.
+  if (isBlankCellText(coerced)) return <EmptyValue />;
+  const safe = String(coerced);
   return (
     <Button
       variant="link"
@@ -1637,7 +1666,11 @@ export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElem
   const [copied, setCopied] = React.useState(false);
   if (!value) return <EmptyValue />;
 
-  const safe = String(coerceToSafeValue(value) ?? '');
+  const coerced = coerceToSafeValue(value);
+  // `[]` used to become a live `href="tel:"` anchor with no number
+  // (objectui#8490) — same ruling as `EmailCellRenderer`.
+  if (isBlankCellText(coerced)) return <EmptyValue />;
+  const safe = String(coerced);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -2252,8 +2285,12 @@ export function JsonCellRenderer({ value }: CellRendererProps): React.ReactEleme
  * Renders a `color` value as a swatch alongside its hex/string value.
  */
 export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (value == null || value === '') return <EmptyValue />;
+  if (value == null) return <EmptyValue />;
   const color = String(value);
+  // `String([])` is `''`, which used to draw a bordered swatch box with no
+  // background colour beside an empty text span (objectui#8490): a swatch
+  // with no colour is not a colour.
+  if (isBlankCellText(color)) return <EmptyValue />;
   return (
     <span className="inline-flex items-center gap-1.5 text-sm">
       <span

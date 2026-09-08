@@ -278,6 +278,45 @@ Two shapes are deliberately NOT refused, because the receiving door accepts
 them: a `FilterCondition` object (`{ stage: 'won' }` — what `QuerySchema.where`
 declares), and an empty array (`[]` means "no filter").
 
+#### The two shapes are alternatives, not a mixture
+
+The spec-shape branch reads exactly four keys — `groupBy`, `aggregations`,
+`where`, `limit` — and `filter` / `field` / `function` are the **analytics**
+branch's own parameters. Until objectui#6864 they were neither read nor
+reported on the spec-shape branch: they simply were not in the body that went
+out. Since #6864 they are refused, by name:
+
+```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
+// ⛔ throws AnalyticsKeysOnSpecShapeError — an ARRAY `groupBy` selects the
+// spec-shape branch, and these three keys would have vanished from the query:
+// no filter, and no measure at all.
+await dataSource.aggregate('opportunity', {
+  field: 'amount',
+  function: 'sum',
+  groupBy: ['stage'],
+  filter: [{ field: 'stage', operator: 'equals', value: 'won' }],
+});
+
+// ✅ the analytics shape, unchanged — a STRING `groupBy` keeps this call on the
+// analytics branch, where all three keys are read and `filter` is lowered for you
+await dataSource.aggregate('opportunity', {
+  field: 'amount',
+  function: 'sum',
+  groupBy: 'stage',
+  filter: [{ field: 'stage', operator: 'equals', value: 'won' }],
+});
+```
+
+Pick one shape per call. A key that is present but nullish (`filter: undefined`)
+carries nothing to drop and is not refused, so params built by spreading
+possibly-absent authored values keep working. Keys outside those three are not
+refused either — the gate names `filter`, `field` and `function`, and only
+those.
+
 ### Sorting
 
 ```typescript
@@ -434,7 +473,12 @@ import {
                            // the spec's filter-AST gate rejects (400
                            // INVALID_FILTER). See "aggregate({ where }) does
                            // NOT lower" above.
-  isMalformedFilterError,  // Recognises BOTH of the two above, and the server's
+  AnalyticsKeysOnSpecShapeError, // aggregate()'s spec-shape branch was handed the
+                           // ANALYTICS branch's keys (`filter` / `field` /
+                           // `function`), which it does not read (400
+                           // INVALID_FILTER). See "the two shapes are
+                           // alternatives, not a mixture" above.
+  isMalformedFilterError,  // Recognises ALL THREE of the above, and the server's
                            // own version of the same refusal.
 } from '@object-ui/data-objectstack';
 ```
@@ -511,8 +555,9 @@ All errors include unique error codes for programmatic handling:
 - `CONNECTION_ERROR` - Connection/network error
 - `AUTHENTICATION_ERROR` - Authentication failure
 - `VALIDATION_ERROR` - Data validation error
-- `INVALID_FILTER` - A filter the adapter refuses to send (`MalformedFilterError`,
-  `UnloweredAggregateWhereError`); matches the data API's own code for the same refusal
+- `INVALID_FILTER` - A request the adapter refuses to send (`MalformedFilterError`,
+  `UnloweredAggregateWhereError`, `AnalyticsKeysOnSpecShapeError`); matches the data
+  API's own code for the same refusal
 - `UNSUPPORTED_OPERATION` - Unsupported operation
 - `NOT_FOUND` - Resource not found
 - `UNKNOWN_ERROR` - Unknown error

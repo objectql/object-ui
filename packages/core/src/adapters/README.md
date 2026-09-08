@@ -99,6 +99,16 @@ That is **all sixteen** — nothing the spec declares is refused by name.
 is IS NOT NULL. `$exists` is its exact inverse — `$exists: true` is IS NOT NULL — which
 is the lowering `convertFiltersToAST` already performs, not a reading invented here.
 
+A stored value that is **not a string** never satisfies `$contains`, `$icontains`,
+`$startsWith` or `$endsWith`, and always satisfies `$notContains` — the number `5`
+does not contain the substring `"5"`, so it is on the negation side. That is
+objectstack#14079 (maintainer ruling 2026-09-05, option A), and it is what makes the
+operator and its negation a **partition**: before objectui#8452 both arms carried the
+type test, so a numeric column answered NO to `$notContains` as well and those rows
+appeared in no filter answer at all. The stored value is never coerced to text —
+searching `String(50)` would answer a query nobody wrote, in a spelling the storage
+class chose. A `null` and an absent key take the same side of the same predicate.
+
 Anything else is **refused**: the row is excluded and the reason is logged once per
 distinct refusal per `find()` — never passed through as "no constraint", which is
 what an unrecognised operator used to mean here. Refused on purpose, each with a

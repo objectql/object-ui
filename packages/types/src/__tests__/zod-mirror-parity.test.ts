@@ -68,12 +68,33 @@
  * it is now, so it rots when the file moves; the many figures that name a reading at
  * a NAMED PAST revision ("42 / 63 until objectui#7542 …", "121 when objectui#6058
  * seeded it") are historical and cannot rot — they are readings of a tree that is
- * fixed. Exactly one live figure is excluded rather than pinned, and it says so
- * where it stands: the seed decomposition under `UnmirroredDeclared`, which needs a
- * key's PROVENANCE and no ledger in this file records that. ⛔ Do not add a live
- * figure here without a pin, and ⛔ do not pin one by writing a second constant —
+ * fixed. Exactly one figure is excluded rather than pinned, and it says so where it
+ * stands: the seed decomposition under `UnmirroredDeclared`, which needs a
+ * key's PROVENANCE and no ledger in this file records that. ⚠️ It was LIVE when that
+ * exclusion was written and is HISTORICAL now — objectui#8243 anchored the statement
+ * at named revisions — so it is no longer an exception to the sentence above, and
+ * ⛔ the exclusion is not licence to pin or refresh it (objectui#8248). ⛔ Do not add
+ * a live figure here without a pin, and ⛔ do not pin one by writing a second constant —
  * every pin below reads the header's OWN spelling, so the count a human edits stays
  * exactly one per site (objectui#7733's principle, and objectui#7433's before it).
+ *
+ * ⭐ **The LIVE / HISTORICAL split governs this file's ASSERTION MESSAGES too**
+ * (objectui#8248; maintainer ruling, decision batch #71). Judge a message CLAUSE, not
+ * a whole message:
+ *
+ *   - a clause that RECORDS A MEASUREMENT ("we measured X at revision R", "the header
+ *     carries no copy") is HISTORICAL — ⛔ never rewritten by a later card, because
+ *     rewriting it erases what was true when it was written;
+ *   - a clause that GIVES GUIDANCE ("do Y next", "⛔ do not add Z", "this figure is
+ *     live") is LIVE — it must be true NOW, and a later card MAY and MUST amend it
+ *     when the world moves under it, citing the card that moved it.
+ *
+ * ⛔ Neither licence extends to the other half: amend the guidance clause, leave the
+ * record clauses byte-identical beside it, and name the card that moved the world.
+ * Guidance that has gone stale is the exact failure this file exists to catch, and it
+ * misleads toward DOING work — a reader told a historical figure is "live" goes off to
+ * pin or exclude it. The first application is objectui#8248's amendment to
+ * objectui#8222's exclusion note, at the bottom of this file.
  *
  * On a file whose entire subject is measurement that is worth stating explicitly:
  *
@@ -230,12 +251,27 @@
  *     read 34 / 52 / 61 — 24 / 27 / 1 / 9 — until objectui#7760 gave seven of the ten
  *     recursion-breaking mirrors their existing TypeScript declaration as an explicit
  *     INPUT type argument. ⛔ That repaired no mirror and no declaration: it made a face
- *     READABLE that had been `unknown`. 19 keys across 16 pairs LEFT (13 entries
- *     emptied) because the reading they recorded was the annotation, and 3 keys
+ *     READABLE that had been `unknown`. 19 keys across **18** pairs LEFT
+ *     (**13 emptied + 5 reduced = 18**) because the reading they recorded was the
+ *     annotation, and 3 keys
  *     ENTERED — `feedback.zod.ts#ToastSchema::action` (⚠️ history: that row is GONE,
  *     retired by objectui#8338 above — ⛔ do not look for it below),
  *     `navigation.zod.ts#HeaderBarSchema::logo`, `overlay.zod.ts#TooltipSchema::content`
- *     — real widenings the erased face had been HIDING. ⭐ All three are the
+ *     — real widenings the erased face had been HIDING. ⚠️ **pairs** there counts every
+ *     entry the move TOUCHED — an entry that lost a key and KEPT others is still one it
+ *     moved — and `emptied` is the subset that lost its whole content. Both readings are
+ *     written down because a bare pairs figure had already forked: this line read `16`,
+ *     which is NEITHER of the two readings above — ⛔ and they are not restated here as
+ *     digits, because a restatement no pin reaches is the objectui#7733 shape one line
+ *     further in. It was the one figure in this paragraph no pin reached, while every
+ *     other one moved correctly with objectui#7760.
+ *     objectui#8458 re-derived it by running this file's own `ledgerEntryMembers` over
+ *     `WiderThanDeclared` at `645ecb98c` and `a480f797a` — PR #8354's parent and its
+ *     merge — and diffing entry → key pairs; the decomposition is pinned by 'the
+ *     objectui#7760 movement figures reconcile with themselves' at the bottom of this
+ *     file. ⛔ That pin reads this sentence and nothing else: the movement is a
+ *     HISTORICAL reading of two fixed trees, and pointing it at the live ledger is the
+ *     hand re-derivation objectui#8243 removed. ⭐ All three are the
  *     `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` single-or-list spelling
  *     objectui#7069 called systematic and could not judge, which is the whole reason
  *     that card's ledger declared this region EXCLUDED. MIXED is 0 because its one
@@ -3340,12 +3376,24 @@ sentence fails there instead — and that is route 1, which objectui#6141 predic
 objectui#7433 measured recurring four more times, and objectui#8222 was filed to stop
 being taken for the key totals specifically.
 
-⚠️ ONE live figure in the header is deliberately NOT here: the seed decomposition
+⚠️ ONE figure in the header is deliberately NOT here: the seed decomposition
 under \`UnmirroredDeclared\` ("what 121 used to mean"). It needs each key's PROVENANCE
 and no ledger in this file records that, so nothing here can derive it. It is
 excluded in writing where it stands, which is the other half of objectui#8222 — every
 live figure in that header is pinned or excluded with its reason, and ⛔ a new one
-that is neither should not be added.`)
+that is neither should not be added.
+
+⚠️ AMENDED (objectui#8248; maintainer ruling, decision batch #71). This note called
+that figure LIVE, which it was on the day the note was written. It is not one now:
+objectui#8243 rewrote the deferred-to statement as a reading at NAMED REVISIONS, and a
+statement anchored that way is HISTORICAL — nothing landing later can make it false.
+So it carries none of a live figure's obligations, and the action the word "live"
+sends you off to do — pin it, or exclude it afresh — is the WRONG one for a
+historical reading. ⛔ Only that word moved. The clauses above are this note's
+MEASUREMENT record — the header carries no copy of the decomposition, and no ledger
+here records key provenance so nothing here can derive it — and they are untouched,
+still exactly right, and ⛔ not rewritable by a later card. The rule that separates
+the two is stated ONCE, in this file's header.`)
       .toEqual({
         knownDriftKeys: keyTotal('KnownDrift'),
         runtimeOnlyKeys: keyTotal('RuntimeOnlyDeclared'),
@@ -3464,10 +3512,14 @@ stale copy survives beside a corrected one, which is the shape objectui#8243 rec
     //
     // ⚠️ objectui#8222's own exclusion note calls that deferred-to statement a LIVE
     // figure, which it was when the note was written. It is not one any more — read it
-    // as the historical reading described below. That note is left exactly as it
-    // stands: it is an assertion message objectui#8243 has no business editing, and
+    // as the historical reading described below. That note was left exactly as it
+    // stood: it is an assertion message objectui#8243 has no business editing, and
     // what it says about the FILE HEADER (no copy there, and none to be added back)
-    // is unchanged.
+    // is unchanged. ⭐ objectui#8248 later amended the one stale WORD in it, under the
+    // maintainer ruling now written in this file's header: a clause that RECORDS a
+    // measurement is never rewritten, a clause that GIVES GUIDANCE is live and must be
+    // amended when the world moves. The record clauses this comment names are still
+    // byte-identical there; ⛔ that ruling is not licence to edit them.
     //
     // ⭐ objectui#8243 took neither route. The statement was rewritten as a reading at
     // NAMED REVISIONS — 98 keys at `beccf1c6b`, of which 85 survive and 13 have left at
@@ -3907,5 +3959,95 @@ describe("the WIDER ledger's header figures are derived from its ARMS (objectui#
       // a mirror moves and the ledger does not.
       unions: rows.filter(({ pair, key }) => (measureMirrorArms(pair, key)?.length ?? 0) > 1).length,
     });
+  });
+});
+
+/* ── The objectui#7760 MOVEMENT figures reconcile with themselves (objectui#8458) ── */
+
+describe("the objectui#7760 movement figures reconcile with themselves (objectui#8458)", () => {
+  it('the pairs that move touched equal its emptied entries plus its reduced ones', () => {
+    // The one figure in that paragraph no instrument reached. Its neighbours — the
+    // ledger's entry / key / arm totals either side of the move and the arm split —
+    // are pinned by the blocks above and all moved correctly with objectui#7760;
+    // `16 pairs` sat between them unpinned, and a reader cannot tell by looking which
+    // digits in a checked paragraph are the checked ones. That is the whole shape:
+    // the header's authority rests on the others being derived, so an unwatched digit
+    // inherits an authority nothing gave it.
+    //
+    // ⛔ This is a HISTORICAL reading and nothing here may compare it to the live
+    // ledger. `WiderThanDeclared` today is NEITHER of the two trees the sentence
+    // describes (objectui#8338 moved it again afterwards), and the moment a figure
+    // here is derived from it the statement is live, rots on the next ledger move, and
+    // costs a hand re-derivation at every future repair — which is exactly what
+    // objectui#8243 removed for the seed decomposition. What IS checked is the
+    // statement's INTERNAL arithmetic, so a digit "refreshed" by hand — the way `16`
+    // got here — is red.
+    //
+    // ⭐ Re-derived, not inherited. objectui#8458's card carried the figure 18 from a
+    // contract reviewer and said in as many words not to adopt it, because adopting an
+    // unchecked figure is the defect the card is about. It was measured again by
+    // running THIS FILE'S `ledgerEntryMembers('WiderThanDeclared')` — the same
+    // instrument the pins above use, sliced out of the file rather than retyped — over
+    // the file at `645ecb98c` and at `a480f797a` (PR #8354's parent and its merge) and
+    // diffing entry -> key pairs: 19 rows left and 3 entered, across 18 distinct
+    // entries of which 13 lost their whole content and 5 kept keys. Both movements
+    // close against figures ALREADY pinned at those two revisions — 52 - 19 + 3 = 36
+    // keys and 34 - 13 + 2 = 23 entries — so the reading is anchored on both sides
+    // instead of asserted. The 5 reduced entries are `AppComponentSchema`,
+    // `DashboardComponentSchema`, `PageNodeSchema`, `ObjectViewSchema` and
+    // `DetailViewSchema`.
+    //
+    // ⚠️ The DEFINITION is the other half of this pin and it lives in the prose beside
+    // the figure: "pairs" counts every entry the move TOUCHED, not the emptied subset.
+    // ⛔ Do not write the figure back as a bare digit — `16` was wrong under BOTH
+    // readings (13 emptied, 18 touched), and a number with no definition forks again.
+    const [keysLeft, pairsTouched] = headerFigures(/(\d+) keys across \*\*(\d+)\*\* pairs LEFT/);
+    const [emptied, reduced, decomposed] = headerFigures(/\*\*(\d+) emptied \+ (\d+) reduced = (\d+)\*\*/);
+
+    expect({
+      decomposition: emptied + reduced,
+      restatedTotal: decomposed,
+      everyTouchedPairLostAKey: pairsTouched <= keysLeft,
+    }, `
+The objectui#7760 movement sentence no longer adds up.
+
+Every figure in it is a reading of two FIXED trees (\`645ecb98c\` and \`a480f797a\`), so
+none of them moves when the ledger moves. If you got here:
+
+  * you "refreshed" one of them to chase a ledger movement => put it back. The current
+    ledger is neither of those trees, and the live figures for it are the entry / key /
+    arm totals at the top of that bullet, pinned by the objectui#8252 block above.
+
+  * you re-derived the movement and got different numbers => that is a FINDING, not a
+    prose edit. The two commits are fixed, so a different reading means the INSTRUMENT
+    changed, not the history. Re-run \`ledgerEntryMembers('WiderThanDeclared')\` against
+    the file at both revisions and diff entry -> key pairs before touching a digit.
+
+  * you reworded the sentence => the spellings this pin reads are
+    \`N keys across **M** pairs LEFT\` and \`**E emptied + R reduced = M**\`, each exactly
+    once. A reword that drops one is red here rather than quietly unpinned, which is
+    the objectui#7733 principle; ⛔ do not "fix" it by deleting the pin.
+
+⛔ Never reconcile this by pointing a figure at the live ledger. That reintroduces the
+hand re-derivation on every future repair (objectui#8243), and it cannot be pinned
+that way anyway: no ledger in this file records what it held at a past revision.`)
+      .toEqual({
+        decomposition: pairsTouched,
+        restatedTotal: pairsTouched,
+        everyTouchedPairLostAKey: true,
+      });
+
+    // Non-vacuity: a spelling that matched something other than the reading — or an
+    // all-zero rewrite — would satisfy `0 + 0 = 0` while stating nothing. Each leg is
+    // a fact about the movement, not about the reader.
+    for (const [name, value] of Object.entries({ keysLeft, pairsTouched, emptied, reduced })) {
+      expect(value, `the historical movement figure ${name} read as 0 — the spelling matched something that is not the reading`)
+        .toBeGreaterThan(0);
+    }
+    // Both halves of the decomposition are non-empty: a move with no reduced entries
+    // would make "pairs" and "emptied" the same quantity, and the ambiguity that
+    // produced objectui#8458 could not be seen from the sentence.
+    expect(reduced, 'the reduced half read as 0 — then "pairs" and "emptied" state one quantity twice')
+      .toBeGreaterThan(0);
   });
 });

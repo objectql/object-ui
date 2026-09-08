@@ -33,6 +33,12 @@
  * wrapper and the `afterEach` that fails ANY escape in ANY file. Re-adding a
  * list is red here; deleting the guard while deleting the list is red here too.
  *
+ * "ANY file" has a registration-time condition of its own (objectui#8537): in
+ * the `unit` project the hook must be registered per test file through the
+ * guard's exported installer, called from `vitest.setup.base.ts`. That wiring is
+ * pinned below; the export list this file used to pin as EMPTY now holds exactly
+ * that installer.
+ *
  * ## How it reads the guard, and why not with a regex
  *
  * The absence assertions run over the guard's source with COMMENTS BLANKED, via
@@ -76,11 +82,19 @@ describe('the network-escape burn-down list stays retired (objectui#7307)', () =
     expect(guardCode, 'comment masking is not blanking comments').not.toContain(PROSE_ONLY);
   });
 
-  it('exports nothing — the ledger was its only export', () => {
+  it('exports exactly the installer, and no ledger', () => {
     // Runtime, not source: this is the SAME module instance the run is guarded
     // by (`vitest.setup.base.ts` imports it for every project), so a re-exported
     // list shows up here whatever the source looks like.
-    expect(Object.keys(guard as Record<string, unknown>).sort()).toEqual([]);
+    //
+    // This used to pin an EMPTY export list — the ledger was the only export
+    // the guard ever had. objectui#8537 added one on purpose: the `afterEach`
+    // has to be registered per test file, and under the `unit` project's
+    // `isolate: false` only a function CALLED from the setup file can do that
+    // (an imported module's body runs once per worker). Exactly that name, so a
+    // list coming back as a second export is still red here.
+    expect(Object.keys(guard as Record<string, unknown>).sort()).toEqual(['installNetworkEscapeGuard']);
+    expect(typeof guard.installNetworkEscapeGuard).toBe('function');
   });
 
   it('declares no allowlist of tolerated escapes in its code', () => {
@@ -131,5 +145,31 @@ describe('the STANDING guard survived the retirement (objectui#6640)', () => {
     expect(guardCode, 'the remedy the red points at').toContain(
       'Fix: serve the probe from a double rather than the network',
     );
+  });
+
+  it('registers that afterEach from the installer, and the setup file calls it (objectui#8537)', () => {
+    // "ANY file" is only true if the hook is registered per test file. In the
+    // `unit` project (`isolate: false`) this module's body runs once per worker,
+    // so a module-scope `afterEach(` here would cover the first file of each
+    // worker and no other — which is what it did until objectui#8537. So: the
+    // one `afterEach(` in the guard's CODE sits inside the exported installer,
+    // and `vitest.setup.base.ts` — a setup file Vitest re-executes per test
+    // file — calls it. The behavioural half (two escaping files in one worker,
+    // both red) is `network-escape-worker-coverage-8537.test.ts`.
+    const hooks = guardCode.match(/\bafterEach\(/g) ?? [];
+    expect(hooks, 'exactly one afterEach registration in the guard').toHaveLength(1);
+    const installerAt = guardCode.indexOf('export function installNetworkEscapeGuard(');
+    expect(installerAt, 'the installer is exported').toBeGreaterThan(-1);
+    expect(
+      guardCode.indexOf('afterEach('),
+      'the afterEach must be registered inside installNetworkEscapeGuard(), not at module scope',
+    ).toBeGreaterThan(installerAt);
+
+    const baseCode = maskComments(fs.readFileSync(path.join(repoRoot, 'vitest.setup.base.ts'), 'utf8'));
+    expect(baseCode, 'vitest.setup.base.ts must call the installer').toContain('installNetworkEscapeGuard();');
+    expect(
+      baseCode.includes("import './vitest.setup.network-escape-guard'"),
+      'a bare side-effect import of the guard registers no hook any more — call the installer',
+    ).toBe(false);
   });
 });
