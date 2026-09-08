@@ -128,6 +128,11 @@ const pinViewport = (width: number) => () => {
  * message that sent this card's reader to the dedupe ladder instead of to the
  * auto-hide heuristic.
  */
+// ⚠️ Row labels here are the object's DECLARED `label`s (objectui#8497).
+// `record:details` fills a bare-string field entry's `label` from the bound
+// object definition before `DetailSection` sees it, so a row that used to be
+// found by its raw field name is now found by the label the object declares.
+// Nothing about what this file measures moved — only how a row is named.
 const shown = (text: string) => screen.queryByText(text) !== null;
 
 /**
@@ -257,7 +262,7 @@ describe('record:details dedupe — emptiness is the header\'s definition (#8350
 
     // The raw test read `'   '` as a value and hid this row to deduplicate
     // against an H1 that was showing something else entirely.
-    expect(screen.getByText('contract_no')).toBeInTheDocument();
+    expect(screen.getByText('Contract No')).toBeInTheDocument();
 
     // CONTROL — the grid rendered at all.
     expect(screen.getByText('42')).toBeInTheDocument();
@@ -279,8 +284,8 @@ describe('record:details dedupe — emptiness is the header\'s definition (#8350
   it('WHITESPACE AT THE DERIVATION RUNG — HALF 2: both blank rows survive', () => {
     renderBody(WHITESPACE_BOTH_RUNGS_RECORD, activitySchema, ACTIVITY_FIELDS);
 
-    expect(screen.getByText('contract_no')).toBeInTheDocument();
-    expect(screen.getByText('activity_name')).toBeInTheDocument();
+    expect(screen.getByText('Contract No')).toBeInTheDocument();
+    expect(screen.getByText('Activity Name')).toBeInTheDocument();
 
     // CONTROL — the grid rendered at all.
     expect(screen.getByText('4')).toBeInTheDocument();
@@ -381,11 +386,11 @@ describe('record:details dedupe — on mobile the blank rows are HIDDEN, not ded
     renderBody(WHITESPACE_BOTH_RUNGS_RECORD, activitySchema, ACTIVITY_FIELDS);
 
     expect(
-      shown('contract_no'),
+      shown('Contract No'),
       'mobile auto-hide must fire on this fixture (3 rendered rows meets AUTO_HIDE_MIN_FIELDS 3, 2/3 empty clears AUTO_HIDE_RATIO 0.2) — this row is absent because it was HIDDEN, not because the dedupe took it',
     ).toBe(false);
     expect(
-      shown('activity_name'),
+      shown('Activity Name'),
       'the second blank row is hidden by the same heuristic, for the same reason',
     ).toBe(false);
 
@@ -414,11 +419,11 @@ describe('record:details dedupe — on mobile the blank rows are HIDDEN, not ded
     fireEvent.click(toggle as HTMLElement);
 
     expect(
-      shown('contract_no'),
+      shown('Contract No'),
       'revealing empty fields must bring back a row that auto-hide hid',
     ).toBe(true);
     expect(
-      shown('activity_name'),
+      shown('Activity Name'),
       'revealing empty fields must bring back a row that auto-hide hid',
     ).toBe(true);
 
