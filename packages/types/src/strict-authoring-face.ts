@@ -138,12 +138,44 @@ interface ZodInternals {
 
 const internals = (schema: z.ZodType): ZodInternals => schema as unknown as ZodInternals;
 
+/**
+ * Is this a zod schema node?
+ *
+ * ⚠️ `typeof value === 'object'` is NOT the test, and writing it that way is a
+ * silent, measured coverage hole rather than a style slip. Zod 4.4.3 builds
+ * some objects through `$ZodObjectJIT`, whose instances are CALLABLE — they
+ * answer `typeof 'function'`, their constructor prints as a bound `ZodObject`,
+ * their traits read `ZodObject/$ZodObjectJIT/$ZodObject/$ZodType`, and they
+ * parse exactly like any other object. On this face, 20 such nodes are
+ * reachable, all of them arriving through `@objectstack/spec`-derived subtrees.
+ *
+ * An object-only guard hands each of them straight back, so the ENTIRE subtree
+ * beneath it goes unwalked. Measured, before this test admitted functions: 6
+ * objects under those nodes stayed open on the twin, and a document with an
+ * invented key inside one of them — `page.interfaceConfig.sort[]` is the
+ * shortest — was ACCEPTED by the strict face and the key silently dropped,
+ * while the same key at the root was correctly refused and named.
+ *
+ * ⛔ Nothing in the corpus could catch that: no document among the 556 carries
+ * an undeclared key inside those 6 objects, so every corpus reading is
+ * identical whichever guard is written here. The population pin in
+ * `__tests__/strict-authoring-face-8345.test.ts` — every reachable object on
+ * the twin has `catchall: never`, with the function-typed count asserted
+ * non-zero — is what actually holds this line, and it too had to be taught the
+ * same lesson: its own census started `typeof node !== 'object'` and shared the
+ * blind spot with the thing it was measuring.
+ */
 const isZodType = (value: unknown): value is z.ZodType =>
-  typeof value === 'object' && value !== null && '_zod' in value;
+  value !== null && (typeof value === 'object' || typeof value === 'function') && '_zod' in value;
 
 /**
  * Clone one schema with a patched def, PRESERVING everything else in it —
  * `def.checks` above all, which is where `.refine()` / `.superRefine()` live.
+ *
+ * A callable JIT instance clones through its own bound constructor and comes
+ * back as an ordinary object-typed instance of the same class. That is a
+ * difference in representation, not in behaviour, and behaviour is what the
+ * pins measure: the clone parses, closes, and leaves the original untouched.
  */
 const cloneWithDef = (schema: z.ZodType, patch: Partial<WalkableDef>): z.ZodType => {
   const Ctor = internals(schema).constructor;

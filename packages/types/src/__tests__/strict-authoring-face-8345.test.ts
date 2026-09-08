@@ -44,6 +44,10 @@
  * script) and by nothing else — a green vitest run says nothing about them.
  */
 
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -174,11 +178,13 @@ describe('(c) the tolerant face is behaviourally unchanged — a pin, not a prom
     // `catchall: never` IS strictness. Some objects on the face are strict
     // already — the schemas imported from `@objectstack/spec` are — so the
     // reading that matters is that the count does not MOVE, not that it is zero.
-    const before = closedObjectCount(AnyComponentSchema);
+    const before = census(AnyComponentSchema);
     const twin = deriveStrictAuthoringSchema(AnyComponentSchema);
     twin.safeParse(KNOWN_GOOD); // force the deferred subtrees
-    expect(closedObjectCount(AnyComponentSchema)).toBe(before);
-    expect(before).toBeGreaterThan(0); // non-vacuity: the counter sees something
+    const after = census(AnyComponentSchema);
+    expect(after.closed).toBe(before.closed);
+    expect(after.openPaths.length).toBe(before.openPaths.length);
+    expect(before.closed).toBeGreaterThan(0); // non-vacuity: the census sees something
   });
 });
 
@@ -246,6 +252,66 @@ describe('the node face (child slot) twin', () => {
   });
 });
 
+describe('the population is closed — every reachable object on the twin, not a sample document', () => {
+  /**
+   * ⭐ THE PIN WHOSE ABSENCE LET A REAL DEFECT SHIP.
+   *
+   * Every other pin in this file reads a DOCUMENT: it invents a key at some
+   * place a test author thought of, and asks what the face says. That can only
+   * ever cover the places someone thought of — and the corpus cannot close the
+   * gap either, because no document among the 556 the measurement script reads
+   * carries an undeclared key inside the objects that were open. Base, head and
+   * the prototype-agreement check all read the same number whichever way the
+   * walker's type guard is written.
+   *
+   * This one reads the POPULATION instead: walk the derived twin and require
+   * that every object in it carries `catchall: never`. It is the assertion that
+   * makes the published sentence — "closes every declared object, at every
+   * depth" — checkable rather than asserted.
+   */
+  it('every object reachable on the strict twin is closed', () => {
+    const twin = deriveStrictAuthoringSchema(AnyComponentSchema);
+    twin.safeParse(KNOWN_GOOD); // force every deferred subtree before counting
+    const seen = census(twin);
+
+    expect(seen.openPaths, 'an object on the strict twin still admits undeclared keys').toEqual([]);
+    expect(seen.closed, 'the census found no closed objects — it is not reading the twin').toBeGreaterThan(250);
+  });
+
+  it('the census can see CALLABLE schema nodes — the control the defect turned on', () => {
+    // ⚠️ Non-vacuity, and specifically for the class that was invisible. A
+    // census that cannot see `typeof 'function'` nodes reports "all closed"
+    // over a graph it never entered. If this ever reads 0, the assertion above
+    // has quietly stopped covering ~20 subtrees and must not be trusted.
+    expect(census(AnyComponentSchema).functionTyped).toBeGreaterThan(0);
+  });
+
+  it('the tolerant face is NOT closed — so "closed" is a discriminator, not a tautology', () => {
+    expect(census(AnyComponentSchema).openPaths.length).toBeGreaterThan(0);
+  });
+
+  it('REPRO-A: an invented key deep inside a spec-derived subtree is refused and named', () => {
+    // The document the population pin exists for. Before the walker admitted
+    // callable nodes this parsed CLEAN and `inventedDeepKey` was silently
+    // dropped from the output, while the root-level control below was correctly
+    // refused — the asymmetry that falsified the published contract text.
+    const deep = {
+      type: 'page',
+      interfaceConfig: { source: 'x', sort: [{ field: 'a', order: 'asc', inventedDeepKey: 1 }] },
+    };
+    const result = StrictAnyComponentSchema.safeParse(deep);
+    expect(result.success).toBe(false);
+    expect(refusedKeys(result)).toContain('inventedDeepKey');
+
+    // The control, in the same document: the root-level key was never the problem.
+    expect(refusedKeys(StrictAnyComponentSchema.safeParse({ ...deep, inventedTopKey: 1 })))
+      .toContain('inventedTopKey');
+
+    // …and (c) again on this input: the tolerant face takes both.
+    expect(AnyComponentSchema.safeParse(deep).success).toBe(true);
+  });
+});
+
 describe('what strict could not close is enumerated, not claimed', () => {
   /** Every def type the walker treats as opaque. Nothing else may be reported. */
   const OPAQUE_KINDS = ['custom', 'function', 'transform'] as const;
@@ -295,6 +361,74 @@ describe('what strict could not close is enumerated, not claimed', () => {
   });
 });
 
+describe('the barrel is the sole entry into the module cycle', () => {
+  /**
+   * `zod/index.zod.ts` re-exports from `../strict-authoring-face.ts`, which
+   * imports `AnyComponentSchema` back from it. The cycle is fine when the
+   * BARREL is entered first, and the reason usually given for that — "the deep
+   * module reads the binding only inside its lazy getters" — is true of the
+   * shipped source and NOT sufficient on its own. Measured: rollup 4.62.2,
+   * entered at the deep module first with a namespace import used as a value,
+   * throws `ReferenceError: Cannot access 'StrictAnyComponentSchema' before
+   * initialization` from the synthesized namespace object it places ahead of
+   * the deep module's body. Node, Vite/rolldown and Next Turbopack are green in
+   * both orders; rollup in that one order is not.
+   *
+   * ⇒ The load-bearing invariant is not "reads are deferred", it is **the
+   * barrel is the only way in**. That is what these two assertions hold, and
+   * between them they cover both routes a caller has: the published `exports`
+   * map for anything outside the package, and a relative or aliased specifier
+   * for anything inside this repository.
+   *
+   * ⚠️ The manifest half reads `package.json`; it does not write it. If the
+   * package's build layout changes the shape of `exports`, restate the
+   * invariant for the new shape rather than deleting the assertion.
+   */
+  const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const DEEP_MODULE = 'strict-authoring-face';
+
+  it('the published exports map has no wildcard and no entry reaching the deep module', () => {
+    const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8')) as {
+      exports: Record<string, unknown>;
+    };
+    const subpaths = Object.keys(manifest.exports);
+    expect(subpaths.length, 'the exports map is empty — this assertion is reading the wrong file').toBeGreaterThan(5);
+    expect(subpaths.filter((key) => key.includes('*')), 'a wildcard subpath opens every internal module').toEqual([]);
+    expect(
+      subpaths.filter((key) => JSON.stringify(manifest.exports[key]).includes(DEEP_MODULE)),
+      'an exports entry now reaches the deep module directly, so the barrel is no longer the sole entry',
+    ).toEqual([]);
+  });
+
+  it('no module in this repository imports the deep module except the barrel', () => {
+    // A specifier, not a mention: `scripts/measure-strict-authoring-face.mjs`
+    // shares the words in its own name and must not read as an importer.
+    const REPO_ROOT = join(PACKAGE_ROOT, '..', '..');
+    const SKIP = new Set(['node_modules', 'dist', '.git', '.turbo', 'coverage', '.next', 'build', 'test-results']);
+    const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+    const SPECIFIER = /(?:from|import|require)\s*\(?\s*['"][^'"]*strict-authoring-face[^'"]*['"]/;
+    const importers: string[] = [];
+    let scanned = 0;
+    const walk = (dir: string): void => {
+      let entries: import('node:fs').Dirent[];
+      try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const entry of entries) {
+        if (SKIP.has(entry.name)) continue;
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) { walk(full); continue; }
+        if (!SOURCE.test(entry.name)) continue;
+        scanned += 1;
+        if (SPECIFIER.test(readFileSync(full, 'utf8'))) importers.push(full.slice(REPO_ROOT.length + 1));
+      }
+    };
+    for (const root of ['packages', 'apps', 'examples', 'scripts', 'e2e']) walk(join(REPO_ROOT, root));
+
+    expect(scanned, 'the scan found almost no source files — it is pointed at the wrong tree').toBeGreaterThan(1000);
+    expect(importers.sort(), 'something other than the barrel now enters the cycle at the deep module')
+      .toEqual(['packages/types/src/zod/index.zod.ts']);
+  });
+});
+
 /* ── Type-level pins — read by `tsc -p tsconfig.test.json`, NOT by vitest ──── */
 
 /** The derivation returns the type it was given: strictness is a runtime property. */
@@ -325,39 +459,70 @@ describe('the type-level pins are reachable (vitest cannot read them)', () => {
   });
 });
 
-/* ── The counter used by the non-mutation pin ────────────────────────────── */
+/* ── The census both population pins read ────────────────────────────────── */
 
 /**
- * How many objects reachable from `schema` are CLOSED (`catchall` is `never`).
+ * Walk a schema graph and count what is there.
+ *
+ * ⚠️ `isSchemaNode` admits CALLABLE nodes, and that is the whole reason this
+ * helper is worth reading. Its first version began `typeof node !== 'object'`
+ * and therefore could not see the 20 `$ZodObjectJIT` instances on this face —
+ * the identical blind spot the walker itself had. Two instruments sharing a
+ * defect with the thing they measure is not a control: the count read "clean"
+ * while six objects underneath those nodes were wide open. `functionTyped` is
+ * asserted non-zero below so the lesson cannot silently regress.
+ *
  * Reads `_zod.def` for the same reason the walker does — zod publishes no other
  * way to ask. Lazies are resolved so the census is not truncated at the node
  * boundary.
  */
-function closedObjectCount(schema: z.ZodType): number {
-  type Def = Record<string, unknown> & { type: string };
+type CensusDef = Record<string, unknown> & { type: string };
+
+interface Census {
+  /** Distinct schema nodes reached. */
+  nodes: number;
+  /** How many of those answered `typeof 'function'` (JIT instances). */
+  functionTyped: number;
+  /** Nodes whose def type is `object`. */
+  objects: number;
+  /** Of those, how many carry `catchall: never` — i.e. are closed. */
+  closed: number;
+  /** Of those, the ones that do not, with the trail that reached them. */
+  openPaths: string[];
+}
+
+const isSchemaNode = (value: unknown): boolean =>
+  value !== null && (typeof value === 'object' || typeof value === 'function') && '_zod' in value;
+
+function census(schema: unknown): Census {
   const seen = new Set<unknown>();
-  let closed = 0;
-  const visit = (node: unknown): void => {
-    if (typeof node !== 'object' || node === null || !('_zod' in node)) return;
-    if (seen.has(node)) return;
+  const out: Census = { nodes: 0, functionTyped: 0, objects: 0, closed: 0, openPaths: [] };
+  const visit = (node: unknown, path: string): void => {
+    if (!isSchemaNode(node) || seen.has(node)) return;
     seen.add(node);
-    const def = (node as { _zod: { def: Def } })._zod.def;
+    out.nodes += 1;
+    if (typeof node === 'function') out.functionTyped += 1;
+    const def = (node as { _zod: { def: CensusDef } })._zod.def;
     if (def.type === 'object') {
+      out.objects += 1;
       const catchall = def.catchall as { _zod?: { def?: { type?: string } } } | undefined;
-      if (catchall?._zod?.def?.type === 'never') closed += 1;
+      if (catchall?._zod?.def?.type === 'never') out.closed += 1;
+      else out.openPaths.push(`${path} [${catchall?._zod?.def?.type ?? 'strip'}]`);
     }
     if (def.type === 'lazy') {
       const getter = def.getter as (() => unknown) | undefined;
-      if (getter) visit(getter());
+      if (getter) visit(getter(), `${path}/lazy`);
       return;
     }
-    if (def.shape) for (const v of Object.values(def.shape as Record<string, unknown>)) visit(v);
-    if (Array.isArray(def.options)) for (const v of def.options) visit(v);
-    if (Array.isArray(def.items)) for (const v of def.items) visit(v);
+    if (def.shape) {
+      for (const [key, value] of Object.entries(def.shape as Record<string, unknown>)) visit(value, `${path}/${key}`);
+    }
+    if (Array.isArray(def.options)) def.options.forEach((o, i) => visit(o, `${path}/opt${i}`));
+    if (Array.isArray(def.items)) def.items.forEach((o, i) => visit(o, `${path}/item${i}`));
     for (const key of ['element', 'rest', 'valueType', 'keyType', 'left', 'right', 'in', 'out', 'innerType', 'catchall']) {
-      if (def[key]) visit(def[key]);
+      if (def[key]) visit(def[key], `${path}/${key}`);
     }
   };
-  visit(schema);
-  return closed;
+  visit(schema, '#');
+  return out;
 }
