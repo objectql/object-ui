@@ -7,6 +7,54 @@ import { assertCanonicalVitestInvocation, cliHasTestFilters } from './scripts/vi
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ── The suite runs in UTC, always (objectui#8366) ───────────────────────────
+//
+// A family of pins asserts LITERAL local-date faces — `Jul 4, 2024`,
+// `Jul 4, '24`, `7/4/2024 7:00 am` — built from fixed UTC instants
+// (`2024-07-04T07:00:00.000Z` and friends) through LOCAL date parts. Nothing
+// pinned the runner's zone, so the face those pins render was a property of
+// the contributor's laptop. Measured on `76573a184` over the six files that
+// carry the family:
+//
+//   TZ=UTC              6 files passed              (184 tests, 0 failed)
+//   TZ=Europe/Paris     3 failed | 3 passed         (7 failed)
+//   TZ=Asia/Shanghai    3 failed | 3 passed         (7 failed)
+//   TZ=America/New_York 4 failed | 2 passed        (31 failed)
+//   TZ=Etc/GMT+8        4 failed | 2 passed        (33 failed)
+//
+// So the suite was green at EXACTLY ONE offset, not merely west of some
+// boundary: a `07:00 AM` face pinned off an `07:00Z` instant is true at
+// UTC+00:00 and nowhere else. CI is UTC, so the class was invisible there and
+// only ever cost a contributor — a wall of red that is not about the code.
+//
+// Why the zone and not the assertions: those literals are load-bearing ON
+// PURPOSE. `date-display.optionsStyle-7745.test.ts` says so in its own words —
+// its faces are "anchored by the two literals the card measured, so a redesign
+// that moved both sides together could not pass silently." Deriving the
+// expected face from the same formatter under test is what the two files that
+// ALREADY pass do (`dataset-format.date.test.ts`,
+// `DatasetWidget.dateMeasure.test.tsx`), and it is the right assertion where
+// the claim is "this surface shows what a list cell shows" — but on an anchor
+// it degrades to `formatDate(v) === formatDate(v)` and asserts nothing. Pinning
+// the offset the anchors were written against keeps them.
+//
+// This deletes no coverage: no test in this repo reads the ambient zone
+// (`process.env.TZ`, `getTimezoneOffset`, `resolvedOptions().timeZone` — zero
+// hits across every `*.test.ts`/`*.test.tsx`), and the one zone-aware surface
+// that exists takes its zone from METADATA, explicitly
+// (`GanttView.tsx`'s `tzOffsetMs(schema.timeZone, …)`). Non-UTC coverage, if
+// it is ever wanted, wants an explicit per-case zone — never the runner's
+// ambient one, which is the thing that made this silent.
+//
+// Unconditional on purpose: a contributor's zone usually comes from
+// `/etc/localtime` and not from `TZ`, so an `??=` would leave exactly the
+// reported population unfixed while pretending to fix it.
+//
+// Pinned by `scripts/__tests__/vitest-timezone-pin-8366.test.ts`, which spawns
+// a real vitest under a non-UTC `TZ` and asserts the run still sees UTC — so
+// deleting this line reds CI, where the ambient zone would otherwise hide it.
+process.env.TZ = 'UTC';
+
 // Refuse the two invocations that pass while running none of the tests the
 // caller asked for — a package-cwd run (objectui#3378) and a path filter that
 // never reaches Vitest (objectui#3288).
