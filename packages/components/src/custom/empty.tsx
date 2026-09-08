@@ -101,7 +101,12 @@ function EmptyTitle({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function EmptyDescription({ className, ...props }: React.ComponentProps<"p">) {
+// `"div"`, because a `div` is what ships below. Upstream shadcn spells this
+// `React.ComponentProps<"p">` over the same `div` — the type promised a
+// paragraph the DOM never delivered (objectui#8571). The element itself is
+// deliberate: a `p` cannot hold block content, so making this a real
+// paragraph is a rendered-output change at every call site and its own card.
+function EmptyDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="empty-description"

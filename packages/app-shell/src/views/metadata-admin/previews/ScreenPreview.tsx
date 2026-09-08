@@ -22,7 +22,7 @@
  */
 
 import * as React from 'react';
-import { Button, cn } from '@object-ui/components';
+import { Button, EmptyDescription, cn } from '@object-ui/components';
 import { useAdapter } from '../../../providers/AdapterProvider.js';
 import { useMetadata } from '../../../providers/MetadataProvider.js';
 import { ScreenView, isObjectFormScreen, initialScreenValues, screenFields, type ScreenSpec } from '../../ScreenView.js';
@@ -74,9 +74,9 @@ export function ScreenPreview({ node, variables, className }: ScreenPreviewProps
       </div>
       <div className="max-h-[60vh] overflow-auto p-4">
         {empty ? (
-          <p className="text-sm italic text-muted-foreground">
+          <EmptyDescription className="text-sm italic">
             Add a title, description, fields, or an object form to preview this screen.
-          </p>
+          </EmptyDescription>
         ) : (
           <>
             {title && <h3 className="text-base font-semibold leading-tight">{title}</h3>}

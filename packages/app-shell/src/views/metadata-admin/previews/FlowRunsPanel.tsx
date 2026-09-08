@@ -20,7 +20,7 @@
 
 import * as React from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2, PauseCircle, RefreshCw, SkipForward } from 'lucide-react';
-import { cn } from '@object-ui/components';
+import { EmptyDescription, cn } from '@object-ui/components';
 import { apiBase } from './useFlowNodePalette.js';
 import { t as tr, tFormat } from '../i18n.js';
 
@@ -346,7 +346,7 @@ function RunRow({ run, locale }: { run: FlowRun; locale?: string }) {
             <div className="pb-1 text-[10px] text-rose-600">{runErr}</div>
           )}
           {steps.length === 0 ? (
-            <div className="text-[10px] italic text-muted-foreground">{tr('engine.flowRuns.noSteps', locale)}</div>
+            <EmptyDescription className="text-[10px] italic">{tr('engine.flowRuns.noSteps', locale)}</EmptyDescription>
           ) : (
             <ul>
               {buildStepTree(steps).map((node, i) => (
@@ -403,7 +403,7 @@ export function FlowRunsPanel({ flowName, locale }: { flowName: string; locale?:
           {tr('engine.flowRuns.unavailable', locale)}
         </div>
       ) : state === 'ready' && runs.length === 0 ? (
-        <div className="italic text-muted-foreground">{tr('engine.flowRuns.empty', locale)}</div>
+        <EmptyDescription className="text-xs italic">{tr('engine.flowRuns.empty', locale)}</EmptyDescription>
       ) : (
         <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
           {runs.map((r) => (
