@@ -49,15 +49,20 @@ metadata keys — they are runtime widget props. See [Field Widget Props](/docs/
 
 ## Cell Renderer
 
-In tables/grids, boolean values are displayed as badges:
+In tables/grids, `BooleanCellRenderer` draws a real boolean as a disabled checkbox — checked
+for `true`, unchecked for `false`. Two field-name conventions change the shape: a completion
+field (`completed`, `is_completed`, `done`, `is_done`) draws a green "Completed" or an outlined
+"Not completed" indicator, and a status field (`active`, `is_active`, `enabled`, `is_enabled`,
+`verified`, `is_verified`) holding `false` draws a destructive "… — Off" badge.
 
-```ts
-import { BooleanCellRenderer } from '@object-ui/fields';
-
-// Renders:
-// ✓ True (green badge)
-// ✗ False (gray badge)
-```
+**Only a real boolean is a value of a boolean column.** `@objectstack/spec` declares the
+runtime value of `boolean` / `toggle` as a bare JS boolean on the wire; the SQL `0`/`1` repair
+and the `'true'` / `'false'` spellings belong to the producer boundaries (driver read-coercion,
+CSV import). So `null`, `undefined`, `[]`, `{}`, `0`, `1`, `''`, `'true'` and `'false'` all
+render the shared `EmptyValue` affordance — an em-dash with the accessible name "No value" —
+because the record holds no boolean there. A `'false'` string that reaches this renderer is a
+producer that skipped its coercion: fix it at the data source; the renderer keeps no second
+truth table.
 
 ## Styling
 

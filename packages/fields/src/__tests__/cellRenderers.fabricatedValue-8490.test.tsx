@@ -34,8 +34,10 @@
  * that distinction:
  *
  *   - `boolean`: `[]` is not a boolean and holds no entries, so the column
- *     holds NO value — not `false`. Only `[]` moves (`isEmptyMultiValue`);
- *     `false` stays an unchecked box and scalar coercions are untouched.
+ *     holds NO value — not `false`. Only `[]` moved HERE; `false` stays an
+ *     unchecked box. The scalar coercions this card left untouched were
+ *     taken next by objectui#8582 (only a real boolean is a value of a
+ *     boolean column), pinned in `booleanCell.nonBooleanScalar-8582.test.tsx`.
  *   - number / currency / percent: the `0` was `Number('')` — a coercion
  *     artefact, not a stored zero — so the guard is on the coerced TEXT, and
  *     a stored `''` (the same fabrication one input-shape over) is swept in
@@ -347,16 +349,20 @@ describe('objectui#8490 — an empty array is not a cell value, and these render
       expectAffordance(container, "email holding ['']");
     });
 
-    it('THE BOUNDARY — `boolean` still reads a scalar by truthiness: `0` is an unchecked box, not the affordance', () => {
-      // The boolean ruling moves `[]` ONLY. Whether other non-boolean scalars
-      // should surface as a coercion error is a separate question the card
-      // names and this change does not answer.
+    it('THE BOUNDARY — `boolean` holding a scalar `0` is objectui#8582\'s ruling now, not this card\'s: the same affordance, no box', () => {
+      // objectui#8490 moved `[]` ONLY, and this pin used to record that a
+      // scalar `0` still drew an unchecked box by truthiness. objectui#8582
+      // took the scalar half — only a real boolean is a value of a boolean
+      // column — so `[]` and `0` now reach the SAME affordance for the same
+      // reason (neither is a boolean). The scalar census lives in
+      // `booleanCell.nonBooleanScalar-8582.test.tsx`; this pin only records
+      // that the two cards agree at their seam.
       const { container } = renderCell('boolean', 0);
       expect(
-        container.querySelector('[role="checkbox"]')?.getAttribute('aria-checked'),
-        'boolean: a scalar 0 still draws an unchecked checkbox',
-      ).toBe('false');
-      expect(affordance(container), 'boolean: a scalar 0 is not swept into the empty-array fix').toBeNull();
+        container.querySelector('[role="checkbox"]'),
+        'boolean: a scalar 0 draws no checkbox since objectui#8582',
+      ).toBeNull();
+      expectAffordance(container, 'boolean holding 0');
     });
 
     it('THE BOUNDARY — `json` still draws the literal and `file` still states its count (objectui#8481 fence, unchanged)', () => {
