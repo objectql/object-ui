@@ -74,13 +74,30 @@ function documentCounts(text: string): string[] {
  * Lifted to module scope by objectui#7901 for the same reason objectui#7914
  * lifted the pattern: the pin below and the emptiness control beside it must
  * read ONE extraction, or the control demonstrates a surface the pin does not
- * have. The extraction itself is unchanged, character for character, from what
- * the pin carried inline.
+ * have.
+ *
+ * Stripped, not kept: a sentence that wraps across two comment lines has a `#`
+ * sitting in the middle of it, and a scan that reads the raw lines cannot see a
+ * numeral and the noun it qualifies as adjacent when the line break falls
+ * between them. Removing the marker is what makes the count pin below read the
+ * header the way a person does.
+ *
+ * That paragraph is the third copy's (`check-links-workflow.test.ts`), carried
+ * here verbatim by objectui#7967 together with the `.map` line it argues for.
+ * This extraction and its twin in the other objectui#7448 pin KEPT the marker
+ * while the third copy stripped it — one rule, three copies, and the two that
+ * never wrote down WHY were the two that drifted. The divergence is not
+ * theoretical: the census objectui#7967 ran over all 35 workflow headers reads
+ * two document counts under the stripped extraction that the kept extraction
+ * cannot see at all (`pre-install-import-graph.yml`, `shell-escape-residue.yml`
+ * — neither of them read by any pin today, which is why nothing was failing).
+ * The extraction control below fixtures the shape so this cannot drift back.
  */
 function headerComments(yaml: string): string {
   return yaml
     .split('\n')
     .filter((line) => /^\s*#/.test(line))
+    .map((line) => line.replace(/^\s*#\s?/, ''))
     .join('\n');
 }
 
@@ -986,8 +1003,10 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
     // objectui#7901 — the floor first, or the assertion below is vacuous. The
     // count half cannot distinguish a header that carries no counts from a
     // header this pin has stopped reading; both score `[]`. Measured when this
-    // was added, so it is latent rather than live: the extraction returned 4514
-    // characters from this header, 11.3 times the floor.
+    // was added, so it is latent rather than live: the extraction returned 4312
+    // characters from this header, 10.8 times the floor. It read 4514 at 11.3
+    // before objectui#7967 made this extraction strip the `#` markers: 202 of
+    // those characters were markers, and none of them were prose.
     expect(
       header.length,
       'doc-component-types.yml: the header prose this pin reads came back empty or near-empty, so it asserted over nothing',
@@ -1064,6 +1083,50 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
     for (const line of legitimate) {
       expect(documentCounts(line), `doc-component-types.yml's count pin must NOT fire on: ${line}`).toEqual([]);
     }
+  });
+
+  /**
+   * The positive control for the EXTRACTION — objectui#7967.
+   *
+   * The control above exercises the PATTERN half of the pin and the one below
+   * exercises the emptiness floor. Neither can fail if the extraction hands the
+   * pattern a string the pattern is unable to read, and that is a third way for
+   * this pin to go vacuous — the one that was live here. Where an empty surface
+   * scores clean because there was nothing to read, this one scores clean with
+   * the surface arriving whole and still unreadable.
+   *
+   * Measured, not inferred. This extraction used to KEEP the `#` markers, so a
+   * count wrapping across two comment lines reached the pattern as
+   * `184\n# pages`: the marker is not one of the two intervening words the
+   * pattern allows, and it also trips the negative lookbehind that exists to
+   * rule out issue references. Run over that fixture the kept-marker extraction
+   * returns `[]`; the stripped one returns `["184 pages"]`.
+   *
+   * ⭐ A count landing at end-of-line is not a corner case in a block this
+   * shape. `doc-component-types.yml`'s header is hard-wrapped at a comment column, so a
+   * numeral parting from its noun is the ordinary outcome of editing a
+   * paragraph, not an unlucky one.
+   *
+   * Both halves are asserted because only the pair means anything. The
+   * unwrapped sentence proves the fixture is a count this pattern accepts, so
+   * the wrapped assertion is a claim about the EXTRACTION rather than about the
+   * regex; without it, a fixture the pattern simply never matched would look
+   * like the same green.
+   */
+  it('the extraction strips the markers, so a count that wraps across comment lines is still caught', () => {
+    const wrapped = ['  # the published site is built from 184', '  # pages today, so the sweep covers', '  name: x'].join(
+      '\n',
+    );
+    expect(
+      documentCounts(headerComments(wrapped)),
+      'a count wrapping across two comment lines must survive the extraction',
+    ).toEqual(['184 pages']);
+
+    const unwrapped = '  # the published site is built from 184 pages today, so the sweep covers\n  name: x';
+    expect(
+      documentCounts(headerComments(unwrapped)),
+      'the same sentence on one line — so the assertion above is about the extraction, not the pattern',
+    ).toEqual(['184 pages']);
   });
   /**
    * The positive control for the emptiness floor — objectui#7901.
