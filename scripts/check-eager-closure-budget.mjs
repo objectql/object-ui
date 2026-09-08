@@ -561,6 +561,46 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  * constraint to live is the argument for taking the catalogues out of the eager
  * closure rather than for raising anything.
  *
+ * ## Why `framework` moved UP — the maintainer ruling of 2026-09-08
+ *
+ * From 71,000 over a 61,465 payload to 100,000 over 72,245, the latter measured
+ * on `3f775eeb8`. ⛔ The number is the MAINTAINER'S, taken after the trade-off
+ * was put to them; it is not derived here, and nothing in this section should be
+ * read as a derivation of it. What is recorded here is what the raise COSTS,
+ * because that is the half a later reader cannot recover from the constant.
+ *
+ * ⛔ What the bytes buy: NOTHING IDENTIFIABLE, and that is the finding, not an
+ * omission. The failure message this raise silences asks the author to "say in
+ * the PR what the bytes buy". Nobody can: `Bundle Analysis` went red on `main`
+ * at `f76f43628` with `40a7c538a` the last green, and the commits in that window
+ * have never been bisected — this checker is a two-build predicate over them and
+ * no one has run it. ⚠️ So this raise does not answer the attribution question,
+ * it makes it HARDER TO ASK: the line that was holding the unexplained bytes in
+ * view now passes over them. objectui#8542 owns that attribution and stays open;
+ * objectui#8541 recorded the same red first and is closed as its duplicate.
+ *
+ * ⚠️ This also makes `framework` the LOOSEST ceiling in this object, measured
+ * rather than asserted. All four were read from the one `3f775eeb8` console
+ * build, against {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}:
+ *
+ *   | ceiling              | headroom | multiple |
+ *   | `framework`          |   27,755 |    0.30x |
+ *   | `vendor-objectstack` |   18,848 |    0.21x |
+ *   | `ui-components`      |    5,729 |    0.06x |
+ *   | `i18n-locales`       |    2,900 |    0.03x |
+ *
+ * ⇒ it carries more slack than the next loosest and an order of magnitude more
+ * than the tightest, and it abandons the 0.10x convention objectui#7399 re-pinned
+ * this key and `i18n-locales` to. It is still inside one regression — 1.00x is
+ * where {@link evaluateHeadroomSensitivity} calls a line blind — but "not blind"
+ * is the floor this file refuses to fall through, not a standard it aims at.
+ *
+ * ⛔ {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES} did NOT move, and this is the
+ * exact case the rule under {@link MAX_EAGER_CLOSURE_GZIP_BYTES} was written for:
+ * a ceiling that rises while the sensitivity relaxes is a gate quietly retiring
+ * itself. Nothing else moved either — not the other three ceilings, not the
+ * aggregate, not {@link BASELINE}. One ceiling and its baseline, in one commit.
+ *
  * ## Raising one
  *
  * Same discipline as {@link MAX_EAGER_CLOSURE_GZIP_BYTES}, and the same two
@@ -581,7 +621,12 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
   // proportion the retiring pair carried (18,539 = 0.20x).
   'vendor-objectstack': 1_254_000,
   'i18n-locales': 455_000,
-  framework: 71_000,
+  // Raised by the maintainer ruling of 2026-09-08, ⛔ not by a measurement here:
+  // `main` had been red on this line since `f76f43628` and the bytes that put it
+  // there are UNATTRIBUTED. Headroom 27,755 bytes = 0.30x
+  // REGRESSION_THIS_GATE_MUST_CATCH_BYTES on `3f775eeb8` — the loosest of the
+  // four. See "Why `framework` moved UP" above for what that costs.
+  framework: 100_000,
   'ui-components': 399_000,
 });
 
@@ -596,22 +641,33 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  *     was raised with the aggregate. Same build as {@link BASELINE}, so the
  *     two are directly comparable; it superseded `2c8474c04` (objectui#5490).
  *   - `ui-components` — `2c8474c04` (objectui#5490).
- *   - `framework`, `i18n-locales` — `e307c9896` plus objectui#7399's own
- *     re-attribution diff; see "Why `framework` moved DOWN" above. Both were
- *     read from ONE console build, so they are directly comparable to each
- *     other and to the 523,959 the same tree measured with the groups still
- *     tied. This `framework` reading supersedes objectui#7173's, whose
- *     three-build attribution the paragraph above that one still explains, and
- *     objectui#6759's `a64e96ca8` before it.
+ *   - `framework` — `3f775eeb8`, the `main` tip this raise's branch was cut
+ *     from, read out of the `apps/console/dist/eager-closure.json` written by
+ *     `pnpm turbo run build --filter='./packages/*'` followed by
+ *     `pnpm --filter @object-ui/console build`, run on that tree with NO diff of
+ *     its own applied. See "Why `framework` moved UP" above for the ruling it
+ *     was measured for and what that raise costs. It supersedes objectui#7399's
+ *     `e307c9896` reading, objectui#7173's before that, and objectui#6759's
+ *     `a64e96ca8` before that. ⚠️ Unlike the entry below it, this one IS a
+ *     reading of an unmodified tree — the change it pins lives entirely in this
+ *     file, and `scripts/check-*.mjs` is not a console build input — so the
+ *     {@link BASELINE} argument DOES cover it, and it is ⛔ NOT comparable to
+ *     the `i18n-locales` figure below, which is an older build on another commit.
+ *   - `i18n-locales` — `e307c9896` plus objectui#7399's own re-attribution
+ *     diff; see "Why `framework` moved DOWN" above. It was read from ONE console
+ *     build together with the `framework` figure objectui#7399 recorded, so it
+ *     is directly comparable to the 523,959 that same tree measured with the
+ *     groups still tied — ⚠️ and, since objectui#8541's raise, ⛔ no longer to
+ *     the `framework` entry above it.
  *
- *     ⚠️ Unlike every other entry here, these two are NOT a reading of an
- *     unmodified tree: the chunks they name do not exist without the diff that
- *     recorded them, because that diff is what creates the second one. The
+ *     ⚠️ Unlike every other entry here, this one is NOT a reading of an
+ *     unmodified tree: the chunk it names does not exist without the diff that
+ *     recorded it, because that diff is what creates it. The
  *     `scripts/vite-*.ts`-versus-`scripts/check-*.mjs` argument {@link BASELINE}
- *     makes about its own commit does NOT cover them — `apps/console/vite.config.ts`
+ *     makes about its own commit does NOT cover it — `apps/console/vite.config.ts`
  *     IS a build input, deliberately, and moving it is the change. What keeps
- *     them honest instead is that the gate re-reads them on every CI build of
- *     the branch that carries the diff.
+ *     it honest instead is that the gate re-reads it on every CI build of the
+ *     branch that carries the diff.
  *
  * Exported so the ceilings are CHECKED against it instead of merely asserted
  * in this comment.
@@ -682,7 +738,10 @@ export const PER_CHUNK_BASELINE = Object.freeze({
   // `34a1578ef`, the same build as BASELINE above (objectui#7122).
   'vendor-objectstack': 1_235_029,
   'i18n-locales': 446_076,
-  framework: 61_465,
+  // `3f775eeb8`, its OWN console build — ⛔ not the one above it and not
+  // BASELINE's. Moved with the ceiling in the same commit, per the maintainer
+  // ruling of 2026-09-08 and the rule stated under "Raising one".
+  framework: 72_245,
   'ui-components': 391_095,
 });
 

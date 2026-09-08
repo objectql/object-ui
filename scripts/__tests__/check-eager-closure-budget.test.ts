@@ -415,8 +415,8 @@ describe('per-chunk ceilings', () => {
  * catalogue and one whose test does not.
  *
  * The byte-level backstop is the re-baselined ceiling itself: `framework` is
- * now pinned at 71,000 over a 61,465 payload, so a regression that puts the
- * 446 KB catalogue back would red the gate six times over. That verdict is
+ * now pinned at 100,000 over a 72,245 payload, so a regression that puts the
+ * 446 KB catalogue back would red the gate four times over. That verdict is
  * loud but mute about the cause. This one names it.
  *
  * ⛔ Every case here fails CLOSED. The parse yielding nothing, or a probe id
