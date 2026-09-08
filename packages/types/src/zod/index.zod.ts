@@ -350,6 +350,7 @@ export {
 // ============================================================================
 
 import { z } from 'zod';
+import { defineNodeComponentUnion } from './base.zod.js';
 import { AppComponentSchema } from './app.zod.js';
 import { LayoutSchema } from './layout.zod.js';
 import { FormComponentSchema } from './form.zod.js';
@@ -367,8 +368,21 @@ import { ViewComponentSchema } from './views.zod.js';
 /**
  * Union of all component schemas.
  * Use this for generic component rendering where the type is determined at runtime.
+ *
+ * ⭐ It is ALSO the node recursion point (objectui#8344): every child slot is
+ * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`, and `SchemaNodeSchema`
+ * resolves its component arm to THIS union, so a nested node is judged by its own
+ * component schema at every depth instead of by the ~21 base keys. The wiring is a
+ * late-binding holder rather than an import because 14 modules import `base.zod.js`
+ * and this module is built from all 13 category modules — the full reasoning, and
+ * what the UNFILLED holder answers, live on `SchemaNodeSchema` in `base.zod.ts`.
+ *
+ * ⚠️ The fill is written as this const's own initializer, not as a statement beside
+ * it, so no bundler can keep the union and drop the wiring, and no future edit can
+ * reorder the two. ⛔ Do not "simplify" it back into a bare
+ * `defineNodeComponentUnion(AnyComponentSchema)` call underneath.
  */
-export const AnyComponentSchema = z.union([
+export const AnyComponentSchema = defineNodeComponentUnion(z.union([
   AppComponentSchema,
   LayoutSchema,
   FormComponentSchema,
@@ -382,7 +396,7 @@ export const AnyComponentSchema = z.union([
   CRUDComponentSchema,
   ReportUnionSchema,
   ViewComponentSchema,
-]);
+]));
 
 /**
  * Validate a schema against the AnyComponentSchema
