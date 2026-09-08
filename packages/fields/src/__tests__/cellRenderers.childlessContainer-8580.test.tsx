@@ -275,7 +275,10 @@ describe('objectui#8580 — a rich-content cell holding [] or {} says what it ho
       const htmlBytes = html.container.querySelector('div.prose')?.innerHTML;
       // Pin the bytes as REAL before comparing them: on the caricature both
       // sides are `undefined`, and `undefined` equals `undefined`.
-      expect(htmlBytes, 'html: the seed specimen must still render its bytes').toContain('<strong>text</strong>');
+      expect(
+        typeof htmlBytes === 'string' && htmlBytes.includes('<strong>text</strong>'),
+        'html: the seed specimen must still render its bytes',
+      ).toBe(true);
       cleanup();
       const rich = renderCell('richtext', SEED_RICHTEXT);
       expect(rich.container.querySelector('div.prose')?.innerHTML, 'richtext must render as html does').toBe(htmlBytes);
