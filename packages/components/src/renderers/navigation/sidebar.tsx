@@ -210,11 +210,17 @@ ComponentRegistry.register('sidebar-trigger',
     //     family became an attribute on a real `<button>`.
     //  2. `schema` was never taken off the bag. Every other registration in
     //     this family destructures it (`({ schema, ...props })`) because it
-    //     needs `schema.body`; this one renders no children and named only
+    //     renders a child list; this one renders none and named only
     //     `className`, so the node `SchemaRenderer` injects on EVERY render
     //     rode the spread and landed as `schema="[object Object]"`. That is
     //     why this target was its own ledger group: fourteen attributes where
     //     the rest of the shape leaks thirteen.
+    //
+    //     ⚠️ It still takes no `schema` parameter, and must not start:
+    //     `scripts/__tests__/body-dialect-census.test.ts` pins this
+    //     registration as the one `sidebar-*` entry that reads no child list.
+    //     The filter is what drops the key — a whitelist never has to name
+    //     what it refuses.
     //
     // One filter closes both — `schema` is not on the pass-through list, so
     // nothing here has to enumerate it. The declaration is the FORM-CONTROL
