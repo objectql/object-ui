@@ -29,7 +29,9 @@ pnpm add @object-ui/types
 Object UI follows a strict **"Protocol First"** approach with a clear inheritance hierarchy:
 
 ```
-@objectstack/spec (v15.x)           ← The "Highest Law" - Universal protocol
+@objectstack/spec                   ← The "Highest Law" - Universal protocol. The
+                                      required range is declared in package.json,
+                                      the authority; a copy here goes stale unnoticed.
     ↓
 BaseSchema (@object-ui/types)       ← A component node: the base interface every
                                       UI component schema extends, carrying `type`
@@ -326,6 +328,7 @@ We follow these constraints for this package:
 - 📚 [Documentation](https://www.objectui.org/docs/api/schema-reference)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/types)
 - 📝 [Changelog](./CHANGELOG.md)
+- 💻 [GitHub repository](https://github.com/objectstack-ai/objectui)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)
 - 🤝 [Contributing Guide](https://github.com/objectstack-ai/objectui/blob/main/CONTRIBUTING.md)
 - 🗺️ [Roadmap](https://github.com/objectstack-ai/objectui/blob/main/ROADMAP.md)
@@ -333,9 +336,3 @@ We follow these constraints for this package:
 ## License
 
 MIT
-
-## Links
-
-- [Documentation](https://objectui.org/docs/api/schema-reference)
-- [GitHub](https://github.com/objectstack-ai/objectui)
-- [NPM](https://www.npmjs.com/package/@object-ui/types)
