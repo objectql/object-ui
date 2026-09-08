@@ -117,7 +117,6 @@ export interface RecordDetailsComponentProps {
       | 'secondary/10'
       | 'destructive/10';
     collapsible?: boolean;
-    collapsed?: boolean;
   }>;
   /** Specific fields to display (overrides auto-detection from object) */
   fields?: string[];

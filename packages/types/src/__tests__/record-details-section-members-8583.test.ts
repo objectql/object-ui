@@ -7,10 +7,18 @@
  */
 
 /**
- * objectui#8583 (item 1) — `RecordDetailsComponentProps.sections[]` declares
- * the six member keys `@objectstack/spec` `RecordDetailsProps.sections[]`
- * declares and this type used to omit: `columns`, `icon`, `description`,
- * `showBorder`, `defaultCollapsed`, `headerColor`.
+ * objectui#8583 — `RecordDetailsComponentProps.sections[]` and the
+ * `@objectstack/spec` `RecordDetailsProps.sections[]` member set, both
+ * directions of the divergence the card measured.
+ *
+ * - **item 1** — this type declares the six keys the spec declares and it used
+ *   to omit: `columns`, `icon`, `description`, `showBorder`,
+ *   `defaultCollapsed`, `headerColor`.
+ * - **item 2** — this type no longer declares `collapsed`, the one key it
+ *   declared that the spec REFUSES by name. Retired outright, no transition
+ *   window (director seat, decision batch #101, applying batch #87 — this repo
+ *   does not declare a key the spec refuses by name — and the 2026-08-27
+ *   retirement-pacing ruling). `defaultCollapsed` is the surviving spelling.
  *
  * ## Why this pin is compile-time, and why a runtime pin alone measures nothing
  *
@@ -143,6 +151,53 @@ const refusedByTsc: RecordDetailsComponentProps = {
   ],
 };
 
+/* ── item 2: `collapsed` is RETIRED, `defaultCollapsed` is the spelling ───── */
+
+/**
+ * The retired key must NOT be a member. The directive is the assertion: re-add
+ * `collapsed?: boolean` to the section entry and `Expect<true>` compiles, the
+ * directive goes UNUSED, and TypeScript reports TS2578 here. That is the
+ * ablation this pin is built to fail on.
+ */
+// @ts-expect-error objectui#8583 (item 2) — `collapsed` is retired; it is not a member of the section entry.
+type _CollapsedIsRetired = Expect<IsSectionMember<'collapsed'>>;
+
+/**
+ * The surviving spelling, asserted with NO directive so it carries the other
+ * half: were `defaultCollapsed` ever dropped too, this line goes red on its own
+ * terms rather than leaving the pin above to pass over an entry that declares
+ * neither collapse key.
+ */
+type _DefaultCollapsedSurvives = Expect<IsSectionMember<'defaultCollapsed'>>;
+
+/**
+ * FROM `collapsed` TO `defaultCollapsed`, at the authoring site an external
+ * consumer actually writes. Excess-property checking on the section literal is
+ * what turns the retirement into a compile error (TS2353 naming the key) rather
+ * than a value that is silently carried and never read.
+ */
+const retiredSpellingRefusedByTsc: RecordDetailsComponentProps = {
+  sections: [
+    {
+      fields: ['phone'],
+      collapsible: true,
+      // @ts-expect-error objectui#8583 (item 2) — the retired spelling does not compile; write `defaultCollapsed`.
+      collapsed: true,
+    },
+  ],
+};
+
+/** The same literal in the surviving spelling — no directive, so it MUST compile. */
+const survivingSpellingAccepted: RecordDetailsComponentProps = {
+  sections: [
+    {
+      fields: ['phone'],
+      collapsible: true,
+      defaultCollapsed: true,
+    },
+  ],
+};
+
 /** Member keys of one `sections[]` entry, read off the INSTALLED spec. */
 const specSectionKeys = (): string[] =>
   listedShapeKeys(arrayElementSchema(resolvePropsShape(RecordDetailsProps)?.sections));
@@ -155,7 +210,7 @@ const specSectionKeys = (): string[] =>
 const refusedKeys = (issues: ReadonlyArray<unknown> | undefined): string[] =>
   (issues ?? []).flatMap((i) => (i as { keys?: string[] }).keys ?? []);
 
-describe('record:details `sections[]` declares the six spec members (objectui#8583, item 1)', () => {
+describe('record:details `sections[]` mirrors the spec member set, both directions (objectui#8583)', () => {
   it('the installed spec still declares all six on the section object', () => {
     // The premise the compile-time pins rest on: were the spec to drop one, the
     // `Equal` above would go red for the right reason, and this names it first.
@@ -215,10 +270,32 @@ describe('record:details `sections[]` declares the six spec members (objectui#85
     ]);
   });
 
+  it('item 2 — the installed spec does not declare `collapsed`, and refuses it BY NAME', () => {
+    // The premise batch #87 rests on, measured rather than recalled, and with
+    // its own control in the same read: a zero here is a reading only because
+    // the surviving spelling is present in the same key list.
+    const keys = specSectionKeys();
+    expect(keys).toContain('defaultCollapsed');
+    expect(keys).not.toContain('collapsed');
+
+    // And the refusal is attributable to the NAME, not to a parser that refuses
+    // everything: the same canonical section parsed clean in control A above.
+    const parsed = RecordDetailsProps.safeParse({
+      sections: [{ ...canonicalSection, collapsed: true }],
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((i) => i.code)).toContain('unrecognized_keys');
+    expect(refusedKeys(parsed.error?.issues)).toEqual(['collapsed']);
+  });
+
   it('keeps the compile-time literals alive at runtime', () => {
     // Runtime shape is unaffected by the type-level assertions above; these
     // exist so the file also fails visibly if a literal is ever emptied.
     expect(canonicalSection.headerColor).toBe('muted');
     expect(refusedByTsc.sections).toHaveLength(1);
+    // item 2's pair. `collapsed` is read through `Object.keys` because the type
+    // no longer declares it — which is the whole point of the pin above.
+    expect(Object.keys(retiredSpellingRefusedByTsc.sections?.[0] ?? {})).toContain('collapsed');
+    expect(survivingSpellingAccepted.sections?.[0]?.defaultCollapsed).toBe(true);
   });
 });
