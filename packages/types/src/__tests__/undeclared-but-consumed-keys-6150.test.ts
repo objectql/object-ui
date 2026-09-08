@@ -18,6 +18,39 @@
  * cross-checked against `src/index.ts` — the two agreed on all 8 types): all 13
  * were still undeclared, and all 13 reads were still present.
  *
+ * ## ⚠️ "Complete" above holds ONLY for the un-cast spelling
+ *
+ * ⛔ Nothing above clears this class. Every read that census matched is spelled
+ * `schema.KEY`, a plain member access; it never looked for the cast spelling
+ * `(schema as any).KEY`. A reader who takes "13 genuinely READ" as the whole
+ * population concludes the class has been swept and stops looking — which is
+ * how objectui#7105 stayed open as long as it did.
+ *
+ * Measured, not asserted (objectui#8327). Re-running the CAST spelling alone
+ * over every tracked production `.ts`/`.tsx` under `packages/`, `apps/` and
+ * `examples/` on `origin/main` `154fe2a` — with the cast-aware `schemaReads`
+ * instrument this package already carries in
+ * `widget-schema-anchors-6576.test.ts` (objectui#6576), enumeration and reading
+ * both taken from that one ref — finds 112 (file, key) reads: 88 distinct keys
+ * across 23 files. Asked of the TypeScript checker rather than of a grep, 29 of
+ * the 112 are undeclared on the type the renderer is handed, 8 more are
+ * declared on only one arm of a union `schema` type, and 5 cannot be answered
+ * at all because the renderer is handed `any`. None of those 23 files is a
+ * reader listed below: the two populations were found by two instruments, and
+ * only the un-cast one has ever run for this file.
+ *
+ * ⚠️ Those 29 are NOT pending rows for this ledger. objectui#8327 classifies
+ * all 112, and 31 of them are ALREADY RULED non-author surface — the
+ * objectui#5091 grid ruling and the objectui#5097 host-composition ruling —
+ * so they must never be declared. Every row here is a published-type widening
+ * per key; adding one without its own ruling is not bookkeeping.
+ *
+ * ⭐ This file's completeness claim has now been falsified twice, from two
+ * different directions: by the cast spelling above, and by objectui#6938, which
+ * found four more keys the same 76-page census could not see. ⛔ Do not repair
+ * that by widening the claim — state the blind spot, which is what this section
+ * is for.
+ *
  * ## ⚠️ This is NOT a key-membership widening — measured, not assumed
  *
  * Every one of the 8 mirrors extends `BaseSchema`, which is `.passthrough()`,
