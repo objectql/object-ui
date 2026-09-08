@@ -2549,9 +2549,12 @@ export type assertionWiderLedgerKeysAreRegistered =
  * slots. The six SCHEMA-NODE rows that remain each reach an annotation still standing
  * (this file's other three consts, or one outside this package). ⛔ The class is about
  * the READING; do not re-attach it to a const.
- * The INLINE-LOCALE, FUNCTION-SLOT, OPEN-RECORD and structural sub-classes the
- * docblocks above name are all CONCRETE here — this axis asks only whether the
- * instrument produced the reading, and those finer names stay where they are.
+ * The INLINE-LOCALE, FUNCTION-SLOT and structural sub-classes the docblocks above
+ * name are all CONCRETE here — this axis asks only whether the instrument produced
+ * the reading, and those finer names stay where they are. ⛔ OPEN-RECORD is NOT in
+ * that list and its absence is deliberate: objectui#8517's clause can read the
+ * class but no row carries it today (see the header bullet), and a sub-class named
+ * here with no docblock above naming a row is the rot this file is about.
  */
 type WiderArmClass = 'SCHEMA-NODE' | 'CONCRETE';
 
