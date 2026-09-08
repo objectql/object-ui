@@ -153,8 +153,62 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
    */
   const serverFieldErrors = useInlineEdit()?.fieldErrors ?? null;
 
+  /**
+   * What the copy affordance WRITES (objectui#8395).
+   *
+   * `String(value)` on an object is the literal text `[object Object]`, so
+   * every object-valued cell — address, geolocation, JSON, file, expanded
+   * lookup, repeater — silently put a placeholder on the clipboard, while the
+   * cell BESIDE the button rendered that same value correctly. Objects are
+   * serialized as JSON here instead: lossless, parseable, never
+   * `[object Object]`.
+   *
+   * ## The JSON blob is a DEFENSIBLE DEFAULT, NOT A SETTLED CONTRACT
+   *
+   * What an object cell *should* put on the clipboard is a product question
+   * with several defensible answers per kind — the formatted postal address
+   * the reader can see, `lat, lng` for a geolocation, a filename for a file,
+   * the option labels or the stored values for a multiselect. That contract is
+   * objectui#8395's OPTION B (a shared value-to-text formatter that REUSES the
+   * cell renderers' own formatters — `formatAddress`, objectui#4037 — rather
+   * than re-spelling them), and it is a SEPARATE, still-unspecified card.
+   * ⛔ Do not read this line as the answer to it.
+   *
+   * ## Two shapes were measured and REJECTED — do not reach for them
+   *
+   * Copying the cell's RENDERED text is the worse contract for 9 of 17 field
+   * types and loses data silently: `date` renders `Mar 4` (the year is gone),
+   * `percent` renders `12%` against a stored `0.123` (a different quantity),
+   * `datetime` concatenates to an unparseable `3/4/20265:06 am`, and `image`
+   * and `boolean` render no text at all — so it would copy the empty string,
+   * which is strictly worse than the defect it set out to fix. And withdrawing
+   * the affordance from text-less cells would narrow `canCopy` away from
+   * `hasCellValue`, whose three readers MUST agree (see its docblock above).
+   *
+   * ## The non-regression half
+   *
+   * Non-objects keep `String(value)` BYTE-FOR-BYTE: a number still copies
+   * `16`, never the rendered `16.00`; a select still copies its stored `won`,
+   * never the rendered `Closed Won`. Pinned per kind — both halves — in
+   * `__tests__/DetailSection.copyObjectValues-8395.test.tsx`.
+   */
   const handleCopyField = React.useCallback((fieldName: string, value: any) => {
-    const textValue = value !== null && value !== undefined ? String(value) : '';
+    let textValue: string;
+    if (value === null || value === undefined) {
+      textValue = '';
+    } else if (typeof value === 'object') {
+      // The same guard `JsonCellRenderer` already applies to this exact
+      // operation on this exact value: a structure `JSON.stringify` cannot
+      // represent (a cycle) keeps today's string form rather than throwing out
+      // of a click handler, and the row stays consistent with its own cell.
+      try {
+        textValue = JSON.stringify(value);
+      } catch {
+        textValue = String(value);
+      }
+    } else {
+      textValue = String(value);
+    }
     navigator.clipboard.writeText(textValue).then(() => {
       setCopiedField(fieldName);
       setTimeout(() => setCopiedField(null), 2000);
