@@ -60,6 +60,18 @@ export function deriveFieldGroupSections(
   const sections: ObjectFormSection[] = derived.map((s) => ({
     ...(s.key !== undefined ? { name: s.key } : {}),
     ...(s.key !== undefined ? { label: s.label ?? s.key } : {}),
+    // The other two presentation keys the shared derivation emits and
+    // `ObjectFormSection` declares (objectui#7051). This map is a key-by-key
+    // rebuild, so a key it does not copy is dropped before any renderer can
+    // see it — the failure mode that lost `visibleOn` at the container maps and
+    // that objectui#6111 / #6237 fixed there. Both are GROUP-owned presentation
+    // per `@objectstack/spec` (its refusal message beside `group` names
+    // "the label, icon, description, collapse state and `visibleWhen` a group
+    // renders with"), so the reference form cannot inherit them from anywhere
+    // else. `icon` is not copied because `ObjectFormSection` declares no such
+    // key — nothing on this surface would read it.
+    ...(s.description !== undefined ? { description: s.description } : {}),
+    ...(s.visibleWhen !== undefined ? { visibleWhen: s.visibleWhen as ObjectFormSection['visibleWhen'] } : {}),
     fields: [...s.fields],
     // Map the shared `collapse` enum onto the renderer's boolean pair.
     ...(s.collapse !== 'none' ? { collapsible: true } : {}),
