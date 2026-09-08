@@ -10,6 +10,7 @@ import noUnprefixedQueryParams from './no-unprefixed-query-params.js';
 import buttonHasType from './button-has-type.js';
 import noUnpairedBadgeColorClasses from './no-unpaired-badge-color-classes.js';
 import noUnusedImports from './no-unused-imports.js';
+import noLineAddressInTestName from './no-line-address-in-test-name.js';
 
 export default {
   rules: {
@@ -22,5 +23,6 @@ export default {
     'button-has-type': buttonHasType,
     'no-unpaired-badge-color-classes': noUnpairedBadgeColorClasses,
     'no-unused-imports': noUnusedImports,
+    'no-line-address-in-test-name': noLineAddressInTestName,
   },
 };
