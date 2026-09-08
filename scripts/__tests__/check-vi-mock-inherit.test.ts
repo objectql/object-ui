@@ -370,7 +370,13 @@ function offendingLines(code: string, re: RegExp, original: string = code) {
   const all = new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
   const out: string[] = [];
   for (let m = all.exec(code); m; m = all.exec(code)) {
-    const n = code.slice(0, m.index).split('\n').length;
+    // Count to the first NON-WHITESPACE byte of the match, not to `m.index`.
+    // `EXEMPTION_DECLARATION_RE` opens with `^\s*`, and `\s` matches a newline:
+    // against a declaration with a blank line above it the match STARTS on that
+    // blank line, so the naive offset reported `1853: ` — an empty line, one
+    // above the carve-out, which is worse than useless in a failure message.
+    const at = m.index + /^\s*/.exec(m[0])![0].length;
+    const n = code.slice(0, at).split('\n').length;
     out.push(`${n}: ${lines[n - 1].trim()}`);
     if (all.lastIndex === m.index) all.lastIndex += 1;
   }
@@ -446,6 +452,18 @@ describe('scope — narrow, and out of scope by construction rather than by exem
     // the docblock's file: prose above it does not shelter the code below it.
     const both = `${prose}\n${array}`;
     expect(offendingLines(maskComments(both), EXEMPTION_ENTRY_RE, both)).toEqual([`4: ${array}`]);
+  });
+
+  it('a reported line is the DECLARATION, never the blank line above it', () => {
+    // Measured, not hypothetical: the first draft of `offendingLines` counted to
+    // `m.index`, and `EXEMPTION_DECLARATION_RE` opens with `^\s*` where `\s`
+    // matches a newline. Appending a carve-out to the gate with a blank line
+    // before it therefore reported `1853: ` — an empty line, one above the
+    // declaration. A failure message that names the wrong line is the defect
+    // objectui#8117 is about, one level down, so it gets its own case.
+    const decl = "const KNOWN_BAD = ['packages/x/src/A.test.tsx'];";
+    const withBlankLineAbove = `const ok = 1;\n\n${decl}\n`;
+    expect(offendingLines(withBlankLineAbove, EXEMPTION_DECLARATION_RE)).toEqual([`3: ${decl}`]);
   });
 
   it('the covered set is non-empty and names only real workspace packages', () => {
