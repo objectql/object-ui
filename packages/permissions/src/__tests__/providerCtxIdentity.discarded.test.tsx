@@ -538,12 +538,23 @@ describe('MePermissionsProvider — the fetch effect survives a discarded cache 
       </MePermissionsProvider>
     );
 
-    let loaded: PermissionContextValue | undefined;
+    let loaded: PermissionContextValue | null | undefined;
     const restore = armDiscardProxy();
     try {
       const { rerender } = render(tree());
-      await waitFor(() => expect(log).toHaveLength(1));
-      loaded = ctxSeen[ctxSeen.length - 1]!;
+      // ⚠️ objectui#8688 — wait on the recorder the NEXT LINE READS, not on
+      // `log`. `log` is pushed when the request is ISSUED; `ctxSeen` only fills
+      // once the response has landed, because this provider renders
+      // `loadingFallback` — not `children` — while `loading && !data`. So a
+      // wait on `log` does not gate this read at all. Its failure here is the
+      // QUIET one: `loaded` is `undefined`, and the identity pin below then
+      // compares `undefined` to `undefined` and goes GREEN — an implementation
+      // strictly worse than the bug passes it. Measured: under a forced
+      // ordering this test failed only on `effectRuns`, with the identity pin
+      // passing vacuously. Waiting on the fetched payload's own tag couples the
+      // wait to the read so the two cannot drift apart again.
+      await waitFor(() => expect(ctxSeen[ctxSeen.length - 1]?.userId).toBe('A'));
+      loaded = ctxSeen[ctxSeen.length - 1];
 
       // Armed but NOT fired: an ordinary re-render must not refetch either, so
       // a green below cannot come from the proxy having broken caching outright.
@@ -615,13 +626,20 @@ describe('MePermissionsProvider — the fetch effect survives a discarded cache 
     );
 
     const { rerender } = render(tree(fetcherA));
-    await waitFor(() => expect(log).toHaveLength(1));
-    expect(ctxSeen[ctxSeen.length - 1]!.userId).toBe('A');
+    // ⚠️ objectui#8688 — the wait must gate the array the assertion READS.
+    // This waited on `log` and then read `ctxSeen`, a DIFFERENT array; nothing
+    // established `ctxSeen` had been filled, so `ctxSeen[-1]` was `undefined`
+    // and the `!` turned "this can be empty" into a compile-time promise that
+    // it cannot be. It threw `TypeError: Cannot read properties of undefined
+    // (reading 'userId')` on PR #8656's shard 2/4 — a red on a `packages/core`
+    // test-only PR whose diff cannot reach this package. Folding the assertion
+    // INTO the wait keeps the same predicate and makes the drift impossible.
+    await waitFor(() => expect(ctxSeen[ctxSeen.length - 1]?.userId).toBe('A'));
 
     rerender(tree(fetcherB));
     // Not merely "a request happened": the NEW fetcher's answer must reach the
     // context. This is what a driver mutated to answer one constant fails.
-    await waitFor(() => expect(ctxSeen[ctxSeen.length - 1]!.userId).toBe('B'));
+    await waitFor(() => expect(ctxSeen[ctxSeen.length - 1]?.userId).toBe('B'));
     await settle();
     expect(log).toEqual(['A /me/permissions', 'B /me/permissions']);
   });
