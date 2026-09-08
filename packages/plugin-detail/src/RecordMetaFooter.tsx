@@ -12,6 +12,7 @@ import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { AUDIT_FIELD_BY_ROLE } from '@object-ui/types';
 import type { FieldMetadata } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
+import { hasCellValue } from './emptiness';
 
 /**
  * Audit field names auto-injected by the framework's `applySystemFields` —
@@ -42,6 +43,34 @@ function toDate(value: unknown): Date | null {
     return isNaN(d.getTime()) ? null : d;
   }
   return null;
+}
+
+/**
+ * The actor a `created_by` / `updated_by` column names, or `undefined` when the
+ * record names none.
+ *
+ * ⚠️ Normalized HERE, at the read, and not inside `UserRef` — this is the one
+ * site on the record page where converging the emptiness predicate at the
+ * renderer would have been the wrong fix (objectui#8394). FOUR consumers below
+ * ask "is there an actor?" about the same value: `hasCreated` / `hasUpdated`,
+ * the `sameUser` comparison that suppresses a redundant "Updated" segment, the
+ * `label` choice between `detail.createdBy` and the "by"-less `detail.created`,
+ * and `MetaEntry`'s own `{user ? … }` gate — and only that last one ever
+ * reaches `UserRef`. So a whitespace-only `created_by` fixed at the renderer
+ * alone would still pick the "Created by" label and still draw the `·`
+ * separator, rendering "Created by · 5m ago" with nothing in between: exactly
+ * the dangling phrase the label branch exists to prevent, just with the blank
+ * moved. Answered once, all four agree.
+ *
+ * Emptiness is the record page's ONE definition (`./emptiness`), so an EXPANDED
+ * reference payload (`{ id, name }`) stays an actor — `UserRef` hands objects
+ * to `LookupCellRenderer`, which resolves them through its own display chain.
+ * The card guessed this site might want the TITLE predicate instead; it does
+ * not, and that is why: a bare `{ id }` payload has no display name, yet the
+ * renderer still draws it.
+ */
+function actorOrNone<T>(value: T): T | undefined {
+  return hasCellValue(value) ? value : undefined;
 }
 
 function formatRelativeTime(date: Date, t: TFn): string {
@@ -79,7 +108,9 @@ interface UserRefProps {
  * as DetailSection so reference resolution (ID → display name) is consistent.
  */
 const UserRef: React.FC<UserRefProps> = ({ value, objectSchema, fieldName }) => {
-  if (value === null || value === undefined || value === '') return null;
+  // Defensive floor only: `RecordMetaFooter` already normalizes through
+  // `actorOrNone`, so this agrees with the caller rather than deciding alone.
+  if (!hasCellValue(value)) return null;
   const fieldDef = objectSchema?.fields?.[fieldName];
   // created_by / updated_by are ALWAYS user references on ObjectStack, but many
   // fetched schemas omit the audit system fields from `fields`. Without a
@@ -180,8 +211,8 @@ export const RecordMetaFooter: React.FC<RecordMetaFooterProps> = ({
 
   const createdAt = toDate(data[AUDIT_FIELDS.createdAt]);
   const updatedAt = toDate(data[AUDIT_FIELDS.updatedAt]);
-  const createdBy = data[AUDIT_FIELDS.createdBy];
-  const updatedBy = data[AUDIT_FIELDS.updatedBy];
+  const createdBy = actorOrNone(data[AUDIT_FIELDS.createdBy]);
+  const updatedBy = actorOrNone(data[AUDIT_FIELDS.updatedBy]);
 
   const hasCreated = !!(createdAt || createdBy);
   // Treat updated_at within ~2s of created_at as "never touched" — covers
