@@ -36,7 +36,7 @@
     "@object-ui/permissions": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "maplibre-gl": "^6.3.0",
+    "maplibre-gl": "^6.4.1",
     "react-map-gl": "^8.1.2"
   },
   "peerDependencies": {
