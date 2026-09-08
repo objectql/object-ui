@@ -9,8 +9,24 @@
    centralized app-shell styles directly from their own index.css. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Scan sources for Tailwind classes */
+/* Scan sources for Tailwind classes.
+ *
+ * Only SHIPPED source. Tailwind v4 scans source TEXT, so any class-shaped
+ * token in a file that is scanned compiles a real rule into the published
+ * `dist/index.css` — including a token that only ever appears as a test's
+ * EXPECTED value. Without the exclusions below a test could therefore create
+ * the very production utility it asserts on, and a stylesheet reading would
+ * stop being evidence about the renderer (objectui#8446, hit live on #8435).
+ *
+ * The directory exclusion is the load-bearing one here: every test file in
+ * this package lives under a `__tests__/` directory, and two of them
+ * (`test-utils.tsx`, `page-header-action-ids.dist.spec.tsx`) are not named
+ * `*.test.*`. The filename exclusion carries no files today; it is kept to
+ * match the siblings (`fields`, `plugin-grid`, `plugin-kanban`) so a future
+ * co-located test is covered by construction rather than by luck. */
 @source '../src/**/*.{ts,tsx}';
+@source not './**/*.test.{ts,tsx}';
+@source not './**/__tests__/**';
 
 /* Tailwind plugin for animations */
 @plugin 'tailwindcss-animate';
