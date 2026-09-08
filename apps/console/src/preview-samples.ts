@@ -11,7 +11,33 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     fields: [
       { name: 'name', label: 'Order Name', type: 'text', required: true },
       { name: 'amount', label: 'Amount', type: 'currency' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Draft', 'Open', 'Closed'] },
+      // Option OBJECTS, not bare strings (objectui#6844). `FieldSchema` refuses
+      // a string here — `invalid_type`, "expected object, received string", one
+      // per entry — and the designer could not read them either
+      // (`ObjectFieldInspector`'s `readOptions()` does `String(o?.value ?? '')`,
+      // so the three strings rendered as three BLANK rows in the option editor).
+      //
+      // The `value` codes are NOT a matter of taste: `SelectOptionSchema.value`
+      // is a SYSTEM IDENTIFIER, so `'Draft'` is rejected outright
+      // (`invalid_format`, "must be lowercase, starting with a letter, and may
+      // contain letters, numbers, underscores, or dots"; minimum two
+      // characters). The authored strings therefore become the human `label`
+      // and the machine code is its lowercase spelling — the pairing the whole
+      // ecosystem already writes, from `os init`'s generated object down to the
+      // showcase objects. `label` + `value` are exactly the two members an
+      // empty `{}` here reports as missing, and nothing beyond them is invented:
+      // `color`, `default` and `visibleWhen` are all accepted, but a sample
+      // teaches what it shows, and this field exists to demonstrate a picklist.
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: [
+          { label: 'Draft', value: 'draft' },
+          { label: 'Open', value: 'open' },
+          { label: 'Closed', value: 'closed' },
+        ],
+      },
       { name: 'close_date', label: 'Close Date', type: 'date' },
       // The lookup target is `reference` (objectui#6647). `reference_to` is
       // refused BY NAME by `FieldSchema` — `unrecognized_keys` with its own
