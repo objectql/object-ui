@@ -95,6 +95,25 @@
  * handler expressions; each `.describe()` says so verbatim, and the census below
  * pins that wording as the reason the three survive the anchor.
  *
+ * ## The engine the `git grep` census requires (objectui#8361)
+ *
+ * The reader census below shells out to `git grep`, and every one of its
+ * anchors uses `\b` (two also use `\s`). POSIX ERE defines NEITHER: GNU regex
+ * adds them as extensions, the BSD regex library Apple Git links against does
+ * not. Under `-E` that difference is silent and total — on a stock macOS host
+ * every anchor matched nothing, the census read a tree with zero readers, and
+ * all five assertions failed saying "the anchor is dead", which sent a reader
+ * hunting for a tree change that had not happened. CI, on Linux, was green on
+ * the same bytes.
+ *
+ * So the anchors run through `-P` (PCRE, which has `\b` on both hosts), and the
+ * `engine self-test` describe below is the VERIFIER of that choice rather than
+ * an assumption about it: it probes a synthetic corpus in a temp dir and fails,
+ * naming the git it ran on, if that git has no PCRE or if its `\b` is not a
+ * word boundary. `gitGrepFiles` was hardened in the same direction — only exit
+ * 1 ("no matches") is still read as a reading; any other status is reported as
+ * the TOOL failing instead of being laundered into an empty census.
+ *
  * ## Predictions, written before the first run (red-first)
  *
  * On the unmodified tree (`origin/main` @ `d88e20f55`):
@@ -114,7 +133,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
@@ -312,33 +332,88 @@ const DECLARING_PACKAGE_PROSE = [
 const ANCHOR_NAMES_TYPE = 'AppComponentSchema';
 const ANCHOR_ACTIONS_READ = '\\.actions\\b';
 const ANCHOR_APP_SHAPED_READ = '\\bapp[A-Za-z0-9_$]*\\??\\.actions\\b';
+/** The import anchors, named rather than inlined so the `\b`-carries-PCRE pin
+ *  below can see the whole anchor set instead of a hand-copied subset. */
+const ANCHOR_IMPORTS_APP_ACTION = '^\\s*import[^;]*\\bAppAction\\b';
+const ANCHOR_IMPORTS_NAMES_TYPE = '^\\s*import[^;]*\\bAppComponentSchema\\b';
+const ANCHOR_MENTIONS_APP_ACTION = '\\bAppAction\\b';
+/** Every anchor above that reaches `git grep` as a REGEX (`ANCHOR_NAMES_TYPE`
+ *  goes through `-F` and is a literal, so it is not one). */
+const REGEX_ANCHORS = [
+  ANCHOR_ACTIONS_READ,
+  ANCHOR_APP_SHAPED_READ,
+  ANCHOR_IMPORTS_APP_ACTION,
+  ANCHOR_IMPORTS_NAMES_TYPE,
+  ANCHOR_MENTIONS_APP_ACTION,
+] as const;
+
+/** ⚠️ POSIX ERE has no `\b` (nor `\s`). GNU regex adds both as extensions; the
+ *  BSD regex library Apple Git links against does not — so under `-E` every
+ *  anchor above is DEAD on a stock macOS host, and the census reads a tree with
+ *  zero readers. That is not a hypothetical: it cost one seat a hunt for a tree
+ *  change that never happened (objectui#8361). PCRE knows `\b` on both hosts,
+ *  so the anchors run through `-P`, and the engine self-test below is what
+ *  turns a git with NO PCRE into a failure that NAMES the engine instead of one
+ *  that impersonates an empty tree. */
+const GREP_ENGINE_FLAG = '-P';
 /** The scanned tree. `examples/` is in it because an example app is exactly
  *  where a fourth reader would plausibly appear. */
 const SCAN_ROOTS = ['packages', 'apps', 'examples'] as const;
 
+/** The engine, for the diagnostics below: a failure that says "the anchor is
+ *  dead" is only actionable if it also says WHICH git read it. */
+const gitVersion = (): string => {
+  try {
+    return execFileSync('git', ['--version'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    return 'unknown — `git --version` itself failed';
+  }
+};
+
 /** File paths, relative to the workspace root, over TRACKED files only — an
  *  untracked scratch file or a build artefact cannot move this census. */
 const gitGrepFiles = (args: readonly string[]): string[] => {
+  type Failure = { status?: number; stdout?: string; stderr?: string };
   let out: string;
+  let failure: Failure | undefined;
   try {
     out = execFileSync('git', ['grep', ...args, '--', ...SCAN_ROOTS], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (err) {
-    // `git grep` exits 1 on "no matches", which here would mean a dead
-    // instrument, not an empty tree. Fall through with whatever it printed and
-    // let the emptiness controls below name it.
-    out = (err as { stdout?: string }).stdout ?? '';
+    failure = err as Failure;
+    out = failure.stdout ?? '';
+  }
+  // ⚠️ Exactly ONE non-zero status is a READING: `git grep` exits 1 on "no
+  // matches", which here would mean a dead instrument, not an empty tree — fall
+  // through and let the emptiness controls below name it. EVERY other status is
+  // the TOOL failing (a git built without PCRE dies 128 on `-P`), and
+  // laundering that into an empty census is the objectui#8361 shape: an engine
+  // difference wearing a tree change's clothes. Raised OUTSIDE the `catch` (and
+  // so without an `Error` `cause`, which this package's `lib: ES2020` does not
+  // declare) — everything the caught error carried that a reader can act on,
+  // its status and its stderr, is quoted into the message instead.
+  if (failure && failure.status !== 1) {
+    throw new Error(
+      `\`git grep ${args.join(' ')}\` exited ${String(failure.status)} — the TOOL failed, `
+        + 'this is NOT a reading of an empty tree. '
+        + `Engine: ${gitVersion()}, regex flag \`${GREP_ENGINE_FLAG}\`. `
+        + `git said: ${(failure.stderr ?? '').trim() || '(nothing on stderr)'}`,
+    );
   }
   return out.split('\n').filter(Boolean).sort();
 };
 
 const scan = () => {
   const namesType = new Set(gitGrepFiles(['-l', '-F', ANCHOR_NAMES_TYPE]));
-  const readsActions = gitGrepFiles(['-l', '-E', ANCHOR_ACTIONS_READ]);
+  const readsActions = gitGrepFiles(['-l', GREP_ENGINE_FLAG, ANCHOR_ACTIONS_READ]);
   const anchorA = readsActions.filter((f) => namesType.has(f));
-  const anchorB = gitGrepFiles(['-l', '-E', '-i', ANCHOR_APP_SHAPED_READ]);
+  const anchorB = gitGrepFiles(['-l', GREP_ENGINE_FLAG, '-i', ANCHOR_APP_SHAPED_READ]);
   const readers = [...new Set([...anchorA, ...anchorB])]
     .filter((f) => !f.startsWith(DECLARING_PACKAGE_PREFIX))
     .sort();
@@ -356,13 +431,134 @@ const packageNameOf = (file: string): string => {
   return manifest.name;
 };
 
+/* ── Engine self-test: the flag the census runs through KNOWS `\b` ───────── */
+
+/** A synthetic corpus, written to a temp dir OUTSIDE this repo and read back
+ *  through `git grep --no-index`, so the probe measures the ENGINE and nothing
+ *  about this tree. The token is deliberately not a word the census searches
+ *  for: a probe scoped to its own question cannot be answered by the file it
+ *  lives in. */
+const ENGINE_PROBE_TOKEN = 'enginepin';
+const ENGINE_PROBE_LINES = [
+  `alpha ${ENGINE_PROBE_TOKEN} omega`, // 1 — bare word: `\b…\b` MUST match it
+  `alpha x${ENGINE_PROBE_TOKEN}x omega`, // 2 — glued: a real boundary must NOT
+  `alpha b${ENGINE_PROBE_TOKEN}b omega`, // 3 — glued with the LETTER `b`: an
+  //     engine that reads `\b` as a literal `b` matches THIS and not line 1,
+  //     so the two negatives separate "no boundary support" from "boundary
+  //     read as a character".
+] as const;
+
+type EngineProbe = {
+  /** 1-based line numbers `\b<token>\b` matched. */
+  readonly matched: readonly number[];
+  /** `git grep`'s exit status: 0 matched, 1 matched nothing, anything else the
+   *  tool failed — a git with no PCRE dies 128 here. */
+  readonly status: number | null;
+  readonly stderr: string;
+};
+
+const probeWordBoundary = (flag: string): EngineProbe => {
+  const dir = mkdtempSync(join(tmpdir(), 'objectui-8361-engine-'));
+  try {
+    writeFileSync(join(dir, 'probe.txt'), `${ENGINE_PROBE_LINES.join('\n')}\n`, 'utf8');
+    const argv = [
+      'grep', '--no-index', '-n', flag, `\\b${ENGINE_PROBE_TOKEN}\\b`, '--', 'probe.txt',
+    ];
+    const lines = (out: string): number[] =>
+      out.split('\n').filter(Boolean).map((l) => Number(l.split(':')[1]));
+    try {
+      const out = execFileSync('git', argv, {
+        cwd: dir,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      return { matched: lines(out), status: 0, stderr: '' };
+    } catch (err) {
+      const failure = err as { status?: number; stdout?: string; stderr?: string };
+      return {
+        matched: lines(failure.stdout ?? ''),
+        status: failure.status ?? null,
+        stderr: (failure.stderr ?? '').trim(),
+      };
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+describe('engine self-test: the git regex flag the census runs through has `\\b` (objectui#8361)', () => {
+  it(`\`git grep ${GREP_ENGINE_FLAG}\` runs at all on this host — a git with no PCRE fails HERE, naming itself`, () => {
+    const probe = probeWordBoundary(GREP_ENGINE_FLAG);
+    expect(
+      probe.status,
+      `\`git grep ${GREP_ENGINE_FLAG}\` could not run. This is the ENGINE, not the tree: `
+        + `${gitVersion()} said "${probe.stderr || '(nothing on stderr)'}". A git built without `
+        + 'PCRE (`USE_LIBPCRE`) dies here; the census anchors need `\\b`, which POSIX ERE does '
+        + 'not have, so `-E` is not a fallback — rebuild or install a git with PCRE',
+    ).toBe(0);
+  });
+
+  it(`its \`\\b\` is a WORD BOUNDARY, not an unsupported escape and not the letter \`b\``, () => {
+    const probe = probeWordBoundary(GREP_ENGINE_FLAG);
+    expect(
+      [...probe.matched],
+      `\`\\b\` did not behave as a word boundary under \`${GREP_ENGINE_FLAG}\` on ${gitVersion()}. `
+        + 'Expected only line 1 (the bare word). Line 2 too ⇒ no boundary semantics; line 3 '
+        + 'instead ⇒ `\\b` read as the literal letter. Either way every census anchor below is '
+        + 'dead and its "the anchor is dead" message is about THIS, not about the tree '
+        + '(objectui#8361)',
+    ).toEqual([1]);
+  });
+
+  it('the probe corpus really contains all three lines — the two negatives are readings, not unvisited absences', () => {
+    // A negative from a scan is worth nothing unless the line reached the
+    // scanner: exactly the control the census below demands of ITSELF. A
+    // literal `-F` search cannot be moved by the regex engine under test.
+    const dir = mkdtempSync(join(tmpdir(), 'objectui-8361-corpus-'));
+    try {
+      writeFileSync(join(dir, 'probe.txt'), `${ENGINE_PROBE_LINES.join('\n')}\n`, 'utf8');
+      const seen = ENGINE_PROBE_LINES.map((_line, i) => {
+        const out = execFileSync(
+          'git',
+          ['grep', '--no-index', '-c', '-F', ENGINE_PROBE_LINES[i], '--', 'probe.txt'],
+          { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+        );
+        return Number(out.trim().split(':')[1]);
+      });
+      expect(seen).toEqual([1, 1, 1]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('every census anchor carrying `\\b` or `\\s` runs through PCRE — `-E` is not an option while they do', () => {
+    // The coupling, pinned: this is the edit objectui#8361 asks for, and the
+    // guard against it being quietly reverted one anchor at a time.
+    const posixIncompatible = REGEX_ANCHORS.filter((a) => a.includes('\\b') || a.includes('\\s'));
+    expect(posixIncompatible.length, 'no anchor needs PCRE any more — re-derive this pin')
+      .toBe(REGEX_ANCHORS.length);
+    expect(
+      GREP_ENGINE_FLAG,
+      `${posixIncompatible.length} anchors use \`\\b\`/\`\\s\`, which POSIX ERE does not define; `
+        + 'under `-E` they are silently dead on a BSD-regex host (macOS)',
+    ).toBe('-P');
+  });
+});
+
 describe('census: `AppComponentSchema.actions[]` IS read, by exactly one package, with the scope in the assertion (objectui#7721)', () => {
   it('the scan is ALIVE and SELECTIVE — a large population that the anchors narrow, not an empty grep', () => {
     const { namesType, readsActions, anchorA, anchorB } = scan();
     // A filter over an empty scan passes vacuously, and "exactly one reader"
     // is what a dead pattern renders as. Both directions get a counter-probe.
-    expect(readsActions.length, 'nothing in the tree reads `.actions` — the anchor is dead')
-      .toBeGreaterThan(20);
+    expect(
+      readsActions.length,
+      'nothing in the tree reads `.actions` — the anchor is dead. Before hunting for a tree '
+        + 'change, read the engine self-test above: a `\\b` anchor is dead on ANY engine that '
+        + 'does not have `\\b` (objectui#8361)',
+    ).toBeGreaterThan(20);
+    // `ANCHOR_NAMES_TYPE` is `-F`, so this half cannot be moved by the engine —
+    // it stays the control that separates "the tree changed" from "the regex
+    // engine changed": a literal search has no `\b` to lose.
     expect(namesType.size, 'nothing names `AppComponentSchema` — the anchor is dead')
       .toBeGreaterThan(5);
     expect(anchorA.length, 'anchor A matched nothing').toBeGreaterThan(0);
@@ -419,16 +615,20 @@ describe('census: `AppComponentSchema.actions[]` IS read, by exactly one package
   });
 
   it('`AppAction` is imported nowhere outside `packages/types` — the runner reaches the array through `AppComponentSchema`', () => {
-    const importers = gitGrepFiles(['-l', '-E', '^\\s*import[^;]*\\bAppAction\\b'])
+    const importers = gitGrepFiles(['-l', GREP_ENGINE_FLAG, ANCHOR_IMPORTS_APP_ACTION])
       .filter((f) => !f.startsWith(DECLARING_PACKAGE_PREFIX));
     expect(importers).toEqual([]);
     // An empty result needs a known-hit control, or it is indistinguishable
     // from a dead pattern: the same anchor on the sibling type must find files.
-    const control = gitGrepFiles(['-l', '-E', '^\\s*import[^;]*\\bAppComponentSchema\\b'])
+    const control = gitGrepFiles(['-l', GREP_ENGINE_FLAG, ANCHOR_IMPORTS_NAMES_TYPE])
       .filter((f) => !f.startsWith(DECLARING_PACKAGE_PREFIX));
-    expect(control.length, 'the import anchor found nothing at all').toBeGreaterThan(0);
+    expect(
+      control.length,
+      'the import anchor found nothing at all — if this host\'s git has no PCRE the engine '
+        + 'self-test above names it; otherwise the tree moved',
+    ).toBeGreaterThan(0);
     // The symbol survives only as prose, and only in the reader's own package.
-    const mentions = gitGrepFiles(['-l', '-E', '\\bAppAction\\b'])
+    const mentions = gitGrepFiles(['-l', GREP_ENGINE_FLAG, ANCHOR_MENTIONS_APP_ACTION])
       .filter((f) => !f.startsWith(DECLARING_PACKAGE_PREFIX));
     expect([...new Set(mentions.map(packageNameOf))]).toEqual([...ACTIONS_READER_PACKAGES]);
   });
