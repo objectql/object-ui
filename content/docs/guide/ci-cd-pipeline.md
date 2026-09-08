@@ -43,7 +43,7 @@ one has its own section below.
 | `docs-route-eager-closure.yml` | Docs Route Eager Closure Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a package named in `apps/site/app/components/registerCatalogBlocks.ts` is not already reachable from the docs route's module graph (exit 1), or when the gate's own gauge cannot be trusted (exit 2) |
 | `governed-surface-guard.yml` | Governed Surface Queue Guard | PR to `main`, `develop` (incl. `ready_for_review`) — **no path filter**; merge-queue builds | **Yes on a queue build only** — a governed-surface diff with no authorized approval record (on any commit) is refused there; on the pull request itself it is deliberately green and prints an early warning |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
-| `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
+| `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane: not in the required-check set, and it declares no `merge_group` trigger |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
 | `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No — but it gates *its own* merge, and goes red instead of merging when the check set is not green |
 | `cross-repo-issue-closer.yml` | Cross-repo Issue Closer | PR `closed` (acts only when merged) | No — runs after merge |
@@ -162,8 +162,10 @@ Two things follow for anyone editing this directory:
     so on a PR that touches none of those four neither of its contexts is created at all.
   - **Bundle Analysis** (`performance-budget.yml`) — an ordinary path filter on the same
     trigger, with the same consequence for every PR that matches none of its paths.
-  - **Live E2E (informational)** (`live-e2e.yml`) — the job carries `continue-on-error: true`,
-    so the run is green whatever the specs did; it cannot serve as a guarantee of anything.
+  - **Live E2E (informational)** (`live-e2e.yml`) — an **exclusion** path filter:
+    `paths-ignore:` on the same trigger, declaring `**/*.md`, `content/**`, `docs/**`,
+    `apps/site/**` and `.changeset/**`, so a docs-only or changeset-only pull request never
+    creates the context at all and a required one would wait for it forever.
   - **Close issues referenced in other repositories** (`cross-repo-issue-closer.yml`) — its only
     trigger is `pull_request_target` with `types: [closed]`, and the job additionally requires
     `github.event.pull_request.merged == true`, so it runs only *after* a merge.
@@ -171,10 +173,13 @@ Two things follow for anyone editing this directory:
   Each of those properties is pinned against the YAML in
   `scripts/__tests__/ci-cd-pipeline-doc.test.ts`: change one of them without editing its line
   here and that test fails, naming the workflow
-  ([#4170](https://github.com/objectstack-ai/objectui/issues/4170)). The `live-e2e.yml` line is
-  the one already scheduled to become false — that workflow's header says `continue-on-error`
-  comes off once the lane has run clean long enough to trust, and the day it does, the lane
-  becomes requirable and this line is wrong. Then delete the line and its entry in that test;
+  ([#4170](https://github.com/objectstack-ai/objectui/issues/4170)). The `live-e2e.yml` line has
+  already outlived one property: it used to quote `continue-on-error: true` on that job, and
+  [#8084](https://github.com/objectstack-ai/objectui/issues/8084) took the flag off after
+  measuring that it left the job and its check run red and inverted only the run conclusion —
+  so it had never been what made the context unrequirable. Removing it did **not** promote the
+  lane, so the line was re-pointed at the property that still blocks it. Retire a line here only
+  when its workflow carries no such property at all, and delete its entry in that test with it;
   do not soften it in place.
 
 ## Core CI Workflow (`ci.yml`)
@@ -500,10 +505,21 @@ reviewers; exceeding any of them turns no check red and blocks no merge:
 **Trigger:** PRs to `main` / `develop` (same code-path filter as `ci.yml` — docs-only and
 changeset-only PRs skip it), a nightly cron (`30 6 * * *`) on `main`, and manual dispatch.
 
-**Blocks a merge: no.** The job runs with `continue-on-error: true` by construction — a red run
-is informational and never ejects a PR from the merge queue. Do not add it to required checks
-(and do not remove `continue-on-error`) until the nightly record proves the lane stable; see the
-header comment in the workflow file (#2835).
+**Blocks a merge: no** — because the job is not in the required-check set and `live-e2e.yml`
+declares no `merge_group` trigger, so a queue build never waits on it and it cannot eject a PR
+from the queue. Do not add it to required checks until the nightly record proves the lane
+stable; see the header comment in the workflow file (#2835).
+
+**Advisory, and honest about it: the run conclusion agrees with the job conclusion.** The job
+carries no `continue-on-error`, so a failing spec fails the workflow run as well as the job. It
+used to carry `continue-on-error: true`, and that flag moved neither the job nor its check run —
+both stayed red — while flipping the run and check-suite conclusions to `success`. Three
+consecutive nightlies reported `success` at the run level with a red job inside one of them, so
+every monitor, digest and agent reading run-level conclusions was told the negation of what had
+happened, and the backend outage underneath ran a day unseen
+([#8084](https://github.com/objectstack-ai/objectui/issues/8084)). Advisory and honest are
+different axes: this lane is the first without giving up the second, and nothing may re-add that
+flag to buy back a green aggregate.
 
 What it does: runs an allowlist of the live specs (`pnpm test:e2e:live:ci`) against a real
 `objectstack dev` backend booted from **published** `@objectstack/*` packages serving the

@@ -233,7 +233,7 @@ export const NOT_A_GATE = Object.freeze({
   'Test (coverage shard 3/4)': COVERAGE_SHARD_NOT_A_GATE,
   'Test (coverage shard 4/4)': COVERAGE_SHARD_NOT_A_GATE,
   'Live E2E (informational)':
-    'live-e2e.yml is declared INFORMATIONAL and NON-REQUIRED in its own header and runs `continue-on-error: true`; ci-cd-pipeline.md says in as many words not to add it to required checks.',
+    'live-e2e.yml is declared INFORMATIONAL and NON-REQUIRED in its own header, and ci-cd-pipeline.md says in as many words not to add it to required checks. It carries no `continue-on-error` since objectui#8084 — that flag left this check run red anyway and only inverted the workflow-run conclusion — so a red here is a real red, ignored because the lane is advisory and never because the check could not fail.',
   label:
     'labeler.yml applies labels. It is a mutation, not a verdict — nothing about the change is judged by it.',
   'Changeset Overwrite Report':
