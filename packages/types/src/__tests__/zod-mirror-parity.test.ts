@@ -108,7 +108,13 @@
  *     a delta to this number; count the registry. Nothing asserts it against a written
  *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **41 entries** in `KnownDrift`, **63 keys** across them — 41 / 62 until
+ *   - **42 entries** in `KnownDrift`, **64 keys** across them — 41 / 63 until
+ *     objectui#7760 SEEDED `feedback.zod.ts#ToastSchema` with its one key `action`
+ *     (a pair born ledgered, not growth on an existing entry). ⭐ The first entry this
+ *     ledger has gained from a face becoming READABLE rather than from a mirror or a
+ *     declaration moving: the key's mirror face was `unknown` — which fits every
+ *     declaration — until that card gave `SchemaNodeSchema` its input type argument.
+ *     41 / 62 until
  *     objectui#7664 RE-KEYED the `kanban` arm (ruling (a)): the retired
  *     `DeclarativeKanbanSchema` entry carried `onCardMove` / `onCardClick`, and the
  *     plugin-dialect `KanbanSchema` entry that replaced it carries `onQuickAdd` as
@@ -202,9 +208,21 @@
  *     spelled "six" rots exactly as fast as one spelled `6`, it is just harder to
  *     point a regex at. ⛔ Do not spell a live figure out again, and ⛔ do not
  *     restate one without checking that the pin's spelling still reaches it.
- *   - **34 entries** in `WiderThanDeclared`, **52 keys** across them, and **61 arms**
- *     under those keys — split **24** SCHEMA-NODE, **27** CONCRETE, **1** MIXED, **9** unions.
- *     (objectui#8252.) ⚠️ Until #8252
+ *   - **23 entries** in `WiderThanDeclared`, **36 keys** across them, and **47 arms**
+ *     under those keys — split **6** SCHEMA-NODE, **30** CONCRETE, **0** MIXED, **11** unions.
+ *     (objectui#8252 built the arm split; objectui#7760 moved every figure in it.) It
+ *     read 34 / 52 / 61 — 24 / 27 / 1 / 9 — until objectui#7760 gave seven of the ten
+ *     recursion-breaking mirrors their existing TypeScript declaration as an explicit
+ *     INPUT type argument. ⛔ That repaired no mirror and no declaration: it made a face
+ *     READABLE that had been `unknown`. 19 keys across 16 pairs LEFT (13 entries
+ *     emptied) because the reading they recorded was the annotation, and 3 keys
+ *     ENTERED — `feedback.zod.ts#ToastSchema::action`,
+ *     `navigation.zod.ts#HeaderBarSchema::logo`, `overlay.zod.ts#TooltipSchema::content`
+ *     — real widenings the erased face had been HIDING. ⭐ All three are the
+ *     `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` single-or-list spelling
+ *     objectui#7069 called systematic and could not judge, which is the whole reason
+ *     that card's ledger declared this region EXCLUDED. MIXED is 0 because its one
+ *     member is among the 19. ⚠️ Until #8252
  *     this ledger had NO figure in this header, and it is the one other cards quote as
  *     the size of the wider direction: objectui#7759 published its two halves as
  *     "27 keys / 21 pairs" SCHEMA-NODE and "27 keys / 18 pairs" CONCRETE, and
@@ -271,7 +289,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 41 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 42 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -425,18 +443,33 @@ export type IsAny< T > = 0 extends 1 & T ? true : false;
  * A mirror slot whose static INPUT face carries no information: `unknown`, `any`,
  * or a list of either.
  *
- * This is the hole in `WiderThanDeclaredKeys` below, and the hole is one const
- * wide. `base.zod.ts#SchemaNodeSchema` is annotated `z.ZodType< any >` to break the
- * recursion inside its own `z.lazy`, and zod 4 defaults such a schema's INPUT
- * parameter to `unknown`. Every slot spelled through it therefore reads `unknown`
- * (or `unknown[]`) on the input face — wider than every declaration BY DEFINITION,
- * and silent about what the mirror accepts at RUNTIME, where the lazy union does
- * validate. Comparing there would report the annotation and not the accept-set, so
- * those keys are not measured. ⚠️ That is not a small carve-out: it is exactly
- * where the producer objectui#7069 called systematic lives — the
- * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` spelling — so the
- * producer that motivated this direction is the one the type level cannot judge.
- * The runtime leg at the bottom of this file is what bounds the region instead.
+ * This is the hole in `WiderThanDeclaredKeys` below. A recursive mirror annotated
+ * `z.ZodType< any >` to break the cycle inside its own `z.lazy` gets `unknown` for
+ * its INPUT parameter from zod 4, so every slot spelled through it reads `unknown`
+ * (or `unknown[]`) — wider than every declaration BY DEFINITION, and silent about
+ * what the mirror accepts at RUNTIME, where the lazy union does validate. Comparing
+ * there would report the annotation and not the accept-set, so those keys are not
+ * measured. The runtime leg at the bottom of this file is what bounds the region.
+ *
+ * ⭐ The hole was TEN consts wide and objectui#7760 took it to THREE. That card gave
+ * seven of them their existing TypeScript declaration as both type arguments, on the
+ * maintainer ruling of decision batch #69 — no runtime accept set moved and no
+ * declaration moved, so what changed is only what this comparison can SEE. The three
+ * that kept the annotation each refused the argument for a MEASURED reason, recorded
+ * on that card: `app.zod.ts#NavigationItemSchema` and
+ * `complex.zod.ts#FilterBuilderConditionSchema` because the mirror already accepts
+ * more than the declaration states (`id` optional against a required one; `is_null` /
+ * `is_not_null` against `FilterBuilderOperator`), so the assignment `tsc` performs to
+ * check the annotation IS this ledger's comparison and it fails; and
+ * `complex.zod.ts#FilterGroupSchema` transitively, since its `conditions` arm is the
+ * first of those two. ⛔ None of the three is an inference cycle — that was the risk
+ * the ruling time-boxed a trial for, and it did not fire on any of the ten.
+ *
+ * ⚠️ What that bought, and it is the point of the card: the producer objectui#7069
+ * called systematic — the `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`
+ * spelling — is INSIDE the comparison now, and the three keys it had been hiding are
+ * in the ledger below. The exclusion is still live, so this predicate is not dead
+ * code; it now covers the three consts above rather than the whole schema-node face.
  *
  * ⚠️ It is deliberately NOT recursive, and that is a measurement rather than a
  * preference. A version descending into object properties and array elements was
@@ -459,13 +492,28 @@ export type Unconstrained< T > =
   : false;
 
 /**
- * The premise the exclusion rests on, asserted rather than described: the
- * annotation really does erase `SchemaNodeSchema`'s input face. If it is ever
- * spelled so that the face carries information, this fails and the exclusion — and
- * the ledger's SCHEMA-NODE class with it — has to be re-derived.
+ * The two premises the exclusion rests on, asserted rather than described — and they
+ * are OPPOSITE premises, which is why there are two lines and not one.
+ *
+ * This pin read "`Unconstrained< z.input< typeof SchemaNodeSchema > >` is `true`"
+ * until objectui#7760, and it fired on that card's first compile, exactly as its own
+ * note said it would. It is kept, INVERTED: `SchemaNodeSchema` carries its declaration
+ * on both faces now, and a revert to an unconstrained annotation would silently drop
+ * every single-or-list slot back out of the comparison — 19 ledger keys' worth, green
+ * the whole way, because a key that leaves a comparison reports nothing.
+ *
+ * The second line holds the other half. `NavigationItemSchema` is one of the three
+ * consts that refused the argument, so the exclusion still has live members and
+ * `Unconstrained` is still load-bearing. If it ever stops being unconstrained — that
+ * const taking its declaration too, or its mirror narrowed to fit — this fails, and
+ * the exclusion and the ledger's SCHEMA-NODE class with it have to be re-derived once
+ * more.
  */
-export type assertionSchemaNodeFaceIsUnconstrained =
-  Expect< Equal< Unconstrained< z.input< typeof SchemaNodeSchema > >, true > >;
+export type assertionSchemaNodeFaceIsConstrained =
+  Expect< Equal< Unconstrained< z.input< typeof SchemaNodeSchema > >, false > >;
+
+export type assertionRetainedAnnotationFaceIsUnconstrained =
+  Expect< Equal< Unconstrained< z.input< typeof NavigationItemSchema > >, true > >;
 
 /**
  * Every key whose mirror ACCEPTS a spelling the declaration REFUSES.
@@ -1108,6 +1156,17 @@ interface KnownDrift {
   'disclosure.zod.ts#CollapsibleSchema': 'onOpenChange';
   /** RUNTIME SLOT (objectui#6124): the `toggle-group` renderer spreads `toggleGroupProps` onto the Radix `ToggleGroup` root. */
   'disclosure.zod.ts#ToggleGroupSchema': 'onValueChange';
+  /**
+   * DISJOINT: TS declares `action?: { label: string; onClick: () => void }`, the mirror
+   * `SchemaNode | SchemaNode[]`. Neither face admits the other's value. SEEDED by
+   * objectui#7760 — ⛔ not drift that card introduced: the mirror's face read `unknown`
+   * until it filled `SchemaNodeSchema`'s input type argument, and `unknown` fits every
+   * declaration, so this pair compared clean on a key nothing could read. The same key
+   * is in `WiderThanDeclared`, measured from the other side; the disposition (the
+   * declaration's function value is the objectui#6124 shape, one member above a
+   * tombstone retired for it) is a ruling of its own.
+   */
+  'feedback.zod.ts#ToastSchema': 'action';
   /**
    * ## The objectui#6124 class — a RUNTIME SLOT on the TS face, a NAMED REFUSAL on the mirror
    *
@@ -1898,19 +1957,27 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
  * nobody had looked at.
  *
  * **SCHEMA-NODE** — the mirror's face carries `unknown` NESTED inside an array
- * element or a property, from `SchemaNodeSchema`'s `z.ZodType< any >` annotation
- * (see `Unconstrained`, which excludes that face at the top level and one array
+ * element or a property, from a recursion-breaking `z.ZodType< any >` annotation
+ * (see `Unconstrained`, which excludes such a face at the top level and one array
  * deep but not deeper). These entries record the ANNOTATION, not an accept-set
  * gap: at runtime the lazy union does validate. ⛔ They are not defects to repair
- * one by one, and repairing one would not move this ledger — only re-annotating
- * `SchemaNodeSchema` would. They are seeded so the ratchet still covers those
- * pairs: a CONCRETE widening appearing on one of them changes its key set and
+ * one by one, and repairing one would not move this ledger — only re-annotating the
+ * const the reading comes from would. They are seeded so the ratchet still covers
+ * those pairs: a CONCRETE widening appearing on one of them changes its key set and
  * reddens the invariant.
  *
+ * ⭐ That last sentence was tested in full by objectui#7760, which re-annotated seven
+ * of the ten consts and took this class from 24 keys to 6 in one commit. ⛔ The class
+ * is therefore not a permanent residency: read it as "the instrument cannot see this
+ * key YET", and the way a key leaves it is that someone makes the face readable. The
+ * three keys that ENTERED this ledger under that card were SCHEMA-NODE readings the
+ * day before and are CONCRETE divergences today, with no mirror and no declaration
+ * touched.
+ *
  * The runtime leg at the bottom of this file is what keeps the second class from
- * silently spreading: it pins that every lazy node under the registered mirrors is
- * that one const, so a second annotated recursive mirror cannot enlarge the region
- * unnoticed.
+ * silently spreading: it pins the SOURCES — every lazy node under the registered
+ * mirrors is one of the named consts — so a new annotated recursive mirror cannot
+ * enlarge the region unnoticed.
  *
  * ## Seeded, and why that is a floor and not a waiver
  *
@@ -1945,7 +2012,9 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
  */
 interface WiderThanDeclared {
   /**
-   * CONCRETE `label` + SCHEMA-NODE `areas` / `actions`.
+   * CONCRETE `label` + SCHEMA-NODE `areas`. (`actions` left under objectui#7760: its
+   * element is a schema-node slot, and once `SchemaNodeSchema` carried its input face
+   * the key measured clean.)
 
    * `label` is the INLINE-LOCALE class: `BaseSchema`'s mirror spells the key
    * `I18nLabelSchema` — a plain string OR an inline locale map — while this
@@ -1953,9 +2022,7 @@ interface WiderThanDeclared {
    * accepts. The narrowing lives on the DECLARED side, which is why the forward
    * comparison reads the pair as clean.
    */
-  'app.zod.ts#AppComponentSchema': 'label' | 'areas' | 'actions';
-  /** SCHEMA-NODE: the element's `content` is a schema-node slot. */
-  'complex.zod.ts#CarouselSchema': 'items';
+  'app.zod.ts#AppComponentSchema': 'label' | 'areas';
   /**
    * CONCRETE, and DISJOINT rather than strictly wider — the pair also carries a
    * `KnownDrift` entry for the same key, one of the measured cases where each face
@@ -1964,26 +2031,27 @@ interface WiderThanDeclared {
    */
   'complex.zod.ts#ChatbotSchema': 'body';
   /**
-   * MIXED. `header` and `globalFilters` carry the inline-locale widening one level
-   * down (a nested `label`), `dateRange.defaultRange` is a bare string on the
-   * mirror against a closed literal set on the declaration, and `widgets` is
-   * SCHEMA-NODE IN ITS SECOND ARM ONLY. Three of the four also carry a `KnownDrift`
-   * entry.
+   * CONCRETE. `header` and `globalFilters` carry the inline-locale widening one level
+   * down (a nested `label`) and `dateRange.defaultRange` is a bare string on the
+   * mirror against a closed literal set on the declaration. All three also carry a
+   * `KnownDrift` entry.
    *
-   * ⚠️ That clause read "`widgets` is SCHEMA-NODE" until objectui#8252, and the three
-   * words were the whole verdict on a two-arm union: true of the widget-envelope arm,
-   * false of the component-node arm, which is concrete and whose TypeScript face was
-   * missing outright (objectui#7952, declared by PR #8296 as `c842594`). ⇒ The verdict
-   * that governs is `WIDER_ARMS` below, which names one per arm; this docblock is the
-   * prose beside it and ⛔ may not be the only place the split is recorded again.
+   * ⚠️ `widgets` was the fourth key and made this entry MIXED — the only MIXED key
+   * this ledger has held. Its verdict read "`widgets` is SCHEMA-NODE" until
+   * objectui#8252, and the three words were the whole verdict on a two-arm union: true
+   * of the widget-envelope arm, false of the component-node arm, which is concrete and
+   * whose TypeScript face was missing outright (objectui#7952, declared by PR #8296 as
+   * `c842594`). That arm was repaired there; the schema-node arm stopped reading wider
+   * under objectui#7760, when `SchemaNodeSchema` gained its input type argument — so
+   * the key measures clean and its row is gone. ⇒ The verdict that governs is still
+   * `WIDER_ARMS` below, which names one per arm; this docblock is the prose beside it
+   * and ⛔ may not be the only place a split is recorded again.
    */
-  'complex.zod.ts#DashboardComponentSchema': 'header' | 'widgets' | 'globalFilters' | 'dateRange';
+  'complex.zod.ts#DashboardComponentSchema': 'header' | 'globalFilters' | 'dateRange';
   /** CONCRETE: the element shape differs from the named declaration in both directions; also in `KnownDrift`. */
   'complex.zod.ts#FilterBuilderSchema': 'fields';
   /** CONCRETE: the mirror's operator enum and the declared operator union are not the same set; also in `KnownDrift`. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
-  /** SCHEMA-NODE. */
-  'crud.zod.ts#DetailSchema': 'groups' | 'tabs';
   /**
    * CONCRETE. `columns` compares an inline element shape against the named
    * `TableColumn`; `renderCellEditor` is the FUNCTION-SLOT class — zod 4 gives
@@ -1991,8 +2059,6 @@ interface WiderThanDeclared {
    * mirror accepts any callable where the declaration states one signature.
    */
   'data-display.zod.ts#DataTableSchema': 'columns' | 'renderCellEditor';
-  /** SCHEMA-NODE. */
-  'data-display.zod.ts#ListSchema': 'items';
   /**
    * FUNCTION-SLOT. ⚠️ Not the key objectui#5853 closed: that card was `type`,
    * the interface's literal set against a bare `z.string()` on the mirror, and it
@@ -2000,10 +2066,19 @@ interface WiderThanDeclared {
    * key and a different class.
    */
   'data-display.zod.ts#TableColumnSchema': 'cell';
-  /** SCHEMA-NODE. */
-  'data-display.zod.ts#TimelineSchema': 'events';
-  /** SCHEMA-NODE. */
-  'disclosure.zod.ts#AccordionSchema': 'items';
+  /**
+   * CONCRETE, and DISJOINT — the pair carries a `KnownDrift` entry for this same key,
+   * born with it. ENTERED under objectui#7760, unmeasurable before it: the mirror is
+   * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` and the declaration states
+   * `action?: { label: string; onClick: () => void }`. Each face refuses what the other
+   * admits — a node is not that object, and that object carries a function value no
+   * JSON document can hold. ⚠️ The DECLARATION is the suspect face here, not the mirror:
+   * `ToastSchema.onDismiss` was retired one member below it under objectui#6124 for
+   * exactly that reason, and its tombstone tells an author to author behaviour as a
+   * node type instead — which is what the mirror already accepts. ⛔ Not repaired here:
+   * this card measured it; the disposition is a ruling of its own.
+   */
+  'feedback.zod.ts#ToastSchema': 'action';
   /** CONCRETE and DISJOINT — the mirror admits a string, the declaration a list of dates; also in `KnownDrift`. */
   'form.zod.ts#CalendarSchema': 'defaultValue' | 'value';
   /** FUNCTION-SLOT. */
@@ -2034,36 +2109,50 @@ interface WiderThanDeclared {
    * false literal alone, so `true` parses green and `tsc` refuses it.
    */
   'layout.zod.ts#ContainerSchema': 'maxWidth';
-  /** MIXED: `aria` carries the inline-locale widening one level down; `regions` and `slots` are SCHEMA-NODE. */
-  'layout.zod.ts#PageNodeSchema': 'aria' | 'regions' | 'slots';
-  /** SCHEMA-NODE. */
-  'layout.zod.ts#ResizableSchema': 'panels';
-  /** SCHEMA-NODE. */
-  'layout.zod.ts#TabsSchema': 'items';
-  /** CONCRETE and DISJOINT — one variant spelling on each side the other refuses; also in `KnownDrift`. */
-  'navigation.zod.ts#HeaderBarSchema': 'variant';
+  /**
+   * MIXED: `aria` carries the inline-locale widening one level down; `slots` is
+   * SCHEMA-NODE. (`regions` left under objectui#7760 — its element's content is a
+   * schema-node list, so its reading WAS the annotation. `slots` did not move, so the
+   * unconstrained position on ITS path is not one of the ten consts that card filled.)
+   */
+  'layout.zod.ts#PageNodeSchema': 'aria' | 'slots';
+  /**
+   * CONCRETE. `variant` is DISJOINT — one variant spelling on each side the other
+   * refuses; also in `KnownDrift`. `logo` ENTERED under objectui#7760: the mirror is
+   * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` — the single-or-list
+   * spelling objectui#7069 called systematic — and the declaration states `logo?:
+   * string`. Both arms read now, and both are wider than a bare string, so an author
+   * may write a node here, `safeParse` returns green and `tsc` refuses it. ⛔ That card
+   * did not create the divergence: it made it MEASURABLE. `Unconstrained` had been
+   * excluding the key, because the face read `unknown` at the top level and one array
+   * deep.
+   */
+  'navigation.zod.ts#HeaderBarSchema': 'logo' | 'variant';
   /** CONCRETE, INLINE-LOCALE: both keys are `I18nLabelSchema` on the mirror and restated as plain strings on this declaration. */
   'objectql.zod.ts#ObjectGridSchema': 'label' | 'description';
-  /** SCHEMA-NODE. */
-  'objectql.zod.ts#ObjectViewSchema': 'form' | 'table';
-  /** SCHEMA-NODE. */
-  'overlay.zod.ts#MenubarSchema': 'menus';
-  /** SCHEMA-NODE. */
-  'reports.zod.ts#ReportBuilderSchema': 'report';
-  /** SCHEMA-NODE. */
-  'reports.zod.ts#ReportComponentSchema': 'sections';
-  /** SCHEMA-NODE. */
-  'reports.zod.ts#ReportSectionSchema': 'chart';
-  /** SCHEMA-NODE. */
-  'reports.zod.ts#ReportViewerSchema': 'report';
+  /**
+   * SCHEMA-NODE. (`form` left under objectui#7760; `table` did not. Both are inline
+   * `z.lazy` slots with no exported const — `UNNAMED_LAZY_SLOTS` below records them —
+   * and neither carries an annotation of its own, so what moved is what they REACH.)
+   */
+  'objectql.zod.ts#ObjectViewSchema': 'table';
+  /**
+   * CONCRETE. ENTERED under objectui#7760, unmeasurable before it: the mirror is
+   * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` and the declaration states
+   * `content?: string | SchemaNode` — the same union WITHOUT the list arm. So a list
+   * parses green here and `tsc` refuses it, while the sibling `body` on the same pair
+   * declares the list and agrees. ⭐ Two keys of one renderer read
+   * (`schema.content || renderChildren(schema.body)`), one declared narrower than its
+   * own mirror — the plainest instance of the class objectui#7069 was filed for, and it
+   * sat inside the region that card could not look at.
+   */
+  'overlay.zod.ts#TooltipSchema': 'content';
   /** CONCRETE: an inline option shape against the named `SelectOptionMetadata`. */
   'views.zod.ts#DetailViewFieldSchema': 'options';
-  /** SCHEMA-NODE. */
-  'views.zod.ts#DetailViewSchema': 'fields' | 'tabs' | 'sections';
+  /** SCHEMA-NODE. (`tabs` left under objectui#7760; `fields` and `sections` did not.) */
+  'views.zod.ts#DetailViewSchema': 'fields' | 'sections';
   /** SCHEMA-NODE. */
   'views.zod.ts#DetailViewSectionSchema': 'fields';
-  /** SCHEMA-NODE. */
-  'views.zod.ts#ViewSwitcherSchema': 'views';
 }
 
 /**
@@ -2080,11 +2169,19 @@ export type assertionWiderLedgerKeysAreRegistered =
 /**
  * One arm of one ledgered key, classified on the axis objectui#7759 sorted on.
  *
- * `SCHEMA-NODE` — the arm IS the recursion-breaking slot, so what the input face
- * carries there is the `unknown` from `SchemaNodeSchema`'s `z.ZodType< any >`
- * annotation and the WIDER reading on it is the ANNOTATION, not an accept-set gap.
+ * `SCHEMA-NODE` — the arm's input face still carries an `unknown` from a
+ * recursion-breaking `z.ZodType< any >` annotation nested under it, so the WIDER
+ * reading on it is the ANNOTATION, not an accept-set gap.
  * `CONCRETE` — everything else: the arm states a shape an author can write, so
  * `safeParse` returns green and the declaration alone decides whether `tsc` agrees.
+ *
+ * ⚠️ The SCHEMA-NODE clause named `SchemaNodeSchema` until objectui#7760, and after
+ * that card the name would be a wrong reason attached to a right verdict: that const
+ * carries its declaration now, so an arm spelled through it is CONCRETE — which is why
+ * the three keys that ENTERED this ledger there are CONCRETE despite being schema-node
+ * slots. The six SCHEMA-NODE rows that remain each reach an annotation still standing
+ * (this file's other three consts, or one outside this package). ⛔ The class is about
+ * the READING; do not re-attach it to a const.
  * The INLINE-LOCALE, FUNCTION-SLOT and structural sub-classes the docblocks above
  * name are all CONCRETE here — this axis asks only whether the instrument produced
  * the reading, and those finer names stay where they are.
@@ -2167,23 +2264,16 @@ const WIDER_ARM_ROW_SEPARATOR = '::';
 const WIDER_ARMS: Readonly< Record< string, readonly WiderArmClass[] > > = {
   'app.zod.ts#AppComponentSchema::label': ['CONCRETE', 'CONCRETE'],
   'app.zod.ts#AppComponentSchema::areas': ['SCHEMA-NODE'],
-  'app.zod.ts#AppComponentSchema::actions': ['SCHEMA-NODE'],
-  'complex.zod.ts#CarouselSchema::items': ['SCHEMA-NODE'],
   'complex.zod.ts#ChatbotSchema::body': ['CONCRETE'],
   'complex.zod.ts#DashboardComponentSchema::header': ['CONCRETE'],
-  'complex.zod.ts#DashboardComponentSchema::widgets': ['CONCRETE', 'SCHEMA-NODE'],
   'complex.zod.ts#DashboardComponentSchema::globalFilters': ['CONCRETE'],
   'complex.zod.ts#DashboardComponentSchema::dateRange': ['CONCRETE'],
   'complex.zod.ts#FilterBuilderSchema::fields': ['CONCRETE'],
   'complex.zod.ts#FilterFieldSchema::operators': ['CONCRETE'],
-  'crud.zod.ts#DetailSchema::groups': ['SCHEMA-NODE'],
-  'crud.zod.ts#DetailSchema::tabs': ['SCHEMA-NODE'],
   'data-display.zod.ts#DataTableSchema::columns': ['CONCRETE'],
   'data-display.zod.ts#DataTableSchema::renderCellEditor': ['CONCRETE'],
-  'data-display.zod.ts#ListSchema::items': ['SCHEMA-NODE'],
   'data-display.zod.ts#TableColumnSchema::cell': ['CONCRETE'],
-  'data-display.zod.ts#TimelineSchema::events': ['SCHEMA-NODE'],
-  'disclosure.zod.ts#AccordionSchema::items': ['SCHEMA-NODE'],
+  'feedback.zod.ts#ToastSchema::action': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#CalendarSchema::defaultValue': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#CalendarSchema::value': ['CONCRETE', 'CONCRETE'],
   'form.zod.ts#FieldConditionSchema::custom': ['CONCRETE'],
@@ -2197,26 +2287,17 @@ const WIDER_ARMS: Readonly< Record< string, readonly WiderArmClass[] > > = {
   'form.zod.ts#SliderSchema::value': ['CONCRETE', 'CONCRETE'],
   'layout.zod.ts#ContainerSchema::maxWidth': ['CONCRETE', 'CONCRETE'],
   'layout.zod.ts#PageNodeSchema::aria': ['CONCRETE'],
-  'layout.zod.ts#PageNodeSchema::regions': ['SCHEMA-NODE'],
   'layout.zod.ts#PageNodeSchema::slots': ['SCHEMA-NODE'],
-  'layout.zod.ts#ResizableSchema::panels': ['SCHEMA-NODE'],
-  'layout.zod.ts#TabsSchema::items': ['SCHEMA-NODE'],
+  'navigation.zod.ts#HeaderBarSchema::logo': ['CONCRETE', 'CONCRETE'],
   'navigation.zod.ts#HeaderBarSchema::variant': ['CONCRETE'],
   'objectql.zod.ts#ObjectGridSchema::label': ['CONCRETE', 'CONCRETE'],
   'objectql.zod.ts#ObjectGridSchema::description': ['CONCRETE', 'CONCRETE'],
-  'objectql.zod.ts#ObjectViewSchema::form': ['SCHEMA-NODE'],
   'objectql.zod.ts#ObjectViewSchema::table': ['SCHEMA-NODE'],
-  'overlay.zod.ts#MenubarSchema::menus': ['SCHEMA-NODE'],
-  'reports.zod.ts#ReportBuilderSchema::report': ['SCHEMA-NODE'],
-  'reports.zod.ts#ReportComponentSchema::sections': ['SCHEMA-NODE'],
-  'reports.zod.ts#ReportSectionSchema::chart': ['SCHEMA-NODE'],
-  'reports.zod.ts#ReportViewerSchema::report': ['SCHEMA-NODE'],
+  'overlay.zod.ts#TooltipSchema::content': ['CONCRETE', 'CONCRETE'],
   'views.zod.ts#DetailViewFieldSchema::options': ['CONCRETE'],
   'views.zod.ts#DetailViewSchema::fields': ['SCHEMA-NODE'],
-  'views.zod.ts#DetailViewSchema::tabs': ['SCHEMA-NODE'],
   'views.zod.ts#DetailViewSchema::sections': ['SCHEMA-NODE'],
   'views.zod.ts#DetailViewSectionSchema::fields': ['SCHEMA-NODE'],
-  'views.zod.ts#ViewSwitcherSchema::views': ['SCHEMA-NODE'],
 };
 
 /* ── The invariant ──────────────────────────────────────────────────────────── */
@@ -2463,13 +2544,13 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'app.zod.ts#NavigationItemTypeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'app.zod.ts#NavigationItemSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration. One of the three consts that REFUSED the objectui#7760 type argument (the mirror accepts more than the declaration states), so this reason is still literally true here",
   'app.zod.ts#MenuItemSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'app.zod.ts#AppContextSelectorSchema':
     "spec-owned BY REFERENCE — the local `.extend(…)` adds renderer props that no TS declaration in this package restates",
   'base.zod.ts#SchemaNodeSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'base.zod.ts#ComponentInputControlTypeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'base.zod.ts#HTMLAttributesSchema':
@@ -2483,9 +2564,9 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'complex.zod.ts#FilterOperatorSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'complex.zod.ts#FilterBuilderConditionSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration. One of the three consts that REFUSED the objectui#7760 type argument (the mirror accepts more than the declaration states), so this reason is still literally true here",
   'complex.zod.ts#FilterGroupSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration. One of the three consts that REFUSED the objectui#7760 type argument (the mirror accepts more than the declaration states), so this reason is still literally true here",
   'complex.zod.ts#GlobalFilterSchema':
     "no TS declaration in this package restates it — there is no second definition to drift from",
   'complex.zod.ts#ComplexSchema':
@@ -2493,11 +2574,11 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'crud.zod.ts#ActionExecutionModeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'crud.zod.ts#ActionSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'crud.zod.ts#CRUDComponentSchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'data-display.zod.ts#TreeNodeSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'data-display.zod.ts#ChartTypeSchema':
     "spec-owned BY REFERENCE — the local `.extend(…)` adds renderer props that no TS declaration in this package restates",
   'data-display.zod.ts#DataDisplaySchema':
@@ -2517,9 +2598,9 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'layout.zod.ts#LayoutSchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'navigation.zod.ts#NavLinkSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'navigation.zod.ts#NavigationMenuItemSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'navigation.zod.ts#NavigationSchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'objectql.zod.ts#HttpMethodSchema':
@@ -2541,7 +2622,7 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'objectql.zod.ts#ObjectQLComponentSchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'overlay.zod.ts#MenuItemSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'overlay.zod.ts#OverlaySchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'reports.zod.ts#ReportExportFormatSchema':
@@ -3538,7 +3619,15 @@ function measureReachableLazyNodes(): Map<unknown, string> {
  * `unknown`, and that face has ONE producing spelling: a recursive mirror annotated
  * `z.ZodType< any >` to break the cycle in its own `z.lazy`, which zod 4 reads as an
  * `unknown` INPUT parameter. So the exclusion is only as bounded as that population
- * is — and the population is exactly what the type level cannot report. At the type
+ * is — and the population is exactly what the type level cannot report.
+ *
+ * ⚠️ Seven of the ten below no longer PRODUCE that face: objectui#7760 gave them their
+ * TypeScript declaration as both type arguments, so their slots are measured now. They
+ * stay in this list unchanged, and the list's name is still right, because what this
+ * leg pins is the set of RECURSION-BREAKING SOURCES — every lazy node reachable from a
+ * registered mirror — not the set of erased faces. A `z.lazy` is what the walk can see;
+ * an annotation is not. ⇒ A future card that fills the remaining three ⛔ still may not
+ * shorten this list: it would stop being able to detect the eleventh. At the type
  * level every unconstrained face looks alike, so a NEW recursive mirror enlarges
  * the blind region without changing one character the compiler reads. At runtime
  * the mirrors are values and the lazy nodes are reachable, so the region can be
@@ -3716,15 +3805,27 @@ An arm row does not name one verdict per arm of its mirror slot.
       .toEqual([]);
   });
 
-  it("objectui#7952's key still records BOTH arms, and not one verdict twice", () => {
-    // The positive control, and the one row whose collapse is the defect itself: a
-    // concrete arm hidden behind a schema-node sibling. The arity pin above does not
-    // catch that collapse — ['SCHEMA-NODE', 'SCHEMA-NODE'] has the right length —
-    // so the shape is asserted here by name.
-    const arms = WIDER_ARMS['complex.zod.ts#DashboardComponentSchema::widgets'];
-    expect(arms).toHaveLength(2);
-    expect([...new Set(arms)].sort()).toEqual(['CONCRETE', 'SCHEMA-NODE']);
-    expect(widerKeyClass(arms)).toBe('MIXED');
+  it('a concrete arm cannot hide behind a schema-node sibling (objectui#7952)', () => {
+    // The positive control for the collapse that IS the defect: a concrete arm filed
+    // under its sibling's verdict. The arity pin above cannot catch it —
+    // ['SCHEMA-NODE', 'SCHEMA-NODE'] has the right length — so the shape is pinned
+    // here.
+    //
+    // ⚠️ It was pinned on objectui#7952's own row, `DashboardComponentSchema::widgets`,
+    // until objectui#7760. That row is GONE: its concrete arm was declared by PR #8296
+    // and its schema-node arm stopped reading wider once `SchemaNodeSchema` carried its
+    // input type argument, so the key measures clean and left this ledger. ⛔ Do not
+    // re-point this at whichever row happens to be MIXED today — there is none, and a
+    // control that has to be re-aimed every time the ledger moves is a control that
+    // will one day be deleted instead. The derivation is the invariant, so the
+    // derivation is what is asserted: a mixed pair of verdicts must NOT reduce to
+    // either of its members.
+    expect(widerKeyClass(['CONCRETE', 'SCHEMA-NODE'])).toBe('MIXED');
+    expect(widerKeyClass(['SCHEMA-NODE', 'CONCRETE'])).toBe('MIXED');
+    expect(widerKeyClass(['SCHEMA-NODE', 'SCHEMA-NODE'])).toBe('SCHEMA-NODE');
+    expect(widerKeyClass(['CONCRETE', 'CONCRETE'])).toBe('CONCRETE');
+    // …and no live row is MIXED today, which is the fact the header's `0` records.
+    expect(widerArmRows().filter(({ arms }) => widerKeyClass(arms) === 'MIXED')).toEqual([]);
   });
 });
 

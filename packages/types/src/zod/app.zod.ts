@@ -24,6 +24,7 @@ import {
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 import { handlerKeyRefusal } from './tombstone.zod.js';
+import type { AppMenuItem } from '../app.js';
 
 // ============================================================================
 // Unified NavigationItem Schema
@@ -199,8 +200,15 @@ export const NavigationAreaSchema = specFieldsExcept(SpecNavigationAreaSchema.sh
 /**
  * Menu Item Schema - Navigation menu item
  * @deprecated Use NavigationItemSchema instead.
+ *
+ * INPUT FACE: both type arguments carry this mirror's existing TypeScript
+ * declaration (objectui#7760, maintainer ruling, decision batch #69) — the annotation
+ * still breaks the recursion in the initializer below, but it no longer publishes
+ * `unknown` as what an author may write here. ⛔ Runtime accept set unchanged; ⛔ the
+ * declaration unchanged. The reasoning lives once, on `SchemaNodeSchema` in
+ * `base.zod.ts` — read it there before changing this line.
  */
-export const MenuItemSchema: z.ZodType<any> = z.lazy(() => z.object({
+export const MenuItemSchema: z.ZodType<AppMenuItem, AppMenuItem> = z.lazy(() => z.object({
   type: z.enum(['item', 'group', 'separator']).optional().describe('Item type'),
   label: z.string().optional().describe('Display label'),
   icon: z.string().optional().describe('Icon name (Lucide)'),
