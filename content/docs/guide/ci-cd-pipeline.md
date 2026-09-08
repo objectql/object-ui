@@ -28,6 +28,7 @@ one has its own section below.
 | `changeset-guard.yml` | Changeset Bump Policy, Changeset Overwrite Report | PR / push touching `.changeset/**` or either gate itself | **Yes** — the bump policy job only; the overwrite job is report-only |
 | `changeset-presence.yml` | Changeset Declaration | PR to `main`, `develop` — **no path filter**; merge-queue builds | **Yes** — when a released package's `src/` changed and no changeset was added |
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
+| `action-ref-convention.yml` | Action Ref Convention | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `uses:` ref is not spelled as a floating major tag and is not a declared exception, when a declared exception matches nothing, or when the scan's own census collapses |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
 | `skill-examples.yml` | Skill Example Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a MARKED fenced example in a `skills/` or `.claude/skills/` guide no longer compiles against the packages' built types, no longer parses as JSON, uses a bare `any`, or carries a marker that opts nothing in |
@@ -380,6 +381,63 @@ carried a control byte when the gate landed, so it could be switched on as a rat
 skip-list: the scan fails on an entry whose file has been cleaned or deleted, so a fix that forgets
 to remove its entry is as red as a new offender. Entries carry the issue tracking their removal
 (objectstack#5450) and the map is expected to reach empty and stay there.
+
+## Action Ref Convention (`action-ref-convention.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter**, for the same reason `control-bytes.yml` has none: the population this gate scans *is*
+`.github/workflows/`, and a change touching only that directory runs nothing expensive in `ci.yml`
+or `lint.yml`. It appears in the checks list as **Action Ref Convention**.
+
+Runs `scripts/check-action-ref-convention.mjs` — a checkout and one `node` call, no install.
+
+### The convention
+
+**Every `uses:` in `.github/workflows/**` is written as a floating major tag, `owner/action@vN`.**
+
+**An exception is marked by an entry in `DECLARED_EXCEPTIONS`** in that script, carrying the
+workflow file, the action path, the issue that owns the decision, and a real reason. That is the
+only form an exception takes. A trailing `# v9.0.0`-style comment beside a ref is a version *hint*,
+not a reason, and the gate does not read it as one.
+
+### Why it exists — the finding is the sole instance, not the pinning
+
+[objectui#8465](https://github.com/objectstack-ai/objectui/issues/8465). There were 13 distinct
+action references in this directory. Exactly **one** was spelled differently from the other twelve —
+a commit SHA on `actions/stale` — and it was the only reference in the repository that had **never
+resolved**: 236 scheduled runs of `stale.yml` since 2026-01-16, **0 successes**, every one failing
+in `Set up job`, unnoticed for eight months because nothing downstream consumes that job. The broken
+reference itself is [objectui#8126](https://github.com/objectstack-ai/objectui/issues/8126).
+
+This is **not** an argument that SHA pinning is wrong — it is normally the *more* secure spelling and
+supply-chain guidance recommends it. The failure was the *shape*: one ref written in a form nothing
+else in the tree used, with no convention that would have made the odd one out visible and nothing
+verifying it. A floating tag that stops resolving is loud on the next run of every workflow that uses
+it; a lone off-convention ref that never resolved is silent for as long as nobody happens to look.
+
+So the default is the floating major tag because that is what the tree already was — 12 of 13, and
+the repository's one deliberately reasoned per-ref pin, `changesets/action@v1`, is itself a tag (held
+there by `scripts/__tests__/changeset-release-action-ref-pin.test.ts`). Declaring it moved no
+reference and closed no door. **Do not read it as a ruling against SHA pinning, and do not "unify"
+this directory in either direction under cover of this gate** — changing the repository's pinning
+posture is a supply-chain decision and belongs on its own card.
+
+### What it does not do
+
+It checks **spelling, not resolvability**. A SHA that points at no commit and one that points at a
+real commit are indistinguishable without the network. That is deliberate: what failed in #8465 was
+that the odd ref had no reason attached and no second instance to compare against, and both of those
+are checkable offline.
+
+### The three ways it goes red
+
+1. An off-convention ref with no entry in `DECLARED_EXCEPTIONS`.
+2. An entry in `DECLARED_EXCEPTIONS` that matches nothing any more — the same staleness check
+   `KNOWN_OFFENDERS` and `DOCUMENTATION_EXEMPT` carry elsewhere in this repository, because an escape
+   hatch nobody removes is how a baseline turns into a permanent skip-list.
+3. Its own census collapsing. A scan that stops finding references reports an empty offender list,
+   which renders exactly like a clean repository, so the floors and a positive control
+   (`actions/checkout` must be found) are asserted in the same run as the counts.
 
 ## Performance Budget (`performance-budget.yml`)
 
