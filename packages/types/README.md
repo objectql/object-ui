@@ -136,6 +136,7 @@ type ButtonSchema = SchemaByType<'button'>;
 ```typescript
 import {
   AnyComponentSchema,
+  ButtonSchema,
   StrictAnyComponentSchema,
   deriveStrictAuthoringSchema,
 } from '@object-ui/types/zod';
