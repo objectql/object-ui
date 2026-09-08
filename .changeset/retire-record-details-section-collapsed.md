@@ -27,5 +27,6 @@ consumer of `@object-ui/types` outside it that wrote `collapsed` is not
 observable from here, and gets a compile error (TS2353) naming the key — which
 is why the FROM/TO is spelled out above.
 
-Retires the last member of the divergence objectui#8583 measured; the six keys
-this type used to omit landed in the previous release.
+Retires the last member of the divergence objectui#8583 measured. The six keys
+this type used to omit are item 1 of the same card; its changeset is still
+pending, so both halves ship in this release.
