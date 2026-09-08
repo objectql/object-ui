@@ -341,6 +341,17 @@
  *     consumer at all. A snippet importing a peer therefore still fails here.
  *     That is the conservative direction on purpose: this rule fails CLOSED, and
  *     widening it later is a visible edit with a reason, not a silent drift.
+ *     ⇒ What a document DOES about that, without surrendering the block: stand
+ *     the peer's bindings in with `declare const` typed to what the block uses
+ *     them as, and import only what the package declares in its `dependencies`.
+ *     The block still compiles, so the documented package's own composition
+ *     around it stays genuinely checked — where declaring the block a fragment
+ *     would have stopped all of it, that composition included. Worked in
+ *     `packages/layout/README.md` under "Usage with React Router"; the bound's
+ *     refusal message names this remedy too, because a refusal offering only
+ *     "import something else" and "give up the block" reads as IMPOSSIBLE on a
+ *     package whose headline feature IS the peer integration — the package does
+ *     declare it, just in a field this map does not read (objectui#8059).
  *   - **Imported packages only.** A package no covered document imports
  *     contributes nothing, so this map grows only as coverage grows — the same
  *     property `--build-filter` has, for the same reason.
@@ -2612,8 +2623,16 @@ function main() {
       `  [bound]     ${block.doc}:${block.fenceLine}  imports ${specifiers.map((s) => `'${s}'`).join(', ')}, which ` +
         "resolve only through this repository's ROOT package.json — this workspace's own devDependency " +
         'set, not anything a reader of the documented packages installs. Import what an imported ' +
-        'package DECLARES, or declare the block a fragment with a reason naming what the reader must ' +
-        `install:\n                ${FRAGMENT_MARKER_EXAMPLES[0]}`,
+        'package declares in its `dependencies`. A `peerDependencies` entry is a declaration too, but ' +
+        'not one this map reads: a peer is a requirement ON the reader, which may be unmet.' +
+        '\n                If the specifier IS such a peer and this block needs its bindings, stand ' +
+        'them in with `declare const` typed to what the block uses them as, and import only what the ' +
+        "package declares. The block still compiles, so the documented package's own surface around it " +
+        'stays checked — worked example: `packages/layout/README.md`, under "Usage with React Router".' +
+        '\n                Declaring the block a fragment is the LAST resort: it stops the WHOLE block ' +
+        "compiling, that package's own surface included, so reach for it only when the block cannot " +
+        'compile for reasons a stand-in cannot supply. Its reason must name what the reader installs:' +
+        `\n                ${FRAGMENT_MARKER_EXAMPLES[0]}`,
     );
   }
 

@@ -18,6 +18,7 @@
 
 import type { PageType as SpecPageType } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
+import type { BreakpointName } from './mobile.js';
 
 /**
  * Basic HTML div container
@@ -384,7 +385,7 @@ export interface GridSchema extends BaseSchema {
    * `maxWidth`).
    * @default 2
    */
-  columns?: number | Record<string, number>;
+  columns?: number | Partial<Record<BreakpointName, number>>;
   /**
    * Gap between items (Tailwind scale 0-8)
    * @default 4

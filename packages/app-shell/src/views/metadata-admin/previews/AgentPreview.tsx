@@ -46,7 +46,7 @@ import {
   Shield,
   Sparkles,
 } from 'lucide-react';
-import { cn } from '@object-ui/components';
+import { cn, EmptyDescription } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
@@ -299,7 +299,20 @@ function KeyVals({ data, keys }: { data: Record<string, unknown>; keys: string[]
   const rows = keys
     .map((k) => [k, getPath(data, k)] as const)
     .filter(([, v]) => v !== undefined && v !== null);
-  if (rows.length === 0) return <div className="text-muted-foreground italic">—</div>;
+  // Empty COLLECTION, not an empty field value: every requested key resolved
+  // to undefined/null, i.e. this rail block has no key/values at all. It used
+  // to render a bare `—` in a plain <div>, which a screen reader reaches as an
+  // unnamed punctuation mark (objectui#8520). `EmptyValue` is the wrong member
+  // of the family here — its docblock scopes it to a missing cell/field VALUE
+  // and its aria-label resolves `detail.noValue` ("No value"), a false
+  // statement about a collection. `EmptyDescription` is the family's
+  // block-level text slot and states the condition in words; the container
+  // `Empty` is deliberately NOT used — measured at this rail's real 215px
+  // width it is 118.8px tall against the 16px row it replaces (objectui#8520
+  // PR body has the numbers). `text-xs italic` matches the sibling empty
+  // states in this file and this directory.
+  if (rows.length === 0)
+    return <EmptyDescription className="text-xs italic">No values set.</EmptyDescription>;
   return (
     <dl className="space-y-0.5">
       {rows.map(([k, v]) => (

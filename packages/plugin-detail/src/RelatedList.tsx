@@ -24,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   cn,
+  EmptyValue,
   resolveIcon,
   useIsMobile,
 } from '@object-ui/components';
@@ -1004,7 +1005,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         // whitespace-only string or an empty array through to a renderer that
         // paints nothing, in a column `pruneEmpty` had already judged empty.
         if (isValueEmpty(value)) {
-          return React.createElement('span', { className: 'text-muted-foreground/50 text-xs italic' }, '—');
+          return React.createElement(EmptyValue);
         }
         return React.createElement(CellRenderer, { value, field: fieldMeta });
       };

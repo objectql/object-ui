@@ -2476,7 +2476,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               cellRenderer = (value: any, row: any) => {
                 const displayContent = CellRenderer
                   ? <CellRenderer value={value} field={fieldMeta as any} />
-                  : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
+                  : (value != null && value !== '' ? String(value) : <EmptyValue />);
                 return (
                   <LinkCell
                     testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
@@ -2494,7 +2494,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               cellRenderer = (value: any, row: any) => {
                 const displayContent = CellRenderer
                   ? <CellRenderer value={value} field={fieldMeta as any} />
-                  : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
+                  : (value != null && value !== '' ? String(value) : <EmptyValue />);
                 return (
                   <LinkCell
                     testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
@@ -2694,7 +2694,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
                 objectName={schema.objectName}
                 recordId={rowRecordId(row)}
               >
-                {value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>}
+                {value != null && value !== '' ? String(value) : <EmptyValue />}
               </LinkCell>
             );
           } else if (CellRenderer) {
@@ -4359,7 +4359,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
 
     const renderFieldValue = (key: string, value: any): React.ReactNode => {
       if (value == null || value === '') {
-        return <span className="text-muted-foreground/50 text-sm italic">{t('grid.empty')}</span>;
+        return <EmptyValue className="text-sm italic" glyph={t('grid.empty')} />;
       }
 
       // Use objectSchema field type for type-aware rendering

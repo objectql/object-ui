@@ -107,6 +107,82 @@ export const SortConfigSchema = z.object({
 });
 
 /**
+ * The spec's OBJECT arm of `exportOptions`, as a SHAPE, reached without restating
+ * its keys (objectui#7762).
+ *
+ * `ListViewExportOptionsSchema` is internal to the spec bundle and NOT a public
+ * export (measured, not assumed, by `../__tests__/export-options-spec-parity.test.ts`).
+ * The exported `ListViewSchema.shape.exportOptions` is the whole contract, but it is a
+ * TWO-ARM union: the legacy bare format array — which LIFTS to `{ formats }` at parse —
+ * and the strict five-key object. `ListViewSchema` below binds that union by reference
+ * and is right to: `list-view` reads both spellings. `object-grid` does not, so this
+ * peels the object arm out and leaves the lifting arm behind.
+ *
+ * Peeled rather than restated on purpose: a local copy of the five keys is a third
+ * copy of one contract, and the copy is what drifts (the lesson `objectql.ts`'s
+ * `ListViewExportOptions` docblock already records for the TypeScript face). Every
+ * member here is the spec's own schema object, so `'pdf'` and a sixth key stay refused
+ * with the spec's own messages and a spec-side change moves this member with it.
+ *
+ * The TYPE is derived by the same two steps at the TYPE level (`unwrap` then the arm with a
+ * `shape`), so the authoring face keeps the spec's per-member types — a `z.ZodRawShape`
+ * annotation here would erase them and collapse `z.input` of every member to `unknown`,
+ * which the mirror-parity drift ledger reports as `exportOptions` NARROWER than declared.
+ *
+ * THROWS at module load if the spec stops exposing an object arm. That is the intended
+ * failure: the alternative is a member that silently stops being the spec's, which is
+ * the class of defect this whole file exists to make visible.
+ */
+type SpecExportOptionsUnion = ReturnType< typeof SpecListViewSchema.shape.exportOptions.unwrap >;
+/** The object arm, statically: the one union member exposing a `shape` (the other is the lift's pipe). */
+type SpecExportOptionsObjectArm = Extract< SpecExportOptionsUnion['options'][number], { shape: unknown } >;
+type SpecExportOptionsShape = SpecExportOptionsObjectArm['shape'];
+
+const SPEC_EXPORT_OPTIONS_OBJECT_SHAPE: SpecExportOptionsShape = ((): SpecExportOptionsShape => {
+  type Peelable = {
+    unwrap?: () => Peelable;
+    options?: readonly Peelable[];
+    shape?: SpecExportOptionsShape;
+  };
+  let cur = SpecListViewSchema.shape.exportOptions as unknown as Peelable;
+  for (let i = 0; i < 5 && cur && !cur.options && typeof cur.unwrap === 'function'; i++) {
+    cur = cur.unwrap();
+  }
+  const arm = cur.options?.find((o) => o.shape);
+  if (!arm?.shape) {
+    // Short on purpose: this string SHIPS (the console's `framework` chunk), while the
+    // docblock above it — which carries the rationale and the remedy — is stripped by the
+    // production minifier. It still names the moved spec symbol, the member that depends on
+    // it, and the card, which is what a diagnostic has to do.
+    throw new Error(
+      '@object-ui/types: no object arm on `ListViewSchema.shape.exportOptions`; ' +
+        '`ObjectGridSchema.exportOptions` binds it by reference (objectui#7762).',
+    );
+  }
+  return arm.shape;
+})();
+
+/**
+ * ONE string, BOTH author-facing channels — the `.describe()` metadata generated docs
+ * publish, and the parse-time issue message an author who writes the wrong shape reads.
+ * The house discipline of `./tombstone.zod.ts`: two channels that cannot drift apart
+ * because there is only one string.
+ *
+ * The refusal it carries is objectui#7762's ruling. `ObjectGrid.tsx` reads
+ * `schema.exportOptions?.formats` and nothing else, so a bare format array authored on
+ * an `object-grid` node used to validate green through `BaseSchema`'s `.passthrough()`
+ * and then lose SILENTLY to the `['csv', 'json']` default — no error, no warning, no
+ * console line, with the export button still shown. Refusing it by name is that silent
+ * no-op made loud; nothing that renders today stops rendering.
+ */
+const OBJECT_GRID_EXPORT_OPTIONS_GUIDANCE =
+  'Export configuration for the grid toolbar menu — the OBJECT form only: ' +
+  '`{ formats, maxRecords, includeHeaders, fileNamePrefix, streaming }`. A bare format ' +
+  'array is the `list-view` spelling and is NOT read here: `object-grid` reads ' +
+  '`exportOptions.formats`, so an array is silently dropped for the csv/json ' +
+  'default. Write `{ "formats": ["csv", "xlsx"] }` instead.';
+
+/**
  * ObjectGrid Schema
  */
 export const ObjectGridSchema = BaseSchema.extend({
@@ -122,6 +198,20 @@ export const ObjectGridSchema = BaseSchema.extend({
   selection: SelectionConfigSchema.optional().describe('Selection configuration'),
   pagination: PaginationConfigSchema.optional().describe('Pagination configuration'),
   bulkActions: z.array(z.string()).optional().describe('Bulk action identifiers (spec-canonical key; batchActions is the legacy alias)'),
+  // `exportOptions` — the spec's OBJECT arm, BY REFERENCE, with the bare array refused
+  // by name (objectui#7762). ⛔ NOT `SpecListViewSchema.shape.exportOptions` itself:
+  // that reference is the two-arm union whose first arm LIFTS a bare array to
+  // `{ formats }`, so binding it would make this mirror ACCEPT AND LIFT — the opposite
+  // of the named refusal ruled for this node. The strictness is the arm's own
+  // (`catchall: never`, measured), so a sixth key keeps zod's own `unrecognized_keys`
+  // message naming it, and a retired `'pdf'` keeps the spec's migration prescription:
+  // only the `invalid_type` message is local, and only it names the object form.
+  exportOptions: z
+    .strictObject(SPEC_EXPORT_OPTIONS_OBJECT_SHAPE, {
+      error: (issue) => (issue.code === 'invalid_type' ? OBJECT_GRID_EXPORT_OPTIONS_GUIDANCE : undefined),
+    })
+    .optional()
+    .describe(OBJECT_GRID_EXPORT_OPTIONS_GUIDANCE),
 
   // Legacy fields
   fields: z.array(z.string()).optional(),
