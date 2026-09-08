@@ -9,9 +9,13 @@ import { ESLint } from 'eslint';
 import {
   CENSUS_FLOORS,
   PROBE_BASENAME,
+  SOURCE_EXTENSIONS,
+  UNREACHED_GROUPS,
   VACUOUS_GROUPS,
   analyze,
   censusCollapse,
+  extensionProbeCollapse,
+  extensionReach,
   ruleCountFor,
   walkedFiles,
 } from '../check-lint-rule-coverage.mjs';
@@ -39,6 +43,18 @@ import {
  *  4. **A green is never "the walk found nothing."** The fixture greens assert
  *     their own counters, and the repository run asserts the census floors.
  *  5. **This repository is green today**, with every ledger row still live.
+ *  7. **objectui#8337 -- the second predicate.** A source file ESLint does not
+ *     walk AT ALL is a different defect from a walked file with no rules, and
+ *     predicate 1 cannot see it by construction. The unreachable EXTENSION set
+ *     is derived from the live config rather than listed, so a predicate that
+ *     knew only about `.mts` would fail these cases.
+ *  8. **The discrimination is per file, not per ignore.** A `.mts` inside an
+ *     ignored directory, and one excluded by a name pattern, are both excluded
+ *     for reasons that are not this gate's business; the substitution test
+ *     separates them from the extension gap.
+ *  9. **Predicate 2 cannot pass vacuously even once it is fixed.** Its control
+ *     is on the probe -- both answers in the same run -- so an empty population
+ *     stays a reading rather than becoming a blind spot.
  *  6. **The gate is wired** in `package.json`, and its only enforcement path is
  *     the `this repository is green` case above, running inside `pnpm test`.
  *     The absence of a `ci.yml` step is asserted rather than assumed, so the
@@ -80,6 +96,12 @@ const FILES = {
   'src/covered.ts': 'export const a = 1;\n',
   'tools/vacuous.mjs': 'export const b = 2;\n',
 };
+
+/** Predicate 1's ledger for {@link FILES}, so a predicate-2 fixture reds for one reason only. */
+const LEDGER = [
+  { glob: 'tools/**/*.mjs', reason: 'fixture', card: 'objectui#7908' },
+  { glob: 'eslint.config.js', reason: 'the fixture config', card: 'objectui#7908' },
+];
 
 describe('the walk is the walk ESLint actually performs', () => {
   it('enumerates exactly what ESLint#lintFiles reaches', async () => {
@@ -198,7 +220,9 @@ describe('the ledger, and the three directions it goes red', () => {
 
   it('is GREEN when every vacuous file is declared, with counters that are not zero', async () => {
     const root = tree('green', { 'eslint.config.js': TS_ONLY_CONFIG, ...FILES });
-    const result = await analyze({ root, groups });
+    // Predicate 2 has its own ledger and its own fixtures below; an empty one
+    // keeps this case a statement about vacuity alone.
+    const result = await analyze({ root, groups, unreachedGroups: [] });
 
     expect(result.findings).toEqual([]);
     expect(result.vacuous).toEqual(['eslint.config.js', 'tools/vacuous.mjs']);
@@ -242,7 +266,7 @@ describe('the ledger, and the three directions it goes red', () => {
       'eslint.config.js': TS_ONLY_CONFIG.replace("files: ['**/*.ts']", "files: ['**/*.{ts,mjs}']"),
       ...FILES,
     });
-    const result = await analyze({ root, groups });
+    const result = await analyze({ root, groups, unreachedGroups: [] });
 
     // Only the config file is left unjudged; the row that declared `tools/`
     // now over-claims a covered file AND declares nothing, which is both reds.
@@ -260,6 +284,119 @@ describe('the ledger, and the three directions it goes red', () => {
     const stale = result.findings.filter((f) => f.kind === 'stale');
     expect(stale).toHaveLength(1);
     expect(stale[0].glob).toBe('deleted/**/*.mjs');
+  });
+});
+
+
+describe('objectui#8337 -- the source files ESLint does not walk at all', () => {
+  // The predicate-2 ledger every fixture below judges against, and the shape
+  // the real one has: an exact path, never a population glob.
+  const unreachedGroups = [
+    { glob: 'src/tool.mts', reason: 'the fixture config never names .mts', card: 'objectui#8337' },
+  ];
+
+  it('derives the unreachable extension set from the config, and it is not just `.mts`', async () => {
+    const root = tree('reach', { 'eslint.config.js': TS_ONLY_CONFIG, ...FILES });
+    const reach = await extensionReach(new ESLint({ cwd: root }), root);
+
+    // `.js`/`.cjs`/`.mjs` are ESLint's default set; `.ts` is reachable only
+    // because the config names it. Everything else falls through BOTH.
+    expect(reach.reachable).toEqual(['js', 'cjs', 'mjs', 'ts']);
+    expect(reach.unreachable).toEqual(['jsx', 'cts', 'mts', 'tsx']);
+    // A predicate that knew only about `.mts` would report one of these four.
+    expect(reach.unreachable.length).toBeGreaterThan(1);
+  });
+
+  it('follows the config rather than a list -- widening it moves an extension out of the set', async () => {
+    const root = tree('reach-widened', {
+      'eslint.config.js': TS_ONLY_CONFIG.replace("files: ['**/*.ts']", "files: ['**/*.{ts,mts}']"),
+      ...FILES,
+    });
+    const reach = await extensionReach(new ESLint({ cwd: root }), root);
+
+    expect(reach.reachable).toContain('mts');
+    expect(reach.unreachable).not.toContain('mts');
+    // `.cts` did not move: the config named one extension, not a family.
+    expect(reach.unreachable).toContain('cts');
+  });
+
+  it('reds on an unwalked source file, and the same tree greens once a row declares it', async () => {
+    const files = { 'eslint.config.js': TS_ONLY_CONFIG, ...FILES, 'src/tool.mts': 'export const t = 7;\n' };
+    const root = tree('unreached', files);
+
+    const bare = await analyze({ root, groups: LEDGER, unreachedGroups: [] });
+    const red = bare.findings.filter((f) => f.kind === 'unreached-unledgered');
+    expect(red).toHaveLength(1);
+    expect(red[0].files).toEqual(['src/tool.mts']);
+    // It is NOT the other predicate's class: ESLint never opened it, so it is
+    // in neither `walked` nor `vacuous`.
+    expect(bare.walked).not.toContain('src/tool.mts');
+    expect(bare.vacuous).not.toContain('src/tool.mts');
+    expect(bare.unwalkedSource).toContain('src/tool.mts');
+
+    const declared = await analyze({ root, groups: LEDGER, unreachedGroups });
+    expect(declared.findings).toEqual([]);
+    expect(declared.unreachedRows[0].unreachedMatches).toEqual(['src/tool.mts']);
+  });
+
+  it('does not claim a file excluded by its LOCATION or by a NAME pattern', async () => {
+    // Two legitimate exclusions that are none of this gate's business, and the
+    // extension gap sitting between them in the same tree.
+    const root = tree('not-extension', {
+      'eslint.config.js': TS_ONLY_CONFIG.replace(
+        "{ ignores: ['**/generated/**'] },",
+        "{ ignores: ['**/generated/**', '**/*.gen.*'] },",
+      ),
+      ...FILES,
+      'generated/build.mts': 'export const g = 8;\n',
+      'src/schema.gen.mts': 'export const h = 9;\n',
+      'src/tool.mts': 'export const t = 7;\n',
+    });
+    const result = await analyze({ root, groups: LEDGER, unreachedGroups: [] });
+
+    const red = result.findings.filter((f) => f.kind === 'unreached-unledgered');
+    expect(red).toHaveLength(1);
+    // Only the one whose path WOULD be walked under a reachable extension.
+    expect(red[0].files).toEqual(['src/tool.mts']);
+  });
+
+  it('reds as OVER-BROAD when a row also claims a file ESLint walks', async () => {
+    const root = tree('unreached-overbroad', {
+      'eslint.config.js': TS_ONLY_CONFIG,
+      ...FILES,
+      'src/tool.mts': 'export const t = 7;\n',
+    });
+    const result = await analyze({
+      root,
+      groups: LEDGER,
+      unreachedGroups: [{ glob: 'src/*', reason: 'claims the covered .ts too', card: 'objectui#8337' }],
+    });
+
+    const overBroad = result.findings.filter((f) => f.kind === 'unreached-over-broad');
+    expect(overBroad).toHaveLength(1);
+    expect(overBroad[0].files).toEqual(['src/covered.ts']);
+  });
+
+  it('reds as STALE when the config grows to reach the declared extension', async () => {
+    // The remedy direction, driven through ESLint rather than by editing the
+    // row: reach `.mts` and the waiver has nothing left to waive.
+    const root = tree('unreached-stale', {
+      'eslint.config.js': TS_ONLY_CONFIG.replace("files: ['**/*.ts']", "files: ['**/*.{ts,mts}']"),
+      ...FILES,
+      'src/tool.mts': 'export const t = 7;\n',
+    });
+    const result = await analyze({ root, groups: LEDGER, unreachedGroups });
+
+    expect(result.unreached).toEqual([]);
+    expect(result.findings.filter((f) => f.kind === 'unreached-stale')).toHaveLength(1);
+  });
+
+  it('cannot report a clean sheet on a broken probe -- the control is on the instrument', async () => {
+    // An empty population is what FIXING this looks like, so the control has to
+    // survive the fix: it asks the probe to answer both ways in one run.
+    expect(extensionProbeCollapse({ reachable: [], controlUnreachable: true })).toMatch(/probe collapsed/);
+    expect(extensionProbeCollapse({ reachable: ['ts'], controlUnreachable: false })).toMatch(/probe collapsed/);
+    expect(extensionProbeCollapse({ reachable: ['ts'], controlUnreachable: true })).toBeNull();
   });
 });
 
@@ -287,6 +424,14 @@ describe('this repository', () => {
       expect(row.vacuousMatches.length, `ledger row '${row.glob}' declares nothing any more`).toBeGreaterThan(0);
       expect(row.ruleBearingMatches, `ledger row '${row.glob}' over-claims`).toEqual([]);
     }
+    // Predicate 2, same two properties. Its population is one file today, and a
+    // green here means that file is DECLARED rather than invisible.
+    expect(extensionProbeCollapse(result.reach)).toBeNull();
+    expect(result.unreached).toEqual(['vitest.config.mts']);
+    for (const row of result.unreachedRows) {
+      expect(row.unreachedMatches.length, `unreached row '${row.glob}' declares nothing any more`).toBeGreaterThan(0);
+      expect(row.walkedMatches, `unreached row '${row.glob}' over-claims`).toEqual([]);
+    }
   }, 60_000);
 
   it('still has the defect the card measured -- the JS family resolves zero rules', async () => {
@@ -296,6 +441,35 @@ describe('this repository', () => {
     expect(await ruleCountFor(eslint, path.join(repoRoot, 'eslint.config.js'))).toBe(0);
     expect(await ruleCountFor(eslint, path.join(repoRoot, 'scripts/check-lint-coverage.mjs'))).toBe(0);
     expect(await ruleCountFor(eslint, path.join(repoRoot, 'playwright.config.ts'))).toBeGreaterThan(100);
+  }, 30_000);
+
+  it('still has objectui#8337 -- three controls, three DISTINCT states, one run', async () => {
+    const eslint = new ESLint({ cwd: repoRoot });
+    const mts = path.join(repoRoot, 'vitest.config.mts');
+
+    // NOT WALKED. `undefined` is not "zero rules"; it is ESLint declining to
+    // look, and collapsing the two would delete the finding.
+    expect(await eslint.isPathIgnored(mts)).toBe(true);
+    expect(await eslint.calculateConfigForFile(mts)).toBeUndefined();
+    // Walked and ruled.
+    expect(await ruleCountFor(eslint, path.join(repoRoot, 'playwright.config.ts'))).toBeGreaterThan(100);
+    // Walked, zero rules -- predicate 1's class, which is a DIFFERENT state.
+    expect(await eslint.calculateConfigForFile(path.join(repoRoot, 'scripts/github-slug.mjs'))).toBeDefined();
+    expect(await ruleCountFor(eslint, path.join(repoRoot, 'scripts/github-slug.mjs'))).toBe(0);
+  }, 30_000);
+
+  it('has an unreachable extension set that is derived, and a probe that discriminates', async () => {
+    const reach = await extensionReach(new ESLint({ cwd: repoRoot }), repoRoot);
+
+    expect(extensionProbeCollapse(reach)).toBeNull();
+    // Measured on 868e825012: the rule-bearing globs are TS-and-TSX and the
+    // default set is the JS family, so three extensions fall through both --
+    // `.jsx` among them, which neither the card nor its triage names.
+    expect(reach.unreachable).toEqual(['jsx', 'cts', 'mts']);
+    expect(reach.reachable).toEqual(['js', 'cjs', 'mjs', 'ts', 'tsx']);
+    // Every candidate got an answer: the probe partitions the set, it does not
+    // quietly drop an extension it could not decide.
+    expect([...reach.reachable, ...reach.unreachable].sort()).toEqual([...SOURCE_EXTENSIONS].sort());
   }, 30_000);
 
   it('declares a reason and an owning card on every ledger row', () => {
@@ -308,6 +482,18 @@ describe('this repository', () => {
     // Rows are globs on purpose -- a per-path ledger of this population would be
     // over a hundred rows that nobody would ever shrink.
     expect(VACUOUS_GROUPS.length).toBeLessThan(20);
+  });
+
+  it("declares predicate 2's rows as exact PATHS, not populations", () => {
+    expect(UNREACHED_GROUPS.length).toBeGreaterThan(0);
+    for (const row of UNREACHED_GROUPS) {
+      expect(row.reason.length, `row '${row.glob}' needs a reason, not a bare path`).toBeGreaterThan(40);
+      expect(row.card, `row '${row.glob}' must name the card that owns it`).toMatch(/objectui#\d+/);
+      // The asymmetry with VACUOUS_GROUPS, pinned because it is deliberate: a
+      // `**/*.mts` row would waive the next `.mts` file, which is the only
+      // thing this predicate exists to catch.
+      expect(row.glob, `row '${row.glob}' must not be a population glob`).not.toMatch(/[*?[\]{]/);
+    }
   });
 
   it('is wired in package.json, and deliberately not in a workflow yet', () => {
