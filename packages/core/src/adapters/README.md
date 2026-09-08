@@ -111,6 +111,21 @@ prescription in the message:
 | `$startswith`, `$notcontains`, `$notin`, `$ncontains` | non-canonical spellings | the camelCase spelling |
 | `$and` / `$or` / `$not` | combinators, not field operators | an AST array `$filter` |
 | `{ relation: { field: … } }` | this matcher does not descend into relations | filter on the stored key |
+| an **array** comparand outside `$in` / `$nin` / `$between` | the spec leaves it unruled and the sibling in-memory matcher refuses it; a reference comparison excluded every row, and on `$ne` selected every row (objectui#8514) | `{ field: { $in: [ … ] } }` |
+| `{ $field }` in an `$in` / `$nin` member or a `$between` endpoint | removed from those positions because no backend resolved one (objectstack#7596) | a scalar comparison |
+| `{ $field, addDays }` | the offset is defined against the column's temporal class, which this schema-less matcher cannot read (objectstack#14104) | shift the value at the producer |
+| `{ $field: 'a.b' }` (dotted) | this matcher addresses a flat record, so a dotted reference would not mean what a dotted field name means | a same-record column |
+| `{ field: { $field: … } }` (implicit) | reads as an operator named `$field`, not a comparand (objectstack#7597) | `{ field: { $eq: { $field: … } } }` |
+
+#### Cross-field comparands
+
+A `{ $field: 'other_column' }` comparand is **executed**, in both dialects, as the
+whole comparand of the six scalar comparisons (`$eq` `$ne` `$gt` `$gte` `$lt`
+`$lte` and their AST spellings) — the positions `FieldReferenceSchema` declares
+it for. It resolves against the record being matched, so
+`{ amount: { $lte: { $field: 'budget' } } }` selects the rows whose `amount` is
+within their own `budget` (objectui#8515). Every other position is refused, in
+the rows above.
 
 ### `resolveDataSource`
 
