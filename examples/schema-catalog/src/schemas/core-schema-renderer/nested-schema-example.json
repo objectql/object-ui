@@ -12,11 +12,11 @@
           "children": [
             {
               "type": "badge",
-              "children": "Nested"
+              "label": "Nested"
             },
             {
               "type": "badge",
-              "children": "Components",
+              "label": "Components",
               "variant": "outline"
             }
           ]

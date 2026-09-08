@@ -94,7 +94,9 @@
  *
  * (A third hole was measured while sizing this file and filed as
  * objectui#6829: an empty `badge` host element is itself the third element, so
- * a demo drawing nothing but an empty pill clears the control too.)
+ * a demo drawing nothing but an empty pill clears the control too. Arm A of
+ * that card re-authored those seven nodes to `label`; the per-renderer render
+ * pin lives in `badge-demo-label-6829.test.tsx`.)
  *
  * ⚠️ The fix for all three is the per-renderer sweep below, ⛔ not a stricter
  * global non-vacuity threshold — that is out of scope here and would red on
@@ -164,25 +166,22 @@ const RENDERERS = [
 ] as const;
 
 /**
- * Known `badge` nodes authoring `children` — a key `badge.tsx` does NOT read,
- * unlike `card.tsx` which reads `children || body`. Measured while sizing this
- * file and filed as objectui#6829, where the repair is a genuine decision
- * (re-author the fixtures, or widen the renderer's read set) rather than the
- * mechanical rename these two cards take. OUT OF THIS PR'S FENCE.
+ * `badge` nodes authoring `children` — a key `badge.tsx` does NOT read, unlike
+ * `card.tsx` which reads `children || body`. Measured while sizing this file as
+ * SEVEN nodes (`components-basic-span/{default-badge, secondary-badge,
+ * status-badges x3}` and `core-schema-renderer/nested-schema-example x2`) and
+ * filed as objectui#6829. Its triage split the repair in two: arm A re-authors
+ * the fixtures to `label` and has landed, so the ledger is now EMPTY; arm B
+ * (widening the renderer's read set) is objectui#6810's, not this file's.
  *
- * Asserted as an EXACT set, not a floor: it may shrink when objectui#6829 is
- * ruled, and an eighth node appearing must turn this red rather than join a
- * growing allowance.
+ * Still asserted as an EXACT set, not a floor, and deliberately KEPT rather
+ * than deleted: arm A restored the demos and did NOT close the class. Every
+ * other container renderer accepts `children`, so the next author who writes
+ * it on a badge draws an empty pill again — and that node must turn this red
+ * by name rather than join a growing allowance. The RENDER half (the pill's
+ * text equals its label, corpus-wide) is `badge-demo-label-6829.test.tsx`.
  */
-const BADGE_CHILDREN_LEDGER_6829 = [
-  'components-basic-span/default-badge',
-  'components-basic-span/secondary-badge',
-  'components-basic-span/status-badges.children[0]',
-  'components-basic-span/status-badges.children[1]',
-  'components-basic-span/status-badges.children[2]',
-  'core-schema-renderer/nested-schema-example.children[0].children[0].children[0]',
-  'core-schema-renderer/nested-schema-example.children[0].children[0].children[1]',
-];
+const BADGE_CHILDREN_LEDGER_6829: string[] = [];
 
 /**
  * Keys that carry visible text in the nodes these families author.
@@ -282,13 +281,14 @@ describe('catalog corpus: every node authors keys ITS renderer reads (objectui#6
     expect(offenders).toEqual([]);
   });
 
-  it('every `badge` node authors only keys `badge.tsx` READS, except the objectui#6829 ledger', () => {
+  it('every `badge` node authors only keys `badge.tsx` READS — the objectui#6829 ledger is exact and empty', () => {
     const allowed = [...RENDERERS[1].readKeys, ...PIPELINE_KEYS];
     const offenders = nodesOf('badge')
       .map(({ where, node }) => ({ where, keys: unreadKeys(node, allowed) }))
       .filter((hit) => hit.keys.length > 0);
-    // Every offender left is the `children` shape objectui#6829 owns, and the
-    // ledger is EXACT — an eighth node reds here rather than being absorbed.
+    // Any offender is the `children` shape objectui#6829 owns, and the ledger
+    // is EXACT — empty since arm A, so the FIRST node reds here by name rather
+    // than being absorbed.
     expect(offenders.map((hit) => hit.keys)).toEqual(offenders.map(() => ['children']));
     expect(offenders.map((hit) => hit.where).sort()).toEqual(
       [...BADGE_CHILDREN_LEDGER_6829].sort(),
