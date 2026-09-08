@@ -1282,7 +1282,7 @@ describe('the ROOT BOUND — what only this repository declares does not resolve
 
       // 2. The stand-in shape is named, with the property that earns it: the
       //    block still compiles, so the documented surface stays judged.
-      expect(source).toContain('stand ');
+      expect(source).toContain('If the specifier IS such a peer and this block needs its bindings, stand ');
       expect(source).toContain('them in with `declare const` typed to what the block uses them as');
       expect(source).toContain("The block still compiles, so the documented package's own surface around it ");
 
@@ -1297,7 +1297,7 @@ describe('the ROOT BOUND — what only this repository declares does not resolve
       expect(banner).toBeGreaterThan(0);
       const header = source.slice(0, banner);
       expect(header).toContain('**`dependencies` only**');
-      expect(header).toContain('stand');
+      expect(header).toContain('without surrendering the block: stand');
       expect(header).toContain("the peer's bindings in with `declare const`");
       expect(header).toContain('reads as IMPOSSIBLE on a');
     });
