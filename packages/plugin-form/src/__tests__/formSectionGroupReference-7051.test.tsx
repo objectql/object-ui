@@ -252,6 +252,25 @@ describe('objectui#7051 — `form.sections[].group` resolves through the single 
     expect(requireLiveForm().querySelectorAll('input').length).toBeGreaterThan(0);
   });
 
+  it('SECTION_WITHOUT_MEMBERS_IS_BOUNDED — the second containment layer, pinned separately from the resolution', async () => {
+    // ⚠️ Added because the ablation said the guard was otherwise UNPINNED —
+    // the same discovery objectui#8497 recorded. With `group` resolved, a
+    // `{ group }` section becomes one carrying `fields` BEFORE the section loop
+    // sees it, so every group leg above stays green with the tolerant read
+    // reverted. This leg is the only one that fails then: a section carrying
+    // NEITHER `fields` nor `group` — off-spec, so reachable only from a
+    // programmatic SDUI caller — must render nothing instead of throwing
+    // `Cannot read properties of undefined (reading 'map')` out of a body above
+    // the JSX and taking the whole form with it.
+    await renderForm('simple', [
+      { label: 'Memberless' } as any,
+      { label: 'Extra', fields: ['channel'] },
+      ANCHOR,
+    ]);
+    const form = requireLiveForm();
+    expect(form.querySelectorAll('input[name="channel"]').length).toBe(1);
+  });
+
   it('UNKNOWN_GROUP_RENDERS_NOTHING_AND_REPORTS_ONCE', async () => {
     await renderForm('simple', [
       { group: 'no_such_group' },
