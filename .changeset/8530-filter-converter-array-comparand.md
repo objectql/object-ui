@@ -28,5 +28,8 @@ lowering exactly as before.
 Every producer in this repository already spells a multi-value comparand
 `{ $in: [...] }` (measured across the `$filter` literals and record builders
 under `packages/*/src` and `apps/*/src`), so no shipped surface changes
-behaviour; only a hand-authored `{ field: [...] }` — which no backend honoured —
-now fails at the producer instead of the consumer.
+behaviour; only a hand-authored `{ field: [...] }` now fails at the producer
+instead of the consumer. No ruled contract ever answered that shape — the spec
+leaves an array outside `$in` / `$nin` / `$between` unruled, `driver-sql` and the
+in-memory matchers refuse it, and only a document store's native array-equality
+happened to read it — so nothing a backend was promised is taken away.
