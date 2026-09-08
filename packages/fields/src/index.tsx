@@ -807,14 +807,31 @@ const STATUS_FIELD_NAMES = new Set([
  * and warning badge for active/enabled fields when false.
  */
 export function BooleanCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
-  // `[]` is not a boolean and holds no entries, so a boolean column holding it
-  // holds NO value — not `false` (objectui#8490). `[]` is truthy, so before
-  // this guard every branch below read it as `true`: a plain field drew a
-  // CHECKED checkbox, a completion field drew the green "Completed" indicator,
-  // and an `active`-style field skipped its "Off" badge — an affirmative
-  // answer the record never gave. `false` stays a value (an unchecked box);
-  // scalar coercions (`0`, `''`, `'false'`, `{}`) are untouched by this guard.
-  if (value == null || isEmptyMultiValue(value)) {
+  // Only a real boolean is a value of a boolean column (objectui#8582).
+  //
+  // `@objectstack/spec`'s runtime value contract for `boolean` / `toggle` is a
+  // bare `z.boolean()` (`data/field-value.zod.ts`, `valueSchemaFor`): the class
+  // is declared "a JS boolean on the wire (driver read-coercion repairs SQL
+  // 0/1)" and listed under `NON_TEXT_STORED_VALUE_TYPES` — stored "never text
+  // on any backend". The truth table that turns `'true'` / `1` / `'0'` into a
+  // boolean lives at the PRODUCER boundaries (objectql's `coerceBooleanFields`
+  // on the read path and its `invalid_boolean` write-path refusal; `rest`'s
+  // `parseBooleanCell` on CSV import), so a non-boolean reaching this renderer
+  // is a producer that skipped its repair, and a second copy of that table
+  // here would be the renderer-side dialect AGENTS.md #0.1 forbids.
+  //
+  // Before this guard every branch below read the value by TRUTHINESS. The
+  // string `'false'`, the string `'0'` and `{}` drew a CHECKED box — a
+  // completion field its green "Completed" indicator, an `active`-style field
+  // skipped its "Off" badge — an affirmative answer the record never gave;
+  // `0` and `''` drew an UNCHECKED box (an `active` field its "Off" badge), a
+  // `false` the record never stored either. Both directions are the same
+  // fabrication and both now land on the shared affordance, whose accessible
+  // name ("No value") is a statement about the field's TYPE: the record holds
+  // no boolean here. `null` / `undefined` and `[]` (objectui#8490: an empty
+  // array holds no boolean) are the same answer for the same reason. A real
+  // `false` is a value and stays an unchecked box.
+  if (typeof value !== 'boolean') {
     return <span className="flex items-center justify-center"><EmptyValue /></span>;
   }
 
@@ -839,7 +856,7 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
   }
 
   // Warning badge for active/enabled fields when false
-  if (STATUS_FIELD_NAMES.has(fieldName) && !value) {
+  if (STATUS_FIELD_NAMES.has(fieldName) && value === false) {
     return (
       <Badge variant="destructive" className="text-xs" data-testid="boolean-warning-badge">
         {field?.label || humanizeLabel(fieldName)} — Off
@@ -849,7 +866,7 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
 
   return (
     <div className="flex items-center justify-start">
-      <Checkbox checked={!!value} disabled className="pointer-events-none" />
+      <Checkbox checked={value} disabled className="pointer-events-none" />
     </div>
   );
 }
@@ -1493,8 +1510,10 @@ export function getSemanticHex(name?: string, fallback: string = '#3b82f6'): str
  * `BooleanCellRenderer` treats `false` as a value while `DateCellRenderer`'s
  * `!value` treats the epoch as empty. This helper answers ONE question — "is
  * this a multi-value container with no entries to draw?" — for the renderers
- * that ask it: the three below and, since objectui#8490, `BooleanCellRenderer`
- * (a boolean column holding `[]` holds no boolean). The renderers that coerce
+ * that ask it: the three below. `BooleanCellRenderer` asked it too between
+ * objectui#8490 and objectui#8582; its guard is now `typeof value !== 'boolean'`,
+ * which answers the same question for `[]` (an array is not a boolean) and for
+ * every non-boolean scalar besides. The renderers that coerce
  * to text before they draw ask `isBlankCellText` instead — the same ruling,
  * taken on the coerced string. Unifying the rest is a separate, contested
  * change.
