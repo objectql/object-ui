@@ -2073,8 +2073,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         // With a known total the grid pages server-side, so the "showing first N"
         // cap warning no longer applies; without one we fall back to the old
         // single-window behaviour and keep the warning.
+        // `total` only — the ONE count member `QueryResult` declares. The
+        // `count` arm that used to sit behind it is gone on a measured zero
+        // (objectui#6917): no `find()` producer in the repo emits `count`.
         const rawTotal = (results && typeof results === 'object')
-          ? ((results as any).total ?? (results as any).count)
+          ? (results as any).total
           : undefined;
         const knownTotal = typeof rawTotal === 'number' ? rawTotal : null;
         setServerTotal(paginate ? knownTotal : null);

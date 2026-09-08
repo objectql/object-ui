@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { DateTimeFieldMetadata, FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, formatDate, formatDateTime, formatDateTimeCompactParts, formatRelativeDate, type ComponentMeta, type DateDisplayOptions } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, formatDate, formatDateTime, formatDateTimeCompactParts, formatRelativeDate, extractRecords, type ComponentMeta, type DateDisplayOptions } from '@object-ui/core';
 // The platform's own value-shape contract, asked rather than restated
 // (objectui#6744). See `locationStoredValueSchemaFor` below for why this is a
 // runtime import in the barrel and not a hand-written coordinate range.
@@ -245,9 +245,15 @@ function useLookupName(
             $filter: { id: value },
             $top: 1,
           });
-          const records: any[] = Array.isArray(result)
-            ? result
-            : (result?.value || result?.data || []);
+          // Read the rows through `@object-ui/core`'s `extractRecords` rather
+          // than a fourth hand-rolled ladder. This site used to spell it
+          // `result?.value || result?.data || []` — `value` AHEAD of `data`,
+          // the ONE rows member `QueryResult` (`@object-ui/types`) declares.
+          // A producer emitting both was resolved to the undeclared key
+          // (objectui#6917 arm A). `extractRecords` accepts the same shapes
+          // (bare array, `data`, `value`) in the order the contract implies,
+          // and is the single measured answer for this seam (objectui#6839).
+          const records: any[] = extractRecords(result);
           record = records[0];
         }
         // Resolve through the referenced object's schema (nameField /
