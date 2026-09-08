@@ -16,7 +16,11 @@ export interface AppShellBranding {
   accentColor?: string;
   /** Favicon URL — replaces the <link rel="icon"> href */
   favicon?: string;
-  /** Page title suffix (sets document.title) */
+  /**
+   * Assigned to `document.title` as given. It is the whole title, not a suffix:
+   * the caller composes the string it wants (the console passes
+   * `"App label — Product name"`).
+   */
   title?: string;
 }
 
