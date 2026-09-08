@@ -60,7 +60,52 @@ jobs:
     # ceiling has to be an edit someone makes on purpose rather than a silent
     # one.
     steps:
-      - uses: actions/stale@e00e804f6792d3fedb5bd3a27df2761c5f86c981  # v9.0.0
+      # ── The SHA was FICTION, and that is the whole of objectui#8126 ──
+      # `e00e804f6792d3fedb5bd3a27df2761c5f86c981` is not `actions/stale`'s
+      # v9.0.0 commit. It is not any commit in that repository, so the runner
+      # never got as far as this step:
+      #
+      #   ##[error]Unable to resolve action `actions/stale@e00e804f6792d3fedb5bd3a27df2761c5f86c981`,
+      #   unable to find version `e00e804f6792d3fedb5bd3a27df2761c5f86c981`
+      #
+      # read verbatim from run 34172858995. Population re-derived 2026-09-08:
+      # 236 completed `schedule` runs, of which run #1 (21052154491,
+      # 2026-01-16T01:14:37Z) and run #236 are both `failure` — the job has
+      # never once reached `actions/stale`. The comment was right all along;
+      # only the SHA was wrong. ⚠️ `git log -S` CANNOT date the bad line: the
+      # oldest commit this checkout can reach for this file is the shallow
+      # boundary, so it reads as the file's creation and is not one.
+      #
+      # The replacement is MEASURED rather than looked up — the runner printed
+      # the tag→SHA mapping itself, on a probe branch (run 34173534757):
+      #
+      #   Download action repository 'actions/stale@v9.0.0' (SHA:28ca1036281a5e5922ead5184a1bbf96e5fc984e)
+      #
+      # ⛔ Do not hand-edit this SHA and do not "tidy" it to a floating tag.
+      # An unresolvable ref here is silent for eight months precisely because
+      # nothing in this repository is downstream of this job.
+      #
+      # ── What turning it on actually does, measured before it was turned on ──
+      # This file with only the SHA corrected, plus `debug-only: true` and a
+      # read-only token, ran GREEN (34173608021) — the first success in this
+      # workflow's life — and swept the OPEN board to exhaustion: 466 items
+      # (457 issues, 9 PRs), and a `Statistics:` block carrying no stale, label
+      # or comment counter at all. Nothing gets marked, nothing gets closed.
+      # Control on the same file and the same day (34173673214), thresholds
+      # dropped to 0: the block gains `New stale items: 125` / `Added items
+      # labels: 125` / `Added items comments: 125`. So the zero above is a
+      # reading off a working instrument, not an instrument that says nothing.
+      # It is zero because the board is young: the oldest last-touch among 457
+      # open issues is #5157 at 2026-08-21T08:18:51Z, 18 days, against a 60-day
+      # threshold.
+      #
+      # ⚠️ That margin is the whole safety argument, and it expires. The exempt
+      # sets below predate this repository's PM protocol: `pm:queue`,
+      # `pm:on-hold` and `needs-user-decision` are NOT exempt, and those are the
+      # cards parked on purpose waiting for a human. The first 60-day quiet
+      # stretch on the board is when this job starts closing them. Whether that
+      # is wanted is objectui#8126's open question, not this diff's.
+      - uses: actions/stale@28ca1036281a5e5922ead5184a1bbf96e5fc984e  # v9.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           
