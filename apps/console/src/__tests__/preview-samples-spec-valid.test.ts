@@ -66,7 +66,6 @@ import { ObjectStackSchema } from '@objectstack/spec';
 // hard `SyntaxError`, "does not provide an export named"). Worth spelling out,
 // because the near-miss fails toward "nothing to assert here".
 import { SelectOptionSchema } from '@objectstack/spec/data';
-import { readFields } from '@object-ui/app-shell/views/metadata-admin/previews/object-fields-io';
 import { SAMPLES } from '../preview-samples';
 
 /**
@@ -477,11 +476,22 @@ describe('object sample: the deliberate array `fields` shape is its ONLY defect 
    * greener. Both halves are asserted: the shape as authored, and the shape
    * the real reader classifies it as.
    */
-  it('keeps the array `fields` shape, and `readFields()` still takes its array branch', () => {
+  it('keeps the array `fields` shape that selects `readFields()`\'s array branch', () => {
+    // `readFields(fieldsInput)` in app-shell's
+    // `views/metadata-admin/previews/object-fields-io.ts` opens with
+    // `if (Array.isArray(fieldsInput)) return { shape: 'array', … }`. That
+    // predicate is asserted here rather than the function imported: app-shell's
+    // `exports` map publishes `.` and `./styles.css` only, and `readFields` is
+    // on neither, so a deep import would type-check solely by accident of the
+    // console's Vite alias — green under vitest, red under `tsc`.
     expect(Array.isArray(SAMPLES.object.fields)).toBe(true);
-    expect(readFields(SAMPLES.object.fields).shape).toBe('array');
-    // And the branch actually carries the field this card is about, so the
-    // coverage is over the sample as it stands rather than over an empty list.
-    expect(readFields(SAMPLES.object.fields).entries.map((e) => e.name)).toContain('status');
+    // And the branch carries the field this card is about, so the coverage is
+    // over the sample as it stands rather than over an empty list.
+    expect(
+      (SAMPLES.object.fields as Array<Record<string, unknown>>).map((f) => f.name),
+    ).toContain('status');
+    // The branch is also RUN, not merely selected: the sibling
+    // `preview-samples-designer-options.test.tsx` renders the real inspector
+    // over this same draft, and it reaches `status` only through `readFields`.
   });
 });

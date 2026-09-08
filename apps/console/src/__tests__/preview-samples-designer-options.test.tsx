@@ -30,7 +30,6 @@
  * designer as WIRED, not a component picked out by hand.
  */
 
-import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { getMetadataInspector } from '@object-ui/app-shell';
