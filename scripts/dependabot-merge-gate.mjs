@@ -134,6 +134,7 @@ import { isEntrypoint } from './invoked-as.mjs';
  *   readme-exports.yml            README Export Check
  *   docs-route-eager-closure.yml   Docs Route Eager Closure Check
  *   governed-surface-guard.yml     Governed Surface Queue Guard
+ *   action-ref-convention.yml      Action Ref Convention
  *
  * `Governed Surface Queue Guard` is the newest and the one whose reading here
  * differs from every other row, so it is worth a sentence. On a PULL REQUEST it
@@ -176,6 +177,12 @@ export const REQUIRED_CONTEXTS = Object.freeze([
   'README Export Check',
   'Docs Route Eager Closure Check',
   'Governed Surface Queue Guard',
+  // objectui#8465. Worth listing deliberately rather than by reflex: this gate
+  // reads `.github/workflows/**`, which is exactly what a Dependabot
+  // `github-actions` bump edits — those bumps are the pull requests most likely
+  // to introduce an off-convention reference and the least likely to have a
+  // human reading each edited line.
+  'Action Ref Convention',
 ]);
 
 /**

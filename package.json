@@ -52,6 +52,7 @@
   "check:node-esm-load": "node scripts/check-node-esm-load.mjs",
     "census:body-dialect": "node scripts/body-dialect-census.mjs",
     "check:control-bytes": "node scripts/check-control-bytes.mjs",
+    "check:action-ref-convention": "node scripts/check-action-ref-convention.mjs",
     "check:published-dist": "node scripts/check-published-dist-tooling.mjs",
     "check:published-tsconfig-exclude": "node scripts/check-published-tsconfig-tooling-exclude.mjs",
     "check:spec-floors": "node scripts/check-spec-range-floors.mjs",
