@@ -52,34 +52,45 @@
  * three affordances — and `THE DRAWER — the rendered text is unchanged` is the
  * case that holds that line.
  *
- * ## Which cases DISCRIMINATE, and which are scope declarations
+ * ## Which cases DISCRIMINATE — MEASURED, not predicted
  *
  * The lesson objectui#8474 and objectui#8481 each measured independently: the
  * most quotable assertion in a pin is usually the one that cannot tell the fix
- * from its worst caricature. Stated explicitly here rather than implied.
+ * from its worst caricature. So the caricature was RUN, not reasoned about —
+ * `EmptyValue` rendered unconditionally at all four sites, filled cells
+ * included. Result: 8 of these 12 cases red, 4 GREEN.
  *
- * An implementation that renders `EmptyValue` **everywhere, including for
- * filled cells**, still passes every `THE DEFECT` case and both `AGREEMENT`
- * cases below — "the cell has an accessible name" is true of a grid that has
- * given up on values entirely.
+ * The four that a give-up-on-values implementation still passes, labelled here
+ * rather than shipped as if they proved something:
  *
- * What REFUSES that caricature, and nothing else in this file does:
+ *   - `THE DEFECT — an empty LINK+ACTION cell`
+ *   - `THE DEFECT — the auto-linked PRIMARY cell`
+ *   - `AGREEMENT — the linked branch and the no-renderer default branch`
+ *   - `MOBILE CARD VIEW — the card layout OMITS an empty field`
+ *
+ * The first two are the vivid ones. "The cell has an accessible name" is true
+ * of a grid that has stopped rendering values at all. The third is a scope
+ * declaration about typography — it is the only case pinning the deliberate
+ * visual change, which is why it is kept. The fourth is a scope declaration
+ * about a path this change does not touch.
+ *
+ * What REFUSES the caricature, by asserting BOTH that the value is present AND
+ * that no placeholder shares its cell:
  *
  *   - `NON-REGRESSION — a FILLED linked cell`
  *   - `NON-REGRESSION — a FILLED link+action cell`
  *   - `NON-REGRESSION — a FILLED primary cell`
- *   - `NON-REGRESSION — a FILLED card field` (mobile)
+ *   - `NON-REGRESSION — a FILLED card field`
  *   - `THE DRAWER — a FILLED field`
  *
- * Each asserts BOTH that the value is present AND that no placeholder is in
- * that same cell. The value half alone is not enough: an implementation that
- * appends a placeholder next to every value would pass it.
+ * `THE DEFECT — an empty LINK cell` and both empty-drawer cases also go red
+ * under the caricature, but through their value-bearing CONTROLS rather than
+ * their headline assertion. That is what the controls are for, and it is worth
+ * distinguishing: without them those three would have joined the green four.
  *
- * `AGREEMENT — the two branches draw the identical placeholder` is a SCOPE
- * DECLARATION about typography, not an instrument against the caricature — it
- * is green for `EmptyValue`-everywhere. It is kept because it is the only
- * thing pinning the deliberate visual change, and it is labelled rather than
- * shipped as if it proved more.
+ * `THE DRAWER — the rendered TEXT is unchanged` is the one instrument for the
+ * glyph decision: it is the ONLY case that reddens when the drawer adopts the
+ * bare shared component and strands `grid.empty`.
  *
  * ## Every DOM lookup is scoped to ONE row or ONE card
  *

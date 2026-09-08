@@ -38,18 +38,24 @@
  * italic` that the shared component does not have. `THE AGREEMENT` below is
  * that exact pair, in one column, in one render.
  *
- * ## Which cases DISCRIMINATE, and which are scope declarations
+ * ## Which cases DISCRIMINATE — MEASURED, not predicted
  *
- * An implementation that renders `EmptyValue` **everywhere, including for
- * filled cells**, passes `THE DEFECT` and passes `THE AGREEMENT` — "the cell
- * has an accessible name" is true of a list that has stopped rendering values.
- * The single case that REFUSES it is `NON-REGRESSION — a FILLED cell`, which
- * asserts both that the value is present AND that no placeholder shares that
- * cell.
+ * The caricature was RUN, not reasoned about: `EmptyValue` returned
+ * unconditionally from `makeCell`, filled cells included. All three cases go
+ * red — but only ONE of them through its headline assertion.
  *
- * `THE AGREEMENT` is kept as a SCOPE DECLARATION about the visual half rather
- * than shipped as if it discriminated: it is the only case pinning that the
- * `text-xs italic` treatment is deliberately gone.
+ *   - `NON-REGRESSION — a FILLED cell` refuses it directly: it asserts both
+ *     that the value is present AND that no placeholder shares that cell.
+ *   - `THE DEFECT` and `THE AGREEMENT` go red only because the harness waits
+ *     for a real value ("Widget") to reach the table and it never arrives.
+ *     That is what the control is for, and it is worth distinguishing: their
+ *     headline assertions — "the empty cell has an accessible name", "the two
+ *     branches draw the same thing" — are both TRUE of a list that has given
+ *     up on values entirely.
+ *
+ * So `THE AGREEMENT` is a SCOPE DECLARATION about the visual half, kept
+ * because it is the only case pinning that the `text-xs italic` treatment is
+ * deliberately gone, and labelled rather than quoted as proof of the fix.
  *
  * ## The viewport is pinned on purpose (objectui#8399)
  *
