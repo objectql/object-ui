@@ -14,7 +14,6 @@ import {
   parseRefs,
   scan,
   workflowDir,
-  // @ts-expect-error -- .mjs gate script, no type declarations (repo convention)
 } from '../check-action-ref-convention.mjs';
 
 /**
