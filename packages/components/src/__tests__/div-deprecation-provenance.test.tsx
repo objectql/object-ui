@@ -100,10 +100,12 @@ describe('div deprecation notice — scoped by provenance (#4000)', () => {
     const calls = deprecationCalls(warn);
     expect(calls).toHaveLength(1);
     const notice = String(calls[0][0]);
-    // The migration guidance is untouched — this issue narrows WHO is told, it
-    // does not water down WHAT they are told.
-    expect(notice).toContain('"card", "flex", or semantic layout components');
-    expect(notice).toContain('"container", "stack", or "grid"');
+    // The migration guidance was RE-RULED in objectui#6877 (this file's #4000
+    // ruling narrowed WHO is told; #6877 changed WHAT they are told, because
+    // the old text named only replacements measured non-drop-in and never
+    // named `box`). What #4000 owns — the scope sentence below — is untouched.
+    expect(notice).toContain('the drop-in swap is "box"');
+    expect(notice).toContain('"card", "flex", "container", "stack", or "grid"');
     // …and the notice now names the surface it applies to. A notice that says
     // the type is deprecated FULL STOP is false the moment another tier keeps
     // it as permanent vocabulary; whoever reads the console has to be able to
@@ -154,7 +156,7 @@ describe('div deprecation notice — scoped by provenance (#4000)', () => {
     expect(ComponentRegistry.deprecationFor('div', 'json')).toEqual({
       surfaces: ['json'],
       replacement:
-        'use "card", "flex", or layout components like "container", "stack", or "grid"',
+        'author "box" for a plain wrapper — the one drop-in swap; reach for "card", "flex", "container", "stack" or "grid" only when you want their layout, and move `body` content into `children` first',
     });
 
     // …and NOT where the first case above proves the renderer stays silent. A
