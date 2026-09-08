@@ -12,7 +12,7 @@ import { cn,
 import { Search, X, Loader2, AlertCircle, Plus, TableProperties } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps } from './toDomProps.js';
-import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types';
+import type { DataSource, QueryParams, LookupColumnDef, LookupFieldMetadata } from '@object-ui/types';
 import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog.js';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog.js';
 import { PeoplePicker } from './PeoplePicker.js';
@@ -288,24 +288,33 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
    * Dependent lookups — restrict candidates based on values of *other* fields
    * in the same form. Two shapes are accepted:
    *
-   * 1. `depends_on: ['country']` → shorthand. The dependent field value is sent
+   * 1. `dependsOn: ['country']` → shorthand. The dependent field value is sent
    *    as both the filter field and the source field (i.e. `country = ${country}`).
-   * 2. `depends_on: [{ field: 'country', param: 'country_id' }]` → explicit.
+   * 2. `dependsOn: [{ field: 'country', param: 'country_id' }]` → explicit.
    *    The remote field name (`param`) can differ from the local field name.
+   *
+   * The key is read THROUGH THE DECLARED TYPE (objectui#6153): `dependsOn` is
+   * `BaseFieldMetadata.dependsOn`, the spec's field-level spelling; `depends_on`
+   * is objectui's legacy twin, still declared and still honoured until
+   * objectui#7357 retires it — that card drops the snake_case arm below. Only
+   * this cascade read goes through `LookupFieldMetadata`; the rest of
+   * `fieldMeta` stays untyped because its camelCase-fallback family
+   * (`displayField`, `descriptionField`, …) is objectui#4631's population.
    *
    * When any dependency is empty, the lookup is gated and the user sees a
    * helpful "Select {field} first" hint instead of unfiltered records.
    */
+  const cascadeMeta: LookupFieldMetadata | undefined = fieldMeta;
   const dependsOn = useMemo<Array<{ field: string; param: string }>>(() => {
-    const raw = fieldMeta?.depends_on ?? fieldMeta?.dependsOn;
-    if (!raw) return [];
-    if (Array.isArray(raw)) {
-      return raw.map((d: any) =>
-        typeof d === 'string' ? { field: d, param: d } : { field: d.field, param: d.param ?? d.field },
-      );
-    }
-    return [];
-  }, [fieldMeta?.depends_on, fieldMeta?.dependsOn]);
+    const raw = cascadeMeta?.depends_on ?? cascadeMeta?.dependsOn;
+    // A bare parent name is the FORM-level shape (`FormField.dependsOn`), not the
+    // field-level one the spec declares (array only) — an untyped host handing
+    // one through still gets no cascade here, exactly as before.
+    if (!raw || !Array.isArray(raw)) return [];
+    return raw.map((d) =>
+      typeof d === 'string' ? { field: d, param: d } : { field: d.field, param: d.param ?? d.field },
+    );
+  }, [cascadeMeta?.depends_on, cascadeMeta?.dependsOn]);
 
   /**
    * The gate sentence's `{{fields}}` — the controlling fields named the way the
