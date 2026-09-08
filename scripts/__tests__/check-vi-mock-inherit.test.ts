@@ -15,7 +15,7 @@ import {
   scan,
   summarise,
 } from '../check-vi-mock-inherit.mjs';
-import { scanSource } from '../js-comment-mask.mjs';
+import { maskComments, scanSource } from '../js-comment-mask.mjs';
 
 /**
  * objectui#6849 — the test for `scripts/check-vi-mock-inherit.mjs`.
@@ -54,6 +54,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 
 /** A quote, from its code point — see "Fixture discipline" above. */
 const Q = String.fromCharCode(39);
+
+/** A backtick, from its code point — same discipline as `Q`. */
+const BT = String.fromCharCode(96);
 
 const COVERED = '@object-ui/react';
 
@@ -339,6 +342,47 @@ describe('the failing shape — a factory that hand-lists the export surface', (
 // Scope — the narrow gate triage ruled for, and what it must NOT touch
 // ---------------------------------------------------------------------------
 
+/**
+ * The shape a hand-written array of exempt file paths declares itself with.
+ *
+ * Named rather than inlined so a failure can point at THE pattern instead of
+ * asking the reader to copy one out of an expectation by hand (objectui#8117).
+ */
+const EXEMPTION_DECLARATION_RE = /^\s*(export )?const (ALLOW|EXEMPT|IGNORE|SKIP|KNOWN)[A-Z_]*\s*=/m;
+
+/** The shape one ENTRY of such an array has: a quoted test file, then `,` or `]`. */
+const EXEMPTION_ENTRY_RE = /\.test\.tsx?['"`]\s*[,\]]/;
+
+/**
+ * Every line of `code` that matches `re`, as `<line number>: <source line>`.
+ *
+ * ## Why not `expect(src).not.toMatch(re)` (objectui#8117)
+ *
+ * `not.toMatch` over this gate prints its ~1850-line source as the "received"
+ * value and never says WHERE the match was; locating it needed a separate
+ * `grep -nP` with the pattern copied out of this file by hand. The assertion
+ * below is the same assertion — zero matches — reported so its failure names
+ * the offending line. `line` is looked up in `original`, which is the raw
+ * source: `maskComments` preserves byte offsets, so the numbering is shared.
+ */
+function offendingLines(code: string, re: RegExp, original: string = code) {
+  const lines = original.split('\n');
+  const all = new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
+  const out: string[] = [];
+  for (let m = all.exec(code); m; m = all.exec(code)) {
+    // Count to the first NON-WHITESPACE byte of the match, not to `m.index`.
+    // `EXEMPTION_DECLARATION_RE` opens with `^\s*`, and `\s` matches a newline:
+    // against a declaration with a blank line above it the match STARTS on that
+    // blank line, so the naive offset reported `1853: ` — an empty line, one
+    // above the carve-out, which is worse than useless in a failure message.
+    const at = m.index + /^\s*/.exec(m[0])![0].length;
+    const n = code.slice(0, at).split('\n').length;
+    out.push(`${n}: ${lines[n - 1].trim()}`);
+    if (all.lastIndex === m.index) all.lastIndex += 1;
+  }
+  return [...new Set(out)];
+}
+
 describe('scope — narrow, and out of scope by construction rather than by exemption', () => {
   it('a RELATIVE specifier is never judged — whole-module replacement is legitimate', () => {
     // `plugin-calendar/src/registration.test.tsx` replaces `./ObjectCalendar`
@@ -365,8 +409,61 @@ describe('scope — narrow, and out of scope by construction rather than by exem
     // Triage: ⛔ 不要顺手加例外白名单. An exemption means the recogniser called
     // correct code broken — the repair is the recogniser, not a carve-out.
     const src = fs.readFileSync(path.join(repoRoot, 'scripts/check-vi-mock-inherit.mjs'), 'utf8');
-    expect(src).not.toMatch(/^\s*(export )?const (ALLOW|EXEMPT|IGNORE|SKIP|KNOWN)[A-Z_]*\s*=/m);
-    expect(src).not.toMatch(/\.test\.tsx?['"`]\s*[,\]]/);
+    // objectui#8117: the ENTRY pattern is read over the COMMENT-BLANKED source,
+    // the gate's own "only text the language would EXECUTE is judged" rule
+    // turned on the gate's own file. The header docblock is this sweep's
+    // per-slice logbook by construction, so recording a sweep means naming test
+    // files — and a backticked filename followed by a comma is byte-identical
+    // to one entry of the array this pin exists to catch. It reddened twice on
+    // running prose (#8116, #8207 at `e104c509d`), and both times the repair
+    // was to reword the sentence: a tax on every future slice author, paid to a
+    // pin whose failure text points at a regex while the only "fix" it suggests
+    // is the carve-out the comment above forbids. Blanking costs the pin
+    // nothing — a real exemption array is a string LITERAL, which the shared
+    // masker leaves intact; the sibling case below drives both directions.
+    //
+    // The DECLARATION pattern still reads the raw source: it cannot match a
+    // docblock line (`^\s*` reaches the ` * ` prefix and stops), so it has no
+    // false red to fix and narrowing it would buy nothing.
+    expect(offendingLines(src, EXEMPTION_DECLARATION_RE)).toEqual([]);
+    expect(offendingLines(maskComments(src), EXEMPTION_ENTRY_RE, src)).toEqual([]);
+  });
+
+  it('that pin reads CODE, and the header prose it used to redden on is intact', () => {
+    // Both legs are needed: on a tree whose header already avoids the comma,
+    // an empty reading proves only that today's prose dodges the pattern, not
+    // that the pin stopped judging prose. The RAW assertions are the control —
+    // each fixture MUST match before masking, or the leg below measures nothing.
+    const entry = (file: string) => `${Q}packages/x/src/${file}${Q},`;
+    const array = `const ALLOWLIST = [${entry('A.test.tsx')} ${entry('B.test.ts')}];`;
+    // The exact shape #8116 measured: one sweep record naming a swept file.
+    const prose = `/**\n *     ${BT}ObjectView.expandFls-7429.test.tsx${BT}, landed by objectui#7429\n */`;
+
+    expect(EXEMPTION_ENTRY_RE.test(array), 'the positive fixture is matchable at all').toBe(true);
+    expect(EXEMPTION_ENTRY_RE.test(prose), 'the prose fixture is matchable BEFORE masking').toBe(true);
+
+    // A real exemption array survives the mask — the pin keeps every tooth.
+    expect(offendingLines(maskComments(array), EXEMPTION_ENTRY_RE, array)).toEqual([
+      `1: ${array}`,
+    ]);
+    // The header record does not — that is the false red, and it is gone.
+    expect(offendingLines(maskComments(prose), EXEMPTION_ENTRY_RE, prose)).toEqual([]);
+    // And the same masking must not blind the pin to an array written INSIDE
+    // the docblock's file: prose above it does not shelter the code below it.
+    const both = `${prose}\n${array}`;
+    expect(offendingLines(maskComments(both), EXEMPTION_ENTRY_RE, both)).toEqual([`4: ${array}`]);
+  });
+
+  it('a reported line is the DECLARATION, never the blank line above it', () => {
+    // Measured, not hypothetical: the first draft of `offendingLines` counted to
+    // `m.index`, and `EXEMPTION_DECLARATION_RE` opens with `^\s*` where `\s`
+    // matches a newline. Appending a carve-out to the gate with a blank line
+    // before it therefore reported `1853: ` — an empty line, one above the
+    // declaration. A failure message that names the wrong line is the defect
+    // objectui#8117 is about, one level down, so it gets its own case.
+    const decl = "const KNOWN_BAD = ['packages/x/src/A.test.tsx'];";
+    const withBlankLineAbove = `const ok = 1;\n\n${decl}\n`;
+    expect(offendingLines(withBlankLineAbove, EXEMPTION_DECLARATION_RE)).toEqual([`3: ${decl}`]);
   });
 
   it('the covered set is non-empty and names only real workspace packages', () => {
