@@ -1090,6 +1090,7 @@ const ar = {
     showEmptyFields: "إظهار {{count}} حقل(حقول) فارغة",
     hideEmptyFields: "إخفاء الحقول الفارغة",
     noValue: "لا قيمة",
+    unresolvedReference: "مرجع غير مُحلّل: لم يتم تحويل {{value}} إلى مستخدم",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
