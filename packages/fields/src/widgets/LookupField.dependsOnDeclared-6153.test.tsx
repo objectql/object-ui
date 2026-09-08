@@ -6,13 +6,13 @@
  * 2026-09-02).
  *
  * `LookupField.dependsOn.test.tsx` (#2215) proves the gate and the hard
- * `$filter` through the legacy `depends_on` spelling on an `as any` literal.
+ * `$filter` on an `as any` literal — an untyped host bag.
  * This file proves the same two facts through the spec's field-level spelling
  * on ANNOTATED `LookupFieldMetadata` literals with NO cast — the
  * excess-property check refused `dependsOn` on this exact document before the
  * declaration landed (compile half), and the widget still gates and scopes on
- * it (runtime half). Both spellings stay readable until objectui#7357 retires
- * the snake_case twin; that card, not this one, drops the arm.
+ * it (runtime half). objectui#7357 has since retired the snake_case twin
+ * `depends_on`, so this spelling is now the only one the widget reads.
  */
 
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
