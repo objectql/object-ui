@@ -36,8 +36,14 @@ What changed, concretely:
   nothing changes for them.
 - `@object-ui/app-shell` — `paramToField()` emitted `depends_on` onto the field
   bag it hands the action-param dialog's widgets. It now emits `dependsOn`. This
-  was the one in-repo framework producer of the retired spelling; without this
-  half, dependent lookups in action-param dialogs would have gone dead silently.
+  was the one in-repo framework producer of the retired spelling, and the emit
+  has to move with the reader: a lookup param declaring the cascade key renders a
+  gated picker there, and without this half that gate would have silently
+  disappeared, leaving an unfiltered picker. (Precisely, and no larger: that
+  dialog supplies dependent values only to the option widgets, so the lookup's
+  gate in it never lifts on its own — a pre-existing limitation this change
+  neither introduces nor fixes. What moved is a permanent gate, not a working
+  cascade.)
 - `@object-ui/plugin-grid` — the relational-metadata ledger drops its
   `depends_on` row, because the reader it recorded no longer exists.
 - `@object-ui/components` — comment only, no behaviour.

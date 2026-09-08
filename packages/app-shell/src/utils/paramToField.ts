@@ -186,10 +186,24 @@ export function paramToField(param: ActionParamDef): Record<string, any> {
       // the spec's field-level cascade key. This emit was the ONE in-repo
       // framework producer of that spelling on a widget field-metadata bag —
       // the card's own census said there was none, and it was wrong here — so
-      // leaving it would have handed `LookupField` a key it no longer reads and
-      // silently killed the ActionParamDialog's dependent lookups. The
-      // remaining snake members above are a different question (objectui#7155's
-      // ruling covered four keys and this was not one of them).
+      // leaving it would have handed `LookupField` a key it no longer reads.
+      //
+      // ⚠️ What that would have changed, stated as MEASURED and not larger:
+      // this dialog supplies `dependentValues` only to
+      // `CASCADE_OPTION_WIDGET_TYPES` (`select` / `multiselect` / `radio` /
+      // `checkboxes`, the supply site being `ActionParamDialog.tsx`'s
+      // `cascadeProps`), and `LookupField`'s context fallback resolves to `{}`
+      // here, so a lookup param's cascade gate in this dialog is PERMANENT:
+      // it never lifts, whatever the user types into the parent. Dropping the
+      // read arm without moving this emit would therefore have flipped that
+      // permanent gate into an UNGATED, UNFILTERED picker — a silent behaviour
+      // change, and the reason the emit moves with the reader; ⛔ not a
+      // working cascade that would have died. That the gate never lifts here
+      // is a PRE-EXISTING residue of its own, not something this card
+      // introduced or fixes.
+      //
+      // The remaining snake members above are a different question
+      // (objectui#7155's ruling covered four keys and this was not one of them).
       dependsOn: param.dependsOn,
     });
   }

@@ -5,7 +5,7 @@
  * retirement is observable, not merely declared.
  *
  * `BaseFieldMetadata.depends_on` was objectui's own consumer-side twin of
- * `@objectstack/spec`'s field-level `dependsOn`. It was any a spec key —
+ * `@objectstack/spec`'s field-level `dependsOn`. It was never a spec key —
  * `FieldSchema` refuses it BY NAME, pinned in
  * `@object-ui/types`' `field-metadata-depends-on-declared-6153.test.ts` — so a
  * producer that authored it produced a document the publish door rejects.
@@ -152,7 +152,7 @@ describe('objectui#7357 — a lookup carrying ONLY `depends_on` no longer cascad
  *
  * ⚠️ Measured, and worth stating rather than implying: on the option widgets
  * this was ALREADY true before this card. `SelectField` reads
- * `field?.dependsOn ?? dependsOnProp` and has any had a snake arm
+ * `field?.dependsOn ?? dependsOnProp` and has never had a snake arm
  * (objectui#6153 landed that read through the declared type). So these two
  * assertions pin a fact this change did not alter — they close the card's pin
  * honestly instead of implying a behaviour change the lookup alone carried.
