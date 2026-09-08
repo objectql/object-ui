@@ -129,12 +129,58 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // bare strings (`fields: ['first_name', ...]`), but DetailSection reads
   // `field.name` / `field.label`, so we must coerce string → object form
   // before handing the schema to DetailView. Object entries pass through.
+  // The bound object definition. Declared HERE rather than beside the
+  // title-dedupe ladder below because `withDeclaredLabel` (the field-label
+  // ladder) reads it earlier. One read, one name.
+  const objSchema: any = (ctx as any).objectSchema;
+  const objSchemaFields: Record<string, any> | undefined = objSchema?.fields;
+
+  /**
+   * Rung 2 of the label ladder: the label the OBJECT declares (objectui#8497).
+   *
+   * `DetailSection` renders `fieldLabel(objectName, field.name, field.label ||
+   * field.name)` — an i18n lookup whose third argument is the fallback. So the
+   * ladder is `bundle key -> field.label -> field.name`, and an enumerated
+   * `sections[].fields` list is `['our_entity', ...]`: bare strings, which
+   * `normaliseField` turned into `{ name }` with NO `label`. Rung 2 was
+   * therefore missing entirely and the ladder collapsed to `bundle key ->
+   * field name`. With no bundle — the default for an app that has not
+   * configured translations — EVERY detail page rendered raw snake_case field
+   * names under a `text-transform: uppercase`, while `clm_contract.our_entity`
+   * declared `label: 'Our Signing Entity'` all along and nothing reported it.
+   *
+   * The label is NOT invented here and it is not a new source: this is the
+   * same read the GROUP-derived body already performed (`toField` in
+   * `synth/buildDefaultPageSchema.ts`: `label: f.label || name`), which is
+   * exactly why the platform's synthesized default page showed declared labels
+   * while a hand-authored enumeration of the same fields did not. Filling the
+   * rung here is what makes the two bodies agree.
+   *
+   * ⚠️ An AUTHORED `label` on the entry still wins — `withDeclaredLabel` only
+   * fills a `label` the author left undefined, so a view's explicit override
+   * keeps its precedence, and an app WITH a full bundle is untouched because
+   * rung 1 resolves before this value is ever read.
+   *
+   * `pickLocalized` rather than a raw read: a field label may be authored as an
+   * inline `{ en, 'zh-CN' }` map, and handing that object through would render
+   * `[object Object]`. It returns '' for a value it cannot resolve, which the
+   * emptiness check below rejects so the ladder falls through to the name.
+   */
+  const withDeclaredLabel = (entry: any): any => {
+    if (!entry || typeof entry !== 'object' || typeof entry.name !== 'string') return entry;
+    if (entry.label !== undefined) return entry;
+    const declared = objSchemaFields?.[entry.name]?.label;
+    if (declared == null) return entry;
+    const label = pickLocalized(declared, language);
+    return label ? { ...entry, label } : entry;
+  };
+
   const normaliseField = (entry: any): any => {
-    if (typeof entry === 'string') return { name: entry };
+    if (typeof entry === 'string') return withDeclaredLabel({ name: entry });
     if (entry && typeof entry === 'object' && !entry.name && entry.field) {
-      return { ...entry, name: entry.field };
+      return withDeclaredLabel({ ...entry, name: entry.field });
     }
-    return entry;
+    return withDeclaredLabel(entry);
   };
   const normaliseList = (list: any[] | undefined): any[] | undefined =>
     Array.isArray(list) ? list.map(normaliseField) : list;
@@ -215,7 +261,6 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // above rather than a one-line deletion. Pinned in
   // `__tests__/record-details.primaryFieldRetired-7586.test.tsx`, which
   // asserts the DEDUPE outcome (which row the grid hides), not the title.
-  const objSchema: any = (ctx as any).objectSchema;
   const data: any = ctx.data ?? {};
   // The `.filter(…): n is string` guard is back, for a different reason than
   // the one objectui#7586 retired: it used to drop an `objSchema?.primaryField`
@@ -268,6 +313,7 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   };
 
   const filteredFields = dropHidden(normaliseList(filterList(schema.fields as any[])));
+
   const filteredSections = Array.isArray(schema.sections)
     ? (schema.sections as any[]).map((s) => {
         // Authored labels may carry inline translations (`{ en, 'zh-CN' }`) —

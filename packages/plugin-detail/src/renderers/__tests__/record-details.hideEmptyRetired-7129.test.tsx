@@ -236,7 +236,7 @@ describe('DetailViewSection.hideEmpty is retired in objectui — and the spec re
     );
 
     expect(screen.getByText('Deal Terms')).toBeInTheDocument();
-    for (const label of ['stage', 'amount', 'close_date']) {
+    for (const label of ['Stage', 'Amount', 'Close Date']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.queryAllByTitle('No value')).toHaveLength(3);
