@@ -68,6 +68,85 @@ function refuseFilterNode(refusals: Set<string>, reason: string): false {
 }
 
 /**
+ * The operators whose comparand IS an array by declaration, in both dialects.
+ *
+ * `$in` / `$nin` take a member list and `$between` a two-element range; every
+ * other operator reads its comparand as a single value. That split is what
+ * {@link refuseArrayComparand} is checked against — an array anywhere else is
+ * not a comparand this protocol has a meaning for.
+ */
+const DOLLAR_LIST_COMPARAND_OPERATORS = new Set(['$in', '$nin', '$between']);
+const AST_LIST_COMPARAND_OPERATORS = new Set(['in', 'nin', 'between']);
+
+/**
+ * The AST operators that never read the value slot at all, so nothing sitting
+ * there is a comparand. `matchesComparisonNode`'s null arms take their
+ * direction from the operator NAME and the ObjectUI client sends a truthy
+ * placeholder in the third position, so the array guard must not judge it.
+ */
+const AST_NO_COMPARAND_OPERATORS = new Set(['is_null', 'is_not_null']);
+
+/**
+ * An ARRAY where a single-value comparand belongs — `{ tags: ['a', 'b'] }`,
+ * `{ tags: { $eq: ['a', 'b'] } }`, `['tags', '=', ['a', 'b']]` (objectui#8514).
+ *
+ * ## Why this is refused rather than given a deep-equality reading
+ *
+ * The card was filed as "reference comparison excludes even the deep-equal
+ * row", which is true, and the obvious repair is to make `['a','b']` equal
+ * `['a','b']`. The census says otherwise, and the spec says who owns the
+ * question. `assertListComparandShapes` (`@objectstack/spec/data`) lists
+ * "arrays outside `$in`/`$nin`/`$between`" among the positions its comparand
+ * door deliberately does NOT judge, on the stated ground that the ruling does
+ * not name it and the matrix did not measure it — it is left "to the layers
+ * that already answer it". Those layers do not agree, and the two nearest to
+ * this one both REFUSE:
+ *
+ * - `@objectstack/formula`'s `matchesFilter` — the record-at-a-time evaluator
+ *   this adapter is the closest sibling of — answers `false` structurally, on
+ *   the comment "a bare array value is not a valid field spec (must be
+ *   `{ $in: [...] }`)".
+ * - `@objectstack/driver-sql` refuses an array comparand with its own message.
+ * - Only the document stores give it array-equality, as a native behaviour of
+ *   the store rather than a ruled contract.
+ *
+ * So there is no protocol answer to implement, and inventing one HERE is the
+ * lenient-consumer fallback the repo forbids (AGENTS.md #0.1): a second
+ * de-facto contract, agreed with by no backend, that a `provider: 'value'` list
+ * would honour and the same filter on the wire would not. Every producer in
+ * this repo already spells a multi-value comparand `{ $in: [...] }` — measured
+ * across every `$filter` literal under the packages' and apps' source trees,
+ * where the only array-valued comparands are `$in` / `$nin` members — so
+ * refusing costs no caller a working filter, and the message names the
+ * spelling that works. (The glob is spelled in words because a literal one
+ * would close this comment.)
+ *
+ * ## The rows do not move; the silence does — except on the negations
+ *
+ * For `{ tags: [...] }` and `{ tags: { $eq: [...] } }` this changes no result
+ * set: `!==` / `===` against a fresh array already excluded every row, so the
+ * repair is the diagnostic. `$ne` / `!=` are the exception and the reason this
+ * guard covers the operator positions too — `value !== target` against an
+ * array is always TRUE, so an array comparand there selected EVERY row, in
+ * silence. That is objectui#8447's fail-open direction surviving inside the
+ * arm objectui#8514 was filed about, and the same repair closes both.
+ */
+function refuseArrayComparand(
+  refusals: Set<string>,
+  field: string,
+  operator: string,
+): false {
+  return refuseFilterNode(
+    refusals,
+    `filter comparand for field '${field}' on operator '${operator}' is an ARRAY, `
+    + `which is a declared comparand only for $in / $nin / $between. The spec leaves `
+    + `an array in any other position unruled and the sibling in-memory matcher `
+    + `(@objectstack/formula) refuses it; express membership as `
+    + `{ ${field}: { $in: [...] } } or its negation { ${field}: { $nin: [...] } }`,
+  );
+}
+
+/**
  * Evaluate ONE comparison node — `[field, operator]` or `[field, operator, value]`.
  *
  * The operator is canonicalized through the spec's own
@@ -97,6 +176,18 @@ function matchesComparisonNode(
     rawOperator === 'not in' ? 'nin' : canonicalAstOperator(rawOperator);
   const value = record[field];
   const target = node[2];
+
+  // objectui#8514 — an array where a single-value comparand belongs. Checked
+  // before the switch so `=` / `!=` cannot answer it by reference (never equal
+  // / always unequal), and skipped for the operators that DECLARE an array
+  // comparand and for the two that never read the slot.
+  if (
+    Array.isArray(target)
+    && !AST_LIST_COMPARAND_OPERATORS.has(operator)
+    && !AST_NO_COMPARAND_OPERATORS.has(operator)
+  ) {
+    return refuseArrayComparand(refusals, field, String(rawOperator));
+  }
 
   switch (operator) {
     // -- Null-ness. Direction comes from the operator NAME; the value slot is
@@ -294,6 +385,12 @@ function matchesDollarOperator(
   field: string,
   refusals: Set<string>,
 ): boolean {
+  // objectui#8514 — the `$` twin of the AST guard above, and the position that
+  // carries the fail-OPEN case: `$ne` against an array is always true.
+  if (Array.isArray(target) && !DOLLAR_LIST_COMPARAND_OPERATORS.has(operator)) {
+    return refuseArrayComparand(refusals, field, operator);
+  }
+
   switch (operator) {
     case '$eq':
       return value === target;
@@ -428,6 +525,13 @@ function matchesFilter(
       for (const [op, target] of Object.entries(condition)) {
         if (!matchesDollarOperator(value, op, target, key, refusals)) return false;
       }
+    } else if (Array.isArray(condition)) {
+      // objectui#8514 — the implicit-equality position this card was filed
+      // about. It reaches here because the operator branch above is guarded by
+      // `!Array.isArray(condition)`, and that guard STAYS: routing an array
+      // into the operator loop would read its INDICES as operator names, the
+      // exact shape `$not` had before objectui#8447 fixed it.
+      return refuseArrayComparand(refusals, key, 'implicit equality');
     } else {
       // Simple equality
       if (value !== condition) return false;
