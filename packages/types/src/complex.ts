@@ -587,6 +587,26 @@ export type FilterBuilderOperator =
  */
 export interface FilterBuilderCondition {
   /**
+   * Row identity.
+   *
+   * REQUIRED, and deliberately asymmetric with `FilterGroup.id` below
+   * (objectui#8415). The group's `id` has zero read sites and is optional for
+   * that reason; a CONDITION's `id` is the identity every affordance on the row
+   * matches on — `removeCondition`, `updateCondition`, `changeOperator` and
+   * `changeField` in `packages/components/src/custom/filter-builder.tsx`, plus
+   * the React `key`. The component's own `FilterBuilderCondition` declares it
+   * `string`, and `addCondition` emits `crypto.randomUUID()`.
+   *
+   * Undeclared, it was STRIPPED by the `z.object` mirror in silence, so a
+   * correctly authored row validated and rendered with no individual identity:
+   * every affordance is handed `undefined`, `c.id === conditionId` is TRUE for
+   * every id-less row, and so one click removes all of them at once — the
+   * clicked row included — while one edit fans out across all of them. A row
+   * cannot be edited or removed on its own. (Not "matches none"; the failure is
+   * en bloc.) Declaring it is what makes `declared = enforced`.
+   */
+  id: string;
+  /**
    * Field to filter
    */
   field: string;

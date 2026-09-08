@@ -257,20 +257,28 @@ describe('objectui#7918 · z.lazy getter identity', () => {
     });
 
     it('FilterBuilderConditionSchema still accepts a condition and refuses a bad operator', () => {
+      // ⚠️ Both fixtures carry `id` since objectui#8415 declared it REQUIRED on
+      // the condition. The NEGATIVE one carries it for a reason that is not
+      // cosmetic: without it the row would be refused for the MISSING KEY, and
+      // this assertion — whose subject is `FilterOperatorSchema` — would stay
+      // green with the operator vocabulary deleted outright. Carrying `id`
+      // isolates the operator as the only thing left to refuse it.
       expect(FilterBuilderConditionSchema.safeParse(
-        { field: 'amount', operator: 'greater_than', value: 100 },
+        { id: 'c1', field: 'amount', operator: 'greater_than', value: 100 },
       ).success).toBe(true);
       expect(FilterBuilderConditionSchema.safeParse(
-        { field: 'amount', operator: 'not_a_real_operator' },
+        { id: 'c1', field: 'amount', operator: 'not_a_real_operator' },
       ).success).toBe(false);
     });
 
     it('FilterGroupSchema still nests conditions and sub-groups through the memoised arm', () => {
+      // The CONDITION rows carry `id` (required since objectui#8415); the
+      // sub-GROUP's `id` stays what it always was — declared but optional.
       const group = {
         id: 'g1', logic: 'and',
         conditions: [
-          { field: 'amount', operator: 'greater_than', value: 100 },
-          { id: 'g2', logic: 'or', conditions: [{ field: 'stage', operator: 'equals', value: 'won' }] },
+          { id: 'c1', field: 'amount', operator: 'greater_than', value: 100 },
+          { id: 'g2', logic: 'or', conditions: [{ id: 'c2', field: 'stage', operator: 'equals', value: 'won' }] },
         ],
       };
       expect(FilterGroupSchema.safeParse(group).success).toBe(true);
