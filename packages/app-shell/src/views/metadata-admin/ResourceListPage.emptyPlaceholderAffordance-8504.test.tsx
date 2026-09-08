@@ -22,12 +22,17 @@
  * The caricature was RUN: `defaultCell` rewritten to `return <EmptyValue />`
  * for every value, filled cells included.
  *
- *   - `NON-REGRESSION` refuses it, on "the value reaches the cell" — under the
- *     caricature the Description column stops printing descriptions.
+ *   - `exactly ONE of the two rows draws a placeholder` fails on "and the
+ *     filled row does NOT" — the assertion that fails BECAUSE a filled cell
+ *     gained a placeholder.
+ *   - `NON-REGRESSION` fails one assertion earlier, on "the value reaches the
+ *     cell": the caricature also stops the Description column printing
+ *     descriptions, so its own `no placeholder` half is never reached.
  *   - `THE DEFECT` fails ONLY on its control. Its headline claim is equally
  *     true of a table that has stopped printing values.
- *   - The third case SURVIVES the caricature entirely, which is why it is
- *     labelled a scope declaration rather than quoted as proof.
+ *   - The `SCOPE DECLARATION` case SURVIVES the caricature entirely — the one
+ *     survivor in this PR's 21 cases — which is why it is labelled rather than
+ *     quoted as proof.
  *
  * A first run of the caricature failed all three on the HARNESS instead — the
  * row lookup read column 0, which `defaultCell` also renders, so the name the
@@ -174,6 +179,17 @@ describe('metadata list defaultCell uses the shared EmptyValue (objectui#8504)',
       .not.toBeNull();
     // THE DISCRIMINATING HALF: red for an EmptyValue-everywhere implementation.
     expect(emptyIn(filled), 'a filled cell carries NO placeholder').toBeNull();
+  });
+
+  it('exactly ONE of the two rows draws a placeholder', async () => {
+    // Assertion order, measured: `NON-REGRESSION` above fails on its FIRST
+    // assertion under the caricature — the description stops reaching the cell
+    // — so its `no placeholder` half never runs. This case reaches it, and its
+    // second assertion is the one that fails BECAUSE a filled cell gained a
+    // placeholder.
+    const { cell } = await mount();
+    expect(emptyIn(cell('beta', DESCRIPTION_HEADER)), 'the empty row has one').not.toBeNull();
+    expect(emptyIn(cell('alpha', DESCRIPTION_HEADER)), 'and the filled row does NOT').toBeNull();
   });
 
   it('SCOPE DECLARATION — the placeholder is inert inside the row link', async () => {
