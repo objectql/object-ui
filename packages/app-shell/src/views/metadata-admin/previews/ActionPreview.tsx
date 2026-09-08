@@ -41,7 +41,7 @@ import {
   Square,
   Workflow,
 } from 'lucide-react';
-import { resolveIcon } from '@object-ui/components';
+import { EmptyDescription, resolveIcon } from '@object-ui/components';
 import type { ActionParam } from '@object-ui/types';
 import { paramDegradesWithoutTarget, resolveParamWidgetType } from '../../../utils/paramToField.js';
 import type { MetadataPreviewProps } from '../preview-registry.js';
@@ -578,7 +578,7 @@ function ResultDialogMock({ dialog }: { dialog: ResultDialog }) {
       <div className="p-3 space-y-2 text-xs">
         {description && <div className="text-muted-foreground">{description}</div>}
         {fields.length === 0 ? (
-          <div className="text-muted-foreground italic">Renders full JSON response.</div>
+          <EmptyDescription className="text-xs italic">Renders full JSON response.</EmptyDescription>
         ) : (
           <ul className="space-y-1.5">
             {fields.map((f, i) => (

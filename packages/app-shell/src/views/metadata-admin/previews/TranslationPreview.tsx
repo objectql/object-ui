@@ -37,6 +37,7 @@ import {
   Settings2,
   ShieldAlert,
 } from 'lucide-react';
+import { EmptyDescription } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
@@ -150,7 +151,7 @@ function CategoryCard({
       </div>
       <div className="px-2.5 py-1.5 min-h-[3.5rem]">
         {cat.count === 0 ? (
-          <div className="text-[11px] text-muted-foreground italic">empty</div>
+          <EmptyDescription className="text-[11px] italic">empty</EmptyDescription>
         ) : (
           <ul className="space-y-0.5 text-[11px]">
             {cat.sample.map(([k, v]) => (

@@ -42,6 +42,7 @@ import {
   Sparkles,
   Wrench,
 } from 'lucide-react';
+import { EmptyDescription } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
@@ -104,7 +105,7 @@ export function SkillPreview({ name, draft }: MetadataPreviewProps) {
           {/* Tools */}
           <Section title={`Tools (${tools.length})`} icon={Wrench}>
             {tools.length === 0 ? (
-              <div className="text-xs text-muted-foreground italic">No tools whitelisted.</div>
+              <EmptyDescription className="text-xs italic">No tools whitelisted.</EmptyDescription>
             ) : (
               <div className="flex flex-wrap gap-1">
                 {tools.map((t) => {
