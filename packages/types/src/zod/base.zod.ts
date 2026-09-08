@@ -151,8 +151,21 @@ export function defineNodeComponentUnion<T extends z.ZodType>(union: T): T {
  * not a tolerated fallback: `z.union` re-reads its option array on every parse, so
  * nothing can freeze the pre-fill answer in ({@link defineNodeComponentUnion} carries
  * the measurement, and why the obvious `z.lazy` holder is wrong). No published entry
- * point can reach that window at all: `./zod` is this package's only zod subpath and
- * it IS `index.zod.js`. Pinned in `__tests__/node-recursion-point-8344.test.ts`.
+ * point can reach that window BY MODULE GRAPH: `./zod` is this package's only zod
+ * subpath and it IS `index.zod.js`. Pinned in
+ * `__tests__/node-recursion-point-8344.test.ts`.
+ *
+ * ⛔ ⚠️ THAT SENTENCE IS ABOUT MODULE GRAPHS, AND A BUNDLER IS NOT ONE. This package
+ * declares `"sideEffects": false` and the fill is a statement in this barrel's body,
+ * so a bundler that honours the flag and sees no reference to `AnyComponentSchema`
+ * may drop the whole const — fill included — and then every child slot validates
+ * with the PRE-#8344 arm. Measured on this repo's own Vite/rollup lib build: one
+ * entry importing only `CardSchema` ACCEPTS a nested off-spec node (369,733 bytes,
+ * no fill in the output), the same entry with `AnyComponentSchema` also imported
+ * REFUSES it (1,144,999 bytes, fill present). The guard below cannot see this: it
+ * runs inside the code that was dropped. ⇒ this window is silent, it is NOT the
+ * pre-fill window this paragraph describes, and its disposition is a ruling in
+ * flight on objectui#8344 — ⛔ do not close it by editing this comment.
  *
  * ## Both type arguments are filled, and that is the whole published input face
  *

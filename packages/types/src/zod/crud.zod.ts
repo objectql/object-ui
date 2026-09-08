@@ -199,9 +199,25 @@ export const CRUDDialogSchema = BaseSchema.extend({
 
 /**
  * Union of all CRUD schemas
+ *
+ * `z.discriminatedUnion`, not `z.union` (objectui#8498) — the reasoning lives
+ * once, on `index.zod.ts#AnyComponentSchema`. This site changed because zod
+ * 4.4.3 REFUSES a plain `z.union` as a member of a discriminated union (it
+ * computes no `propValues`), so the root cannot discriminate until this one
+ * does. ⛔ Not an accept-set change: all three arms already declared `type` as a
+ * distinct `z.literal` (`action` · `detail` · `crud-dialog`).
  */
-export const CRUDComponentSchema = z.union([
-  ActionSchema,
+export const CRUDComponentSchema = z.discriminatedUnion('type', [
+  // `ActionSchema`'s `z.ZodType<ActionDeclaration, ActionDeclaration>` annotation
+  // is a maintainer ruling (objectui#7760, decision batch #69) and ⛔ does not
+  // move here. That type declares `_zod.propValues` as `PropValues | undefined`,
+  // so `tsc` cannot see through the `z.lazy` to the `type: z.literal('action')`
+  // the body really declares — the RUNTIME can, measured:
+  // `ActionSchema._zod.propValues.type` is `Set { 'action' }`. The intersection
+  // asserts that one fact and nothing else, leaving the output type intact so
+  // this union infers what it always did; `__tests__/any-component-union-fanout
+  // .test.ts` pins the fact at runtime so the cast cannot rot into a lie.
+  ActionSchema as typeof ActionSchema & z.core.$ZodTypeDiscriminable<'type'>,
   DetailSchema,
   CRUDDialogSchema,
 ]);

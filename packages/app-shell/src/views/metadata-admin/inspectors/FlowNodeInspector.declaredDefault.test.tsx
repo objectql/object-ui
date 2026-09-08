@@ -24,10 +24,13 @@
  *
  *  1. On a BOOLEAN control a declared default now seeds the value: an unset key
  *     draws the declared state, a stored value beats it, and nothing is written
- *     to the node. On a SELECT it still reaches nothing — an unset key draws a
- *     blank trigger, not the declared option and not even a placeholder,
- *     because the field always passes a controlled value and Radix renders its
- *     placeholder only for an undefined one (objectui#8450).
+ *     to the node. On a SELECT it still reaches nothing — an unset key draws
+ *     `InspectorSelectField`'s own em-dash PLACEHOLDER, which says "nothing is
+ *     selected" and is not anything the table declared. (objectui#8450 made
+ *     that placeholder reachable at all; before it the trigger was blank,
+ *     because the sentinel the field bridges `''` through kept Radix from ever
+ *     recognising the empty state. Blank and em-dash are the same fact about
+ *     `defaultValue`, told twice.)
  *  2. Both writers of the property feed the repaired boolean — the hand-written
  *     table here and the engine-published `configSchema` that
  *     `json-schema-to-fields` converts (`default: true` -> `defaultValue:
@@ -166,15 +169,16 @@ describe('select: a declared defaultValue still does not reach the control (obje
 
     renderInspector(draftWith('http_request', { config: {} }));
 
-    // Measured, not assumed: the trigger is EMPTY — it shows neither the
-    // declared default nor `InspectorSelectField`'s own em-dash placeholder.
-    // Radix renders a placeholder only for an UNCONTROLLED/undefined value; the
-    // field always passes a controlled one (the `''` -> sentinel bridge), and a
-    // controlled value matching no `SelectItem` renders as nothing at all.
+    // Measured, not assumed: the trigger shows `InspectorSelectField`'s own
+    // em-dash placeholder — the "nothing is selected" mark — and NOT the
+    // declared default. (It rendered blank before objectui#8450, which fixed
+    // the placeholder's own unreachability in the shared primitive. That was a
+    // defect in the primitive, not evidence about `defaultValue`; this card's
+    // subject is the assertion below, which is unchanged either way.)
     expect(
       triggerText('Method'),
-      'the Method trigger renders empty — no declared default, not even the placeholder',
-    ).toBe('');
+      'the Method trigger renders its placeholder — the declared default seeds nothing',
+    ).toBe('—');
     expect(
       screen.queryByText('GET'),
       'the declared default "GET" reaches no part of the rendered inspector',
@@ -315,8 +319,9 @@ describe('the online writer of defaultValue hits the same dead end', () => {
 
     expect(
       triggerText('Method'),
-      'the server-derived default is not seeded into the control either',
-    ).toBe('');
+      'the server-derived default is not seeded into the control either — the ' +
+        'trigger sits on its placeholder, same as the hand-written half',
+    ).toBe('—');
     expect(screen.queryByText('POST'), 'the derived default reaches no rendered node').toBeNull();
   });
 });

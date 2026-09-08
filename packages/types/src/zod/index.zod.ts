@@ -381,8 +381,36 @@ import { ViewComponentSchema } from './views.zod.js';
  * it, so no bundler can keep the union and drop the wiring, and no future edit can
  * reorder the two. ⛔ Do not "simplify" it back into a bare
  * `defineNodeComponentUnion(AnyComponentSchema)` call underneath.
+ *
+ * ## Why this is discriminated (objectui#8498)
+ *
+ * A flat `z.union` reports EVERY arm's issues under one `invalid_union`, and
+ * Zod's `$ZodError` initializer `JSON.stringify`s that whole tree into
+ * `.message` EAGERLY — `zod/v4/core/errors.js:13`, in the constructor, not
+ * behind a getter. The cost is paid whether or not anyone reads the message,
+ * and it compounds once a refused node can appear at a child slot: a root-level
+ * refusal cost 14,624 chars, growing ~25x per level of nesting until
+ * `RangeError: Invalid string length` — a THROW out of the function this file
+ * documents below as validating "without throwing". Discriminating selects ONE
+ * arm from the authored literal: same document, same zod 4.4.3, 164 chars.
+ *
+ * ⛔ Not an accept-set change, and the property it rests on is measured rather
+ * than assumed: the 13 arms declare 107 `type` literals with ZERO collisions,
+ * so the arm a literal selects is the only arm that could ever have accepted
+ * it. ⚠️ Every arm must declare its literals to Zod — a plain `z.union` member
+ * computes no `propValues` and is REFUSED here (`Invalid discriminated union
+ * option at index "9"`), which is why `objectql.zod.ts` and `crud.zod.ts` are
+ * discriminated too. `__tests__/any-component-union-fanout.test.ts` pins all of
+ * it.
+ *
+ * ⚠️ BOTH of the above are live here, and the composition is the whole resolution:
+ * objectui#8498 changed WHICH arm reports, objectui#8344 changed WHERE this union is
+ * consulted. The discriminated union is what gets written into the node option slot,
+ * so `defineNodeComponentUnion` wraps it rather than replacing it. The slot itself is
+ * still a plain `z.union` in `base.zod.ts` — that is what keeps its option array by
+ * reference, and it is untouched by the discrimination.
  */
-export const AnyComponentSchema = defineNodeComponentUnion(z.union([
+export const AnyComponentSchema = defineNodeComponentUnion(z.discriminatedUnion('type', [
   AppComponentSchema,
   LayoutSchema,
   FormComponentSchema,
@@ -396,7 +424,19 @@ export const AnyComponentSchema = defineNodeComponentUnion(z.union([
   CRUDComponentSchema,
   ReportUnionSchema,
   ViewComponentSchema,
-]));
+], {
+  // Zod's default message for a missed discriminator spells out EVERY accepted
+  // literal — measured, 1,462 chars naming all 107. That is the "print every
+  // arm" output the 2026-09-02 maintainer ruling rejected as noise, arriving by
+  // the back door on a card about message size. `Invalid input` is what the flat
+  // union reported here before, so the published root diagnostic is unchanged;
+  // the ruling's capped list stays the one place arm names are printed, built by
+  // `@object-ui/cli` from `issue.options`, which this does not touch.
+  // ⚠️ Narrowed to `invalid_union`: an unconditional map is scoped to the WHOLE
+  // schema, so it also rewrote this union's `invalid_type` and a non-object root
+  // lost "expected object, received number". `undefined` declines to the locale.
+  error: (issue) => (issue.code === 'invalid_union' ? 'Invalid input' : undefined),
+}));
 
 /**
  * Validate a schema against the AnyComponentSchema
