@@ -159,7 +159,7 @@
  * closure needed is written at the row itself rather than here, because that is
  * where a future reader tempted to loosen the pattern will be standing.
  *
- * ## Why this port is not pinned in `scripts/upstream-port-pin.json`
+ * ## Why this port is not YET pinned in `scripts/upstream-port-pin.json`
  *
  * That ledger is how this repository stops a ported copy drifting into a
  * confident-but-stale report — `scripts/pm/check-half-states.mjs` reached a
@@ -167,39 +167,50 @@
  * applies to this file with force: its whole subject is that "an absence from a
  * denylist reads as an approval", and upstream actively sweeps the table.
  *
- * It is still NOT registered, and the blocker is structural rather than a
- * judgement about value. Read off the pin's own schema and
- * `check-upstream-port-parity.mjs`: the ref is a SINGLE GLOBAL field
- * (`pin.upstream.ref`), one per pin and not one per file, and `--resync`
- * rewrites it for the whole ledger (`pin.upstream.ref = ref;`). The ledger
- * currently names `bf10deb`. This port was taken from `6136293`. So the only
- * two ways to register it are:
+ * It is still NOT registered, but the blocker that kept it out was structural
+ * and is GONE. The pin used to carry ONE ledger-wide `upstream.ref` beside
+ * per-file digests, and `--resync` rewrote that global field on every run. So
+ * registering this port at the revision it was actually taken from meant one of
+ * two bad trades: port from the older revision the ledger happened to name —
+ * deliberately shipping a WEAKER construct table so a provenance field stayed
+ * true, which inverts the point of the gate — or drag every other pinned file
+ * to a new ref, an unrelated rewrite of other ported tooling. A third route,
+ * pinning this file's digest while the global ref named a different revision,
+ * was the one that must never be taken: the digest would verify and the
+ * provenance line would be false.
  *
- *   1. port from `bf10deb` instead. Measured over the API: the upstream file
- *      exists at that ref at 55,415 bytes against 62,481 at `6136293`. The
- *      7 KB in between is the `-v` unary widening and the 4.0 operator sweep —
- *      i.e. registering would mean deliberately shipping a WEAKER construct
- *      table so the ledger's provenance field stays true. That inverts the
- *      point of the gate.
- *   2. bump the global ref to `6136293`, which forces a re-sync of all three
- *      files already pinned. That is a change to unrelated ported tooling and
- *      is out of scope for objectui#7692.
+ * objectui#8288 retired the field and all three trades with it. Read off
+ * `check-upstream-port-parity.mjs`: `ref` is now a REQUIRED key on each
+ * `files[]` entry beside the digest it was taken with, `validatePin` REFUSES a
+ * pin that still carries `upstream.ref`, and `resyncedPin` writes only the
+ * re-synced entry's own `ref` and digest while returning every other entry
+ * untouched. `upstream` keeps `repo` alone. Entries at different refs now
+ * coexist by design, so this file can be registered at its own revision without
+ * disturbing anything already pinned.
  *
- * ⛔ The third option — register against `6136293`'s digest while the global ref
- * still reads `bf10deb` — is the one that must not be taken. The digest would
- * verify and the provenance line would be false, which is this repository's
- * worst failure direction and precisely what the parity gate exists to stop.
+ * ⛔ Do not write a revision into this prose. A port's ref lives on that port's
+ * entry in `scripts/upstream-port-pin.json`; read it from there, where
+ * `--resync` keeps it correct. This section has already gone stale TWICE by
+ * naming one: objectui#7749 moved the global ref out from under the sentence
+ * describing it, and objectui#8288 then deleted the field that sentence named.
+ * Both times the prose stayed confident and wrong — which is this file's own
+ * subject, aimed at itself.
  *
- * ⚠️ The single-global-ref limitation is NOT a new discovery and must not be
- * re-filed: objectui#7953 already owns it, measured from the other direction —
- * two ported `.claude/hooks/**` files cannot be registered because they do not
- * exist upstream at `bf10deb` at all. This file is the same gap's other shape:
- * it DOES exist at that ref, but only in a weaker revision.
+ * What registration still costs is per-file work rather than a schema change,
+ * which is why it did not ride along with objectui#8288 and is a card of its
+ * own: read the upstream blob at a named ref, compute its SHA-256, and declare
+ * every divergence as an exact `upstream`/`ported` text pair with a stated
+ * `why`. The same unblocking reaches the ported `.claude/hooks/**` files that
+ * objectui#7953 recorded from the other direction — a per-file ref can name a
+ * revision where each of them exists — with one extra cost there and not here:
+ * those are GOVERNED surface, so `--resync` refuses to write them without
+ * `--rewrite-governed-file`.
  *
- * Consequence, stated so it is inherited rather than rediscovered: this file
- * has NO drift gate. Upstream improvements to `CONSTRUCTS` arrive here only if
- * someone carries them by hand. That is a real cost and it is accepted here
- * rather than paid for by weakening either gate.
+ * Consequence, stated so it is inherited rather than rediscovered: until that
+ * registration lands, this file has NO drift gate. Upstream improvements to
+ * `CONSTRUCTS` arrive here only if someone carries them by hand. That cost was
+ * once accepted because paying it meant weakening a gate; it is now simply
+ * unpaid, and the work to pay it is ordinary.
  *
  * ## Population
  *
