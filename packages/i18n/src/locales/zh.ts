@@ -2901,6 +2901,13 @@ const zh = {
     badgeTotal: '共 {{total}} 项',
     badgeNotifications: '{{unread}} 条通知',
     badgeApprovals: '{{approvals}} 条待审批',
+    arrivalMany: '{{count}} 条新消息',
+    arrivalRepeats: '该主题有 {{count}} 条新消息',
+    arrivalOpen: '查看',
+    toastEnabled: '站内提醒',
+    desktopEnabled: '桌面通知',
+    desktopBlocked: '已被拦截。请在浏览器设置中允许本站发送通知。',
+    desktopUnsupported: '当前浏览器不支持桌面通知。',
   },
   publicForm: {
     submit: '提交',
