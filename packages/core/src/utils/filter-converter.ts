@@ -81,6 +81,115 @@ export function convertOperatorToAST(operator: string): string | null {
 }
 
 /**
+ * The `FilterCondition` combinators this lowering can carry, and the AST
+ * keyword each becomes.
+ *
+ * The vocabulary is the spec's, not a second list: `FILTER_ARRAY_LOGIC_KEYWORDS`
+ * (`@objectstack/spec/data`) is `['and', 'or']` — measured — and those two are
+ * exactly the heads `isFilterAST` opens a group on. `$not` is absent from it,
+ * which is why it has no row here and is refused below rather than translated.
+ */
+const AST_LOGIC_KEYWORD: Record<string, 'and' | 'or'> = {
+  $and: 'and',
+  $or: 'or',
+};
+
+/**
+ * Lower ONE `$and` / `$or` group to an AST group node.
+ *
+ * Returns `undefined` when the group is the TRUE identity and therefore
+ * constrains nothing, so the caller drops it instead of emitting a childless
+ * `['and']` — which is NOT the same thing. Measured against the spec's own
+ * doors: `isFilterAST(['and'])` is `false` and `parseFilterAST(['and'])` is
+ * `undefined`, i.e. NO FILTER — every row. A combinator that reduces to "no
+ * constraint" must therefore disappear at THIS level; emitting an empty group
+ * would widen the result set, which is the one failure direction this file
+ * exists to avoid.
+ *
+ * `#5322` (maintainer ruling 2026-08-04, recorded on `FilterConditionSchema`)
+ * fixes the identities: `{ $and: [] }` is TRUE, `{ $or: [] }` is FALSE, and a
+ * `{}` disjunct is TRUE and ABSORBS its `$or`. TRUE is expressible here — it is
+ * the absence of a constraint. FALSE is not: the AST has no contradiction
+ * literal, so `{ $or: [] }` keeps the emission it already had (see
+ * {@link falseIdentityLeaf}).
+ */
+function lowerLogicalGroup(
+  field: string,
+  keyword: 'and' | 'or',
+  value: unknown,
+): FilterNode | undefined {
+  if (!Array.isArray(value)) {
+    throw new FilterOperatorError(
+      `[ObjectUI] The '${field}' filter combinator takes an ARRAY of conditions. ` +
+      `Received ${typeof value === 'object' ? 'an object' : typeof value}: ` +
+      `${JSON.stringify(value)}. Spec: FilterCondition declares ` +
+      `'${field}?: FilterCondition[]' (data/filter.zod.ts).`
+    );
+  }
+
+  if (value.length === 0) {
+    return keyword === 'and' ? undefined : falseIdentityLeaf(field, value);
+  }
+
+  const children: FilterNode[] = [];
+  for (const child of value) {
+    if (child === null || typeof child !== 'object' || Array.isArray(child)) {
+      throw new FilterOperatorError(
+        `[ObjectUI] Every member of '${field}' must be a filter condition OBJECT. ` +
+        `Received ${JSON.stringify(child)}. Spec: FilterCondition declares ` +
+        `'${field}?: FilterCondition[]' (data/filter.zod.ts).`
+      );
+    }
+    const lowered = convertFiltersToAST(child as Record<string, any>);
+    if (!Array.isArray(lowered)) {
+      // `convertFiltersToAST` hands back the ORIGINAL OBJECT when the child
+      // produced no conditions — a `{}` disjunct, or one holding only
+      // null/undefined values. That child is the TRUE identity (#5322), so it
+      // absorbs an `$or` outright and drops out of an `$and`. It must not be
+      // pushed as a child either way: an object in AST child position makes
+      // `isFilterAST` false (measured), and the wire face answers `400
+      // INVALID_FILTER` for the whole filter.
+      if (keyword === 'or') return undefined;
+      continue;
+    }
+    children.push(lowered as FilterNode);
+  }
+
+  // Every conjunct reduced to TRUE, so the `$and` constrains nothing.
+  if (children.length === 0) return undefined;
+
+  // A one-child group is emitted as a group, not unwrapped. `['or', node]` is
+  // accepted by `isFilterAST` (length >= 2 = keyword + one condition) and
+  // `parseFilterAST` reduces it to the child, so the extra hop costs nothing
+  // and keeps this function's output shape a function of the INPUT shape.
+  return [keyword, ...children] as FilterNode;
+}
+
+/**
+ * `{ $or: [] }` — FALSE, the OR identity (#5322) — as the leaf this file has
+ * always emitted for it.
+ *
+ * Deliberately unchanged, and deliberately not a group node. Three measurements
+ * against `@objectstack/spec` 17.3.0 and this repo's own evaluator decide it:
+ *
+ *   - `parseFilterAST(['$or', '=', []])` is `{ $or: [] }` — the FilterCondition
+ *     the author wrote, which every backend reduces to zero rows. Correct.
+ *   - `ValueDataSource`'s matcher reads it as a comparison on a field named
+ *     `$or`, which no record has, so it excludes every row. Also correct, and
+ *     the same answer.
+ *   - `['or']` — the "obvious" empty group — is `isFilterAST` FALSE and
+ *     `parseFilterAST` `undefined`: no filter at all, i.e. EVERY row. That is
+ *     the widening direction, on a filter whose whole purpose is to hide rows
+ *     (#5134), so it is the one shape that must not be emitted.
+ *
+ * A leaf naming `$or` as a field is not a shape to be proud of; it is the shape
+ * that answers FALSE at both consumers, which the alternatives do not.
+ */
+function falseIdentityLeaf(field: string, value: unknown[]): FilterNode {
+  return [field, '=', value] as FilterNode;
+}
+
+/**
  * Convert object-based filters to ObjectStack FilterNode AST format.
  * Converts MongoDB-like operators to ObjectStack filter expressions.
  * 
@@ -101,15 +210,49 @@ export function convertOperatorToAST(operator: string): string | null {
  * // Multiple conditions
  * convertFiltersToAST({ age: { $gte: 18, $lte: 65 }, status: 'active' })
  * // => ['and', ['age', '>=', 18], ['age', '<=', 65], ['status', '=', 'active']]
- * 
- * @throws {Error} If an unknown operator is encountered
+ *
+ * @example
+ * // Logical combinators (objectui#6948) — children lower recursively
+ * convertFiltersToAST({ $or: [{ status: 'open' }, { status: 'blocked' }] })
+ * // => ['or', ['status', '=', 'open'], ['status', '=', 'blocked']]
+ *
+ * @throws {FilterOperatorError} If an unknown operator is encountered, or if
+ * `$not` is used — see the `$not` arm for why the AST cannot carry it.
  */
 export function convertFiltersToAST(filter: Record<string, any>): FilterNode | Record<string, any> {
   const conditions: FilterNode[] = [];
   
   for (const [field, value] of Object.entries(filter)) {
     if (value === null || value === undefined) continue;
-    
+
+    // Logical combinators are read BEFORE the field/operator machinery below,
+    // because they are not fields and their value is not an operator map.
+    // Without this arm `$and` / `$or` reached the simple-equality branch (their
+    // value is an array, so the operator loop was skipped) and became a leaf
+    // naming a field literally called `$and` / `$or`, while `$not` entered the
+    // operator loop with its OWN nested object's keys read as operator names.
+    const logicKeyword = AST_LOGIC_KEYWORD[field];
+    if (logicKeyword) {
+      const group = lowerLogicalGroup(field, logicKeyword, value);
+      if (group !== undefined) conditions.push(group);
+      continue;
+    }
+
+    if (field === '$not') {
+      throw new FilterOperatorError(
+        `[ObjectUI] The '$not' filter combinator cannot be lowered to the ObjectQL ` +
+        `filter AST. '@objectstack/spec' declares it on FilterCondition, but the AST ` +
+        `this layer emits has no negation keyword (FILTER_ARRAY_LOGIC_KEYWORDS is ` +
+        `['and', 'or']), and rewriting the negation inward is not available either — ` +
+        `'startswith', 'endswith', 'between' and 'icontains' have no negated ` +
+        `counterpart in VALID_AST_OPERATORS, so the rewrite would be silently ` +
+        `partial. Express the negation with a negated operator instead ($ne, $nin, ` +
+        `$notContains); note those follow each operator's own answer for a missing ` +
+        `value rather than $not's NULL-safe rule (objectstack#5146). ` +
+        `Value: ${JSON.stringify(value)}.`
+      );
+    }
+
     // Check if value is a complex operator object
     if (typeof value === 'object' && !Array.isArray(value)) {
       // Handle operator-based filters
