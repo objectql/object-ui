@@ -2326,6 +2326,43 @@ carry it. Regenerating a file is not reconciling two versions of it, and the ver
 updated by `reset --hard` plus a force-push inside `changesets/action`, which merges nothing on
 the runner. Removed by [#6436](https://github.com/objectstack-ai/objectui/issues/6436).
 
+## Toolchain Setup (`scripts/ci-setup-pnpm.sh`)
+
+Every workflow that runs `pnpm` calls this one script, as its first step after checkout:
+
+```yaml
+- name: Enable Corepack and download the pinned pnpm
+  run: bash scripts/ci-setup-pnpm.sh
+```
+
+pnpm is **not** on the GitHub runner. It arrives through Corepack, which downloads the
+version pinned in the root `package.json`'s `packageManager` field from
+`registry.npmjs.org` the first time anything invokes `pnpm`. That download is a network
+read on the hot path of 13 workflows, and it has failed:
+[#8099](https://github.com/objectstack-ai/objectui/issues/8099) records a job that died
+inside undici ten seconds in, reddening the **required** check `README Export Check` on a
+one-file prose diff. Re-running the same head with no code change turned it green.
+
+The script does two things a bare `corepack enable` does not:
+
+- **It puts the download where a reader can see it.** `corepack enable` only writes the
+  shims; the *first pnpm invocation* is what downloads. Left implicit, that lands wherever
+  each workflow happens to touch pnpm first — including inside `actions/setup-node`'s
+  `cache: 'pnpm'` store probe, where a red is hardest to attribute to the toolchain rather
+  than to the diff under test.
+- **It retries the read, bounded.** Four attempts with a 5s/10s/15s backoff, each retry
+  emitting a `::warning::` annotation that says the failure is the toolchain download and
+  not the diff.
+
+⛔ It does **not** remove the dependency on `registry.npmjs.org` — a sustained registry
+outage still reds these jobs. It bounds a transient read, which is the failure that was
+actually observed.
+
+Two workflows mention `corepack enable` in comments only and must stay that way:
+`changelog.yml` and `dependabot-auto-merge.yml`, the latter recording
+[#6392](https://github.com/objectstack-ai/objectui/issues/6392)'s ruling that removed the
+step because nothing in that job calls pnpm.
+
 ## Adding a New Workflow
 
 > **Give it a section on this page in the same PR.** Not a convention — a test.
@@ -2341,19 +2378,25 @@ the runner. Removed by [#6436](https://github.com/objectstack-ai/objectui/issues
    now uses `@v7`, a hardcoded `node-version: 20` where every workflow declares 22
    (and 20 sat below the floor the root `package.json`'s `engines` field now declares), and
    `pnpm/action-setup@v4`, which no workflow in this repository has ever used — pnpm comes
-   from `corepack enable` plus the root `packageManager` field instead.
+   from Corepack plus the root `packageManager` field instead, through
+   `scripts/ci-setup-pnpm.sh`.
 
    `readme-exports.yml` (see the **README Exports** section above) is a good one to read: it
    is short, runs on every pull request, and its setup is the complete pattern most new
-   build/test/lint workflows need — checkout, enable Corepack, `actions/setup-node` with
-   pnpm's own cache, `pnpm install --frozen-lockfile`, then a `turbo run build` step for
-   whatever it needs built. Two of its steps hold for any workflow no matter which Node or
-   pnpm version the repository is on when you read this:
+   build/test/lint workflows need — checkout, the shared pnpm setup, `actions/setup-node`
+   with pnpm's own cache, `pnpm install --frozen-lockfile`, then a `turbo run build` step
+   for whatever it needs built. Two of its steps hold for any workflow no matter which Node
+   or pnpm version the repository is on when you read this:
 
    ```yaml
    - uses: actions/checkout@v7
-   - run: corepack enable
+   - run: bash scripts/ci-setup-pnpm.sh
    ```
+
+   The second line is not optional and not a style choice — see
+   [Toolchain Setup](#toolchain-setup-scriptsci-setup-pnpmsh) below.
+   `scripts/__tests__/ci-setup-pnpm-wiring.test.ts` fails a workflow that runs `pnpm`
+   without it, and fails one that spells `corepack` in a `run:` step directly.
 
    Copy everything else — the Node version, the cache key, the install command — from the
    workflow itself, not from this page.
