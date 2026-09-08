@@ -61,6 +61,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { ObjectStackSchema } from '@objectstack/spec';
+// `SelectOptionSchema` is NOT on the spec's root export — it is reachable only
+// at the `/data` subpath (measured on 17.3.0: importing it from the root is a
+// hard `SyntaxError`, "does not provide an export named"). Worth spelling out,
+// because the near-miss fails toward "nothing to assert here".
+import { SelectOptionSchema } from '@objectstack/spec/data';
 import { SAMPLES } from '../preview-samples';
 
 /**
@@ -134,38 +139,38 @@ const SPEC_CLEAN = [
  * delete the only thing keeping the gallery's examples honest.
  */
 const KNOWN_STALE: Record<string, string> = {
-  // TWO defects, and the reason says both on purpose (objectui#6647). A row
-  // here records what a reader would be rejected for, and a reason naming only
-  // the first blocker sends whoever fixes it back to a sample that is STILL
-  // red with no note — which is exactly how this row read until #6647.
+  // ONE defect, and it is the DELIBERATE one (objectui#6844). This row named
+  // TWO until #6844 fixed the second; a row here records what a reader would be
+  // rejected for, and a reason naming a blocker that is no longer there
+  // over-states what remains — the mirror of the defect objectui#6647 was
+  // itself filed about, so the reason is maintained in the same PR as the fix.
   //
-  // 1. The array `fields` — NOT a typo:
-  //    `packages/app-shell/.../object-fields-io.ts` `readFields()` branches on
-  //    `shape: 'array' | 'record'` and round-trips whichever the draft used, so
-  //    this sample is what covers the array branch in the gallery. Rewriting it
-  //    to a record would drop that coverage while leaving the designer still
-  //    able to author a shape ObjectSchema rejects, which is the actual
-  //    question (AGENTS.md #0.1) — an app-shell question, not a
-  //    preview-samples one.
+  // What remains — the array `fields`, NOT a typo:
+  //   `packages/app-shell/.../object-fields-io.ts` `readFields()` branches on
+  //   `shape: 'array' | 'record'` and round-trips whichever the draft used, so
+  //   this sample is what covers the array branch in the gallery. Rewriting it
+  //   to a record would drop that coverage while leaving the designer still
+  //   able to author a shape ObjectSchema rejects, which is the actual question
+  //   (AGENTS.md #0.1) — an app-shell question, not a preview-samples one.
   //
-  // 2. `status.options` as bare strings, where `FieldSchema` wants option
-  //    OBJECTS (`{ label, value }`; an empty `{}` reports both as missing).
-  //    Unlike (1) this one is not deliberate — the designer cannot read it
-  //    either (`ObjectFieldInspector`'s `readOptions()` does
-  //    `String(o?.value ?? '')`, so three string options render as three BLANK
-  //    rows) — but re-authoring it means inventing the `value` codes the sample
-  //    should demonstrate, which is a sample-content decision, not a mechanical
-  //    re-spelling. Filed separately rather than smuggled in here.
+  // What is GONE — `status.options` as bare strings, where `FieldSchema` wants
+  // option OBJECTS. Fixed in objectui#6844 as `{ label, value }` pairs; the
+  // `value` codes are the spec's own system-identifier spelling, since
+  // `SelectOptionSchema.value` refuses `'Draft'` by format.
   //
-  // Both are measured against spec 17.2.0; only (1) is REPORTED today, because
-  // the parse short-circuits at `objects.0.fields` before it ever descends into
-  // a field. That masking is the whole hazard this ledger row now records: the
-  // third defect, `reference_to` on the lookup field, hid behind it for four
-  // spec releases and was fixed in #6647 — see its RETIRED_KEYS pin below,
-  // which is what stops it (or its twin) drifting back in while this row's
-  // quarantine keeps the reverse assertion satisfied on the array shape alone.
+  // ⚠️ Neither the gates nor the product could SEE that second defect, which is
+  // why it lived here in prose for as long as it did:
+  //   • the parse short-circuits at `objects.0.fields` on the array shape, and
+  //     the reverse assertion below only asks for `length > 0` — which the
+  //     array shape satisfies forever;
+  //   • `ObjectFieldInspector`'s `readOptions()` does `String(o?.value ?? '')`,
+  //     so the three strings rendered as three BLANK rows rather than an error.
+  // Prose is not a gate, so both masks are now pinned instead of narrated —
+  // see the objectui#6844 block at the bottom of this file for the first
+  // (everything but the array shape must parse clean), and
+  // `preview-samples-designer-options.test.tsx` for the second.
   object:
-    '`fields` is an array; ObjectSchema wants a record keyed by field name (deliberate — it covers the array branch of `readFields()`). Fixing that alone is NOT enough: `status.options` are bare strings where the spec wants `{ label, value }` objects, reported only once the array shape stops short-circuiting the parse.',
+    '`fields` is an array; ObjectSchema wants a record keyed by field name (deliberate — it covers the array branch of `readFields()`). It is the ONLY remaining defect: with the array shape lifted to a record this sample parses clean, pinned below.',
   dashboard: 'widgets miss `dataset`/`values` and use retired `value`/`format`; `chart` is not a widget type',
   translation:
     'the `translations` collection is Array< Record< locale, TranslationData > >, but this sample is the metadata-RECORD form (name/label/locale/data) the console edits — so this row is a mapping mismatch, not necessarily a stale sample. Settle which contract the sample targets before guarding it.',
@@ -355,4 +360,138 @@ describe('preview-samples conform to @objectstack/spec', () => {
       expect([...keyNamesIn(SAMPLES[type])]).not.toContain(key);
     },
   );
+});
+/**
+ * objectui#6844 — the `object` row's reason, ASSERTED instead of narrated.
+ *
+ * The reverse assertion above asks the `object` row for `length > 0`, and the
+ * deliberate array `fields` shape supplies exactly that, forever. Zod
+ * short-circuits at `objects.0.fields` before descending into a single field,
+ * so every defect BELOW that point on this sample is invisible to the gate —
+ * which is how `status.options` sat here as bare strings, recorded only in
+ * prose, and how `reference_to` rode along for four spec releases before it.
+ *
+ * The fix for one malformed option is not the same as the fix for the mask.
+ * Repairing the sample alone would leave the NEXT one exactly as invisible, so
+ * the mask is closed here: with the array shape lifted to the record the spec
+ * wants, the sample must parse CLEAN. That makes "the array shape is the only
+ * thing wrong with this sample" a measured claim rather than a comment, and it
+ * is the assertion that goes red the day a new defect lands under it.
+ *
+ * ⚠️ Cleanliness alone is not enough, which is the second `it` below. A sample
+ * with `status.options` DELETED parses just as clean, and it would be strictly
+ * worse than the bug — the field that exists to demonstrate a picklist would
+ * stop demonstrating one. So presence and concrete content are pinned too.
+ */
+describe('object sample: the deliberate array `fields` shape is its ONLY defect (objectui#6844)', () => {
+  /**
+   * The sample's `fields` keyed by field name, whichever shape they are
+   * authored in.
+   *
+   * Shape-agnostic ON PURPOSE, even though the array is what this sample
+   * carries: the wrong fix these pins guard against is "tidy it up to a
+   * record", and if these helpers only spoke array then that fix would make
+   * every assertion below explode with a `TypeError` instead of letting the
+   * ONE pin that is about the shape say so. The lift is otherwise verbatim —
+   * no key is stripped, so a retired key re-added to a field still reaches the
+   * parse below.
+   */
+  function objectFieldsAsRecord(): Record<string, unknown> {
+    const fields = (SAMPLES.object as { fields: unknown }).fields;
+    if (!Array.isArray(fields)) return fields as Record<string, unknown>;
+    return Object.fromEntries(
+      (fields as Array<Record<string, unknown>>).map((f) => [String(f.name), f]),
+    );
+  }
+
+  /**
+   * The `object` sample minus its one deliberate defect — i.e. with `fields`
+   * in the record shape `ObjectSchema` wants. Nothing else is touched, so
+   * every issue this reports belongs to a field.
+   */
+  function objectSampleAsRecord(): Record<string, unknown> {
+    return { ...(SAMPLES.object as Record<string, unknown>), fields: objectFieldsAsRecord() };
+  }
+
+  /** The sample's `status` field definition. */
+  function statusField(): Record<string, unknown> {
+    const field = objectFieldsAsRecord().status;
+    if (!field) throw new Error('the `object` sample no longer has a `status` field');
+    return field as Record<string, unknown>;
+  }
+
+  it('parses clean once the array shape stops short-circuiting the parse', () => {
+    const result = ObjectStackSchema.safeParse({ objects: [objectSampleAsRecord()] });
+    const issues = result.success
+      ? []
+      : result.error.issues.map((i) => `${i.code}@[${i.path.join('.')}] ${i.message}`);
+    // Listed, not counted: a failure here has to name the new defect, because
+    // naming it is the whole point of taking the quarantine's word away.
+    expect(issues).toEqual([]);
+  });
+
+  it('still TEACHES a picklist — the options are present, and concrete', () => {
+    const options = statusField().options;
+    // Presence first. `toEqual([])` above passes on a sample with `options`
+    // deleted outright, and that would be strictly worse than the defect.
+    expect(Array.isArray(options)).toBe(true);
+    expect(options as unknown[]).toHaveLength(3);
+
+    // Shape: option OBJECTS, each one a document `SelectOptionSchema` accepts
+    // on its own. A bare string fails this by itself, without needing the
+    // whole-stack parse above.
+    for (const option of options as unknown[]) {
+      expect(typeof option).toBe('object');
+      expect(SelectOptionSchema.safeParse(option).success).toBe(true);
+    }
+
+    // Content, spelled out. Asserting "label is a non-empty string" would pass
+    // on any three placeholders; these are the codes and faces the sample
+    // exists to teach, so they are pinned literally.
+    expect((options as Array<Record<string, unknown>>).map((o) => o.value)).toEqual([
+      'draft',
+      'open',
+      'closed',
+    ]);
+    expect((options as Array<Record<string, unknown>>).map((o) => o.label)).toEqual([
+      'Draft',
+      'Open',
+      'Closed',
+    ]);
+  });
+
+  it('refuses the Title-Case `value` a reader might reach for first', () => {
+    // Why the codes are lowercase is not a house style: `SelectOptionSchema`'s
+    // `value` is a SYSTEM IDENTIFIER. Pinned as a pair so the reason survives
+    // — the accepted arm alone would also pass if the format rule vanished.
+    expect(SelectOptionSchema.safeParse({ label: 'Draft', value: 'draft' }).success).toBe(true);
+    expect(SelectOptionSchema.safeParse({ label: 'Draft', value: 'Draft' }).success).toBe(false);
+  });
+
+  /**
+   * The non-regression axis, aimed at the plausible WRONG fix rather than at
+   * the bug: "tidy the sample up" — repair the options AND the array `fields`
+   * in one pass. That deletes the gallery's only coverage of `readFields()`'s
+   * array branch, silently, while every other assertion in this file goes
+   * greener. Both halves are asserted: the shape as authored, and the shape
+   * the real reader classifies it as.
+   */
+  it('keeps the array `fields` shape that selects `readFields()`\'s array branch', () => {
+    // `readFields(fieldsInput)` in app-shell's
+    // `views/metadata-admin/previews/object-fields-io.ts` opens with
+    // `if (Array.isArray(fieldsInput)) return { shape: 'array', … }`. That
+    // predicate is asserted here rather than the function imported: app-shell's
+    // `exports` map publishes `.` and `./styles.css` only, and `readFields` is
+    // on neither, so a deep import would type-check solely by accident of the
+    // console's Vite alias — green under vitest, red under `tsc`.
+    expect(Array.isArray(SAMPLES.object.fields)).toBe(true);
+    // And the branch carries the field this card is about, so the coverage is
+    // over the sample as it stands rather than over an empty list.
+    expect(
+      (SAMPLES.object.fields as Array<Record<string, unknown>>).map((f) => f.name),
+    ).toContain('status');
+    // The branch is also RUN, not merely selected: the sibling
+    // `preview-samples-designer-options.test.tsx` renders the real inspector
+    // over this same draft, and it reaches `status` only through `readFields`.
+  });
 });
