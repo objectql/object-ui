@@ -124,6 +124,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * An absent proposer next to a known decider.
+ *
+ * `undefined`, not `null`, and that is the contract talking: `PendingActionRow`
+ * declares `proposed_by?: string`, so the only absent value the producer can
+ * send is `undefined`. A first draft of this fixture used `null` and
+ * `type-check` refused it — the `??` guard's null arm is unreachable under the
+ * declared shape, and pinning it would have been pinning a value no producer
+ * emits. `??` catches `undefined` too, so the placeholder branch is the same.
+ */
+const ABSENT_PROPOSER: Partial<PendingActionRow> = {
+  proposed_by: undefined,
+  decided_by: 'human@objectos.ai',
+};
+
 /** The shared placeholder inside ONE element, or null. */
 const emptyIn = (el: HTMLElement): HTMLElement | null =>
   el.querySelector('[data-slot="empty-value"]');
@@ -151,10 +166,7 @@ async function openDrawer(over: Partial<PendingActionRow>) {
 
 describe('AiPendingActionsInbox drawer identity fields (objectui#8504 adjacent, :507/:511)', () => {
   it('THE DEFECT — an unknown proposer carries an accessible name', async () => {
-    const { field } = await openDrawer({
-      proposed_by: null,
-      decided_by: 'human@objectos.ai',
-    } as Partial<PendingActionRow>);
+    const { field } = await openDrawer(ABSENT_PROPOSER);
     const placeholder = emptyIn(field('Proposed by'));
 
     expect(placeholder, 'the unknown proposer draws the shared placeholder').not.toBeNull();
@@ -172,10 +184,7 @@ describe('AiPendingActionsInbox drawer identity fields (objectui#8504 adjacent, 
   });
 
   it('NON-REGRESSION — a KNOWN identity renders its value and NO placeholder', async () => {
-    const { field } = await openDrawer({
-      proposed_by: null,
-      decided_by: 'human@objectos.ai',
-    } as Partial<PendingActionRow>);
+    const { field } = await openDrawer(ABSENT_PROPOSER);
     const filled = field('Decided by');
 
     expect(
@@ -192,10 +201,7 @@ describe('AiPendingActionsInbox drawer identity fields (objectui#8504 adjacent, 
     // so its `no placeholder` half never runs. This case reaches it — the
     // second assertion is the one that fails BECAUSE a filled field gained a
     // placeholder.
-    const { field } = await openDrawer({
-      proposed_by: null,
-      decided_by: 'human@objectos.ai',
-    } as Partial<PendingActionRow>);
+    const { field } = await openDrawer(ABSENT_PROPOSER);
     expect(emptyIn(field('Proposed by')), 'the unknown proposer has one').not.toBeNull();
     expect(emptyIn(field('Decided by')), 'and the known decider does NOT').toBeNull();
   });

@@ -15,8 +15,9 @@
  * ## Reachability was CHECKED before the swap, not assumed
  *
  * This is the one carrier on the card that lives in `apps/`, not `packages/` —
- * an app's dependency tier, not a library's, and outside the `'packages/​*​/src/​*'`
- * pathspec every census in the thread used. Measured: `@object-ui/components`
+ * an app's dependency tier, not a library's, and outside the packages-only
+ * `git grep` pathspec every census in the thread used (a glob rooted at
+ * `packages`, which never sees `apps`). Measured: `@object-ui/components`
  * is on `apps/console`'s `devDependencies` (`workspace:*`) and 29 files under
  * `apps/console/src` already import from it — this page among them. `EmptyValue`
  * joins an import list that was already there; no manifest edge was added, and
