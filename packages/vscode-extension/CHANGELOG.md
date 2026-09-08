@@ -1,5 +1,270 @@
 # Changelog
 
+## 17.7.0
+
+### Patch Changes
+
+- 744c25e: Fix the phantom import the VS Code extension's **Export to React** command wrote into
+  every file it generated (objectui#7837).
+  
+  `generateReactComponent()` emitted a preamble that imported `registerDefaultRenderers`
+  from `@object-ui/components` and then called it. That symbol is on **no export** of
+  that package: its built `dist/index.d.ts` carries exactly one `register*` name,
+  `registerPlaceholders`, and `registerDefaultRenderers` appears **0 times** in either
+  `dist/index.d.ts` or `dist/index.js`. So every file the command produced failed to
+  compile with `TS2305` naming a symbol the user never typed.
+  
+  `@object-ui/components` registers its renderers as an **import side effect** —
+  `sideEffects: true` in its manifest, `import './renderers'` in its barrel under the
+  comment `Register all ObjectUI renderers (side-effects)`, and **114 `register(` call
+  sites** at module scope in the built `dist/index.js`. There is no registration function
+  to call, so the generated preamble now imports the package for the side effect and says
+  why. Same spelling the root README landed for objectui#7417.
+  
+  `packages/vscode-extension/DESIGN.md`, which documented the identical two lines, is
+  corrected in the same commit so the design record does not freeze the defect.
+  
+  No public surface moved: no export added, no signature changed.
+- f98e73b: Drop the unused `import React from 'react'` the VS Code extension's **Export to React**
+  command wrote into every file it generated (objectui#7862).
+  
+  The generated file's only JSX is a single SchemaRenderer element, so under the automatic
+  JSX runtime — `"jsx": "react-jsx"`, what a new Vite or Next project is configured with —
+  the `React` identifier was never read. Measured on this branch against the built
+  `dist/index.d.ts` of `@object-ui/react` and `@object-ui/components`, TypeScript 6.0.3:
+  the emitted file compiled clean under `react-jsx` + `strict` (exit 0), and under the same
+  config plus `noUnusedLocals: true` it failed with
+  `TS6133: 'React' is declared but its value is never read` — so a consumer with that
+  option on could not compile the file the command had just handed them.
+  
+  The preamble now says in a comment that it assumes the automatic runtime and that the
+  import goes back only on the classic `"jsx": "react"` transform, which is the one
+  configuration this costs: measured, that file reports one diagnostic about `React` being
+  out of scope. Nothing in the extension emits or promises a `jsx` setting — the string
+  does not occur anywhere in the package — and the published docs page for the command
+  already showed the output without the import.
+  
+  A new pin, `src/__tests__/export-to-react-compiles.test.ts`, now extracts the template's
+  PRODUCT and compiles it under `noUnusedLocals`, rather than matching substrings in the
+  generator. The sibling objectui#7837 pin was green for the whole life of this line
+  because it never named it; a compile closes the class instead of one member of it. Its
+  positive control runs on every invocation: re-adding the import must report TS6133, so
+  the harness cannot go quietly, permanently green.
+  
+  `packages/vscode-extension/DESIGN.md`, whose section 4 hand-mirrors this preamble, is
+  corrected in the same commit so the design record does not freeze the defect — the
+  spelling objectui#7837 landed for the same file. What binds the two copies together is
+  still nothing, and objectui#7976 holds that question.
+  
+  No public surface moved: no export added, no signature changed.
+- Updated dependencies [64dae8e]
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [9801765]
+- Updated dependencies [460575f]
+- Updated dependencies [d88e20f]
+- Updated dependencies [2d7304d]
+- Updated dependencies [636b236]
+- Updated dependencies [64d624d]
+- Updated dependencies [053fdc8]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [490d9a9]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [90665e0]
+- Updated dependencies [7e19d03]
+- Updated dependencies [546ddf7]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [44d075b]
+- Updated dependencies [40c479a]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [a26b9e4]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [6f81384]
+- Updated dependencies [8f1d995]
+- Updated dependencies [dddb942]
+- Updated dependencies [29754cf]
+- Updated dependencies [3c2b6f7]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [5961030]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [299102e]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [831be72]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [d0889e2]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [2c1c967]
+- Updated dependencies [4d5f9b4]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [7977ff9]
+- Updated dependencies [3beef6d]
+- Updated dependencies [045d20b]
+- Updated dependencies [adb2a86]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [b0d308d]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [351eb31]
+- Updated dependencies [20c04b2]
+- Updated dependencies [48c19bd]
+- Updated dependencies [a6d8b8d]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [e75f4c9]
+- Updated dependencies [19f1639]
+- Updated dependencies [47547d0]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [669d71b]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [00d2fa6]
+- Updated dependencies [c6198c2]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [5d0876c]
+- Updated dependencies [b041b9c]
+- Updated dependencies [ce2aaef]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [52cac38]
+- Updated dependencies [64a252d]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [0ea7054]
+- Updated dependencies [fc32921]
+- Updated dependencies [8f9d87a]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [81c0bc4]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [100547e]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [bf3edfe]
+- Updated dependencies [0e05aac]
+- Updated dependencies [5aed9e4]
+- Updated dependencies [83c77dc]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [e719ebd]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [8ebd57f]
+- Updated dependencies [199d31b]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [7138bc1]
+- Updated dependencies [cef27e2]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [a691c0b]
+- Updated dependencies [af3861f]
+- Updated dependencies [515f171]
+- Updated dependencies [258d264]
+- Updated dependencies [c00bf28]
+- Updated dependencies [f2158ec]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [91783c4]
+- Updated dependencies [2d36552]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [3c73d99]
+- Updated dependencies [ed71d9e]
+- Updated dependencies [7776fc2]
+- Updated dependencies [1170ed1]
+- Updated dependencies [4d73b07]
+  - @object-ui/core@17.7.0
+  - @object-ui/types@17.7.0
+
 ## 17.6.0
 
 ### Patch Changes

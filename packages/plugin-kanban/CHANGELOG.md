@@ -1,5 +1,1021 @@
 # @object-ui/plugin-kanban
 
+## 17.7.0
+
+### Minor Changes
+
+- b3d562c: One authority for `MarkdownSchema`, and for `KanbanCard` / `KanbanColumn`
+  inside `@object-ui/plugin-kanban` (objectui#6172, folding in objectui#6155).
+  
+  The 2026-08-25 family ruling: every exported schema name has exactly one
+  authority. Two of this card's names are discharged here.
+  
+  **`MarkdownSchema` — converged onto `@object-ui/types`.**
+  `@object-ui/plugin-markdown` declared a second copy of the name. The two
+  differed on exactly one member — `content`, required in `@object-ui/types` and
+  optional in the plugin — and that was measured to be drift rather than a real
+  semantic difference: the plugin's own registration declares the `content` input
+  `required: true` (pinned by its own test), `MarkdownImplProps.content` is a
+  non-optional `string`, the Zod mirror spells `z.string()`, and every authored
+  `type: 'markdown'` node in the repository supplies `content`. The plugin now
+  re-exports the one authority.
+  
+  ⚠️ **Breaking, in the narrowing direction, for `@object-ui/plugin-markdown`
+  consumers**: `MarkdownSchema['content']` goes from optional to **required**. A
+  value annotated `MarkdownSchema` that omitted `content` no longer type-checks.
+  Measured against this repository: zero authored markdown nodes omit it, so
+  nothing in-tree changed. (`type: 'markdown'` literals that carry no `content`
+  are rich-text FIELD metadata — `MarkdownFieldMetadata` — a different type.)
+  The plugin's face also gains the optional `sanitize` and `components` members
+  the canonical declaration carries; both are additive, and neither is read by
+  this renderer, which sanitizes unconditionally.
+  
+  `className` is unaffected — it comes from `BaseSchema`, which both copies
+  extended, so it was always inherited rather than added by the plugin.
+  
+  **`KanbanCard` / `KanbanColumn` — the three in-package copies converged to
+  one.** `KanbanImpl.tsx` and `KanbanEnhanced.tsx` each redeclared both names. A
+  TypeScript-AST comparison found them strict-SUBSET copies of `./types` with
+  nothing typed differently, so their extra members moved onto the one
+  declaration and both files now re-point at it.
+  
+  Additive for consumers: `KanbanCard` gains `cardSubtitle`, `cardFieldCells` and
+  `coverImage`; `KanbanColumn` gains `collapsed`. All four are optional, so every
+  value that type-checked before still does. Both modules keep their previous
+  export surface via re-export, so no import path changes.
+  
+  The cross-package `KanbanCard` / `KanbanColumn` / `KanbanSchema` collision
+  between `@object-ui/types` and `@object-ui/plugin-kanban` is NOT resolved here
+  and is escalated on objectui#6172 — those are two different dialects (`items`
+  vs `cards`, `labels` vs `badges`), and collapsing them renames a published
+  name, which needs an authority ruling.
+- 6ca6e12: `ObjectKanbanComponentProps.schema` names both node types the component is registered for
+  (objectui#7322 item ②, following the objectui#5903 / #5018 land shape).
+  
+  `ObjectKanbanRenderer` is registered under two keys — `'object-kanban'` and `'kanban'` —
+  and the two keys have different declared node types: `ObjectKanbanSchema` (`type:
+  'object-kanban'`, `objectName` and `groupBy` required) and `KanbanSchema` (`type:
+  'kanban'`, both optional). The prop named `KanbanSchema` alone, so **no `object-kanban`
+  node was assignable to the component that renders it**, and the discriminants are disjoint
+  string literals, so no cast-free annotation existed for half the boards this component
+  serves. It is now the union of the two.
+  
+  ## What settled it: the read set
+  
+  `ObjectKanban` reads thirteen keys off `schema`. Neither declaration covers them; the two
+  TOGETHER cover twelve, and each arm is load-bearing:
+  
+  - `objectName`, `groupBy`, `limit`, `cardFields` — declared on both;
+  - `columns`, `cardTitle`, `swimlaneField`, `grouping` — `KanbanSchema` only;
+  - `titleField` — `ObjectKanbanSchema` only (which is why that read was spelled
+    `(schema as any).titleField`);
+  - `data`, `bind`, `className` — `BaseSchema`;
+  - `filter` — declared by **neither** face, still riding `BaseSchema`'s index signature.
+    Measured and reported, **not** changed here: this card moves the prop, not the two
+    published schema faces.
+  
+  So naming `ObjectKanbanSchema` alone — the remedy the original card implied — would have
+  been wrong in the other direction: it drops four declared reads and the `'kanban'`
+  registration.
+  
+  ## Not affected
+  
+  Widening a member of an exported prop type is additive: every caller that passed a
+  `KanbanSchema` still compiles, and the union claims exactly the accept set the registry
+  dispatches to this component — a third node type is still turned away. The runtime is
+  untouched; `ObjectKanbanRenderer` still takes `schema: any`, so no shape is turned away
+  there either (the objectui#5903 disposition, restated). The view-level `kanban.groupField`
+  alias, `BaseSchema`'s index signature, and `@object-ui/types` are all untouched.
+  
+  ## Casts this removes
+  
+  Inside `ObjectKanban.tsx`, three schema-key reads drop their `as any`: `titleField` (two
+  sites, now honest because the `object-kanban` arm declares it) and `cardFields` /
+  `cardTitle` (already declared; the casts were redundant). `(schema as any).navigation`
+  **stays** — `navigation` is declared on neither face, so removing the cast would change
+  nothing but the spelling of an index-signature read.
+  
+  Four of the six in-package fixtures that mount an `object-kanban` board drop their
+  `as never` escape for a real `satisfies ObjectKanbanSchema`. The other two are static
+  boards (`columns` + inline `data`, no fetch) that author no `objectName`, which
+  `ObjectKanbanSchema` declares required — objectui#7780's subject; their casts stay, now
+  carrying the reason and the card number.
+- 0ead1f6: Declare the `filter` input on every `object-kanban` / `object-calendar`
+  registration (objectui#7712) — the html tier stops reporting `unknown-prop` on a
+  key the spec declares and both renderers read.
+  
+  `ObjectKanban.tsx` sends the authored key to the query as `$filter: schema.filter`
+  and `ObjectCalendar.tsx` does the same, and `@objectstack/spec`'s
+  `ComponentPropsMap` declares `filter` on both blocks (measured: `safeParse`
+  accepts it, and refuses an undeclared key by name on the same call). But none of
+  the four registrations that publish those two renderers listed `filter` in
+  `inputs`, and `sdui-parser`'s `validateTree` reports `unknown-prop` for every key
+  no `inputs` entry claims. So an author writing the one spelling that WORKS was
+  told it was unknown — objectui#6678's shape, where a correct write draws the same
+  diagnostic as a write that does nothing. That is worse than an inert key: it
+  actively punishes the correct behaviour, and the honest response to it is to
+  delete working metadata.
+  
+  ADR-0049 enforce-or-remove resolves toward **declare**, not remove: the key has
+  live readers on both ends, so the registrations were the side that was wrong. The
+  declaration is `type: 'array'` on all four, matching the `filter` that
+  `object-grid`'s `GRID_QUERY_INPUTS` and `object-metric` already publish, and it is
+  writable as one shape only because objectui#7711 landed first and retired the
+  object-shaped `filter.calendar` spelling — `filter` is the query filter and
+  nothing else.
+  
+  Declared per key against the spec rather than derived from the
+  `ElementDataSourceMapping` sitting beside these registrations, even though that
+  mapping already asserts `filter` is a live query key. Measured, that derivation
+  would be wrong: the kanban mapping also carries `limit`, and the spec's strict
+  `ComponentPropsMap['object-kanban']` **rejects** `limit` by name, so emitting it
+  would publish a key the save gate refuses.
+  
+  ⚠️ Note for whoever meets this class next: `check:react-blocks-declaration-parity`
+  runs manifest → spec, one direction. A key the SPEC declares and the manifest
+  omits is structurally outside what that ratchet measures, so fixing these four
+  registrations does **not** make the next omission loud. Making that ratchet
+  bidirectional is its own card.
+
+### Patch Changes
+
+- 062943f: `@object-ui/plugin-grid` and `@object-ui/plugin-kanban` now publish a stylesheet —
+  `"./style.css"`, mapped to `dist/index.css` and compiled at build time from the package's
+  own sources (objectui#4929, maintainer ruling 2026-08-17, Direction 1).
+  
+  **What was broken.** Only `@object-ui/components` and `@object-ui/fields` shipped CSS, and
+  each scans its own `src` only, so a class used exclusively by a plugin could not appear in
+  either sheet BY CONSTRUCTION. A published-state Vite app that installed one of these two
+  plugins and followed the quick-start rendered the grid or the board with **25 themed
+  utilities that had no source anywhere in the world** — `bg-muted/10`, `bg-card/60`,
+  `text-muted-foreground/60`, `ring-primary/40` and friends, ordinary appearance classes —
+  plus ~103 plain ones. Re-measured on the merged tree: the 21 the card listed all still hold,
+  and four more (`[&>h3]:text-foreground/80`, `border-l-primary/40`, `border-primary/30`,
+  `hover:text-primary`) that its literal-grep method could not see.
+  
+  The plain utilities a consumer could in principle regenerate by pointing `@source` at the
+  package's `dist`. The themed ones they cannot, at all: they resolve `@theme` tokens declared
+  in `packages/components/src/index.css`, which that package does not publish. A build inside
+  this monorepo is their only possible producer — which is why the fix is a stylesheet we
+  ship, not documentation teaching consumers to hand-declare the theme and scan
+  `node_modules` (the advice objectui#4858 had just retired from the guides).
+  
+  **The shape**, inherited from `@object-ui/fields` (objectui#4059): each package gains
+  `src/index.css` that `@reference`s the components entry — theme tokens, the class-based
+  `dark` variant and the animate plugin become available for resolution while emitting
+  nothing — plus `scripts/build-css.mjs`, which subtracts every rule components' published
+  sheet already ships. So these are **supplements, imported after** the components sheet, and
+  they are 16.30 kB and 11.41 kB rather than another ~170 kB each:
+  
+  ```css
+  @import 'tailwindcss';
+  @import '@object-ui/components/style.css';
+  @import '@object-ui/fields/style.css';
+  @import '@object-ui/plugin-grid/style.css';
+  @import '@object-ui/plugin-kanban/style.css';
+  ```
+  
+  Add a line only for the plugins you install; no other `@object-ui/plugin-*` package
+  publishes a stylesheet yet. The build step is shared
+  (`scripts/build-plugin-stylesheet.mjs`) so it is the pattern the next one inherits rather
+  than a file to copy, and it refuses to write a sheet that fails any of four assertions — no
+  rule may vanish, the subtraction must have removed something, the class count may not pass
+  a leak ceiling, and named themed utilities only this build can produce must still be
+  present.
+  
+  Nothing is removed and no existing import changes: a consumer who does not import the new
+  sheets is exactly where they were, and the guides' "do not scan `node_modules`" advice
+  stays correct — it is now correct for plugins too.
+- 39f4309: Published typings from every `vite-plugin-dts` package now carry an explicit extension on
+  every relative specifier, and a type error in the declaration build now fails the build
+  instead of being printed and ignored (objectui#5439, objectui#5483).
+  
+  **Consumers on `moduleResolution: nodenext` or `node16` may see NEW type errors, and that
+  is the fix working.** These packages re-export mostly through NAMED re-exports —
+  `export { useObjectChat } from './useObjectChat'`. TypeScript could not follow the
+  extensionless hop, but it still DECLARED the name, so the symbol resolved to a silent
+  `any`. Nothing errored; consumers simply got no types. With the extension emitted, the
+  symbol carries its real type, and any call site that was relying on the `any` now type
+  checks for the first time. This is the mode that produced the 21 residual `TS7006` on
+  `@object-ui/app-shell` reported against objectui#5365 — a type hole that opened quietly,
+  unlike objectui#5365's own `export * from './ui'` packages where the same defect surfaced
+  immediately as `TS2305: has no exported member`.
+  
+  410 extensionless relative specifiers across 19 packages were emitted before this change;
+  the count is now 0 in all 22 packages that build typings through `vite-plugin-dts`.
+  `@object-ui/fields` was already clean — its sources write explicit `.js` specifiers — and
+  is wired so it stays that way.
+  
+  The second half changes no emitted output today: 22/22 packages built green unmodified, so
+  making the declaration step's exit code honest turns nothing red. It changes what a FUTURE
+  regression does — print and exit 0, versus fail the build.
+- 7c96c94: Four more private copies of the reference-bearing field family converge onto
+  `@object-ui/core`'s `EXPANDABLE_FIELD_TYPES`, and the "fourth and last private copy" claim
+  that `paramToField` still stated is corrected (objectui#5874, objectui#5875).
+  
+  Each copy diverged from the published family in BOTH directions, so this is a behaviour
+  change on every face and not a refactor:
+  
+  - **`user` and `tree` are now treated as relations.** Both carry the same foreign-key
+    storage as `lookup` and resolve through the same expand path (objectui#2032), and each
+    face's own stated reason for special-casing `lookup` applied to them verbatim — so
+    gaining them restores the rule each face already meant. A `user` / `tree` field is now
+    read-only in the quick-look drawer (`RecordDetailDrawer`), where the drawer wires no
+    relation picker and a plain text input let a user overwrite the relation with a
+    free-form string; it gets the wide layout basis in the record header's highlights strip
+    (`HeaderHighlight`), whose inline editor is a record picker; and a field-backed action
+    param over one now inherits the picker config it needs (`resolveActionParams`).
+  - **`master_detail` is now treated as a relation by `resolveActionParams` too** — it was
+    the only face missing that member as well, so a field-backed `master_detail` action param
+    inherited no `referenceTo` at all and degraded to the unexplained "paste a record id"
+    text input that objectui#3405 exists to prevent.
+  - **The undeclarable `reference` spelling is gone from the three field-type faces.**
+    Measured against `@objectstack/spec`'s closed `FieldType` vocabulary with live controls
+    (`lookup` / `master_detail` / `user` / `tree`) and dead ones (the retired `owner`, plus a
+    nonsense spelling): `reference` is absent, so no spec-compliant object schema could
+    declare a field that reached those branches. It sat exactly where `owner` sat before
+    objectui#4814 retired it — dead weight that read as live capability.
+  
+  `resolveActionParams` keeps answering for `reference`, deliberately and by a different
+  route: it is refused by the spec's `ActionParamSchema` too, but the dialog still accepts it
+  from params already authored with it, and that acceptance belongs to the one alias table in
+  `paramToField` rather than to a hand-copied membership test. This face now asks the shared
+  family over the widget key that table produces — the same expression `paramToField`
+  evaluates one step later, so the half that populates a param's picker config and the half
+  that forwards it can no longer disagree.
+  
+  No face copies the set: each calls `.has()` on the object `@object-ui/core` exports, and
+  each carries an identity pin (a spy on that `has`) so a member-identical private copy fails
+  instead of quietly re-forking the table.
+- 3e853c9: Let a producer-marked refusal reach the drag-write surfaces (objectui#5902).
+  
+  The kanban card-move toast, the calendar drag-to-reschedule toast and the OCC
+  conflict dialog each substituted a generic string for a refusal the producer had
+  marked as user-facing (`userMessage`), so a user was told "Save failed" where the
+  application author had written a sentence addressed to them. All three now read
+  the marking through the shared `declaredUserMessage` reader, which covers both
+  places the adapter boundary parks it — the typed member on
+  `ConcurrentUpdateError` and the details bag on `DataApiValidationError`.
+  
+  Nothing unmarked changes: the reader answers `null` for it, so every existing
+  generic substitution — including the localized "not authorized" message that
+  keeps raw server diagnostics away from end users — still governs unmarked
+  refusals exactly as before.
+  
+  The two toasts substitute; the conflict dialog augments. Its description also
+  explains what the destructive "Overwrite" button does, which is affordance copy
+  that surface owns rather than a refusal message, so the marking leads and that
+  paragraph stays.
+- a76b18c: `ObjectKanban`'s `resolveDisplay` drops an unreachable relation-type guard, and the rule
+  that survives it is pinned (objectui#6063).
+  
+  The helper that builds card descriptions ended:
+  
+  ```ts
+  const isLookup = isExpandableFieldType(def);
+  if (isLookup && isOpaqueId(raw)) return undefined;
+  if (isOpaqueId(raw)) return undefined;
+  return raw;
+  ```
+  
+  The second line subsumes the first for every input — same `raw` (a `const`, unmodified
+  between the two lines), same predicate, and `OPAQUE_ID_RE` carries no `g`/`y` flag, so
+  repeated `.test()` on it is stateless. `isLookup` was computed, branched on and discarded.
+  
+  **No behaviour changes on any board.** The card named a second reading — that the
+  unconditional line was the mistake and only relation columns were meant to suppress
+  id-shaped values — and it was rejected on evidence rather than by tidying first: the
+  helper's own docblock declares both clauses, the same predicate is already applied with no
+  type gate to the incoming `description` a few lines down, and `objectDef` is optional at
+  that read, so a type gate would suppress nothing on exactly the boards whose object schema
+  is thin or absent. That reading is now a red test, not a comment.
+  
+  Deleting the branch also deleted this path's read of `@object-ui/core`'s
+  `EXPANDABLE_FIELD_TYPES`, so objectui#5874's identity pin for this face is re-anchored onto
+  the read that is live — `buildExpandFields`, on every fetch — where the membership delta is
+  observable on the wire (`$expand`) as well. That pairs the identity pin with the
+  behavioural counter-probe #5874 had to record as missing.
+- 7d2a689: `ObjectKanban` no longer queries twice on mount (objectui#6271). A standalone board issued
+  its first `find` before the object definition resolved — so `buildExpandFields` saw no
+  fields and that query carried no `$expand` at all — then issued a second, expanded one once
+  the definition landed:
+  
+  ```
+  ['deal', { $top: 100 }]
+  ['deal', { $top: 100, $expand: ['owner'] }]
+  ```
+  
+  The definition now GATES the query instead of refining it afterwards: one query per mount,
+  carrying the expansion the first time.
+  
+  Decided on measurement rather than on the two shapes' relative appeal. The first response
+  never reached the screen in the regimes that matter: with the schema resolving no slower
+  than the row query (profiles schema/find = 30/30, 30/60, 5/30 ms), the definition lands
+  first, the effect re-runs, its cleanup flips `isMounted` false, and the unexpanded rows are
+  discarded on arrival — a DOM probe polling every 2ms for a title only that response carried
+  never fired once. What the gate costs is one schema resolution ahead of the query, and that
+  read is cheap and shared: one small GET behind the same discovery call `find` already
+  awaits, served thereafter from `MetadataCache` (5-minute TTL, concurrent readers coalesced
+  onto one request). Measured against the real `ObjectStackAdapter` over loopback HTTP, 22
+  reads of one object produced exactly one metadata request and every read after the first
+  returned in 0.01ms. End to end the board is not slower for it — same harness, before →
+  after, time to the fully populated board: 156.9 → 145.2ms (30/30), 119.8 → 110.6ms (30/60),
+  54.7 → 52.4ms (5/30).
+  
+  The gate is on the definition read having **settled**, not on the definition being truthy:
+  an adapter that exposes no `getObjectSchema`, and a read that throws, both settle with
+  nothing to report and the board falls through to an unexpanded query rather than waiting
+  forever. Boards fed rows by a parent (`data`, `bind`, inline `schema.data`) are untouched —
+  they never ran this effect, and they still read the definition for lane titles and labels.
+  
+  The `isOpaqueId` suppression in the card-description path is unchanged and keeps its
+  comment beside it: part of what it hid was this fetch ordering, but unexpanded rows still
+  reach it from parents that pass rows they fetched without `$expand`, from author-supplied
+  data, and from backends that decline an expansion.
+- 3beef6d: The spec's `dataSource` element binding is now DECLARED by the blocks that read
+  it, so the html tier stops reporting the one working saved-view spelling as
+  `unknown-prop` (objectui#6678).
+  
+  `PageComponentSchema.dataSource` — `{ object, view, filter, sort, limit }` — is
+  the one spelling that resolves a saved view for an object-bound block. It works,
+  and it drew the identical `unknown-prop` warning as the two spellings that do
+  nothing (`viewName`, `view`), because `validateTree` looks a prop up in the
+  block's declared `inputs` and no registration declared this key. On the tier
+  built to accept AI-authored pages, where the diagnostic IS the contract, the
+  only signal pointed away from the key that works.
+  
+  Adopting the maintainer ruling of 2026-08-29 — option B **in the injection
+  form**:
+  
+  - `ELEMENT_DATA_SOURCE_INPUT` is the single declaration, in `@object-ui/core`
+    beside the binding's own semantics; `Registry.register` emits it for any
+    registration whose renderer passed through the new `elementDataSourceBlock()`
+    seam. One mechanism, one copy — not a hand-kept declaration per block, which is
+    the shape that drifts and that a new block forgets. The seam lives in
+    `@object-ui/core` and is re-exported by `@object-ui/react` beside
+    `ElementDataSourceGate` for discoverability; call sites take the core import,
+    because a registration runs at module scope and this repo's suites partially
+    mock `@object-ui/react`.
+  - Seventeen renderers, in thirteen files across twelve packages, reach the seam
+    and now publish the key to the save gate, the parser whitelist, the generated
+    JSX authoring types and the block list. The card named nine blocks; the tree
+    also has `plugin-grid`, `plugin-timeline`, two further `plugin-form` blocks and
+    `element:record_picker` — nothing was hand-listed, so the mechanism covered
+    them. `element:record_picker` consumes the gate's HOOK and status panels rather
+    than the wrapper tag (its object lives under `properties`), and was found by a
+    render probe rather than by reading sources.
+  - `dataSource` on a block that does NOT read it (`flex`, `card`) still reports
+    `unknown-prop`. Adding the key to `sdui-parser`'s `BASE_PROPS` was refused for
+    exactly this reason — that set mirrors `BaseSchema`, and silencing the key
+    everywhere would make the diagnostic lie in the other direction.
+  - New `check:element-data-source-declaration` fails any source that consumes the
+    gate without reaching the seam, so a block added tomorrow cannot forget.
+  
+  Behaviour of the binding itself is unchanged — this is a declaration, not a
+  resolution change. The saved view still resolves its columns, and an
+  unresolvable `view` still fails loudly rather than widening to the object's full
+  scope.
+  
+  The spec/registry parity gates (repo-wide and the `record:related_list` per-block
+  pin) now derive their accepted set from the WHOLE node contract rather than from
+  `ComponentPropsMap[type]` alone. `PageComponentSchema` accepts and keeps
+  `dataSource` on a page-component node — it is a node-level key, a sibling of
+  `type` and `className`, not a per-block prop — so the gates' previous complaint
+  was measurably wrong. Derived from the spec, not exempted, and both still
+  discriminate against an invented key.
+- f08bcd9: `FieldEditWidget` now delivers the NON-DOM half of the contract it declares (objectui#7008).
+  
+  objectui#7009 made the factory forward its declared DOM pass-through block. The rest of
+  `FieldWidgetComponentProps` was still dropped: `error`, `onUploadingChange`, and the whole
+  "Host plumbing" block (`dataSource`, `dependentValues`, `dependsOn`, `dependsOnLabels`,
+  `emptyHint`, `onSelectRecord`, `onCreateNew`). A host could pass any of them with no type
+  error and the widget never received it — the "declared but not delivered" class this
+  package treats as first-class.
+  
+  `error` was the live one. `InlineFieldInput` has passed `error` into this factory since
+  PR #7109 and the factory dropped it, so an inline-edit control that had failed validation
+  never reported `aria-invalid`: a sighted user saw the red hint, a screen-reader user was
+  told nothing. The kanban `RequiredFieldsDialog` had the same hole from the other side — it
+  computes the validation state and could not hand it over — and now passes `error`, so its
+  controls are marked. Delivering `error` buys the a11y MARKING only; the message text stays
+  with the host, per the objectui#3222 contract.
+  
+  The keys travel through a new sibling executor, `toHostProps` (exported alongside
+  `toDomProps`), never through the DOM whitelist — none of them is DOM-legal, and routing a
+  `dataSource` adapter there is the `[object Object]` leak that whitelist exists to stop.
+  Three compile-time assertions make the two executors partition the contract, so a future
+  declared key cannot go undelivered silently.
+  
+  `dataSource` precedence is stated rather than left to emerge: a host's explicit
+  `dataSource` prop WINS over `SchemaRendererContext`. That is the order `LookupField`
+  already implements; the factory is a conduit and resolves nothing. A host that passes no
+  `dataSource` keeps reading the context exactly as before, so no in-repo host changes
+  behaviour.
+- 7c3df8f: The settled-schema convergence, and the gantt's duplicate query gated
+  (objectui#7225, maintainer ruling B, 2026-09-02).
+  
+  `useSettledSchema` was extracted and published in PR #6690 with exactly **one**
+  non-test adopter (`ObjectTree`, the component that had an actual defect —
+  objectui#6481's unkeyed latch). `ObjectKanban`, `plugin-view/ObjectView` and
+  `ObjectCalendar` kept their own hand copies of the same shape, so a published
+  export was owed compatibility forever **and** the duplication it was named for
+  stayed. All three now call the hook.
+  
+  The migration is a pure deduplication with no behaviour delta — the hook was
+  extracted *from* these three shapes, so each becomes a one-line call.
+  `ObjectCalendar`, which objectui#6482 named as the obstacle, fits via the
+  recipe the hook's own doc comment prescribes for it by name: pass the data
+  source as `undefined` for a render that must not read metadata
+  (`hasInlineData ? undefined : dataSource`), so "inline value data set" is
+  expressed as "there is no source to read from" rather than as a second enable
+  flag. GATE PLACEMENT stays local in all three, which is what #6482 ruled and
+  what made the calendar's obstacle a non-obstacle: it was about the gate half.
+  
+  **One observable change:** `ObjectKanban`'s rejected definition read now logs
+  on `console.error` with a `[useSettledSchema]` prefix instead of
+  `console.warn`. Its test spy moves with it, and now asserts on the channel
+  rather than merely silencing it.
+  
+  **The gantt's duplicate query is gated** (ask 2 of the card; #6482's
+  undischarged half). `ObjectGantt` listed `objectSchema` in `reload`'s
+  dependency list, so every load issued two unbounded queries — the first with no
+  `$expand` at all. Measured on this component across three latency profiles, the
+  cost is not the mild "round trip bought and thrown away": when the metadata
+  read is the slower of the two, which is the common case on a cold
+  `MetadataCache`, the user sees the full three-step paint — raw foreign-key ids,
+  back to the loading placeholder, then the expanded rows. It now issues one
+  query, already expanded.
+  
+  Gating the gantt required its schema resolution to settle on EVERY exit
+  (objectui#7232): the hand-rolled effect returned without settling on
+  `!effectiveDataSource`, on `!resource` and in its `catch` — harmless while
+  nothing waited on it, and a chart that never loads once something does.
+  `useSettledSchema` settles on all three by construction, which is what makes
+  the gate safe; both exits are pinned.
+  
+  ⛔ Gating is not capping. The row ceiling on these fetches is objectui#7210's
+  separate ruling, in its own commit on the same branch.
+- d327b9c: FLS-gate the `$expand` projection at the seven remaining `buildExpandFields`
+  call sites (objectui#7429).
+  
+  objectui#7215 / PR #7229 gated the two projection sites in its scope
+  (`ObjectGrid`, `ListView`). objectui#7230 / PR #7428 gated four more
+  (`ObjectCalendar`, `ObjectGantt`, `RecordDetailView`, `DetailView`). This
+  closes the seven that were left: `ObjectKanban`, `ObjectTree`, `ObjectView`
+  (the non-grid record-fetch effect), `ObjectMap`, `ObjectGallery`,
+  `ObjectTimeline`, and the metadata-admin `PagePreview`'s record-binding fetch.
+  
+  **All seven pass no column list at all**, which makes every one of them the
+  sharp shape: `buildExpandFields` reads an absent column list as "no column
+  restriction" and falls back to **every declared relation on the object**,
+  denied ones included. So each of these components asked the server to resolve
+  the object's full relation set by default, not by configuration — the
+  ordinary shape of each surface, not a corner of it.
+  
+  **`PagePreview` is the one site where the judged principal is not the page's
+  eventual audience.** It calls the browser's own `fetch` with
+  `credentials: 'include'` rather than `DataSource.find`, so it runs under
+  whichever session is loading the Studio preview. Gating on that same session's
+  `usePermissions()` is still the correct principal: it is exactly the request
+  the browser is about to make, on its own credentials, regardless of who later
+  opens the published page.
+  
+  **Reproduced before it was fixed**, as a failing test per site (and, for the
+  two sites — `ObjectView`, `PagePreview` — where the gate was implemented
+  before its test was run red, a reverse-verification: the gate was reverted,
+  all four denial-and-set pins on each went red, and the two deferral/positive
+  control pins stayed green, before the gate was restored).
+  
+  **Grading, measured rather than assumed** — the same reading objectui#6898,
+  #7215 and #7230 recorded: against ObjectStack's own server this is
+  defence-in-depth, not a live disclosure. `plugin-security`'s
+  `FieldMasker.maskRecord` deletes every unreadable key from each returned row
+  and objectql's expand path writes the resolved record back under that same
+  key, so one statement removes the expanded object and the bare id alike; the
+  expansion sub-read is itself gated (the referenced object's full CRUD + RLS +
+  FLS treatment, objectstack#7626). It is load-bearing for any backend that does
+  not strip, and the client-request side is real regardless.
+  
+  **Nothing a permitted view did stops working.** The gate judges each site's
+  `buildExpandFields` OUTPUT, which contains only the object's declared
+  reference-bearing fields, so the "`checkField` answers false for an
+  undeclared key" trap cannot be reached. An unanswered permission policy
+  filters nothing. `buildExpandFields` itself is unchanged.
+  
+  `@object-ui/permissions` is added to `dependencies` for `plugin-kanban`,
+  `plugin-tree`, `plugin-map`, `plugin-timeline`, and `plugin-view` — the fifth
+  one objectui#7429's own dependency count missed (it named four); `plugin-list`
+  and `app-shell` already had it.
+- c6198c2: **Breaking for authored metadata:** `ComponentInput.label`, `ComponentInput.defaultValue` and
+  `ComponentInput.advanced` are RETIRED on both faces (objectui#7493 item ① and objectui#7781;
+  maintainer ruling A of 2026-09-06, immediate, no deprecation window; ADR-0049 enforce-or-remove).
+  They are the three keys the manifest serializer does not forward, and nothing read them on any
+  publication or consumption path.
+  
+  No manifest ever published them, so no consumer could ever have read them. `sdui-parser`'s
+  serializer (`packages/sdui-parser/src/index.ts`) forwards exactly six keys per input — `name`,
+  `type`, `required`, `enum`, `binding`, `description` — so a value authored under any of the three
+  never reached `sdui.manifest.json`, the generated JSX `.d.ts`, or a diagnostic; its boundary type
+  has no slot for them; the registry's data-source seam reads `name` only; and neither the designer
+  nor the app-shell inspectors consult registry `inputs` at all. A structural census over every
+  `inputs:` array in the repository (re-measured on this change's merge-base, `name` 951 and `type`
+  951 as the controls) counted the writes: `label` 908, `defaultValue` 245, `advanced` 9 — written on
+  nearly every registration, read by nothing.
+  
+  FROM → TO, per key — all three **TOMBSTONED, not removed**, because the route was measured on
+  the built face before it was chosen: `ComponentInputSchema` is a non-strict `z.object`, and an
+  undeclared key parses GREEN and is silently STRIPPED, so a deletion would have swallowed 1,162
+  authored values in silence. The tombstone is what makes the refusal loud and by name.
+  
+  - `label?: string` → `label?: never` on the interface, `retirementTombstone()` on the Zod mirror.
+    Migration: delete the key. An input is identified by its `name` on every path that reaches it;
+    nothing ever rendered a label for it.
+  - `defaultValue?: any` → `defaultValue?: never` / `retirementTombstone()`. Migration: delete the
+    key. The renderer's own fallback read IS the default; tell the author about it in `description`,
+    which IS published. (Tightening the type to `unknown` was ruled out: it closes no error class,
+    since nothing reads the value.)
+  - `advanced?: boolean` → `advanced?: never` / `retirementTombstone()`. Migration: delete the key.
+    No designer surface ever hid an "advanced" input; there is nothing to write instead.
+  
+  The retirement kit: `?: never` on `ComponentInput` (`packages/types/src/base.ts`), so authoring one
+  is a `tsc` error at the registration site; `retirementTombstone()` on `ComponentInputSchema`
+  (`packages/types/src/zod/base.zod.ts`), so an authored value is REFUSED at parse time with
+  `code: 'invalid_type'`, the key named in the issue `path`, and the migration note as the message
+  (one string, both channels). Pinned in
+  `packages/types/src/__tests__/component-input-retired-keys-7493.test.ts`, which also holds a
+  tree-scoped absence census over every `inputs:` array under `packages/**` and `apps/**`.
+  
+  Accept-set change, stated plainly for reviewers: a document that sets any of the three keys on a
+  `ComponentInput` used to parse GREEN (the value was then dropped by the serializer) and now parses
+  RED. Every in-repo authoring site — 1,199 keys across 110 registration files, the three standalone
+  `ComponentInput[]` arrays and the two named input arrays `tsc` found included — is deleted in the same change, as the ruling's split rule
+  requires; the `WidgetRegistry` seam no longer copies the widget-manifest values onto the synthesized
+  `ComponentInput` (they fed nothing), and the data-source declaration `ELEMENT_DATA_SOURCE_INPUT`
+  drops its `label`. The patch entries on the other packages record exactly that: their registrations
+  stop authoring inert keys, with no runtime or published-manifest change.
+  
+  The nine test files that read `defaultValue` off a registration were re-pinned against the
+  renderer's ACTUAL default (its own fallback read, or the `defaultProps` it ships) instead of the
+  declaration that went away; two assertions that only restated the shadow default were dropped with
+  the reason on the line.
+  
+  The in-repo zero is what was measured. Whether anything OUTSIDE this repository writes these keys
+  is not measurable from here (the objectui#5674 limit); converting such a write from a silent drop
+  into a named refusal is exactly what the tombstones buy. `WidgetInput`'s own `label` /
+  `defaultValue` / `advanced` (the widget-manifest face) stay declared and writable — nothing has
+  ruled on that face; that it now has no reader either is recorded as objectui#7911.
+- 2af1fa7: `KanbanSchema` / `KanbanColumn` / `KanbanCard` / `CardTemplate` /
+  `ColumnWidthConfig` are now the `@object-ui/types` declarations, re-exported
+  from this package rather than declared in it (objectui#7664, maintainer ruling
+  (a)). Nothing this package renders changed and every existing import keeps
+  resolving; what changed is that `safeValidateSchema` in `@object-ui/types` now
+  validates an authored `type: 'kanban'` document against this very shape, so a
+  board that validates is a board these renderers draw.
+  
+  **The shape is not member-for-member what this package declared — it is that
+  shape plus four members**, counted off `origin/main`'s
+  `plugin-kanban/src/types.ts` (19 members on `KanbanSchema`, 6 on
+  `KanbanColumn`, 7 on `KanbanCard`) against the `@object-ui/types`
+  declarations:
+  
+  - **`onCardClick` is DECLARED for the first time.** This package's dialect
+    never had the member, while `KanbanRenderer` has always forwarded
+    `onCardClick={schema.onCardClick}` — an undeclared read (objectui#7742). It
+    is declared here as a `#6124` RUNTIME SLOT: callable on the TypeScript face,
+    refused by name on the mirror, like the `onCardMove` and `onQuickAdd` beside
+    it in the same forward block.
+  - **Four `?: never` tombstones** carry the retired declarative face's keys
+    under the same `'kanban'` key so those spellings keep being refused by name:
+    `draggable`, `onColumnAdd` and `onCardAdd` on `KanbanSchema`, and `color` on
+    `KanbanColumn`. None of the four was ever a member of this package's dialect;
+    each is refused, not silently accepted, because the retired face taught it.
+    The full accept-set statement is on the sibling `@object-ui/types` entry.
+- 2d80456: `object-kanban` / `view:kanban` and `object-calendar` / `view:calendar` now DECLARE seven
+  spec-carried keys their renderers already honoured, so the html tier stops reporting working
+  metadata as `unknown-prop` (objectui#8201, the backlog objectui#8176 exposed).
+  
+  Board: `groupBy`, `cardTitle`, `titleField`, `swimlaneField`, `coverImageField`.
+  Calendar: `defaultView` (the spec's three-member enum) and `locale`.
+  
+  No renderer behaviour changes — every one of these keys was already read and already acted on;
+  what changes is that authoring tools can now discover them and the save gate agrees with the
+  validator. Both tags of each block now spread ONE shared `inputs` list, so the two published
+  surfaces cannot drift apart by hand-copy.
+- Updated dependencies [64dae8e]
+- Updated dependencies [b06e374]
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [9801765]
+- Updated dependencies [460575f]
+- Updated dependencies [d796c8d]
+- Updated dependencies [594704f]
+- Updated dependencies [d3995fe]
+- Updated dependencies [1b1d772]
+- Updated dependencies [d88e20f]
+- Updated dependencies [f66072d]
+- Updated dependencies [2d7304d]
+- Updated dependencies [636b236]
+- Updated dependencies [4172589]
+- Updated dependencies [64d624d]
+- Updated dependencies [053fdc8]
+- Updated dependencies [41b7ce3]
+- Updated dependencies [39f4309]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [7cd3987]
+- Updated dependencies [e304a4e]
+- Updated dependencies [490d9a9]
+- Updated dependencies [1117414]
+- Updated dependencies [6d63cd0]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [7c96c94]
+- Updated dependencies [4da5109]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [95f8704]
+- Updated dependencies [f8cdbf2]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [e176053]
+- Updated dependencies [e30ed15]
+- Updated dependencies [90665e0]
+- Updated dependencies [8d3a529]
+- Updated dependencies [5ac2e2c]
+- Updated dependencies [194fae1]
+- Updated dependencies [63d54dd]
+- Updated dependencies [7e19d03]
+- Updated dependencies [b08b7eb]
+- Updated dependencies [546ddf7]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [44d075b]
+- Updated dependencies [40c479a]
+- Updated dependencies [b4393e5]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [6fd2cf7]
+- Updated dependencies [5fa06c4]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [129bcc5]
+- Updated dependencies [d3005f7]
+- Updated dependencies [1e7fe0a]
+- Updated dependencies [a26b9e4]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [8ec11e1]
+- Updated dependencies [6f81384]
+- Updated dependencies [22ba927]
+- Updated dependencies [8631c32]
+- Updated dependencies [f8c70f4]
+- Updated dependencies [5d3a2d1]
+- Updated dependencies [8f1d995]
+- Updated dependencies [b362c1b]
+- Updated dependencies [f9c34df]
+- Updated dependencies [dddb942]
+- Updated dependencies [00c665e]
+- Updated dependencies [29754cf]
+- Updated dependencies [3c2b6f7]
+- Updated dependencies [6e88630]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [5961030]
+- Updated dependencies [f24de8b]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [9602dc8]
+- Updated dependencies [3777538]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [299102e]
+- Updated dependencies [30c73cd]
+- Updated dependencies [830ed58]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [c71e14d]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [748494b]
+- Updated dependencies [5967be0]
+- Updated dependencies [831be72]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [d0889e2]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [12402a9]
+- Updated dependencies [aff3d7a]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [fff9645]
+- Updated dependencies [9c3b7ce]
+- Updated dependencies [2c1c967]
+- Updated dependencies [9486ac6]
+- Updated dependencies [9486ac6]
+- Updated dependencies [4d5f9b4]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [dc4365c]
+- Updated dependencies [e321d52]
+- Updated dependencies [969ba84]
+- Updated dependencies [98188c2]
+- Updated dependencies [4c68077]
+- Updated dependencies [7977ff9]
+- Updated dependencies [3beef6d]
+- Updated dependencies [06b8c42]
+- Updated dependencies [46b9bc9]
+- Updated dependencies [f46bd39]
+- Updated dependencies [b98352a]
+- Updated dependencies [b76ca67]
+- Updated dependencies [45ac2cb]
+- Updated dependencies [b97790a]
+- Updated dependencies [dbd5194]
+- Updated dependencies [7c9b044]
+- Updated dependencies [e552c31]
+- Updated dependencies [d47de51]
+- Updated dependencies [3fe6463]
+- Updated dependencies [b392674]
+- Updated dependencies [4f3a1e2]
+- Updated dependencies [31ab372]
+- Updated dependencies [846889b]
+- Updated dependencies [7b90231]
+- Updated dependencies [26896c6]
+- Updated dependencies [67fc3b0]
+- Updated dependencies [8579e34]
+- Updated dependencies [d57db5d]
+- Updated dependencies [33a3b3c]
+- Updated dependencies [b87f15b]
+- Updated dependencies [9409eb9]
+- Updated dependencies [045d20b]
+- Updated dependencies [c18d099]
+- Updated dependencies [0caacca]
+- Updated dependencies [adb2a86]
+- Updated dependencies [03380aa]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [320374d]
+- Updated dependencies [b0d308d]
+- Updated dependencies [b458300]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [39d69ad]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [6a449fc]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [f08bcd9]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [220c18d]
+- Updated dependencies [eeb6c2f]
+- Updated dependencies [00d3f09]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [639114c]
+- Updated dependencies [1490691]
+- Updated dependencies [e8e4c4d]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [d1842ab]
+- Updated dependencies [854cba3]
+- Updated dependencies [78ca238]
+- Updated dependencies [d8ec8d6]
+- Updated dependencies [351eb31]
+- Updated dependencies [866cd1d]
+- Updated dependencies [20c04b2]
+- Updated dependencies [01c9023]
+- Updated dependencies [48c19bd]
+- Updated dependencies [a6d8b8d]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [adbda1b]
+- Updated dependencies [8952395]
+- Updated dependencies [e8c553b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [7c3df8f]
+- Updated dependencies [a4514e8]
+- Updated dependencies [6411def]
+- Updated dependencies [b9f5ff1]
+- Updated dependencies [e75f4c9]
+- Updated dependencies [19f1639]
+- Updated dependencies [4704aa4]
+- Updated dependencies [47547d0]
+- Updated dependencies [b61d7d8]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [26e06d7]
+- Updated dependencies [669d71b]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [3399704]
+- Updated dependencies [7bf244b]
+- Updated dependencies [f0bb9fa]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [20cb8db]
+- Updated dependencies [00d2fa6]
+- Updated dependencies [c6198c2]
+- Updated dependencies [2f61238]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [2a5bf45]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [daf9d57]
+- Updated dependencies [fe8f451]
+- Updated dependencies [c15d7ec]
+- Updated dependencies [5d0876c]
+- Updated dependencies [f7ace0a]
+- Updated dependencies [b041b9c]
+- Updated dependencies [ce2aaef]
+- Updated dependencies [2ce2612]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [c14d3a0]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [91f9276]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [a915064]
+- Updated dependencies [52cac38]
+- Updated dependencies [64a252d]
+- Updated dependencies [d1bebb0]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [0758bd8]
+- Updated dependencies [7ed9808]
+- Updated dependencies [0ea7054]
+- Updated dependencies [fc32921]
+- Updated dependencies [8f9d87a]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [81c0bc4]
+- Updated dependencies [3c76801]
+- Updated dependencies [d06fba8]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [77f846a]
+- Updated dependencies [bc5870c]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [dd19463]
+- Updated dependencies [100547e]
+- Updated dependencies [3a58149]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [bf3edfe]
+- Updated dependencies [2c8474c]
+- Updated dependencies [6ce89da]
+- Updated dependencies [0e05aac]
+- Updated dependencies [ae61ad4]
+- Updated dependencies [5aed9e4]
+- Updated dependencies [83c77dc]
+- Updated dependencies [3c9fca3]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [e719ebd]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [fe76ece]
+- Updated dependencies [8ebd57f]
+- Updated dependencies [9a1fb41]
+- Updated dependencies [c40f3b8]
+- Updated dependencies [58770f3]
+- Updated dependencies [aefe428]
+- Updated dependencies [485f096]
+- Updated dependencies [199d31b]
+- Updated dependencies [b655a9d]
+- Updated dependencies [a865c73]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [7138bc1]
+- Updated dependencies [cef27e2]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [0b12a33]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [d7bd274]
+- Updated dependencies [98c3a74]
+- Updated dependencies [e4e9557]
+- Updated dependencies [7a28e1e]
+- Updated dependencies [ebce5a3]
+- Updated dependencies [6c1b105]
+- Updated dependencies [9d9040d]
+- Updated dependencies [20e317c]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [9850c6e]
+- Updated dependencies [de570cc]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [b6e83be]
+- Updated dependencies [ab92940]
+- Updated dependencies [a691c0b]
+- Updated dependencies [0b1326d]
+- Updated dependencies [1e66879]
+- Updated dependencies [c5200f0]
+- Updated dependencies [af3861f]
+- Updated dependencies [515f171]
+- Updated dependencies [4f14ad7]
+- Updated dependencies [258d264]
+- Updated dependencies [cac64b3]
+- Updated dependencies [4bb940b]
+- Updated dependencies [17fbbaf]
+- Updated dependencies [d8cf1cb]
+- Updated dependencies [0d1e702]
+- Updated dependencies [b03ba3a]
+- Updated dependencies [0068348]
+- Updated dependencies [641543f]
+- Updated dependencies [8a44390]
+- Updated dependencies [fa140b8]
+- Updated dependencies [71cba28]
+- Updated dependencies [190fbd0]
+- Updated dependencies [c00bf28]
+- Updated dependencies [23705b7]
+- Updated dependencies [f2158ec]
+- Updated dependencies [fd8dace]
+- Updated dependencies [72ffc34]
+- Updated dependencies [bf28341]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [42887e0]
+- Updated dependencies [f1690d4]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [38a9568]
+- Updated dependencies [f90b8fb]
+- Updated dependencies [91783c4]
+- Updated dependencies [dba7d84]
+- Updated dependencies [5a07e67]
+- Updated dependencies [2d36552]
+- Updated dependencies [45d8288]
+- Updated dependencies [b2437a7]
+- Updated dependencies [f157423]
+- Updated dependencies [7a90afd]
+- Updated dependencies [eddc1dd]
+- Updated dependencies [490f482]
+- Updated dependencies [27308c5]
+- Updated dependencies [8689166]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [9101be5]
+- Updated dependencies [f53a8d0]
+- Updated dependencies [30266cf]
+- Updated dependencies [57f9b07]
+- Updated dependencies [3c73d99]
+- Updated dependencies [d91aed9]
+- Updated dependencies [ed71d9e]
+- Updated dependencies [7776fc2]
+- Updated dependencies [c86185e]
+- Updated dependencies [fb96ecb]
+- Updated dependencies [1170ed1]
+- Updated dependencies [4d73b07]
+  - @object-ui/i18n@17.7.0
+  - @object-ui/core@17.7.0
+  - @object-ui/types@17.7.0
+  - @object-ui/fields@17.7.0
+  - @object-ui/components@17.7.0
+  - @object-ui/plugin-detail@17.7.0
+  - @object-ui/react@17.7.0
+  - @object-ui/permissions@17.7.0
+
 ## 17.6.0
 
 ### Patch Changes

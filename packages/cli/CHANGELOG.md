@@ -1,5 +1,584 @@
 # @object-ui/cli
 
+## 17.7.0
+
+### Minor Changes
+
+- 7dc08a3: `objectui check` recognises a schema by validating it, and reports broken ObjectUI files instead of filing them as foreign ones.
+  
+  A file with a root `type` was judged only when its root carried an ObjectUI
+  structural key (`children`, `body`, `className`, …). Leaf schemas carry only
+  their own vocabulary, so nothing checked them: measured on this repository, 475
+  files were eligible, 166 were judged and 309 were skipped.
+  
+  The command now has a second recogniser arm — the document validates as an
+  ObjectUI component schema under `@object-ui/types`' own Zod union — which the
+  maintainer's 2026-08-25 ruling selected over shipping a JSON Schema artifact to
+  point a `$schema` URL at. It admits 209 of those 309 files. The structural arm
+  still runs first, so recognition costs nothing for files that already had a
+  marker, and `package.json` is still never judged: `"type": "module"` names no
+  component the protocol models.
+  
+  Validity alone would have answered two different questions with one word.
+  A broken ObjectUI schema fails validation exactly as a foreign file does, so a
+  two-bucket report would have filed it as "not ObjectUI" — and the symptom of
+  that is an absence: the file simply stops being mentioned. Measured, that bucket
+  is not empty: 54 files land in it and 53 of them are real corpus content.
+  
+  So files the recogniser refuses are split. When the root `type` names a
+  component this build registers, the file is **listed by name** as ObjectUI
+  content that did not validate, pointing at `objectui validate <file>` for the
+  reason — either the document is off-spec or its component type is not modelled
+  by `@object-ui/types`. Everything else is counted as skipped, as before. The
+  printed explanation now describes both arms, and only unreadable JSON still
+  makes the command exit non-zero.
+- a5d5547: `objectui validate` now prints the failing union arm the document selected, instead of a
+  bare "Invalid input" (objectui#7004, maintainer ruling 2026-09-02 — option B).
+  
+  `safeValidateSchema` checks a document against `AnyComponentSchema`, a `z.union`. When a
+  document matches no arm, Zod reports ONE top-level issue — `invalid_union` · `Invalid
+  input` · path `(root)` — and hangs every arm's real diagnosis off that issue's `errors`
+  array, which nothing read. So a menu whose item used the divider spelling retired in
+  objectui#6523 printed a bare verdict on the whole document, while the remediation text
+  objectui#6931 wrote into that arm sat one level down, unreachable.
+  
+  **What is printed now.** When the top-level issue is a failing union:
+  
+  - the document's `type` selects exactly one arm ⇒ that arm's issues are printed beneath
+    the entry as `1.1`, `1.2` … with their real paths (`Path: items → 0 → type`) and codes,
+    and **nothing** from the other arms;
+  - no arm accepts the `type` ⇒ `No arm accepts type "dropdwn-menu".` plus the nearest few
+    of the accepted values, ranked by edit distance and **capped** at five
+    (`MAX_UNION_ARMS_REPORTED`);
+  - the document declares no `type` at all ⇒ the note says so and offers no candidates —
+    "nearest" needs something to be near, and an alphabetical slice of 108 arm names
+    presented as guidance would be a bogus suggestion;
+  - a union with no `type` discriminator to select on — `MenuItemSchema`, whose two arms
+    both declare `type` as an ADR-0049 retirement tombstone — reports every arm, labelled
+    and capped by the same constant. This is the path that finally delivers the
+    objectui#6523 text to the author.
+  
+  Printing EVERY arm was rejected in the ruling: `AnyComponentSchema` resolves to 108 leaf
+  arms, so one mistyped `type` would have produced hundreds of lines.
+  
+  `objectui check` is unchanged and deliberately so: it has no zod-issue printer, using
+  `safeValidateSchema(...).success` as a boolean recogniser. Printing issues behind a
+  *negative* recognition would flood its report with diagnoses of non-ObjectUI files, the
+  failure objectui#5127 and objectui#6075 exist to prevent.
+  
+  Nothing about which documents are ACCEPTED changes — this is diagnostic output only.
+- 94021dd: `objectui check` judges a file's `type` only when the file is recognisable as an ObjectUI schema, and reports how many it declined to judge.
+  
+  A root `type` was treated as a component key wherever it appeared. `type` heads at
+  least seven unrelated JSON vocabularies, and the most common of them is
+  `package.json`'s `"type": "module"` — so the first line a user saw running
+  `objectui check` in their own project was a warning about their own package
+  manifest. Measured at this repository's root: 46 warnings, 45 of them
+  `package.json` (objectui#5127).
+  
+  A file now enters type judgement only when its root carries a structural key
+  declared on `BaseSchema` — `children`, `body`, `className`, `placeholder`,
+  `style`, the `visible`/`hidden`/`disabled` predicate family, `testId`,
+  `ariaLabel`. Every other root-`type` vocabulary — JSON Schema's `"array"`, an
+  `.eslintrc.json`'s `"commonjs"`, a package manifest's `"module"` — is simply
+  never judged. The key set is read out of the node contract rather than invented,
+  and it is closed: it grows only when `BaseSchema` grows.
+  
+  A list of filenames to exclude was the alternative and was rejected: it is a
+  second hand-maintained list of the shape objectui#5115 had just finished
+  deleting, and it can only ever enumerate the foreign vocabularies someone already
+  thought of. This is a positive marker instead.
+  
+  Because the marker narrows what is checked, the command now also reports the
+  count of files that had a root `type` and no marker, together with the marker
+  keys that opt one back in. That number is the coverage this gate gives up until
+  schema files are recognisable, and printing it is what keeps the loss visible
+  rather than silent. The `.yaml`/`.yml` half of the scan is unchanged — it was
+  never type-judged, before this change or after it. Exit codes are untouched: a
+  JSON parse failure remains the only thing that fails the run.
+  
+  No public `$schema` URL is introduced. An earlier revision also admitted a file
+  whose root `$schema` had an `objectui.org` host; the maintainer ruled against
+  minting that identifier (2026-08-20, objectui#5127), so the structural key is the
+  only marker. Because the matching was host-based rather than literal, that arm
+  can be added later without invalidating a single file.
+
+### Patch Changes
+
+- 05474af: Fix `objectui check` scanning build output because its ignore list only excluded a
+  root-level `dist/` / `node_modules/` (objectui#6320).
+  
+  `packages/cli/src/commands/check.ts` passed `ignore: ['node_modules/**', 'dist/**',
+  '.git/**']` to `globSync`. `glob` matches `ignore` patterns against the path relative to
+  `cwd`, so an unanchored `dist/**` / `node_modules/**` excludes only a directory of that
+  name at the scan root — every nested `packages/<name>/dist/`, `examples/<name>/dist/`,
+  `apps/<name>/dist/` (and their `node_modules/`) was still scanned. In a built workspace
+  this means `objectui check` re-reads the author's own schemas a second time from build
+  output, roughly doubling every count it reports (measured on this repository: 617 → 1047
+  files globbed after a full build) with nothing in the output explaining why.
+  
+  The ignore patterns are now anchored at every depth (`'**/dist/**'`, `'**/node_modules/**'`),
+  matching the fix's stated intent: exclude build output and installed dependencies wherever
+  they live, not only at the project root. A root-level `dist/` / `node_modules/` remains
+  excluded, unchanged.
+  
+  Confirmed before widening: no example, template, or docs fixture in this repository
+  authors a schema under a directory literally named `dist` — the widened pattern excludes
+  only generated content.
+- 854222c: `@object-ui/plugin-report` now registers its three components under namespace
+  **`plugin-report`**, the spelling its consumers already declare (objectui#6416).
+  
+  It used to register `report`, `spec-report` and `report-viewer` under namespace
+  `report`, while `apps/console` declared the lazy stubs for the same three short
+  names under `plugin-report` and the CLI's known-type whitelist shipped the
+  `plugin-report:*` spellings as renderable. Two things followed from the
+  disagreement:
+  
+  - **`plugin-report:report`, `plugin-report:report-viewer` and
+    `plugin-report:spec-report` could never be satisfied.** `Registry.register`
+    clears the lazy stub for the type IT registers, and that type was
+    `report:report`, so those three stubs were never cleared and no component was
+    ever stored under them: `get('report', 'plugin-report')` returned `undefined`
+    and `hasLazy('report', 'plugin-report')` stayed `true` forever. A schema
+    authored with any of the three whitelisted keys resolved to nothing — the
+    gate handed authors a green light for a key the runtime could not satisfy.
+  - **The bare `report` key was claimed twice under two different namespaces.**
+    `Registry.register` and `Registry.registerLazy` share the
+    `meta?.namespace && !meta?.skipFallback` branch, so what bare `report`
+    *declared* depended on whether the plugin chunk had loaded yet — the
+    objectui#6353 shape.
+  
+  **No authored metadata changes.** The direction was chosen by measurement:
+  nothing in this repository, and nothing in the sibling `objectstack` checkout,
+  authors a `report:*` spelling (0 hits), while the bare spellings are authored in
+  48 places. `type: 'report'`, `type: 'spec-report'` and `type: 'report-viewer'`
+  resolve exactly as before; the three unreachable `report:*` keys are retired and
+  the three `plugin-report:*` keys now name real components for the first time.
+  
+  `packages/cli/src/utils/known-schema-types.ts` is regenerated from the
+  registrations, dropping `report:report`, `report:report-viewer` and
+  `report:spec-report`.
+  
+  Two pins are the half that outlives the fix:
+  `packages/plugin-report/src/__tests__/report-bare-key-ownership.test.ts` replays
+  this package's real declared metadata and a console-shaped lazy stub into a
+  fresh `Registry` in **both** registration orders, checking the bare key's
+  declared namespace after every step, so order- and phase-independence are
+  properties under test rather than properties of the file the test imports.
+  `scripts/__tests__/report-namespace-agreement-6416.test.ts` re-derives both
+  sites from source and fails if the plugin, the console stubs and the generated
+  whitelist ever disagree again.
+- 85b4957: `objectui validate` now says when a validation issue sits at the document root
+  (objectui#7004, mechanical half).
+  
+  The printer guarded its Path line with `issue.path.length > 0`, so an issue at
+  `path: []` printed no Path line at all — silent in exactly the case a reader
+  most needs oriented. That case is the common one, not an edge: the CLI validates
+  against `AnyComponentSchema`, a union over every component arm, so any document
+  matching no arm reports a single top-level issue (`invalid_union` · `Invalid
+  input` · root path). Authors saw a bare verdict on a whole document with nothing
+  saying which node had been judged:
+  
+  ```
+  1. Invalid input
+     Code: invalid_union
+  ```
+  
+  Every reported issue now carries a Path line; a root-level one reads
+  `Path: (root)`, parenthesised so it cannot be mistaken for a real key named
+  `root`. Non-root issues print their authored path exactly as before.
+  
+  Scope: the printer still reads only top-level issues. Whether a failing union
+  should also surface its per-arm diagnoses — and if so which arm's — is an
+  author-facing diagnostic contract left open on objectui#7004 for a maintainer
+  ruling, and is deliberately not decided here.
+- 639114c: Reconcile the declared surface with `@objectstack/spec` 17.3.0 (objectui#7122).
+  
+  ⚠️ **`@object-ui/types` is graded `minor` for a breaking surface change.**
+  The exported `ObjectSchemaClientExtensions` narrows from
+  
+  ```ts
+  export interface ObjectSchemaClientExtensions { editMode?: 'modal' | 'page' }
+  ```
+  
+  to
+  
+  ```ts
+  export type ObjectSchemaClientExtensions = Record<never, never>;
+  ```
+  
+  Two breaking consequences for a consumer that names the type directly. **(1)** It
+  no longer declares `editMode`; the key is now carried by the spec's
+  `ServiceObject`, so `ObjectSchemaMetadata` still has it, but code written against
+  the extension type ALONE loses it. **(2)** `interface` → type alias also ends
+  **declaration merging**: a consumer that reopened
+  `declare module '@object-ui/types' { interface ObjectSchemaClientExtensions { … } }`
+  to add its own client-side member no longer compiles, because an alias cannot be
+  reopened. `minor` rather than `major` per `AGENTS.md`'s version-alignment rule —
+  objectui's own breaking changes are graded `minor` with the semantics stated in
+  the body, since any `major` in the fixed group would push all 39 packages off
+  `@objectstack`'s major.
+  
+  **`ObjectSchema.editMode` is now the spec's.** 17.3.0 adopted the key (measured:
+  the accept set went 42 → 43, gained set exactly `['editMode']`, lost set empty,
+  declared as the same `'page' | 'modal'` union objectui carried). Its local copy
+  is retired from `ObjectSchemaClientExtensions`, which is what that type's own pin
+  prescribed for this event, leaving the client delta empty. Nothing is removed
+  from the product: `editMode` stays authorable and stays typed on
+  `ObjectSchemaMetadata`, carried by the spec's `ServiceObject` instead of by a
+  local member — and a published, spec-validated object document may now carry it,
+  which at 17.2.0 was refused by name.
+  
+  **`user:profile` is retired across all three sites.** 17.3.0 dropped it from
+  `PageComponentType` (measured: the enum went 34 → 32 options, lost set exactly
+  `['user:profile', 'element:form']`, gained set empty). objectui went on knowing
+  it in three places, so all three moved together: the Studio palette exclusion
+  ledger, `PROTOCOL_COMPONENTS` in `renderers/placeholders.tsx`, and the
+  regenerated `known-schema-types.ts` the CLI checks schemas against. Nothing
+  user-reachable went with it — neither type had a renderer, `user:profile` had
+  only the dashed "Component Placeholder" scaffold, and the app shell's own
+  profile affordance is a React slot, never this block type. A page schema still
+  naming it now draws the loud "Unknown component type" panel rather than a silent
+  grey box, which is this repo's standing treatment for a type outside the
+  supported surface.
+  
+  **`record:details` sections document the eight keys 17.3.0 added.**
+  `group`, `hideEmpty`, `collapsible`, `showBorder`, `defaultCollapsed`, `icon`,
+  `description` and `headerColor` are now declared on a section entry (4 → 12
+  members). Six of the eight are already honoured by `DetailSection`, so the
+  `sections` input description now teaches all of them, and says plainly which two
+  are not read here. Designer controls for them are a separate feature and are
+  deliberately not added.
+  
+  **`@object-ui/types` raises its declared `@objectstack/spec` floor `^17.0.0` →
+  `^17.3.0`, and this is the second half of its `minor`.** The package's emitted
+  `dist/spec-report.d.ts` names `FilterCondition` from `@objectstack/spec`, which
+  `17.0.0` does not export, so the old range was a claim the artifact did not
+  support — `scripts/check-spec-range-floors.mjs` reports it as `[floor-too-low]`
+  and names `^17.3.0` as the lowest version carrying every symbol the package
+  references. Breaking for a consumer pinned below 17.3.0: it can no longer
+  resolve this package. That is the range stating the truth rather than a new
+  restriction — the artifact already required those symbols — and it is the
+  remedy the gate itself prescribes ("Raise that package's range to the lowest
+  version that exports the symbol… Do not add a tolerant re-declaration on this
+  side: the range is the claim, and the claim is what is wrong", objectui#5793).
+  `@object-ui/core` and `@object-ui/data-objectstack` already declare `^17.2.0`
+  and `@object-ui/plugin-detail` `^17.1.0`, so a floor above the family minimum is
+  this repo's normal state, not an exception.
+  
+  ⚠️ **Measured on both sides, because it is bump-caused rather than pre-existing
+  and objectui#7688 records the opposite.** The gate is a scheduled / push-to-main
+  workflow that cannot red a pull request, and `main` is green on it — the last
+  eight runs, most recently at `c2e3cee2c`. On this branch's built tree it exits 1
+  with CI's own `--cross-check` invocation, and exits 0 with this raise, judging
+  278 (subpath, symbol) pairs across 19 published packages either way. Its blocking
+  copy runs on the publish path, so leaving it would have surfaced as a cancelled
+  release rather than as a red check. The correction is recorded on objectui#7688.
+- 100547e: `objectui validate` now refuses a form field whose widget id names a namespace
+  other than `field:`, matching the verdict `@object-ui/core`'s `validateSchema`
+  has given since objectui#5375 (objectui#5449).
+  
+  The CLI reaches `FormFieldSchema` through `safeValidateSchema`, and that schema
+  declared `type` and `widget` as bare optional strings — so a field typed
+  `ui:password` validated clean while the runtime validator rejected the same
+  document with `UNRESOLVABLE_FIELD_WIDGET_NAMESPACE`. The CLI is the surface an
+  author actually runs before shipping, so it was the one handing out the false
+  green: an author did exactly the diligence objectui#5375 asks for and still
+  shipped metadata that renders a secret into a plain text box.
+  
+  A `superRefine` on `FormFieldSchema` now states the rule, mirroring core's
+  precedence (`widget` before `type`), the key it blames, its error code and its
+  message verbatim, so the two entry points cannot describe one defect two ways.
+  
+  **This rejects documents that previously validated.** Only colon-qualified
+  field widget ids outside the `field:` namespace are affected — `field:`-prefixed
+  ids and bare names such as `password` still pass, registered or not. A field
+  carrying, say, `type: 'ui:password'` must be rewritten as `password` or
+  `field:password`; it never rendered as a password box in any case.
+  
+  Which of the repo's authoring-time validators is canonical remains open
+  (objectui#4631) — this states the rule on the zod side rather than unifying
+  them.
+- d91aed9: Name the case-only spelling when a component type misses the registry.
+  
+  Registry lookup is exactly case-sensitive, so a node typed `Page` misses a registered `page` and falls through to the OBJUI-001 "Unknown component type" panel. Because the mistake is usually uniform across a document, the symptom is not one broken widget — it is the whole page rendering as error panels, with nothing in the message pointing at the cause.
+  
+  Both surfaces that report the miss now name the spelling that would have resolved. `SchemaRenderer`'s panel reads `Unknown component type: Page — did you mean 'page'?`, and `objectui check` reports `Unknown schema type "Page" in <file> — did you mean "page"?`. When no known type differs by case alone, neither says anything extra — `zzz` gains no bogus suggestion, and this is case matching, not an edit distance, so `pge` suggests nothing either.
+  
+  **Lookup itself does not change.** `Page` still misses, still fails, and still renders the panel; only the message teaches. Normalising the lookup was considered and rejected (objectui#5247, maintainer ruling 2026-08-19): it would make two spellings valid everywhere, permanently, and legalise the typo class (`PAGE`, `pAge`) along with the PascalCase convention.
+  
+  Each surface reads its candidates from the set it can actually trust — the renderer from the live `ComponentRegistry` (including pending lazy stubs), the CLI from the registration-derived `KNOWN_SCHEMA_TYPES` snapshot — so neither can suggest a type nothing registers.
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [460575f]
+- Updated dependencies [d796c8d]
+- Updated dependencies [1b1d772]
+- Updated dependencies [d88e20f]
+- Updated dependencies [2d7304d]
+- Updated dependencies [636b236]
+- Updated dependencies [4172589]
+- Updated dependencies [64d624d]
+- Updated dependencies [39f4309]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [7cd3987]
+- Updated dependencies [e304a4e]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [f8cdbf2]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [e176053]
+- Updated dependencies [e30ed15]
+- Updated dependencies [90665e0]
+- Updated dependencies [194fae1]
+- Updated dependencies [7e19d03]
+- Updated dependencies [546ddf7]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [40c479a]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [6fd2cf7]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [129bcc5]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [8ec11e1]
+- Updated dependencies [6f81384]
+- Updated dependencies [22ba927]
+- Updated dependencies [f8c70f4]
+- Updated dependencies [8f1d995]
+- Updated dependencies [f9c34df]
+- Updated dependencies [dddb942]
+- Updated dependencies [29754cf]
+- Updated dependencies [6e88630]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [f24de8b]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [30c73cd]
+- Updated dependencies [830ed58]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [c71e14d]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [748494b]
+- Updated dependencies [5967be0]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [12402a9]
+- Updated dependencies [aff3d7a]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [2c1c967]
+- Updated dependencies [9486ac6]
+- Updated dependencies [9486ac6]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [dc4365c]
+- Updated dependencies [e321d52]
+- Updated dependencies [4c68077]
+- Updated dependencies [7977ff9]
+- Updated dependencies [3beef6d]
+- Updated dependencies [06b8c42]
+- Updated dependencies [46b9bc9]
+- Updated dependencies [b97790a]
+- Updated dependencies [7c9b044]
+- Updated dependencies [d47de51]
+- Updated dependencies [3fe6463]
+- Updated dependencies [31ab372]
+- Updated dependencies [846889b]
+- Updated dependencies [26896c6]
+- Updated dependencies [67fc3b0]
+- Updated dependencies [33a3b3c]
+- Updated dependencies [b87f15b]
+- Updated dependencies [c18d099]
+- Updated dependencies [adb2a86]
+- Updated dependencies [03380aa]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [b0d308d]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [6a449fc]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [00d3f09]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [d1842ab]
+- Updated dependencies [78ca238]
+- Updated dependencies [351eb31]
+- Updated dependencies [20c04b2]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [adbda1b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [7c3df8f]
+- Updated dependencies [b9f5ff1]
+- Updated dependencies [4704aa4]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [26e06d7]
+- Updated dependencies [669d71b]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [7bf244b]
+- Updated dependencies [f0bb9fa]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [c6198c2]
+- Updated dependencies [2f61238]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [daf9d57]
+- Updated dependencies [c15d7ec]
+- Updated dependencies [5d0876c]
+- Updated dependencies [f7ace0a]
+- Updated dependencies [b041b9c]
+- Updated dependencies [2ce2612]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [c14d3a0]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [64a252d]
+- Updated dependencies [d1bebb0]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [0ea7054]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [3c76801]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [dd19463]
+- Updated dependencies [100547e]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [2c8474c]
+- Updated dependencies [0e05aac]
+- Updated dependencies [ae61ad4]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [e719ebd]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [fe76ece]
+- Updated dependencies [58770f3]
+- Updated dependencies [aefe428]
+- Updated dependencies [485f096]
+- Updated dependencies [199d31b]
+- Updated dependencies [b655a9d]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [d7bd274]
+- Updated dependencies [98c3a74]
+- Updated dependencies [ebce5a3]
+- Updated dependencies [9d9040d]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [9850c6e]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [ab92940]
+- Updated dependencies [a691c0b]
+- Updated dependencies [0b1326d]
+- Updated dependencies [515f171]
+- Updated dependencies [4f14ad7]
+- Updated dependencies [258d264]
+- Updated dependencies [cac64b3]
+- Updated dependencies [fa140b8]
+- Updated dependencies [71cba28]
+- Updated dependencies [190fbd0]
+- Updated dependencies [72ffc34]
+- Updated dependencies [bf28341]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [42887e0]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [f90b8fb]
+- Updated dependencies [91783c4]
+- Updated dependencies [dba7d84]
+- Updated dependencies [5a07e67]
+- Updated dependencies [45d8288]
+- Updated dependencies [490f482]
+- Updated dependencies [27308c5]
+- Updated dependencies [8689166]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [9101be5]
+- Updated dependencies [f53a8d0]
+- Updated dependencies [57f9b07]
+- Updated dependencies [3c73d99]
+- Updated dependencies [d91aed9]
+- Updated dependencies [c86185e]
+- Updated dependencies [1170ed1]
+- Updated dependencies [4d73b07]
+  - @object-ui/types@17.7.0
+  - @object-ui/components@17.7.0
+  - @object-ui/react@17.7.0
+
 ## 17.6.0
 
 ### Patch Changes

@@ -1,5 +1,247 @@
 # @object-ui/permissions
 
+## 17.7.0
+
+### Minor Changes
+
+- 3c9fca3: Create forms pre-fill the `current_user` defaultValue token with the acting user (#5683). `PermissionContextValue` gains `userId` (from `/me/permissions`; `null` = unknown), and the create-form seeding resolves `defaultValue: 'current_user'` on `user` / `lookup→sys_user` fields to that id — the same value the engine stamps at insert, so the pre-fill is a preview of the server's own resolution, not a second default contract. Unknown user (no provider / anonymous / role-based provider) seeds nothing and keeps the omit-and-let-the-engine-resolve behavior. `NOW()` and CEL defaults stay server-owned.
+
+### Patch Changes
+
+- 45ac2cb: `usePermissions()` now returns an identity React cannot discard (objectui#6724).
+  
+  The hook cached its return in a `useMemo` keyed on `[ctx]`, and both branches build a
+  fresh object — an object literal when no provider is mounted, a spread of `ctx` when one
+  is. `useMemo` carries no semantic guarantee: React may throw the cache away and recompute
+  even when `[ctx]` compares equal, and that hands the caller a new identity while every
+  permission it carries is unchanged.
+  
+  That matters because consumers name this value in dependency arrays — 13 arrays across 6
+  files: `ListView`'s data-fetch effect (`perms`), `DetailView`'s `gatedSchema`,
+  `ObjectForm`, `ModalForm`, `ObjectGrid`, `RelatedList`. A discard alone re-ran the fetch
+  effect and re-issued `dataSource.find` with nothing an author or a caller controls having
+  changed. Same family as objectui#6018 / #5976 / #6591 / #6592 / #6697.
+  
+  The by-identity dependency at the consumers is the correct shape and stays: what they read
+  off this object is the verdict FUNCTIONS (`checkField(object, field, 'read')`,
+  `can(object, 'update')`) over an open set of field names, which flatten to no fixed list of
+  primitives the way objectui#6592's `dataConfig` members did. So the fix is at the hook,
+  where the identity can be made trustworthy:
+  
+  - the decoration becomes a plain function of `ctx` — the same context value always yields
+    the same object, because the mapping lives in a module-level `WeakMap` React has no say
+    over, keyed weakly so it dies with the provider's value. That is strictly stronger than
+    the memo it replaces: the identity is now stable across every component reading the same
+    provider, not just across one component's re-renders. It also costs no hook, so there is
+    no render-phase ref write and no state adjustment to reason about.
+  - the no-provider answer becomes one shared frozen module constant. Every member is a pure
+    constant function, so there was never anything per-instance to keep, and a single frozen
+    object cannot churn in any component for any reason.
+  
+  A new context value still produces a new identity, on purpose: that is a real permission
+  change and every consumer must see it.
+  
+  No permission value moves: the returned object still spreads `ctx` by identity and derives
+  `can`/`cannot` from `ctx.check`, and the documented no-provider fallbacks (`isLoaded:
+  false`, `userId: null`, `systemPermissions: undefined` with `hasCapabilities` fail-open —
+  objectui#5683 / #4656) answer exactly as before.
+  
+  Measured while fixing, and worth recording: on React 19.2.8 this repo has no reproduction —
+  51 re-renders with no provider, 51 with one and 42 under `StrictMode` each returned ONE
+  identity, and there is no `Activity`/Offscreen subtree here. This closes a latent hazard,
+  not an observed re-fetch. The providers' own context-value memos are the remaining link in
+  the same chain (objectui#6813).
+- 30266cf: Both permission providers now build their context value where React cannot discard it
+  
+  `PermissionProvider` built its context value in a `useMemo` over four
+  `useCallback`s, and `MePermissionsProvider` in a `useMemo` over six. Neither
+  carries a semantic guarantee: React is permitted to discard the cache and
+  recompute even when the dependency list compares equal, and every one of those
+  factories builds a fresh object. A discard would therefore hand
+  `PermCtx.Provider` a NEW context value with every permission it carries
+  unchanged — which moves the key `usePermissions()` caches on, and re-runs the
+  consumer chain that names it: `ListView`'s data-fetch effect (an extra
+  `dataSource.find`), `DetailView`'s gatedSchema, `ObjectForm`, `ModalForm`,
+  `ObjectGrid` and `RelatedList`.
+  
+  ⚠️ This is **hardening, not a repair**. Nothing misbehaves today: on this
+  repo's pinned React 19.2.8 the cache is not discarded spontaneously — 51
+  re-renders with no provider, 51 with one and 42 under `StrictMode` each
+  returned one identity — and there is no `Activity`/Offscreen subtree here,
+  which is the documented case where React does throw memo caches away. What is
+  removed is the dependency on React continuing not to exercise a licence it
+  holds.
+  
+  Each cached member and each context value is now keyed on the identities of the
+  inputs it is derived from, in a module-level `WeakMap` React has no say over —
+  the same technique that made `usePermissions()`'s own return discard-proof one
+  link down the chain. The dependency sets are unchanged, so nothing churns more
+  often than it did, and a genuine permission change still publishes a new
+  context value to every consumer. Two providers given the same inputs now share
+  one context value, which is stricter than the per-instance memo it replaces.
+  
+  No published export changes, and the context carries exactly what it carried
+  before.
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [460575f]
+- Updated dependencies [d88e20f]
+- Updated dependencies [2d7304d]
+- Updated dependencies [636b236]
+- Updated dependencies [64d624d]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [90665e0]
+- Updated dependencies [7e19d03]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [40c479a]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [6f81384]
+- Updated dependencies [8f1d995]
+- Updated dependencies [dddb942]
+- Updated dependencies [29754cf]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [2c1c967]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [adb2a86]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [b0d308d]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [351eb31]
+- Updated dependencies [20c04b2]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [669d71b]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [c6198c2]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [5d0876c]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [64a252d]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [100547e]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [0e05aac]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [199d31b]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [a691c0b]
+- Updated dependencies [515f171]
+- Updated dependencies [258d264]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [3c73d99]
+- Updated dependencies [1170ed1]
+- Updated dependencies [4d73b07]
+  - @object-ui/types@17.7.0
+
 ## 17.6.0
 
 ### Patch Changes

@@ -1,5 +1,962 @@
 # @object-ui/plugin-designer
 
+## 17.7.0
+
+### Minor Changes
+
+- 864154e: The Field Designer no longer offers a formula-expression textarea, and no designer write
+  path emits a `formula` key (objectui#6043).
+  
+  **This is a behaviour change on an authoring surface: a control is removed.** A field's
+  `type` may still be set to `formula` — that is a valid spec `FieldType` and stays in the
+  palette — but the expression itself is no longer authored here. Authors write formula
+  expressions in metadata-admin's field inspector, where they are checked.
+  
+  The control wrote `formula`, which is not in `FieldSchema`'s accept set. Measured against
+  the installed `@objectstack/spec` 17.2.0:
+  
+  ```
+  FieldSchema.safeParse({ type:'formula', label:'Tax', formula:'price * quantity' })
+    => success = false
+    => unrecognized_keys ['formula']   "Did you mean `formula` -> `expression`?"
+  ```
+  
+  so `PUT /api/v1/meta/object/:name` returned a hard 422 `INVALID_METADATA` — and because
+  the key was then stored, it blocked **every later save of that object**, not just the one
+  that introduced it.
+  
+  **The key was deliberately NOT renamed to the spec's `expression`.** `FieldSchema` judges
+  the key name and never the expression LANGUAGE — measured, it accepts
+  `expression: 'price * quantity'` and even `expression: '!!!not cel at all!!!'`; only the
+  empty string is refused. Spec `expression` is CEL rooted at `record`
+  (`record.amount * 0.1`), whereas this control's own placeholder taught `price * quantity`
+  — bare field refs, which under the scope formulas bind evaluate to null silently. A rename
+  would therefore have converted a loud, immediate 422 into a formula that saves clean and
+  then quietly computes nothing, which is strictly worse than the bug it appears to fix.
+  
+  Making refusals loud *in the control* would need CEL lint, autocomplete and `returnType`
+  inference — that is `CelPredicateField`, which lives in `@object-ui/app-shell`, and
+  app-shell depends on `@object-ui/plugin-designer`, so it cannot be imported back without a
+  dependency cycle. Growing a second formula-authoring surface inside plugin-designer is a
+  feature, not this fix. `returnType` is likewise not authored here: it is only derivable by
+  inferring the CEL result type, and with no expression control there is nothing to infer
+  from.
+  
+  `formula` joins the retired-key tombstone in `MetadataFieldsPage`, so an object already
+  carrying the key is stripped clean on its next save instead of staying blocked forever —
+  which matters more than usual here, because with the control gone an author would
+  otherwise have no way left to clear it. It is dropped rather than migrated to `expression`,
+  for the same reason the rename was refused. A `expression` authored in metadata-admin is
+  **not** touched: it is a real `FieldSchema` key and rides through the designer's
+  round-trip untouched.
+  
+  Also removes the now-unreachable `formula` read/write from
+  `views/metadata-admin/previews/object-fields-bridge.ts`, which was a third emit site for
+  the key that neither the card nor the parity gate named.
+  
+  The `formula` entry is removed from `check-designer-field-key-parity.mjs`'s
+  `KNOWN_UNPARSEABLE_KEYS` ledger, which ratchets in both directions — a resolved key that
+  left a stale entry behind would be as red as a new offender.
+- d18a0d3: Object-level metadata payloads no longer emit the three keys `ObjectSchema` refuses by
+  name — **group**, **sortOrder** and **relationships** (objectui#6223).
+  
+  Measured against the installed `@objectstack/spec` 17.2.0, whose `ObjectSchema` accept set
+  is 42 keys:
+  
+  ```
+  const base = { name: 'account', label: 'Account', fields: { n: { type: 'text', label: 'N' } } };
+  
+  ObjectSchema.safeParse(base)                              => success = true    (control)
+  ObjectSchema.safeParse({ ...base, isSystem: true })       => success = true    (control)
+  ObjectSchema.safeParse({ ...base, pluralLabel: 'A' })     => success = true    (control)
+  
+  ObjectSchema.safeParse({ ...base, group: 'Sales' })       => unrecognized_keys ["group"]
+  ObjectSchema.safeParse({ ...base, sortOrder: 3 })         => unrecognized_keys ["sortOrder"]
+  ObjectSchema.safeParse({ ...base, relationships: [ … ] }) => unrecognized_keys ["relationships"]
+  ```
+  
+  The two controls are what make that a key-by-key result rather than a schema refusing
+  everything. Each key was resolved on its own, as the objectui#5761 family ruling requires:
+  
+  - **group** — the Object Manager's grouping is a UI-only display category. The spec has no
+    object-level grouping key (`fieldGroups` groups the fields *inside* one object), so the
+    grouping control and its column stay, and the value is now DERIVED from the spec key that
+    is accepted (`isSystem`) instead of round-tripped. `MetadataObjectsPage` also strips a
+    `group` already stored by an earlier build, because its save-back spreads the server
+    document verbatim and would otherwise keep re-sending it forever.
+  - **sortOrder** — what populated it was the array index the converter happened to be at,
+    i.e. the order the list was already in. The declaration is removed from the object
+    payload. The field-level `sortOrder` is a different key with a different card
+    (objectui#6045) and is untouched.
+  - **relationships** — the spec models relationships on the FIELD (`reference` /
+    `master_detail`, plus object-level `indexes`). The object payload stops declaring and
+    sending an object-level relationship array; what the designer should author for a
+    relationship is a data-model question this change does not settle.
+  
+  **Breaking for TypeScript consumers of `ObjectMetadataPayload`** (exported from app-shell):
+  the three properties are gone from the published type, so code that set them stops
+  compiling. That is the point — setting any of them produced a payload the metadata route
+  refuses. `ObjectDefinition` (the designer's UI model) is unchanged and still carries all
+  three.
+  
+  The parity gate built for objectui#5761 now has a **second oracle**: every shape in
+  `PAYLOAD_SHAPES` names the schema that judges it, `ObjectSchema` alongside `FieldSchema`,
+  and reach is resolved within an oracle rather than across one — `group` is a legal
+  `FieldSchema` key and a refused `ObjectSchema` key at the same time. That extension found a
+  fourth object-level key (`enabled`, objectui#6238) and a value-level rejection the key-name
+  check cannot see (`fields` sent as an array where the spec wants a map, objectui#6240);
+  both are filed and ledgered rather than fixed here.
+- 1cca678: Retire the dashboard-**root** `title` read across all five surfaces (objectui#7509,
+  maintainer ruling 2026-09-04, decision batch #29, option C, under ADR-0049).
+  
+  **What changes for an operator.** A stored dashboard whose header came from a legacy
+  root `title` now shows its `label`. `label` is the only header source, then the raw
+  `name`.
+  
+  Per surface:
+  
+  - Console dashboard page (`DashboardView`) — header falls to `label`, then `name`.
+  - Standalone dashboard embed (`DashboardRenderer`) — `header` shows `label`; a document
+    with no `label` now shows no header title at all.
+  - The `dashboard-grid` SDUI component (`DashboardGridLayout`) — heading falls to
+    `label`, then the generic `Dashboard`.
+  - Studio dashboard designer (`DashboardEditor` preview panel, `DashboardDesignPage`
+    heading) — both fall to `label`, then `name` / the generic heading.
+  
+  **Why now.** `@objectstack/spec`'s `DashboardSchema` refuses a root `title` **by name**
+  (`unrecognized_keys(title)`), and the save route answers `422 INVALID_METADATA` — so no
+  authored dashboard can acquire the key, and what retires is compatibility with documents
+  stored before that refusal existed. Until now five surfaces read the legacy spelling
+  independently, which meant a legacy document could show one header in the console and a
+  different one in the designer. One spelling now answers everywhere.
+  
+  **Migration.** `label` is REQUIRED on `DashboardSchema`, so a spec-valid stored dashboard
+  already carries it and needs no change — it simply starts showing that `label` instead of
+  the legacy `title`. A document carrying `title` and no `label` was already invalid; give
+  it a `label`. No in-repo document needed migrating: a sweep of all 627 tracked JSON found
+  9 dashboard-shaped nodes, and the 6 carrying a root `title` are `type: 'dashboard'`
+  component examples that declare no `header`, so none of them rendered a header title
+  either before or after.
+  
+  **Not affected: widget titles.** `DashboardWidget.title` is a different, spec-**declared**
+  key (the spec's `I18nLabel`) on a different receiver, and is untouched — widget headings,
+  the designer's widget-title input and its per-locale write path all behave exactly as
+  before. Root and widget arms were separated by receiver, and the retirement's pins carry
+  widget-level controls on every surface for that reason.
+- bdb4dbd: A half-filled relationship field stays in the client and is never PUT (objectui#7714,
+  maintainer ruling on objectui#7122 item 4, 2026-09-05).
+  
+  **Breaking, deliberately, and stated rather than implied.** Both metadata writers —
+  `MetadataService.saveFields` / `saveObject` in `@object-ui/app-shell`, and
+  `MetadataFieldsPage` in `@object-ui/plugin-designer` — now REFUSE a `lookup` or
+  `master_detail` field whose `reference` is missing, empty, blank or not a string. A
+  caller that previously got a PUT now gets a thrown error and **no request at all**. The
+  refusal is raised while the wire `fields` map is being built, so nothing is sent and
+  nothing is partially applied.
+  
+  **Why the draft may not leave the client.** `@objectstack/spec` 17.3.0 turned
+  `reference` from prose into a hard requirement on relationship types (a `custom`
+  refinement at path `reference`). Driven against a real 17.3.0 backend in a running
+  designer: creating a `lookup` and leaving its target empty PUT the whole object,
+  came back `422 INVALID_METADATA` at `fields.<name>.reference` — and then the NEXT
+  edit, to a different and already-saved field, was refused identically, because the
+  half-filled draft rides along inside the same document. The author sees that later
+  edit rendered as applied while the server has none of it, and the only escape that
+  does not require noticing the lookup is a reload, which discards the work. An editing
+  session's half-finished state belongs to the client, not to the metadata store.
+  
+  ⛔ **Not** "strip the incomplete field from the body and report a successful save".
+  That shows the author a field the server never received — the silent-drop shape
+  objectstack#4001 closed.
+  
+  ⚠️ **A declared divergence: objectui is stricter than the contract here.** The
+  predicate is `typeof reference === 'string' && reference.trim() !== ''`. Measured on
+  the 17.3.0 artifact, at field level and again through `ObjectSchema`, the spec
+  ACCEPTS a whitespace-only `reference` while refusing an absent or empty one — so
+  `reference: '   '` is refused by these writers on their own authority, not the
+  platform's. Kept deliberately: whitespace names no object (the spec's own
+  `ObjectSchema.fields` key grammar `/^[a-z_][a-z0-9_]*$/` admits no whitespace-bearing
+  name), so admitting it only moves the identical failure past the PUT and into a stored
+  document, where it surfaces with no field named. Filed upstream as objectstack#16126;
+  if the spec trims, behaviour here is unchanged and only the declaration retires.
+  
+  The refusal message diagnoses which of the four states it found — absent, empty,
+  non-string (`invalid_type`, a value of the wrong kind rather than a missing target),
+  or blank — because the repair and the consequence differ per state.
+  
+  `minor` rather than `major` per `AGENTS.md`: objectui's major tracks `@objectstack`'s,
+  so objectui's own breaking changes ship as `minor` with the breaking semantics stated.
+- 0ea7054: Remove 37 runtime dependencies that no file in the declaring package consumes, and gate
+  the direction so the next one cannot land (objectui#8198).
+  
+  `check:phantom-deps` judges imports that are not declared; nothing judged the reverse,
+  so a declaration could outlive its last consumer indefinitely. That is what happened to
+  `recharts` in `@object-ui/components` after objectui#7397 deleted its only importer — it
+  was removed by hand on objectui#7625, and nothing would have reported the next one. The
+  new `pnpm check:unused-deps` asks the reverse question over `dependencies` and
+  `optionalDependencies` of every released package.
+  
+  **Potentially breaking, for consumers relying on hoisting.** Nothing these packages ship
+  changes: their Vite `external` predicates are path-based and never read `dependencies`,
+  so no built artifact moves. What changes is the install graph — a project that imports
+  one of the removed packages while depending only on the ObjectUI package that used to
+  drag it in will no longer resolve it. Declare it directly; that is the correct
+  dependency edge in either case. The removals, by package:
+  
+  - `@object-ui/plugin-designer`: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@object-ui/fields`
+  - `@object-ui/plugin-chatbot`: `react-markdown`, `react-syntax-highlighter`, `remark-gfm` (and the orphaned `@types/react-syntax-highlighter`)
+  - `@object-ui/plugin-report`: `@object-ui/plugin-grid`, `clsx`, `react-i18next`, `tailwind-merge`
+  - `@object-ui/plugin-map`: `@objectstack/spec`, `lucide-react`, `zod`
+  - `@object-ui/runner`: `class-variance-authority`, `clsx`, `tailwind-merge`
+  - `@object-ui/core`: `lodash`, `zod`
+  - `@object-ui/layout`: `clsx`, `tailwind-merge`, and `react-dom` — which it pinned at an exact version in `dependencies` while also declaring it as a peer range, i.e. a library hard-depending on the renderer it asks its host to supply
+  - `@object-ui/plugin-dashboard`: `clsx`, `tailwind-merge`, and the same `react-dom` defect
+  - `@object-ui/plugin-ai`: `@object-ui/react`, `clsx`, `tailwind-merge`
+  - `@object-ui/fields`: `clsx`, `tailwind-merge`
+  - `@object-ui/console`: `@object-ui/react-runtime`, `sucrase`
+  - `@object-ui/auth`: `@object-ui/types`
+  - `@object-ui/plugin-calendar`: `@object-ui/fields`
+  - `@object-ui/plugin-editor`, `@object-ui/plugin-markdown`: `@object-ui/react`
+  - `@object-ui/react`: `react-hook-form`
+  
+  Every one was verified by a whole-package grep before removal — the name appeared nowhere
+  under the package but its own manifest and CHANGELOG — and the whole workspace builds,
+  type-checks and tests green afterwards.
+
+### Patch Changes
+
+- 39f4309: Published typings from every `vite-plugin-dts` package now carry an explicit extension on
+  every relative specifier, and a type error in the declaration build now fails the build
+  instead of being printed and ignored (objectui#5439, objectui#5483).
+  
+  **Consumers on `moduleResolution: nodenext` or `node16` may see NEW type errors, and that
+  is the fix working.** These packages re-export mostly through NAMED re-exports —
+  `export { useObjectChat } from './useObjectChat'`. TypeScript could not follow the
+  extensionless hop, but it still DECLARED the name, so the symbol resolved to a silent
+  `any`. Nothing errored; consumers simply got no types. With the extension emitted, the
+  symbol carries its real type, and any call site that was relying on the `any` now type
+  checks for the first time. This is the mode that produced the 21 residual `TS7006` on
+  `@object-ui/app-shell` reported against objectui#5365 — a type hole that opened quietly,
+  unlike objectui#5365's own `export * from './ui'` packages where the same defect surfaced
+  immediately as `TS2305: has no exported member`.
+  
+  410 extensionless relative specifiers across 19 packages were emitted before this change;
+  the count is now 0 in all 22 packages that build typings through `vite-plugin-dts`.
+  `@object-ui/fields` was already clean — its sources write explicit `.js` specifiers — and
+  is wired so it stays that way.
+  
+  The second half changes no emitted output today: 22/22 packages built green unmodified, so
+  making the declaration step's exit code honest turns nothing red. It changes what a FUTURE
+  regression does — print and exit 0, versus fail the build.
+- 2cf69e4: The field designer now reads and writes a lookup field's relationship target under the
+  spec's spelling `reference` (objectui#6041), in both directions.
+  
+  `referenceTo` is not in `FieldSchema`'s accept set. Measured against the installed
+  `@objectstack/spec` 17.2.0, through the whole object document that
+  `PUT /api/v1/meta/object/:name` validates:
+  
+  ```
+  ObjectSchema.safeParse({ …, fields: { rel: { type: 'lookup', label: 'Owner',
+                                              referenceTo: 'user' } } })
+    => success = false
+    => unrecognized_keys at ["fields","rel"] keys=["referenceTo"]
+       "Did you mean `referenceTo` -> `reference`?"
+  ```
+  
+  so authoring a lookup field through the designer returned a hard 422 `INVALID_METADATA`,
+  and — because the key is then stored — blocked **every subsequent save** of that object,
+  with nothing in the UI to say which key did it.
+  
+  The read direction was broken symmetrically and is the half that would have survived a
+  write-only fix: `toDesignerField` read `raw.referenceTo` while a spec-parsed server sends
+  `reference`, so every already-saved lookup field loaded into the designer with an **empty
+  reference box**. Both wire-bound payload shapes move — `FieldMetadataPayload`
+  (`MetadataService.toFieldPayload`) and `ServerFieldSchema`
+  (`MetadataFieldsPage.fromDesignerField`).
+  
+  `referenceTo` also joins `RETIRED_FIELD_KEYS`. Renaming the emit sites alone does not
+  unblock an object whose stored fields already carry the misspelling: `carryOver` spreads
+  the previous server def verbatim, so the key would ride straight back out to the same 422.
+  The designer's in-memory `DesignerFieldDefinition` keeps `referenceTo` — that is the
+  internal prop name every other UI surface in this repo already uses (`LookupField`,
+  `filter-builder`, `ObjectChart`, `ListView`, `UserFilters`), it reaches no wire-bound
+  shape, and the parity gate classifies it as `uiOnly` rather than a violation.
+  
+  No behavioural change for a half-filled draft: the spec's prose calls `reference`
+  "required for relationship types", but that is not enforced by the zod parse at 17.2.0 —
+  `{ type: 'lookup', label: 'L' }` parses green at field level and through `ObjectSchema`,
+  and `undefined` is dropped by `JSON.stringify` under either spelling, so the wire bytes
+  are identical before and after.
+- 2cf69e4: The field designer now reads the system-field marker under the spec's spelling `system`,
+  and never hands `isSystem` back to the metadata API (objectui#6044).
+  
+  `isSystem` is not in `FieldSchema`'s accept set. Measured against the installed
+  `@objectstack/spec` 17.2.0:
+  
+  ```
+  FieldSchema.safeParse({ type: 'text', label: 'L', isSystem: true })
+    => success = false
+    => unrecognized_keys keys=["isSystem"]  "Did you mean `isSystem` -> `system`?"
+  ```
+  
+  Two defects, one misspelling, and they are two different sites.
+  
+  **The read was dead** — the quieter and worse half. `toDesignerField` read `raw.isSystem`
+  while a spec-parsed server sends `system`, so the flag was always `undefined`. Nothing went
+  red, because the flag is optional and `undefined` is a valid "not a system field". But it is
+  load-bearing: `FieldDesigner` refuses to delete a system field and disables its name and
+  type inputs, so with the read dead `organization_id`, `created_at` and friends presented as
+  ordinary editable, **deletable** business fields.
+  
+  **The write had no emit site at all.** `fromDesignerField` never names `isSystem`; its only
+  route out is the verbatim `...carryOver(prev)` spread, so a stored misspelling round-tripped
+  back to `PUT /api/v1/meta/object/:name` as a hard 422 `INVALID_METADATA` that blocks every
+  later save. The repair is a `RETIRED_FIELD_KEYS` tombstone rather than a renamed line — and
+  it is deliberately paired with the read fix, never a substitute for it: stripping alone would
+  close the 422 and fossilize the dead detection. The spec spelling `system` is not stripped,
+  so a server-injected flag rides through untouched and feeds the read.
+  
+  `app-shell`'s `FieldMetadataPayload` never declared the key, so `toFieldPayload` had nothing
+  to fix. The designer's in-memory `DesignerFieldDefinition` keeps `isSystem`: it reaches no
+  wire-bound shape and the parity gate classifies it as `uiOnly`.
+- 00c665e: `appDesigner.fieldDesigner.formula` is retired — one row removed from each of the ten
+  locale packs plus the designer defaults map, 11 lines, zero readers (objectui#6310).
+  
+  objectui#6043 retired the Field Designer's formula-expression textarea, which was the
+  key's only call site (`FieldDesigner.tsx`, the `{ name: 'formula', label:
+  t('appDesigner.fieldDesigner.formula') }` field descriptor). The value outlived it in
+  eleven places: `DESIGNER_DEFAULT_TRANSLATIONS` in
+  `packages/plugin-designer/src/hooks/useDesignerTranslation.ts`, and the `appDesigner >
+  fieldDesigner > formula` leaf of `packages/i18n/src/locales/{en,de,es,fr,pt,ru,ja,ko,zh,ar}.ts`.
+  
+  Removed under objectui#4658's evidence standard, re-measured on this branch rather than
+  inherited from the card: zero `t()`/`tt()` call sites, no dynamic template head that could
+  reach it (`appDesigner.fieldDesigner.typeCategory.` is the namespace's only one), and its
+  sole textual occurrence anywhere in the repo was the defaults-map row this change removes
+  with it — so the key goes from NEEDS-REVIEW to no footprint at all.
+  
+  The map and all ten packs move in one commit, which is what keeps
+  `defaults-maps-mirror-en-pack` green: that gate fails a map row whose key the `en` pack
+  lacks, and `all-locales-key-parity` fails a pack left behind.
+  
+  Not touched: `designer.field.formula` (`'Formula (CEL)'`) in
+  `packages/app-shell/src/views/metadata-admin/i18n.ts`, a different and live key belonging
+  to metadata-admin's `ObjectFieldInspector` — the surface that still authors formula
+  expressions.
+  
+  `packages/i18n/src/__tests__/appDesigner-fieldDesigner-formula-retired-6310.test.ts` pins the
+  removal by name, following the four prior retirements (objectui#4145, objectui#4392,
+  objectui#4730, objectui#5504). Every i18n gate here runs call site → key, so none of them can
+  see a dead key come BACK into the packs: the reverse sweep that found this one is report-only
+  by design, `all-locales-key-parity` is fully satisfied by ten packs agreeing on a dead key, and
+  `check:i18n-drift` only fires when a value changes. Reverse-verified rather than asserted —
+  reviving the row in all ten packs turns exactly that one case red, naming each pack, while the
+  parity gate and the defaults-map mirror stay green.
+- 73e8c33: The Field Designer builds an object's `fields` map by defining own properties and refuses
+  the three field lists a name-keyed map cannot carry (objectui#6489). `MetadataFieldsPage`
+  keyed the map by blind assignment — `nextFields[f.name] = fromDesignerField(…)` inside a
+  bare `for` loop — which failed silently in three directions, all measured on the installed
+  `@objectstack/spec` 17.2.0:
+  
+  - **A field named `__proto__` never reached the wire.** `map['__proto__'] = def` invokes the
+    prototype setter instead of creating a key, so the field vanished from the serialised PUT
+    body. `__proto__` matches `ObjectSchema.fields`' key rule `/^[a-z_][a-z0-9_]*$/`, so the
+    spec stood ready to accept the field the client had thrown away. The map is now built
+    through `Object.fromEntries`, which defines an own property.
+  - **A nameless field was stored under the literal key `"undefined"`.** Measured:
+    `ObjectSchema.safeParse` with `fields: { undefined: … }` returns `success = true`, so the
+    document parsed, persisted, and had no reader anywhere. It is now refused before the
+    request.
+  - **Two fields sharing a name collapsed into one entry.** A designer list carrying two
+    `amount` fields PUT a single entry, the later silently replacing the earlier. Also refused
+    before the request.
+  
+  Both refusals raise before `client.save`, so a refused list issues no PUT at all, and the
+  message lands in the page's existing error surface naming the offending index — the caller
+  is fire-and-forget (`void handleFieldsChange(next)`), so throwing past it would show the
+  author nothing.
+  
+  This is the plugin-designer port of the refusals objectui#6240 landed in the sibling object
+  writer (app-shell's `MetadataService.toFieldsMap`), down to the wording, so the two writers
+  of the objectui#5761 parity family cannot drift. `fromDesignerField`'s carry-over semantics
+  are untouched.
+- b49f9a1: `MetadataObjectsPage` keys its object-name lookups as own entries, so deleting an object
+  named `constructor` (or `__proto__`) from the Object Manager actually deletes it
+  (objectui#6522).
+  
+  Both name lookups in the page were plain object literals filled by assignment, and the
+  consequential one was a READ. The delete scan asked `!nextByName[name]`, which for an
+  object named `constructor` answered out of `Object.prototype` with the `Object` function —
+  truthy — so the deletion read as "still present" and `client.reset('object', …)` never
+  fired. Not a refusal: the row disappeared from the manager, no error was shown, the save
+  reported success, and the object was still there after the next reload. Measured against
+  the installed `@objectstack/spec`, `ObjectSchema` pins object names to
+  `/^[a-z_][a-z0-9_]*$/` and accepts both `constructor` and `__proto__` — those two are
+  exactly the intersection with `Object.prototype`'s own names, so both are storable and
+  neither was deletable.
+  
+  The second lookup, one function over, failed on the WRITE instead: `byName[item.name] =
+  item` for an object named `__proto__` invoked the prototype setter rather than creating a
+  key, so the object never became an own property, never reached the Object Manager at all,
+  and left its payload on the lookup's prototype chain for later name lookups to answer out
+  of. Both are now `Map`s — neither container is ever serialised, only its values are, so a
+  `Map` fits where the sibling `MetadataFieldsPage` fields map (which IS the PUT body) needs
+  `Object.fromEntries`.
+  
+  Keying only. Nameless and duplicate entries behave exactly as before: this page writes
+  per-object, so the refusal semantics objectui#6489 added to the fields map are a separate
+  question and are deliberately not ported here.
+- 3e028c8: One tombstone registry for the designer seam's retired field keys
+  (objectui#6527). Three independently maintained `RETIRED_FIELD_KEYS` literals
+  — the metadata-admin read door (`object-fields-io.ts`), `MetadataService`'s
+  carry-over and `MetadataFieldsPage`'s carry-over — become derivations from a
+  single registry in `@object-ui/types` (`RETIRED_FIELD_KEY_TOMBSTONES` +
+  `retiredFieldKeysFor(site)`), naming each retired key, the card that retired
+  it, and its PER-SITE applicability.
+  
+  Per-site behaviour is unchanged — this is a consolidation, and each site's
+  effective strip set is pinned equal to its pre-consolidation literal. The two
+  deliberate asymmetries a naive union would have destroyed are now recorded as
+  data and pinned:
+  
+  - `formula` stays stripped by the two write-side carry-overs and is NOT
+    stripped by the read door — ruled on objectui#6526 (option B): the
+    `ObjectFieldInspector` migration path (objectui#6043) stands, and the
+    registry test makes that ruling mechanical.
+  - `sortOrder` stays a single-site strip at `MetadataService`'s carry-over,
+    now explicitly recorded as the registry's one DEFENSIVE entry (objectui#6045
+    measured that no shipped writer ever populated a field-level one).
+- c6198c2: **Breaking for authored metadata:** `ComponentInput.label`, `ComponentInput.defaultValue` and
+  `ComponentInput.advanced` are RETIRED on both faces (objectui#7493 item ① and objectui#7781;
+  maintainer ruling A of 2026-09-06, immediate, no deprecation window; ADR-0049 enforce-or-remove).
+  They are the three keys the manifest serializer does not forward, and nothing read them on any
+  publication or consumption path.
+  
+  No manifest ever published them, so no consumer could ever have read them. `sdui-parser`'s
+  serializer (`packages/sdui-parser/src/index.ts`) forwards exactly six keys per input — `name`,
+  `type`, `required`, `enum`, `binding`, `description` — so a value authored under any of the three
+  never reached `sdui.manifest.json`, the generated JSX `.d.ts`, or a diagnostic; its boundary type
+  has no slot for them; the registry's data-source seam reads `name` only; and neither the designer
+  nor the app-shell inspectors consult registry `inputs` at all. A structural census over every
+  `inputs:` array in the repository (re-measured on this change's merge-base, `name` 951 and `type`
+  951 as the controls) counted the writes: `label` 908, `defaultValue` 245, `advanced` 9 — written on
+  nearly every registration, read by nothing.
+  
+  FROM → TO, per key — all three **TOMBSTONED, not removed**, because the route was measured on
+  the built face before it was chosen: `ComponentInputSchema` is a non-strict `z.object`, and an
+  undeclared key parses GREEN and is silently STRIPPED, so a deletion would have swallowed 1,162
+  authored values in silence. The tombstone is what makes the refusal loud and by name.
+  
+  - `label?: string` → `label?: never` on the interface, `retirementTombstone()` on the Zod mirror.
+    Migration: delete the key. An input is identified by its `name` on every path that reaches it;
+    nothing ever rendered a label for it.
+  - `defaultValue?: any` → `defaultValue?: never` / `retirementTombstone()`. Migration: delete the
+    key. The renderer's own fallback read IS the default; tell the author about it in `description`,
+    which IS published. (Tightening the type to `unknown` was ruled out: it closes no error class,
+    since nothing reads the value.)
+  - `advanced?: boolean` → `advanced?: never` / `retirementTombstone()`. Migration: delete the key.
+    No designer surface ever hid an "advanced" input; there is nothing to write instead.
+  
+  The retirement kit: `?: never` on `ComponentInput` (`packages/types/src/base.ts`), so authoring one
+  is a `tsc` error at the registration site; `retirementTombstone()` on `ComponentInputSchema`
+  (`packages/types/src/zod/base.zod.ts`), so an authored value is REFUSED at parse time with
+  `code: 'invalid_type'`, the key named in the issue `path`, and the migration note as the message
+  (one string, both channels). Pinned in
+  `packages/types/src/__tests__/component-input-retired-keys-7493.test.ts`, which also holds a
+  tree-scoped absence census over every `inputs:` array under `packages/**` and `apps/**`.
+  
+  Accept-set change, stated plainly for reviewers: a document that sets any of the three keys on a
+  `ComponentInput` used to parse GREEN (the value was then dropped by the serializer) and now parses
+  RED. Every in-repo authoring site — 1,199 keys across 110 registration files, the three standalone
+  `ComponentInput[]` arrays and the two named input arrays `tsc` found included — is deleted in the same change, as the ruling's split rule
+  requires; the `WidgetRegistry` seam no longer copies the widget-manifest values onto the synthesized
+  `ComponentInput` (they fed nothing), and the data-source declaration `ELEMENT_DATA_SOURCE_INPUT`
+  drops its `label`. The patch entries on the other packages record exactly that: their registrations
+  stop authoring inert keys, with no runtime or published-manifest change.
+  
+  The nine test files that read `defaultValue` off a registration were re-pinned against the
+  renderer's ACTUAL default (its own fallback read, or the `defaultProps` it ships) instead of the
+  declaration that went away; two assertions that only restated the shadow default were dropped with
+  the reason on the line.
+  
+  The in-repo zero is what was measured. Whether anything OUTSIDE this repository writes these keys
+  is not measurable from here (the objectui#5674 limit); converting such a write from a silent drop
+  into a named refusal is exactly what the tombstones buy. `WidgetInput`'s own `label` /
+  `defaultValue` / `advanced` (the widget-manifest face) stay declared and writable — nothing has
+  ruled on that face; that it now has no reader either is recorded as objectui#7911.
+- 4db5989: A widget title stored as an inline per-locale map is editable again in both dashboard
+  authoring surfaces, and a save writes back only the active locale's entry
+  (objectui#5428).
+  
+  `@objectstack/spec` widened `I18nLabel` from `string` to `string | Record` at
+  17.0.0-rc.6, so a stored widget title may be an inline per-locale map while both
+  authoring panels edit a title in ONE single-line input. Writing the input's value back
+  as the whole value would collapse every other locale on the first keystroke, so both
+  surfaces took the same conservative branch: show a map-valued title resolved, and make
+  it READ-ONLY.
+  
+  That branch could not lose data, but it rested on a premise the spec had already
+  invalidated — "nothing can reach this path from stored metadata yet, `I18nLabel` was
+  plain `string` through rc.5" — stated sixty lines below a comment in the same file
+  documenting the rc.6 widening that makes a stored map reachable. Both could not hold.
+  The pinned spec is 17.0.0. What the read-only branch did in practice from rc.6 onward
+  was not protect an unreachable path: it denied an author the ability to edit a widget
+  title in their own locale.
+  
+  objectui#5301's maintainer ruling settled the write rule for the sibling surface — a
+  save replaces only the active locale's entry and preserves the others — and
+  `@object-ui/i18n` ships it as `setLocalized`, co-located with `pickLocalized` because
+  the read and the write have to agree. Both panels now adopt it:
+  
+  - `@object-ui/plugin-designer`'s `DashboardEditor` widget property panel;
+  - `@object-ui/app-shell`'s `DashboardWidgetInspector` in metadata-admin.
+  
+  A plain-string title keeps saving as a plain string, so the common path is unchanged.
+  An edit made in a locale the stored map does not carry ADDS an entry under that locale
+  rather than overwriting the entry the display fell back to.
+  
+  The pins are preservation pins, not "the input is editable" pins: at both surfaces a
+  keystroke on a map-valued title must leave every other locale's entry byte-identical.
+  Reverse-verified by mutating each write back to the flattening form and confirming those
+  assertions go red at both surfaces.
+  
+  Not a multi-locale editor: an author still reaches only the entry for the locale they
+  are in. Authoring every locale from one panel remains an open product question. The
+  stale deferrals both comments carried pointed at objectui#4163, which closed as
+  completed on 2026-08-15 while the placeholders were still in the tree; they are replaced
+  with the rule that is actually in force rather than re-pointed at another tracker.
+- f7e34ca: Close the dashboard widget `type` vocabulary, and admit `metric-card` as objectui's own component extension.
+  
+  `DashboardWidgetSchema.type` was `string` on the TypeScript interface and `z.string()` in the Zod twin — an unbounded hatch. A typo'd family, a chart type the spec retired, and a component type nothing registers all type-checked and validated, surfacing only as the renderer's red `OBJUI-001` panel at runtime.
+  
+  It is now the CLOSED `DashboardWidgetTypeName` / `DashboardWidgetTypeSchema`: the spec's own `ChartTypeSchema` families **by reference**, plus two named, closed objectui extension sets — `DASHBOARD_WIDGET_TYPE_EXTENSIONS` (`list`, `custom`: objectui-only widget families) and `DASHBOARD_COMPONENT_WIDGET_TYPES` (`metric-card`: an objectui SDUI **component** type the widget slot holds directly, per the maintainer ruling of 2026-08-14 — objectui's own component enum, explicitly not the spec widget enum).
+  
+  Three drifts the closure surfaced and this change fixes: the dashboard designer's palette offered `grid`, which is not a widget family in either contract and was refused at publish; the metadata-admin widget inspector and the designer both wrote an unvalidated `string` from their select boxes; and a `@object-ui/types` fixture pinned `bar-chart`, a `plugin-charts` component type, on a dataset-bound widget that could never render as one.
+- Updated dependencies [9c74902]
+- Updated dependencies [64dae8e]
+- Updated dependencies [b06e374]
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [9801765]
+- Updated dependencies [460575f]
+- Updated dependencies [d796c8d]
+- Updated dependencies [594704f]
+- Updated dependencies [d3995fe]
+- Updated dependencies [1b1d772]
+- Updated dependencies [d88e20f]
+- Updated dependencies [2d7304d]
+- Updated dependencies [062943f]
+- Updated dependencies [993f312]
+- Updated dependencies [636b236]
+- Updated dependencies [4172589]
+- Updated dependencies [64d624d]
+- Updated dependencies [053fdc8]
+- Updated dependencies [41b7ce3]
+- Updated dependencies [67a87d9]
+- Updated dependencies [39f4309]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [7cd3987]
+- Updated dependencies [e304a4e]
+- Updated dependencies [94e2fa7]
+- Updated dependencies [490d9a9]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [3e853c9]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [95f8704]
+- Updated dependencies [f8cdbf2]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [e176053]
+- Updated dependencies [e30ed15]
+- Updated dependencies [17ccec9]
+- Updated dependencies [90665e0]
+- Updated dependencies [8d3a529]
+- Updated dependencies [5ac2e2c]
+- Updated dependencies [194fae1]
+- Updated dependencies [7e19d03]
+- Updated dependencies [beccf1c]
+- Updated dependencies [b08b7eb]
+- Updated dependencies [546ddf7]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [7a72422]
+- Updated dependencies [44d075b]
+- Updated dependencies [40c479a]
+- Updated dependencies [5173a5e]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [6fd2cf7]
+- Updated dependencies [5fa06c4]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [129bcc5]
+- Updated dependencies [c9a7252]
+- Updated dependencies [5f19b92]
+- Updated dependencies [a26b9e4]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [e0b289d]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [2da6441]
+- Updated dependencies [3b9c774]
+- Updated dependencies [8ec11e1]
+- Updated dependencies [6f81384]
+- Updated dependencies [22ba927]
+- Updated dependencies [f8c70f4]
+- Updated dependencies [5d3a2d1]
+- Updated dependencies [c38162d]
+- Updated dependencies [8f1d995]
+- Updated dependencies [b362c1b]
+- Updated dependencies [5127378]
+- Updated dependencies [f9c34df]
+- Updated dependencies [dddb942]
+- Updated dependencies [00c665e]
+- Updated dependencies [29754cf]
+- Updated dependencies [3c2b6f7]
+- Updated dependencies [6e88630]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [1c19722]
+- Updated dependencies [5961030]
+- Updated dependencies [faa863d]
+- Updated dependencies [fd814d6]
+- Updated dependencies [f24de8b]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [9602dc8]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [299102e]
+- Updated dependencies [30c73cd]
+- Updated dependencies [c4987fb]
+- Updated dependencies [f55d666]
+- Updated dependencies [f241a4d]
+- Updated dependencies [830ed58]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [c71e14d]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [748494b]
+- Updated dependencies [5967be0]
+- Updated dependencies [831be72]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [d0889e2]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [12402a9]
+- Updated dependencies [aff3d7a]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [fff9645]
+- Updated dependencies [9c3b7ce]
+- Updated dependencies [2c1c967]
+- Updated dependencies [9486ac6]
+- Updated dependencies [9486ac6]
+- Updated dependencies [4d5f9b4]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [dc4365c]
+- Updated dependencies [e321d52]
+- Updated dependencies [969ba84]
+- Updated dependencies [4c68077]
+- Updated dependencies [7977ff9]
+- Updated dependencies [4ac3769]
+- Updated dependencies [3beef6d]
+- Updated dependencies [06b8c42]
+- Updated dependencies [46b9bc9]
+- Updated dependencies [19f3637]
+- Updated dependencies [9bd08fe]
+- Updated dependencies [b97790a]
+- Updated dependencies [dbd5194]
+- Updated dependencies [7c9b044]
+- Updated dependencies [d47de51]
+- Updated dependencies [3fe6463]
+- Updated dependencies [b392674]
+- Updated dependencies [4f3a1e2]
+- Updated dependencies [31ab372]
+- Updated dependencies [846889b]
+- Updated dependencies [26896c6]
+- Updated dependencies [67fc3b0]
+- Updated dependencies [fab4802]
+- Updated dependencies [33a3b3c]
+- Updated dependencies [b87f15b]
+- Updated dependencies [f07b976]
+- Updated dependencies [045d20b]
+- Updated dependencies [c18d099]
+- Updated dependencies [adb2a86]
+- Updated dependencies [03380aa]
+- Updated dependencies [f9984c0]
+- Updated dependencies [9700dd9]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [320374d]
+- Updated dependencies [b0d308d]
+- Updated dependencies [1349400]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [6a449fc]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [220c18d]
+- Updated dependencies [00d3f09]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [639114c]
+- Updated dependencies [639114c]
+- Updated dependencies [1490691]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [d1842ab]
+- Updated dependencies [78ca238]
+- Updated dependencies [d8ec8d6]
+- Updated dependencies [351eb31]
+- Updated dependencies [866cd1d]
+- Updated dependencies [20c04b2]
+- Updated dependencies [84ffdbc]
+- Updated dependencies [a276480]
+- Updated dependencies [01c9023]
+- Updated dependencies [48c19bd]
+- Updated dependencies [a6d8b8d]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [adbda1b]
+- Updated dependencies [adbda1b]
+- Updated dependencies [8952395]
+- Updated dependencies [e8c553b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [7c3df8f]
+- Updated dependencies [67dadd6]
+- Updated dependencies [e21308e]
+- Updated dependencies [a4514e8]
+- Updated dependencies [b9f5ff1]
+- Updated dependencies [e75f4c9]
+- Updated dependencies [19f1639]
+- Updated dependencies [4704aa4]
+- Updated dependencies [47547d0]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [26e06d7]
+- Updated dependencies [669d71b]
+- Updated dependencies [6a99bb2]
+- Updated dependencies [2d3fe73]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [7dedec6]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [3399704]
+- Updated dependencies [7bf244b]
+- Updated dependencies [f0bb9fa]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [20cb8db]
+- Updated dependencies [00d2fa6]
+- Updated dependencies [c6198c2]
+- Updated dependencies [2f61238]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [2a5bf45]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [daf9d57]
+- Updated dependencies [c15d7ec]
+- Updated dependencies [5d0876c]
+- Updated dependencies [f7ace0a]
+- Updated dependencies [b041b9c]
+- Updated dependencies [ce2aaef]
+- Updated dependencies [2ce2612]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [c14d3a0]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [91f9276]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [a915064]
+- Updated dependencies [52cac38]
+- Updated dependencies [53ded82]
+- Updated dependencies [64a252d]
+- Updated dependencies [d1bebb0]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [0758bd8]
+- Updated dependencies [f57ca75]
+- Updated dependencies [0ea7054]
+- Updated dependencies [fc32921]
+- Updated dependencies [8f9d87a]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [81c0bc4]
+- Updated dependencies [3c76801]
+- Updated dependencies [b2e85a9]
+- Updated dependencies [d5c1f52]
+- Updated dependencies [c7cd2b6]
+- Updated dependencies [b2065e7]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [77f846a]
+- Updated dependencies [bc5870c]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [dd19463]
+- Updated dependencies [100547e]
+- Updated dependencies [3a58149]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [bf3edfe]
+- Updated dependencies [2c8474c]
+- Updated dependencies [6ce89da]
+- Updated dependencies [0e05aac]
+- Updated dependencies [ae61ad4]
+- Updated dependencies [5aed9e4]
+- Updated dependencies [83c77dc]
+- Updated dependencies [3c9fca3]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [e719ebd]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [b470e91]
+- Updated dependencies [fe76ece]
+- Updated dependencies [8ebd57f]
+- Updated dependencies [c40f3b8]
+- Updated dependencies [58770f3]
+- Updated dependencies [aefe428]
+- Updated dependencies [485f096]
+- Updated dependencies [199d31b]
+- Updated dependencies [9e22085]
+- Updated dependencies [b655a9d]
+- Updated dependencies [c574dfb]
+- Updated dependencies [02f48b6]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [7138bc1]
+- Updated dependencies [cef27e2]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [d7bd274]
+- Updated dependencies [98c3a74]
+- Updated dependencies [ebce5a3]
+- Updated dependencies [9d9040d]
+- Updated dependencies [20e317c]
+- Updated dependencies [425762e]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [8e00bfd]
+- Updated dependencies [8d37efb]
+- Updated dependencies [9850c6e]
+- Updated dependencies [9118a31]
+- Updated dependencies [de570cc]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [ab92940]
+- Updated dependencies [a691c0b]
+- Updated dependencies [0b1326d]
+- Updated dependencies [1e66879]
+- Updated dependencies [c5200f0]
+- Updated dependencies [af3861f]
+- Updated dependencies [515f171]
+- Updated dependencies [83ec618]
+- Updated dependencies [4f14ad7]
+- Updated dependencies [258d264]
+- Updated dependencies [cac64b3]
+- Updated dependencies [fa140b8]
+- Updated dependencies [71cba28]
+- Updated dependencies [190fbd0]
+- Updated dependencies [c00bf28]
+- Updated dependencies [f2158ec]
+- Updated dependencies [fd8dace]
+- Updated dependencies [72ffc34]
+- Updated dependencies [bf28341]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [42887e0]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [591bf27]
+- Updated dependencies [38a9568]
+- Updated dependencies [f90b8fb]
+- Updated dependencies [91783c4]
+- Updated dependencies [dba7d84]
+- Updated dependencies [43ca9d5]
+- Updated dependencies [5a07e67]
+- Updated dependencies [2d36552]
+- Updated dependencies [45d8288]
+- Updated dependencies [b2437a7]
+- Updated dependencies [f157423]
+- Updated dependencies [7a90afd]
+- Updated dependencies [ba306e3]
+- Updated dependencies [eddc1dd]
+- Updated dependencies [490f482]
+- Updated dependencies [27308c5]
+- Updated dependencies [8689166]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [26a2238]
+- Updated dependencies [9101be5]
+- Updated dependencies [f53a8d0]
+- Updated dependencies [5d79faf]
+- Updated dependencies [57f9b07]
+- Updated dependencies [3c73d99]
+- Updated dependencies [d91aed9]
+- Updated dependencies [ed71d9e]
+- Updated dependencies [7776fc2]
+- Updated dependencies [c86185e]
+- Updated dependencies [fb96ecb]
+- Updated dependencies [1170ed1]
+- Updated dependencies [f75810e]
+- Updated dependencies [4d73b07]
+  - @object-ui/plugin-form@17.7.0
+  - @object-ui/i18n@17.7.0
+  - @object-ui/core@17.7.0
+  - @object-ui/types@17.7.0
+  - @object-ui/components@17.7.0
+  - @object-ui/plugin-grid@17.7.0
+  - @object-ui/react@17.7.0
+  - @object-ui/data-objectstack@17.7.0
+
 ## 17.6.0
 
 ### Minor Changes

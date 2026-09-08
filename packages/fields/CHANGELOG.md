@@ -1,5 +1,1580 @@
 # @object-ui/fields
 
+## 17.7.0
+
+### Minor Changes
+
+- 8631c32: **BREAKING (stored data): `LocationField` reads and writes the spec's `{ lat, lng }`**
+  
+  FROM — the widget read `value.latitude` / `value.longitude`, each behind `|| 0`, and emitted
+  `{ latitude, longitude } | null`.
+  
+  TO — it reads and writes `LocationValue` from `@objectstack/spec/data`
+  (`{ lat, lng, altitude?, accuracy? }`), re-exported here rather than re-declared, and reads
+  nothing else. A pair is read only when BOTH `lat` and `lng` are finite numbers.
+  
+  **The behaviour change, stated plainly:** a `type: 'location'` record stored in the retired
+  `{ latitude, longitude }` spelling — including one this widget itself wrote before this
+  release — now renders **EMPTY in the edit surface**, where it used to render its
+  coordinates. It keeps rendering correctly in detail views, list cells and on the map, which
+  read `lat`/`lng` first. Re-saving the record through this widget, or fixing the value at the
+  data layer, restores it. There is deliberately **no compatibility fallback**: the maintainer
+  ruled the bare flip (2026-08-28, objectui#6272 option A1) explicitly over a dated read-side
+  shim, choosing zero dialect over softening this cost.
+  
+  Marked `minor` per AGENTS.md §版本号策略 (this repo never publishes `major` outside an
+  `@objectstack` major sync); the break is real and is stated here.
+  
+  **Why the widget was the side that moved**
+  
+  `@objectstack/spec@17.2.0` exports `LocationValue = { lat, lng, altitude?, accuracy? }` as
+  the canonical stored shape and deprecates `LocationCoordinates` (`{ latitude, longitude }`).
+  Measured through the contract itself, `valueSchemaFor({ type: 'location' })` **rejects**
+  `{ latitude, longitude }` with `invalid_type` at `[lat]` and `[lng]`, and **accepts**
+  `{ lat, lng }`. So this widget was the one `location` surface producing a shape the
+  platform's own validator refuses, and `LocationCellRenderer` / `ObjectMap` reading
+  `lat`/`lng` first is correct by contract, not tolerance.
+  
+  The user-visible defect it fixes: a spec-canonical `{ lat, lng }` record rendered **`0, 0`**
+  in the edit box — not an error state but a valid coordinate in the Gulf of Guinea — while
+  the same record rendered correctly one panel away. The `|| 0` defaults are gone with the
+  rename, so a half-stored pair (`{ lat }` alone) no longer invents the coordinate it is
+  missing; it reads as unset. A stored `{ lat: 0, lng: 0 }` still renders `0, 0`, because that
+  is now the only way those digits can appear.
+  
+  `GeolocationField` is **not** part of this change: `geolocation` is not a member of the
+  spec's closed `FieldType` union and its value schema accepts both spellings, so it keeps its
+  own `{ latitude, longitude }` shape.
+- e552c31: fields: validate a STORED `location` value on an edit form (objectui#6744)
+  
+  `buildValidationRules` is the producer of the host-side `error` prop that every
+  field widget's published objectui#3222 slot reads, and it had no branch for
+  `location`. So a coordinate that was **already in the record** and violated the
+  spec's range was never validated on an edit form: the control rendered it,
+  nothing marked it invalid, and submitting re-wrote it unchanged.
+  
+  It now compiles a `validate.location` entry that adjudicates a present value
+  against `valueSchemaFor(field, 'stored')` — the platform's own value-shape
+  contract (ADR-0104 D1), the same schema the engine's record validator checks a
+  stored `location` against. An out-of-range stored value now marks the control
+  invalid, renders the spec's own complaint, and blocks the write; a legal value
+  is untouched.
+  
+  ⛔ The bounds are not restated in objectui. A hand-copied range would be a second
+  contract free to drift from the spec (AGENTS.md #0.1), so the schema is asked and
+  the message is built from its issues — the same discipline `LocationField`'s own
+  range refusal already follows.
+  
+  Deliberately unchanged:
+  
+  - **Input-time refusal (objectui#6714/#6716) is still the widget's.** A refusal
+    means `onChange` never fires, so the typed text never becomes a form value and
+    this rule is handed `undefined`. The two do not overlap.
+  - **Absence is `required`'s business.** The spec's schema refuses `null` and
+    `undefined` outright because it describes a *present* value, so the rule asks
+    core's `isMissingForRequired` — the repo's single presence contract — rather
+    than inventing a second definition of "empty". A create form with an untouched
+    location field is unaffected.
+  - **A field-authored `validate` keeps running**, composed under its own key
+    rather than replaced.
+  - **Scope is `location` only.** Whether other field types have the same
+    stored-value gap is a separate question and was not surveyed here.
+- 7b90231: A `type="number"` field no longer displays one value and stores another in
+  silence (objectui#6780).
+  
+  `NumberField`, `CurrencyField`, `PercentField` and `GeolocationField` now
+  announce when the browser reports `validity.badInput` — it is holding text it
+  cannot read. The control is marked `aria-invalid="true"` and draws
+  `Not saved: the text in this box is not a number. Enter a plain decimal
+  (example: …).`, reusing the refusal shape objectui#6716 introduced for
+  `LocationField`.
+  
+  Measured in Chromium 141.0.7390.37 (Playwright 1.62.1), typing `1e` into an
+  empty number box leaves it **visibly displaying `1e`** while `.value` reads the
+  empty string. Before this change the widget emitted `null`, `aria-invalid`
+  stayed `"false"`, and nothing was said — on a money field. Nine keyboard
+  reachable states behave that way (`1e`, `1e-`, `1e+`, `5e`, `-`, `.`, `+`, `-.`,
+  `e`), and none of the six values a real browser actually emits trips the guard.
+  
+  Both a change arm and a **blur** arm are wired. Pasting `1e` into an empty box
+  never moves `.value` off `''`, so React's input-value tracking suppresses the
+  change event entirely and blur is the only arm that sees it. `PercentField`,
+  `NumberField` and `GeolocationField` had no `onBlur` before; the new one
+  composes any handler a host supplied rather than replacing it.
+  
+  The guard ANNOUNCES; it deliberately does not refuse. Refusing would leave the
+  React `value` prop unchanged, and React's `updateInput` writes it back over the
+  raw text — wiping the very entry the message points at.
+  
+  ⚠️ **Filtering truncation stays silent, and cannot be made otherwise.** Pasting
+  `1.2.3` into a currency field stores `1.23`; `0x10` stores `10`. The browser
+  discards those characters as they arrive, before any widget code runs, so no
+  widget-side guard can refuse them — only abandoning `type="number"` could, which
+  would reverse objectui#2572's deliberate `min`/`max`/`step` and mobile numeric
+  keyboard affordances. This asymmetry is documented for users in
+  `content/docs/guide/fields.md` and on the currency, percent and number field
+  pages, because a control that warns about `1e` while silently truncating `1.2.3`
+  teaches people that no warning means the value is right.
+- 045d20b: Relationship-target readers resolve a lookup's target from `reference` alone,
+  dropping the `reference_to` fallback arm (objectui#6837, half 2).
+  
+  Maintainer ruling, 2026-08-31, 原文照录: 「objectui不是前端的项目吗?后端的元数据只要
+  对,前端按协议执行就行了呀」. Protocol normalization belongs on the SERVER; the front
+  end just executes the protocol. objectstack#13847 landed the server half — a
+  `field-reference-to-alias` conversion rewrites stored `reference_to` to
+  `reference` on the serve path and in `os migrate meta`.
+  
+  `reference` is the only target spelling `@objectstack/spec`'s `FieldSchema`
+  declares. Measured on the installed 17.2.0: it refuses `reference_to`,
+  `referenceTo` and `target` with `unrecognized_keys`, each carrying its own
+  "Did you mean -> `reference`?" rename, while a nonsense key gets the same
+  refusal with NO rename hint and `reference` parses clean.
+  
+  ## ⚠️ BREAKING for a hand-written schema that spells `reference_to` — read this
+  
+  **This is a behaviour change for BYO consumers, and it is being stated rather
+  than shipped silently.** ObjectUI is usable without an ObjectStack backend
+  (`examples/byo-backend-console`), and a hand-written TypeScript schema passes
+  through no zod door, so nothing rejects the legacy spelling at authoring time.
+  
+  **The break surface is narrower than "all BYO consumers", and this is the
+  measurement rather than a blanket claim.** Two ingestion choke points stamp both
+  snake_case keys from whichever spelling arrived — `MetadataProvider`'s type
+  cache for metadata type `object`, and `ObjectStackAdapter.getObjectSchema`. Any
+  def that passed either one already carries `reference` and is **completely
+  unaffected**. What is affected is exactly:
+  
+  - **A `DataSource` implementation other than `ObjectStackAdapter`.**
+    `getObjectSchema` is a required member of the published `DataSource`
+    interface, and the readers call it on the generic `dataSource` (through
+    `useSettledSchema` and directly), so a host adapter's object schema reaches
+    them raw. Every in-repo example of one is on this path:
+    `ApiDataSource`, `ValueDataSource`, `packages/types/examples/rest-data-source.ts`,
+    `examples/byo-backend-console/src/mockDataSource.ts`,
+    `packages/runner/src/lib/mockDataSource.ts`,
+    `apps/site/app/components/galleryDataSource.ts`,
+    `apps/console/src/sdui-workbench-preview.tsx`,
+    `packages/plugin-grid/demo/bulk-actions.tsx`.
+  
+  **Measured on this tree, none of those eight emits a relationship target at all** —
+  `reference_to` and `reference` are both zero in each, and
+  `examples/byo-backend-console` carries no lookup or master_detail field
+  anywhere (its only `reference` hits are a vite triple-slash directive and a
+  tsconfig `references` array). The single in-repo producer that WAS on this
+  surface, `packages/plugin-gantt/demo/main.tsx`, is fixed here at the producer.
+  
+  ⇒ **If you author object metadata by hand and spell a lookup's target
+  `reference_to`, rename that key to `reference`.** Symptom if you do not: the
+  target silently fails to resolve, and the affected surface degrades rather than
+  erroring — a related list is not derived, a gantt quick filter falls back to the
+  distinct values in the loaded rows instead of the referenced object's full
+  domain, a tree stops auto-detecting its parent pointer, a lookup cell shows a
+  raw id, a chart's group-by labels stay unresolved.
+  
+  The ingestion choke point now emits a **dev-mode warning** when a def arrives
+  carrying only `reference_to` or `referenceTo` and no `reference`. It names the
+  object, the field and the offending key, and points at this ruling. Stamping is
+  deliberately unchanged, so nothing that worked stops working. It is memoised
+  once per **(object name, field name, spelling, target value)** — every segment
+  of that key is pinned, in both directions, in
+  `reference-keys.legacyWarning-6837.test.ts`.
+  
+  ⛔ **This warning does NOT cover the break described above, and it is worth being
+  exact about that rather than letting it read as mitigation.** It lives in
+  `normalizeFieldReferenceKeys`, reachable only through
+  `normalizeSchemaReferenceKeys`, which has exactly two production call sites —
+  `MetadataProvider` (metadata type `object`) and
+  `ObjectStackAdapter.getObjectSchema`. Both of those also STAMP the def, so the
+  warning fires precisely where the def still resolves and nothing is broken. A
+  hand-written schema served through any OTHER `DataSource` — the break surface —
+  reaches a reader raw: it never passes through this code and produces **no
+  warning at all**. On that path the failure is exactly as silent as before.
+  A reader-side or shared-resolver diagnostic, which would cover it, remains open
+  on objectui#6837.
+  
+  ## What did NOT change
+  
+  **Every key these readers EMIT is byte-identical**, and that was verified
+  mechanically over the whole diff rather than asserted. Eleven of the sixteen
+  sites write a target onto a bag whose own contract spells it `reference_to` (or
+  camelCase `referenceTo`): the six whose read and write share a line —
+  `RecordDetailDrawer`, `RelatedList`, `buildDefaultPageSchema`, `ListView`,
+  `FilterConditionField`, `resolveActionParams` — plus five more that read on one
+  line and emit on another, and so are just as much emitters: `RecordDetailView`,
+  `RecordMetaFooter`, `ObjectGallery`, `fieldEnrichment` (all `reference_to`) and
+  `UserFilters` (`referenceTo`). Only the right-hand read narrowed anywhere; the
+  emitted key is what its target contract declares, and renaming it would be a
+  separate change.
+  
+  **Three readers were deliberately left alone.** `LookupCellRenderer`
+  (`fields/src/index.tsx`), `LookupField` and `UserField` read `FieldMetadata` —
+  ObjectUI's OWN contract, whose `LookupFieldMetadata` declares `reference_to` and
+  never declares `reference`. They are fed by the emitters above and by published
+  example schemas (`examples/schema-catalog/src/schemas/fields-lookup/*.json`), so
+  narrowing them would break in-repo producers, and `plugin-grid`'s
+  `relationalMetaCopySet.derivation.test.ts` re-derives its read set from exactly
+  those three sources — where `reference_to` is recorded with verdict
+  `adapter-stamped`. `DetailViewFieldSchema` is likewise untouched.
+- 0caacca: `GeolocationField` emits `null` for a cleared coordinate, not `undefined` (objectui#6848).
+  
+  Emptying a latitude or longitude box now emits `{ …, latitude: null }` where it previously
+  emitted `{ …, latitude: undefined }`. `CurrencyField`, `PercentField` and `NumberField` all
+  already emitted `null` for the identical user action, and `LocationField` emits `null` too —
+  this composite was the only widget of the class that did not.
+  
+  **Why `undefined` was the wrong sentinel.** It cannot survive serialization: `JSON.stringify`
+  drops an `undefined`-valued key outright, so the moment the emission left memory it stopped
+  saying "the user cleared this" and started saying nothing at all. `null` says it explicitly and
+  keeps saying it on the wire.
+  
+  **Scope — what this is NOT.** The card was filed on the reasoning that the dropped key reaches
+  a PATCH-shaped update as an ABSENT key, which conventionally means "leave this field alone",
+  so a cleared coordinate would silently fail to persist. That was measured before this fix was
+  chosen, and the second half does not hold for this widget: the dropped key is nested one level
+  below the key the write path merges on. The request body still carries the composite's own key
+  (`{ <field>: { longitude: … } }`), a `location` value is stored as a single JSON column, and
+  nothing on the path deep-merges — so the whole value is replaced and the cleared coordinate
+  does not come back. No silent data loss was found, and none is fixed here. What is fixed is
+  the emission: a widget that could not express "cleared" in a form that survives serialization,
+  in a class whose other members could.
+  
+  **`GeolocationValue` widened** — `latitude`, `longitude` and `accuracy` are now
+  `number | null | undefined`. `undefined` stays admissible, because an untouched coordinate is
+  genuinely absent; `null` is now admissible because a cleared one is explicitly empty. Code that
+  reads these coordinates with a falsy or `== null` test is unaffected. Code that distinguishes
+  `=== undefined` specifically will now see `null` after a user clears a box.
+  
+  A legitimate `0` coordinate (the equator, the prime meridian) is unaffected and is now pinned:
+  the emptiness test reads the raw input string, and `'0'` is not an empty string.
+- f08bcd9: `FieldEditWidget` now delivers the NON-DOM half of the contract it declares (objectui#7008).
+  
+  objectui#7009 made the factory forward its declared DOM pass-through block. The rest of
+  `FieldWidgetComponentProps` was still dropped: `error`, `onUploadingChange`, and the whole
+  "Host plumbing" block (`dataSource`, `dependentValues`, `dependsOn`, `dependsOnLabels`,
+  `emptyHint`, `onSelectRecord`, `onCreateNew`). A host could pass any of them with no type
+  error and the widget never received it — the "declared but not delivered" class this
+  package treats as first-class.
+  
+  `error` was the live one. `InlineFieldInput` has passed `error` into this factory since
+  PR #7109 and the factory dropped it, so an inline-edit control that had failed validation
+  never reported `aria-invalid`: a sighted user saw the red hint, a screen-reader user was
+  told nothing. The kanban `RequiredFieldsDialog` had the same hole from the other side — it
+  computes the validation state and could not hand it over — and now passes `error`, so its
+  controls are marked. Delivering `error` buys the a11y MARKING only; the message text stays
+  with the host, per the objectui#3222 contract.
+  
+  The keys travel through a new sibling executor, `toHostProps` (exported alongside
+  `toDomProps`), never through the DOM whitelist — none of them is DOM-legal, and routing a
+  `dataSource` adapter there is the `[object Object]` leak that whitelist exists to stop.
+  Three compile-time assertions make the two executors partition the contract, so a future
+  declared key cannot go undelivered silently.
+  
+  `dataSource` precedence is stated rather than left to emerge: a host's explicit
+  `dataSource` prop WINS over `SchemaRendererContext`. That is the order `LookupField`
+  already implements; the factory is a conduit and resolves nothing. A host that passes no
+  `dataSource` keeps reading the context exactly as before, so no in-repo host changes
+  behaviour.
+- 351eb31: Converge the lookup/user widget metadata on the spec's camelCase — one concept, one
+  spelling (objectui#7155, maintainer ruling A′ of 2026-09-03, director decision batch #19).
+  
+  **BREAKING, deliberately, with no deprecation window.**
+  
+  Two published contracts declared OPPOSITE dialects for the same four lookup keys, and
+  `@object-ui/fields`' read chains served both — snake FIRST, so the dialect the object
+  contract *refuses* outranked the one it *declares*:
+  
+  | | `@objectstack/spec` `FieldSchema` (object metadata) | `@object-ui/types` `LookupFieldMetadata` (widget metadata) |
+  |---|---|---|
+  | camelCase | **declared** | compile error (`TS2561`) |
+  | snake_case | refused (`unrecognized_keys`) | **declared** |
+  
+  `LookupFieldMetadata` and `UserFieldMetadata` now declare the spec spellings, and the
+  snake members are **removed**:
+  
+  | before (removed) | after |
+  |---|---|
+  | `display_field` | `displayField` |
+  | `description_field` | `descriptionField` |
+  | `lookup_filters` | `lookupFilters` |
+  | `id_field` | `idField` |
+  
+  **Migration.** Rename those four keys wherever you author lookup or user field metadata
+  — `LookupFieldMetadata` / `UserFieldMetadata` objects, and any `DataSource.getObjectSchema`
+  that returns them. The old spellings are no longer read: a def still carrying
+  `display_field` falls back to the referenced record's generic name heuristic rather than
+  the field you named.
+  
+  `idField` is kept as a **widget-contract** key. It carries objectstack#3508's machine-name
+  hydration — committing a record field other than the id as the lookup's stored value —
+  which is picker behaviour with no `FieldSchema` twin, and none owed.
+  
+  **Not renamed** (outside this ruling's four keys, still snake on the widget bag):
+  `reference_to`, `title_format`, `lookup_columns`, `lookup_page_size`, `depends_on`,
+  `allow_create`, `avatar_field`. `reference_to` in particular **stays** — the adapter's
+  `normalizeSchemaReferenceKeys` choke point genuinely stamps it onto every def.
+  
+  Also moved with the rename: `content/docs/fields/lookup.mdx` and `user.mdx` (whose
+  snippets CI compiles against the built `d.ts`), all seven in-repo producers, and the
+  inline-edit enrichment allow-list in `@object-ui/plugin-detail`. `plugin-grid`'s
+  `relationalMetaKeys.ts` drops the four `legacy-alias` verdicts and retires that verdict
+  class; its gate is restated to assert the class no longer exists rather than passing
+  vacuously.
+- 81a2eb1: One home for the `datetime` display convention (objectui#7443).
+  
+  `formatDateTime` gains a named `'compact'` style, selected through
+  `options.style` — the dense grid face, `7/4/2024 7:00 am` in `en-US` — which
+  `DateTimeCellRenderer` used to build from its own inlined `Intl` option bags.
+  The cell now reads `field.format` (it destructured `value` only, so a
+  `datetime` field could not reach the style vocabulary a `date` field has) and
+  renders through the shared function, and `data-table`'s `formatCellValue`
+  calls `formatDateTime` instead of a third, independently authored option bag.
+  Every existing cell without an authored `format`, and every cell authoring
+  `'compact'`, renders byte-identically; `'compact'` is today's face named and
+  rehoused, not a new one. A `datetime` field that authors any OTHER non-empty
+  `format` does change: the cell previously ignored `field` altogether and always
+  painted the compact face, and now anything other than `'compact'` selects the
+  verbose `formatDateTime` default — measured as `Jul 4, 2024, 07:00 AM` in
+  `en-US` for the instant whose compact face is `7/4/2024 7:00 am`. An
+  unrecognised value is neither rejected nor passed through; it silently lands on
+  that verbose face. No `datetime` field in this repository authors a `format`, so
+  no cell here moves — a consumer that authored one is the case this sentence is
+  for. Note that `format` has no declared value vocabulary to check a value
+  against: `@object-ui/types` types it `format?: string`, and `@objectstack/spec`
+  carries one free-form `format?: string` on its shared field schema, described
+  "Format string (e.g. email, phone)" and accepting any string. `'compact'` is
+  therefore the only value with a defined `datetime` meaning, and every other
+  value means "the verbose face" by fallthrough rather than by design.
+  
+  Additive, no signature change: `formatDateTime(value, options?)` is unchanged
+  and `formatDateTime(v, { locale })` keeps meaning what it meant.
+  `DateDisplayOptions` gains an optional `style` key (read by `formatDateTime`
+  only; `formatDate` still takes its style positionally), and
+  `formatDateTimeCompactParts` is a new export of `@object-ui/core`, re-exported
+  by `@object-ui/fields`, returning the compact face as the two halves a grid
+  cell paints separately. `@object-ui/components` changes no rendered output —
+  the table's datetime cell is measured identical before and after in `en-US`,
+  `zh` and `de-DE`.
+- 7ed9808: One home for the `date` display convention in the readonly field widgets
+  (objectui#8194).
+  
+  Four readonly `date` faces in `@object-ui/fields` called
+  `toLocaleDateString(locale)` with **no options bag at all** — `Intl`'s numeric
+  default — so they never implemented the year-dropping decision the shared
+  `formatDate` documents and every `date` CELL already follows. They now call
+  `formatDate` (default style):
+  
+  - the readonly `DateField` (the form / detail face, and what `FieldEditWidget`
+    renders in the grid and detail inline editors),
+  - the sub-grid `GridField`'s readonly `date` column,
+  - a `FormulaField` declaring `return_type: 'date'`,
+  - the lookup picker's plain-text `$date` fallback (`lookupColumnDisplay`),
+    which sits in the same function as the descriptor path that already rendered
+    through `formatDate`.
+  
+  **Visible change**: every one of those faces changes shape in every locale, in
+  every year — not only the year token. In `en-US` a date renders `Jul 4` this
+  year and `Jul 4, 2024` for a past year, where it used to render `7/4/2026` and
+  `7/4/2024`; in `de` `4. Juli` / `4. Juli 2024` for `4.7.2026` / `4.7.2024`; in
+  `zh` and `ja` `7月4日` / `2024年7月4日` for `2026/7/4` / `2024/7/4`; in `ar`
+  `4 يوليو` / `4 يوليو 2024`. Each now matches the `date` cell beside it. This is
+  a larger move than the sibling change in `@object-ui/components`
+  (objectui#7620), whose former face already asked for a short month and so only
+  lost its year token — these four passed no bag whatsoever.
+  
+  A value the formatter cannot parse now reads `—` at three of the four sites
+  instead of the literal `Invalid Date`. The sub-grid keeps showing the raw
+  stored string for an unreadable value, unchanged (objectui#3569).
+  
+  Untouched: the `datetime` readonly faces (`DateTimeField`, the sub-grid's
+  `datetime`/`time` branch). They are the same omission one type over, but their
+  home is `formatDateTime`, whose named faces are a separate display-convention
+  question; they are recorded on their own card rather than picked here.
+  
+  A surface that genuinely wants the year on every row is an explicit `format`
+  style honoured by both paths, not a second option bag — the objectui#7620 /
+  objectui#7443 / objectui#4576 lesson, one surface over.
+- 0ea7054: Remove 37 runtime dependencies that no file in the declaring package consumes, and gate
+  the direction so the next one cannot land (objectui#8198).
+  
+  `check:phantom-deps` judges imports that are not declared; nothing judged the reverse,
+  so a declaration could outlive its last consumer indefinitely. That is what happened to
+  `recharts` in `@object-ui/components` after objectui#7397 deleted its only importer — it
+  was removed by hand on objectui#7625, and nothing would have reported the next one. The
+  new `pnpm check:unused-deps` asks the reverse question over `dependencies` and
+  `optionalDependencies` of every released package.
+  
+  **Potentially breaking, for consumers relying on hoisting.** Nothing these packages ship
+  changes: their Vite `external` predicates are path-based and never read `dependencies`,
+  so no built artifact moves. What changes is the install graph — a project that imports
+  one of the removed packages while depending only on the ObjectUI package that used to
+  drag it in will no longer resolve it. Declare it directly; that is the correct
+  dependency edge in either case. The removals, by package:
+  
+  - `@object-ui/plugin-designer`: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@object-ui/fields`
+  - `@object-ui/plugin-chatbot`: `react-markdown`, `react-syntax-highlighter`, `remark-gfm` (and the orphaned `@types/react-syntax-highlighter`)
+  - `@object-ui/plugin-report`: `@object-ui/plugin-grid`, `clsx`, `react-i18next`, `tailwind-merge`
+  - `@object-ui/plugin-map`: `@objectstack/spec`, `lucide-react`, `zod`
+  - `@object-ui/runner`: `class-variance-authority`, `clsx`, `tailwind-merge`
+  - `@object-ui/core`: `lodash`, `zod`
+  - `@object-ui/layout`: `clsx`, `tailwind-merge`, and `react-dom` — which it pinned at an exact version in `dependencies` while also declaring it as a peer range, i.e. a library hard-depending on the renderer it asks its host to supply
+  - `@object-ui/plugin-dashboard`: `clsx`, `tailwind-merge`, and the same `react-dom` defect
+  - `@object-ui/plugin-ai`: `@object-ui/react`, `clsx`, `tailwind-merge`
+  - `@object-ui/fields`: `clsx`, `tailwind-merge`
+  - `@object-ui/console`: `@object-ui/react-runtime`, `sucrase`
+  - `@object-ui/auth`: `@object-ui/types`
+  - `@object-ui/plugin-calendar`: `@object-ui/fields`
+  - `@object-ui/plugin-editor`, `@object-ui/plugin-markdown`: `@object-ui/react`
+  - `@object-ui/react`: `react-hook-form`
+  
+  Every one was verified by a whole-package grep before removal — the name appeared nowhere
+  under the package but its own manifest and CHANGELOG — and the whole workspace builds,
+  type-checks and tests green afterwards.
+- 9a1fb41: **API addition (public-surface widening):** `FileCell` — the compact upload
+  control `@object-ui/fields` exports for line-item grid cells — gains the
+  published optional `error?: string` slot, mirroring `LookupField` and
+  `FileField`: the same validation slot `@objectstack/spec/ui`'s
+  `FieldWidgetPropsSchema` declares and `FieldWidgetComponentProps` names
+  (objectui#3222). When set, `FileCell` puts `aria-invalid` on its own focusable
+  picker button; the message text stays with the host (objectui#5431).
+  
+  `GridField` now passes that slot for a required-but-empty `file` cell — the one
+  cell type objectui#3318's per-cell `aria-invalid` delivery left out. Before
+  this, a required `file` cell flagged only the visual ring and `title` on the
+  `td`; no element in the cell subtree announced the state, so assistive tech was
+  told nothing (a wrapper-only mark is exactly what objectui#5223 forbids). Text,
+  number, select, and lookup cells were wired in PR #5429; `file` cells now
+  behave identically.
+
+### Patch Changes
+
+- 06a8af5: `QueryParams.$filter` now declares both shapes the data sources actually accept — the
+  MongoDB-style field-keyed record, or a `FilterArray`, the ObjectQL AST sugar bound from
+  `@objectstack/spec/data` (objectui#3909).
+  
+  **Nothing is narrowed and no accepted value changes.** `Record<string, any>` already
+  accepted arrays structurally — they satisfy its string index — so the union documents
+  shapes that were always legal rather than admitting new ones. Measured both ways under
+  `tsc --strict`: all five inputs `translateFilterToAST` enumerates assign to the old and
+  new declarations alike, and both reject a bare number and a bare string identically. A
+  downstream `turbo run build` over all 43 dependent packages is green, which is the
+  evidence a published type change breaks no consumer.
+  
+  The harm was entirely on the type face, and it was two-sided. The declaration blocked
+  nothing while describing one legal shape as though it were the only one — objectui#3831
+  is what that cost, a rule array accepted by a `Record<string, any>` slot, object-spread
+  flattened to `{"0": {...}}`, types green, and the query filtering on a column literally
+  named `0`. And someone writing a new consumer would read the type and its record-only
+  `@example`, conclude the array path was illegal, and add a tolerant conversion for it —
+  the "widen the consumer to tolerate the producer" shape AGENTS.md #0.1 forbids. Two
+  producers have fed arrays through this slot all along: `plugin-list`'s
+  `buildEffectiveFilter` (grid and export) and `plugin-view`'s `ObjectView` (calendar /
+  kanban / gallery / timeline). The runtime was right; the declaration was narrow.
+  
+  The array half is **bound** to the spec's `FilterArray` rather than restated locally, so
+  it cannot fork from the vocabulary the servers parse — the same failure two hand-written
+  operator lists had in objectui#3948. The doc comment names `translateFilterToAST` as the
+  authoritative accepted set instead of carrying a second list to drift from.
+  
+  `@object-ui/fields` drops the local cast this defect forced. PR objectui#3908 wrote
+  `filter as Record<string, any>` at one assignment in `useRecordQuery`, deliberately, as
+  debt rather than widening the shared type. `hasFilter` is now a type predicate narrowing
+  to the `$filter` slot's own type, so the assignment needs no cast and the guard cannot
+  drift from the declaration it guards. Type-only throughout; no runtime behaviour changes.
+- 39f4309: Published typings from every `vite-plugin-dts` package now carry an explicit extension on
+  every relative specifier, and a type error in the declaration build now fails the build
+  instead of being printed and ignored (objectui#5439, objectui#5483).
+  
+  **Consumers on `moduleResolution: nodenext` or `node16` may see NEW type errors, and that
+  is the fix working.** These packages re-export mostly through NAMED re-exports —
+  `export { useObjectChat } from './useObjectChat'`. TypeScript could not follow the
+  extensionless hop, but it still DECLARED the name, so the symbol resolved to a silent
+  `any`. Nothing errored; consumers simply got no types. With the extension emitted, the
+  symbol carries its real type, and any call site that was relying on the `any` now type
+  checks for the first time. This is the mode that produced the 21 residual `TS7006` on
+  `@object-ui/app-shell` reported against objectui#5365 — a type hole that opened quietly,
+  unlike objectui#5365's own `export * from './ui'` packages where the same defect surfaced
+  immediately as `TS2305: has no exported member`.
+  
+  410 extensionless relative specifiers across 19 packages were emitted before this change;
+  the count is now 0 in all 22 packages that build typings through `vite-plugin-dts`.
+  `@object-ui/fields` was already clean — its sources write explicit `.js` specifiers — and
+  is wired so it stays that way.
+  
+  The second half changes no emitted output today: 22/22 packages built green unmodified, so
+  making the declaration step's exit code honest turns nothing red. It changes what a FUTURE
+  regression does — print and exit 0, versus fail the build.
+- 88e9109: Declare the two consumed-but-undeclared field-metadata keys ruled on
+  objectui#6140 / objectui#6153 (maintainer 2026-08-25, Option A), and de-cast
+  the widget reads they legalize:
+  
+  - `MarkdownFieldMetadata.rows` and `HtmlFieldMetadata.rows` (`@object-ui/types`)
+    — the inline-editor height `RichTextField` has always read through an
+    `as any` (default 8), following the `TextareaFieldMetadata` precedent. NOT a
+    spec key: `@objectstack/spec` `FieldSchema` refuses `rows` BY NAME
+    (`unrecognized_keys`) on all four of textarea/markdown/html/richtext, so it is
+    an objectui render hint that must not be written into authored object
+    metadata. The four inert editor keys (`toolbar`/`preview`/`minHeight`/
+    `maxHeight`) stay deliberately undeclared and are pinned so.
+  - `SelectOptionMetadata.description` — secondary option text `LookupField`
+    searches on authored static options and emits from `recordToOption`. NOT a
+    spec key either: `@objectstack/spec` `SelectOptionSchema` is strict over
+    exactly `{label, value, color, default, visibleWhen}` and refuses
+    `description` BY NAME, and `FieldSchema` routes `options` through that schema,
+    so the key must never reach authored object metadata.
+  - `RichTextField` and `TextAreaField` (`@object-ui/fields`) now read their
+    metadata through the declared types instead of `field as any` (the spec-face
+    `maxLength` dual-read in `TextAreaField` stays as a documented structural
+    read). Behaviour unchanged; `rows` and option `description` are now legal to
+    author in an objectui **annotated literal** — never in an object document sent
+    to the platform.
+  
+  Both spec attributions above were corrected in place before release
+  (objectui#7537): as first written this changeset claimed each key was "aligned
+  with" a `@objectstack/spec` schema member that does not exist. Re-measured on
+  `@objectstack/spec@17.2.0`, each refusal is paired with a control that accepts
+  the same payload minus the key. Same correction as objectui#7014 / PR #7510 made
+  to the published JSDoc; the package bumps and the declared behaviour are
+  unchanged.
+- 5d3a2d1: The capability picker localizes `manage_sharing` (objectui#6285). Before this, "Manage
+  Sharing" was the one platform capability in `sys_permission_set`'s picker that rendered in
+  English in every locale, beside seven siblings that translated — a user-visible missing
+  translation, in all ten packs at once.
+  
+  The cause was an unchecked copy. `CURATED_CAPABILITY_LABELS` in
+  `CapabilityMultiSelectField.tsx` listed seven capability names under a doc comment claiming
+  it mirrored `@objectstack/spec/security`'s `PLATFORM_CAPABILITIES`; the spec grew an eighth
+  member and the list did not follow, so `manage_sharing` fell through to the English label
+  the `sys_capability` registry serves. Nothing could catch it: the i18n gate reads that list
+  as this key family's vocabulary and checks the members it names — all seven had keys — and
+  no instrument compared the vocabulary to the array it was named after.
+  
+  `capability.label.manage_sharing` is now authored in all ten packs and in the field widgets'
+  provider-less defaults map, the list carries the member, and the prose claim is replaced by
+  a check: `CapabilityMultiSelectField.specParity-6285.test.tsx` imports `PLATFORM_CAPABILITIES`
+  and fails on any difference in either direction, reading the declaration through the i18n
+  gate's own source reader so what it pins is exactly what that gate consumes. `labelFor` also
+  gains a `defaultValue`, so a capability that arrives in a future spec bump before its
+  translation is authored degrades to the registry's English label rather than rendering a raw
+  i18n key at the user.
+- dddb942: Delete the dead `metadata-admin/previews/object-fields-bridge.ts` module, and the three
+  prose references that still described it as wired.
+  
+  The module exported `bridgeFromDraft`, `commitToDraft` and `FieldsBridgeResult` and had
+  **zero importers** — re-measured on the merged base, not inherited from the filing. Nothing
+  in the repository could reach it either: `@object-ui/app-shell`'s `exports` map declares
+  only `.` and `./styles.css`, so the file was not addressable as a deep import even from
+  outside the workspace.
+  
+  Removing it is not the whole change. Three comments — in `types/src/designer.ts`, `types`'
+  `designer-field-types.test.ts` (twice) and `fields`' `richtext-cell-renderer-5452.test.tsx`
+  — cited the bridge as a live corroborating source. Left behind, they would have swapped
+  dead code for false documentation: three in-repo pointers telling a future reader that this
+  bridge mediates between the framework field record and `FieldDesigner`, and nothing telling
+  them it is unreachable. The two that named it as the consumer deriving an editable-subset
+  check from `DESIGNER_FIELD_TYPES` now name `MetadataFieldsPage`, which does exactly that
+  with the same idiom and the same `objectui#3017` anchor. The third cited the bridge's
+  `richtext` → `html` mapping as one of three corroborations that `richtext` stores HTML; the
+  other two (the showcase seed and the field-type decision tree) are live and carry the point
+  on their own, so that clause is dropped rather than repointed.
+  
+  No behaviour changes: nothing imported the module, so there is nothing to migrate.
+- 98188c2: `LocationField` no longer discards a location's `altitude` / `accuracy` when the user
+  retypes the coordinate pair (objectui#6664).
+  
+  The widget edits the pair as one comma-separated text box and rebuilt its emission as a
+  fresh `{ lat, lng }` from the parsed text, so the two OPTIONAL keys `@objectstack/spec`
+  declares alongside them — `LocationValue` is `{ lat, lng, altitude?, accuracy? }` — were
+  gone the moment anyone edited the coordinates. Nothing warned; they simply were not in
+  the object handed to `onChange`. Both keys are registered on the platform's authorable
+  surface (`authorable-surface.base.json`), so a customer may author them even though the
+  platform itself produces neither today — measured in both repos.
+  
+  The drop **predates** objectui#6272: before that flip the widget emitted
+  `{ latitude, longitude }` and discarded the rest identically. What #6272 changed is only
+  that the *declared* value type is now the spec's, so the type claimed four keys while the
+  write path handled two. This closes that gap; it is not a regression #6272 introduced.
+  
+  The carry is a key-by-key pick of exactly those two keys out of a value that is already a
+  valid `LocationValue` — deliberately **not** a spread of the incoming value, which would
+  carry a stored record's retired `latitude` / `longitude` spelling straight back into the
+  emitted object and undo #6272's rename. A negative control pins that. Each key is taken
+  only when it is a usable number, because the spec's `z.number()` rejects `NaN`, `Infinity`
+  and a numeric string alike; leaving such a value behind narrows the emission rather than
+  widening what the widget accepts.
+- f46bd39: `LocationField` no longer emits a coordinate pair the platform's own validator
+  refuses (objectui#6714).
+  
+  `@objectstack/spec`'s `LocationValueSchema` constrains the coordinate **range**
+  (`lat` −90..90, `lng` −180..180), but the widget's guard tested only that each
+  coordinate was a finite number. Typing `999, 999` therefore emitted
+  `{ lat: 999, lng: 999 }` — a value `valueSchemaFor({ type: 'location' })`
+  rejects with `too_big` at both keys. That is the producer direction of the
+  contract-first failure class (AGENTS.md #0.1): a renderer writing what the
+  contract rejects. It was open to every user who edits a location field, since
+  typing the coordinates is this field's only interaction.
+  
+  **Measured before choosing the disposition**, as triage required: nothing
+  downstream rejects or repairs the value. Driving a real `ObjectForm` with a
+  `type: 'location'` field and typing `999, 999` called `dataSource.create` once
+  with `place: { lat: 999, lng: 999 }` verbatim, `aria-invalid="false"` on the
+  control and no error text anywhere. `sanitizeFormData` filters keys and never
+  inspects a value, and `buildValidationRules` has no `location` branch. So the
+  out-of-range pair reached storage silently, and the widget is the only place a
+  refusal can work.
+  
+  The fix therefore **refuses the emission**, extending the rule this widget
+  already applies to text that isn't a coordinate pair from *format* to *range*:
+  the typed pair is simply not written and the prior value stands. No new UI and
+  no new mechanism — the same `// If invalid, don't update the value` branch.
+  
+  The bounds are **not** restated in the widget. A hand-copied `-90..90` would be
+  a second contract free to drift from the spec, so the emission is put to
+  `LocationValueSchema` itself. Two consequences of asking the schema rather than
+  testing two bounds by hand: the check covers the WHOLE emitted object, so the
+  `altitude`/`accuracy` carried across an edit (objectui#6664) are held to the
+  contract too; and `Infinity` is refused as well, which the finiteness gate let
+  through (`parseFloat('Infinity')` is `Infinity`, and `!isNaN(Infinity)` is
+  `true`).
+  
+  Reading is deliberately unchanged: a record that already holds an out-of-range
+  pair still renders in the box, so the person who can correct it can still see
+  it. objectui#6272's empty render was for a value whose *shape* this widget
+  cannot read; this shape is readable, it is only not writable.
+- b98352a: `LocationField` no longer invents a coordinate out of text that is only partly a
+  number (objectui#6715).
+  
+  Each half of the typed pair was read with a bare `parseFloat`, which stops at the
+  first character it cannot read and returns what it got. So `"12abc, 34"` emitted
+  `{ lat: 12, lng: 34 }` — a coordinate nobody typed.
+  
+  **Why nothing downstream could catch it, and why that makes this different from
+  objectui#6714.** Every one of those truncations is a pair
+  `valueSchemaFor({ type: 'location' })` ACCEPTS: well-formed, in range, and wrong.
+  #6714's `999, 999` was at least a value the contract refuses, so something
+  downstream could in principle have objected; here the platform validator cannot
+  be the oracle at all. Measured on `b76ca6764` by driving a real `ObjectForm`
+  (create mode, a `type: 'location'` field, a fake `DataSource`) and submitting:
+  
+  ```
+  typed "12abc, 34"    create({ place: {"lat":12,"lng":34} })    aria-invalid=false
+  typed "1.2.3, 4"     create({ place: {"lat":1.2,"lng":4} })    aria-invalid=false
+  typed "12deg, 34"    create({ place: {"lat":12,"lng":34} })    aria-invalid=false
+  typed "0x10, 34"     create({ place: {"lat":0,"lng":34} })     aria-invalid=false
+  typed "12.5 N, 34 E" create({ place: {"lat":12.5,"lng":34} })  aria-invalid=false
+  ```
+  
+  The last two show the size of the class. `0x10` truncates to `0` — objectui#6272's
+  `|| 0` in the Gulf of Guinea, arriving through a different door — and
+  `"12.5 N, 34 E"` drops the hemisphere, so a `12.5 S` paste would have been stored
+  as `+12.5`, on the wrong side of the equator, with nothing said.
+  
+  **The fix** parses each half as a strict whole-string number, applying
+  objectui#6272's precedent: a field that renders a plausible wrong place is worse
+  than one that renders nothing. The test is `parseFloat`'s OWN grammar, anchored —
+  not a stricter notion of a number invented in the widget — so every form that is
+  a number today still is: negatives, a leading `+`, surrounding whitespace,
+  exponent forms (`3.027e1`), and a bare decimal point on either side (`.5`, `30.`).
+  
+  The refusal is **announced**, through the machinery objectui#6716 landed rather
+  than a new one, and it names the half it could not read: *Not saved: latitude
+  "12abc" is not a number. Enter plain decimals (example: 30.2741, 120.1551).* A
+  third silent refusal would have re-opened the defect #6716 had just closed.
+  
+  Two boundaries drawn deliberately:
+  
+  - Text with **no** number at the front (`abc`, `NaN`, `here, there`) keeps the
+    pre-existing format sentence. "No number at all" and "a number with text after
+    it" are different mistakes and get different advice.
+  - `Infinity` carries no residue — `parseFloat` reads the whole word — so it is
+    still refused by objectui#6714's **range** arm, not by the new one.
+  
+  ⛔ Degree/hemisphere notation (`12°N, 34°E`) is **not** parsed. It stays refused,
+  per the maintainer ruling of 2026-08-29: the paste route is unmeasured, and it
+  becomes its own feature card if real demand arrives.
+- b76ca67: `LocationField` says WHY it refused an edit, instead of refusing in silence
+  (objectui#6716).
+  
+  The widget refuses to emit for input it cannot accept, and used to say nothing
+  when it did. Two refusals shared that silence: text that is not a
+  comma-separated pair (pre-existing), and a pair outside the spec's coordinate
+  range (objectui#6714). In both, `onChange` was never called, so the typed text
+  vanished with `aria-invalid` reading `"false"` throughout — a screen reader was
+  told the control was fine right after it had rejected the entry.
+  
+  - Both arms now render a short reason and set `aria-invalid` on the control. The
+    range message is built from `LocationValueSchema`'s own issues, never from a
+    hand-copied `-90..90`, so it cannot drift from the spec.
+  - The box now HOLDS the refused text, so the message has something to point at
+    and the entry can be corrected in place. Measured first without it: with the
+    value derived straight from the stored one, React restores the control in the
+    same tick, so typing a valid coordinate one character at a time left the box
+    empty, stored nothing, and lit a refusal on the final keystroke too.
+  - Refusal is unchanged: a coordinate the platform validator rejects is still
+    never emitted, and never stored. The published objectui#3222 `error` slot keeps
+    its single author (the form renderer); the widget's own state is separate, as
+    `ObjectField`'s `parseError` already is.
+- b392674: Field widgets say WHY they refused an edit in the reader's language
+  (objectui#6755, maintainer ruling 2026-08-29).
+  
+  Three sentences a person has to read to recover from a refusal were string
+  literals in the widgets, inside a package whose locale channel 11 of its 55
+  widgets already use: `ObjectField`'s `Invalid JSON`, and `LocationField`'s
+  format and range refusals (objectui#6716 / #6714). So a zh / ja / ar user who
+  mistyped a coordinate or a JSON blob was told why in English, in a form whose
+  labels, gate hints and validation copy were all translated.
+  
+  - All three now read from `useFieldTranslation` / `FIELD_DEFAULTS` under
+    `fields.object.invalidJson`, `fields.location.refusedFormat` and
+    `fields.location.refusedRange`, with entries in all ten locale packs — bound
+    from now on by `check:i18n-drift`.
+  - The `en` values are byte-identical to the literals they replace, so English
+    and provider-less rendering are unchanged, and the refusal pins of
+    objectui#6716 / #6715 and `plugin-form`'s two refusal suites are untouched.
+  - `fields.location.refusedRange` keys the FRAME only: the interpolated
+    `{{detail}}` is `LocationValueSchema`'s own complaint, because the widget must
+    not restate the spec's bounds (a hand-copied range is a second contract).
+  - Not in scope, and recorded rather than folded in: `LocationField`'s third
+    refusal sentence — the residue arm objectui#6715 added after the ruling was
+    written — is still a literal. objectui#6888 carries it.
+- 8579e34: `CurrencyField` and `TagsField` now compose a host-supplied `onBlur` instead of
+  overriding it (objectui#6802).
+  
+  `onBlur` is a DECLARED DOM pass-through key — named in `FieldWidgetDomProps`
+  and in `SDUI_DOM_PASS_THROUGH_KEYS`, and forwarded by `toDomProps` — but both
+  widgets wrote their own `onBlur={…}` AFTER the `{...toDomProps(props)}` spread,
+  so the host's handler was overwritten and never reached the control. Each now
+  resolves `toDomProps(props)` into `domProps` and calls `domProps.onBlur?.(e)`
+  at the end of its own handler, the idiom the other four widgets of this package
+  already use.
+  
+  ⚠️ This is a REAL behaviour change, not the no-op the finding was filed as. The
+  form renderer hosts every field through react-hook-form's `Controller` and
+  spreads the controller field — `{ name, value, onChange, onBlur, ref, disabled }`
+  — into the widget's props, so the overridden handler was the one that marks a
+  field touched and runs its validation. Concretely: on a form declaring
+  `validationMode: 'onBlur'` or `'onTouched'`, currency and tags fields were
+  silently opted out of blur-mode validation while every sibling field type kept
+  it. They now behave like the rest.
+  
+  Currency keeps emitting its rounded value before handing the event on, so a
+  blur-mode validator reads the parsed amount rather than the raw text; tags
+  still commits the typed draft first, so the validator reads the committed list.
+- d57db5d: `NumberField` now reads the published `error` validation slot, so a number
+  field marked invalid is announced to assistive tech by the widget itself
+  (objectui#6803, closing an objectui#3222 gap).
+  
+  The widget destructured `{ value, onChange, field, readonly, ...props }` with
+  no `error`, so the slot landed in the open tail and `toDomProps` — a whitelist
+  — dropped it. It wrote `aria-invalid` only while its own bad-input refusal was
+  active, which meant that on any host that does not hand a value down itself,
+  an invalid number field carried no `aria-invalid` at all.
+  
+  `error` is now wired and the conditional spread becomes the ordinary
+  `aria-invalid={!!error || !!refusal}` the sibling number widgets already use.
+  Both halves ship together on purpose: reading `error` is what makes an
+  unconditional attribute safe to write, and leaving the attribute conditional
+  would have kept the wiring invisible. Un-conditionalising WITHOUT reading
+  `error` is the regression this pairing forbids — it would stamp `"false"` over
+  the correct value `FormControl`'s Radix Slot hands down.
+- 320374d: Key `LocationField`'s THIRD refusal sentence — the residue arm — into the locale
+  packs (objectui#6888).
+  
+  Typing a half that is only PARTLY a number (`12abc, 34`) is refused by
+  `LocationField` with its own sentence, added by objectui#6715. objectui#6755 had
+  ruled two weeks earlier that a widget's own refusal sentence goes through
+  `useFieldTranslation` + `FIELD_DEFAULTS`, and named three sentences — but it was
+  written on 2026-08-29 14:53 and this arm landed after, so it stayed a hard-coded
+  English literal while its two siblings were keyed.
+  
+  **The consequence was worse than one more English string.** All three refusal arms
+  render through the SAME `<p>` and the same `refusalError` state, so after #6755
+  landed that one line spoke the reader's language when the format or range arm fired
+  and English when the residue arm did — objectui#4028's shape ("four Chinese labels
+  around one English one") compressed into a single sentence position, which reads to
+  a user as a bug rather than as a missing translation.
+  
+  **Arity is answered explicitly, not defaulted.** Unlike the other two sentences, this
+  one had grammatical number: `verb` was `is not a number` / `are not numbers`, chosen
+  in TypeScript. Handing a pack an English verb form through a `{{hole}}` gives it a
+  fragment it cannot inflect around — Arabic has a DUAL, and two halves is exactly that
+  case. So the verb is not a hole. It lives inside two SIBLING keys picked at the call
+  site, `fields.location.refusedResidue` and `fields.location.refusedResidueOne`,
+  following this repo's own plural convention rather than i18next's `_one`/`_other`
+  suffixes — the same shape `RecordPickerDialog` already uses in this very defaults map
+  (`lookup.recordCount` / `lookup.recordCountOne`), and for the reason `ReactionPicker`
+  states in source: zh/ja/ko have no separate singular form, would legitimately omit a
+  `_one` half, and `all-locales-key-parity` reads that as a missing key. The `ar` pack
+  now uses its dual (`ليسا رقمين`), which the old implementation could not have produced.
+  
+  The English conjunction `' and '` and the coordinate NOUNS go the same way: each pack
+  writes its own conjunction inside the two-half value, and `latitude` / `longitude`
+  become `fields.location.latitude` / `fields.location.longitude`, keyed once each and
+  interpolated into both arities so no locale holds two spellings of the same word. The
+  only holes carrying untranslated data are `{{text}}` / `{{otherText}}` — the
+  characters the person actually typed.
+  
+  **No behaviour moves.** The English values are byte-identical to the literal they
+  replace in both arities, verified by `check:i18n-drift` (0 en values changed, 4 added)
+  and by objectui#6715's own `LocationField.strictNumeric.test.tsx` and `plugin-form`'s
+  `ObjectForm.locationResidue.test.tsx` passing untouched. Provider-less rendering is
+  unchanged, the refusal itself is unchanged, and the four new keys are bound from here
+  on by `check:i18n-keys` and `all-locales-key-parity` like their three siblings.
+- b458300: `FieldEditWidget` now DELIVERS the DOM pass-through block it DECLARES
+  (objectui#6909).
+  
+  Its props are `FieldWidgetComponentProps` — the controlled-input keys
+  intersected with `FieldWidgetDomProps`, `AriaAttributes` and the open `data-`
+  family — so a host could always pass `id`, `name`, `autoFocus`, `tabIndex`,
+  `onBlur`, `onFocus`, `onClick`, any `aria-*` and any `data-*` with no type
+  error. The body then destructured five keys and rendered the widget with those,
+  so `autoFocus` was the ONLY survivor of the whole block and everything else was
+  silently dropped. That is this package's own first-class defect class, named in
+  `widgets/toDomProps.ts`: a key that type-checks, reads as supported, and
+  silently never reaches the element (objectui#3290's `aria-required`,
+  objectui#3222's validation slot).
+  
+  Not a widening, and not a contract change. The keys were already declared, and
+  each widget still re-filters through its own `toDomProps` before anything
+  reaches a DOM element — what any widget accepts or rejects is unchanged. The
+  factory was simply the one link in the chain nothing bound to the declaration:
+  `toDomProps` binds the WIDGET contract to its whitelist with compile-time
+  assertions in both directions, and the factory sat above them, bound to
+  neither.
+  
+  The fix hands the widget `toDomProps(props)` — this package's own executor —
+  rather than a second key list written out in the factory. That reuse is the
+  guard: `toDomProps.ts`'s direction-2 assertion already makes
+  `keyof FieldWidgetDomProps extends DomPassThroughKey` a compile error to
+  violate, so a key added to the declared DOM block now reaches the widget
+  through this factory automatically. One mechanism, one judge — a private list
+  here would have been free to drift, which is how the factory came to deliver
+  one key out of seven.
+  
+  The forwarded set is a deliberate superset of `FieldWidgetDomProps`: it also
+  carries `className` and `disabled`, declared on the controlled-input block and
+  forwarded by the same executor for the reason stated there — withholding them
+  makes it a silent styling- and interactivity-dropper. The semantic props
+  (`field`, `value`, `onChange`, `readonly`, and `compact` for the relational
+  pickers) stay explicit and are applied after the spread, so a host cannot
+  displace them.
+  
+  **No host in this repo changes behaviour.** Measured on all three call sites
+  before the fix: `ObjectGrid.renderCellEditor` passes `{ field, value, onChange }`,
+  `InlineFieldInput` passes those plus `autoFocus` (the key that already worked),
+  and `RequiredFieldsDialog` passes those plus `readonly`. None passes a dropped
+  key, so this is a plain repair rather than a live regression — but
+  `RequiredFieldsDialog` had already worked *around* the drop, wrapping each
+  control in a `label` because "`FieldEditWidget` … takes no `id` to associate
+  with". It does now.
+  
+  Also corrects a comment in `@object-ui/components`' `data-table.tsx` that this
+  change falsifies. It justified the injected editor's document-level
+  `pointerdown` listener partly with "`FieldEditWidget` forwards `autoFocus` and
+  nothing else out of the DOM block, so a host handler could not reach the
+  control through it even if one were passed" — no longer true. The listener is
+  still load-bearing for the other half of that reason, which is untouched: the
+  `renderCellEditor` context object has nowhere to put an `onBlur` in the first
+  place. Comment only; no behaviour change in that package.
+- 39d69ad: Stop shipping `dist/__tests__/numberInputBrowserReadings.d.ts` in the published tarball
+  (objectui#6943). `packages/fields/tsconfig.json` now excludes the tooling DIRECTORIES
+  (`__tests__`, `__mocks__`, `__benchmarks__`), not just the `*.test.*` NAME.
+  
+  `numberInputBrowserReadings.ts` holds the measured Chromium/happy-dom readings the number
+  widget suites share. It is deliberately not a `*.test.ts` — it carries no assertions — so
+  the name-only exclude list did not catch it, and it was emitted into `dist` and published
+  while its 79 neighbours in the same directory were kept out. That made
+  `check:published-dist` red on `main`, and because the same script is the first link in
+  `changeset:publish`, it also failed the publish command at its first step.
+  
+  This is the third instance of the same name-versus-directory mismatch (objectui#4006 here,
+  objectui#4836 in plugin-grid / plugin-view / plugin-designer), so the exclude table is now
+  the directory convention itself rather than a list of names to extend.
+  
+  Which program had to be fixed was measured rather than assumed, because this package's
+  build is `tsc && vite build` and the `tsc` leg inherits the root's `noEmit`: run alone the
+  `tsc` leg exited 0 and wrote zero files, while `vite build` alone produced the whole
+  81-file output including the offending declaration. vite-plugin-dts is the emitting
+  program, and it builds its declaration program from this package's `tsconfig.json`, so
+  that is where the exclude belongs.
+  
+  No type coverage moves with the change and no API surface moves: `numberInputBrowserReadings.ts`
+  is the only file the directory patterns newly remove from the build program, and the
+  `tsconfig.test.json` chained off `type-check` already reads it as a transitive input of the
+  three suites that import it. The name patterns stay, because 52 `*.test.ts(x)` files in this
+  package sit outside any `__tests__/` directory.
+- 639114c: Carry `manage_org_presentation`, the ninth platform capability (objectui#7122).
+  
+  `@objectstack/spec` 17.3.0 declares a ninth member of `PLATFORM_CAPABILITIES`
+  and the capability picker's curated set carried eight, so
+  `CapabilityMultiSelectField` fell back to the `sys_capability` registry's
+  English label for it in every locale — the exact defect objectui#6285 filed
+  when `manage_sharing` did the same thing.
+  
+  The label is the spec artifact's own (`Manage Organization Presentation`), read
+  off the installed build rather than invented, and it is authored everywhere the
+  widget's docblock requires of any edit to that list: `useFieldTranslation.ts`
+  and all ten locale packs. Each non-English string is composed from that pack's
+  own established sibling vocabulary (`manage_org_users`,
+  `manage_platform_settings`) rather than machine-translated; a native review pass
+  is welcome on the nine, and nothing about the capability's behaviour depends on
+  the wording.
+  
+  The parity pin is unchanged and still fails on ANY difference in either
+  direction, which is what made this visible before it reached a screen.
+- e8e4c4d: The last five inline edit widgets read the delivered `error` slot, so a failed
+  required `text` / `boolean` / `date` / `datetime` / `time` control finally
+  reports `aria-invalid` (objectui#7126).
+  
+  objectui#7008 made `FieldEditWidget` DELIVER the declared `error` key to
+  whichever widget it resolves. Of the 27 distinct components in `EDIT_WIDGETS`,
+  21 read it; five did not — `TextField`, `BooleanField` (serving both `boolean`
+  and `toggle`), `DateField`, `DateTimeField` and `TimeField` — so for their field
+  types the delivery was inert and the attribute was still never set.
+  
+  `text` being in that set is what made this a live defect rather than tidiness.
+  It is the most common field type in any object, so it is the likeliest thing a
+  kanban column makes required: `RequiredFieldsDialog` computed the failure, drew
+  the red "Required" hint, handed the state to the control, and the control said
+  nothing to assistive tech. The grid's inline cell editor and the detail page's
+  inline edit (`InlineFieldInput`) compose the same seam.
+  
+  Each of the five now computes `aria-invalid={!!error}` **after** its DOM
+  pass-through spread — one existing idiom, the objectui#3222 discipline the other
+  21 already share, so a valid field says an explicit `"false"` rather than staying
+  mute. Two judgements worth stating:
+  
+  - **The FORM path was never broken and is unchanged.** `<FormControl>` is a
+    Radix `Slot` whose `aria-invalid` reached each control through the props
+    spread; the form also produces `error`, so the widget's own computation now
+    agrees with the value it replaces. The gap was every host WITHOUT that Slot.
+  - **`BooleanField` is the one composite here, and the mark goes on the
+    control.** Its Radix `Checkbox` / `Switch` renders a real
+    `button[role=checkbox]` / `button[role=switch]`; the wrapping flex `div` is
+    deliberately not the target, because a wrapper mark satisfies a subtree query
+    while telling a screen-reader user nothing (objectui#5223). The three
+    date/time widgets each render one native input, so the browser's picker raises
+    no second-element question.
+  
+  This buys the MARKING only. The objectui#3222 slot drives `aria-invalid` and
+  renders no text: the visible message stays with the host, and nothing that was
+  invisible becomes visible.
+- 48c19bd: Render a dataset measure over a date field as a date (objectui#7178, maintainer
+  ruling 2026-09-02, director summon #8 — option A).
+  
+  `formatMeasure` opened with `if (typeof v !== 'number') return String(v)`,
+  placed **before** `format` was ever read. So a `min` / `max` measure over a date
+  or datetime field printed its stored value verbatim — a 24-character ISO string
+  in the KPI tile's `text-2xl font-semibold`, wrapping to two lines — and the
+  `format` that `DatasetMeasureSchema` accepts was unreachable for those values.
+  A date-shaped value now routes to the date display path before that
+  short-circuit, so all four dataset-bound surfaces are served at once: the metric
+  tile, chart values, dataset table cells, and the metadata-admin dataset preview.
+  
+  `min` / `max` over a date stays a legal measure; nothing in `@objectstack/spec`
+  narrows. `PivotTable` takes a `number` outright and is unchanged.
+  
+  **No second date formatter was written.** `formatDate`, `formatDateTime`,
+  `formatRelativeDate` and `DateDisplayOptions` MOVED from `@object-ui/fields`'
+  barrel down into `@object-ui/core` (`utils/date-display.ts`), which is the same
+  remedy objectui#4576 applied to `formatDisplayNumber` and for the same reason:
+  `core` is the React-free engine and could not import from a React package, so
+  the alternative was a parallel date convention in `dataset-format.ts` — exactly
+  the drift that once had a list cell rendering `1.234,5 %` beside a dashboard
+  measure's `1.234,5%`. `@object-ui/fields` re-exports all four names unchanged,
+  so no consumer's import path or behaviour changes, and a reference-identity test
+  pins that the cell renderer and the measure formatter call the same function.
+  
+  **What `format` can say for a date measure, measured rather than assumed.** The
+  shared date path takes a named STYLE, not a date pattern: `'short'` and
+  `'relative'` are honoured — the same words `DateCellRenderer` honours from
+  `field.format` — while a pattern such as `'YYYY-MM-DD'` renders the locale
+  default. That limit is unchanged by this release (`plugin-dashboard`'s
+  `recordFields` already routed a date-shaped `format` into the same style slot)
+  and is now pinned by a test instead of being silent.
+  
+  **Numeric measures are byte-identical.** 33,696 argument forms
+  (value × format × currency × percentScale × locale) were compared against a
+  verbatim copy of the pre-fix function: the only values that moved were the four
+  ISO-shaped, parseable ones. Numbers, numeric strings (`'1751612400000'`,
+  `'2026'`), the nullish em dash, arbitrary prose and non-strings all render
+  exactly as before.
+- a865c73: Grid field widget: announce a form-level validation failure to assistive tech.
+  
+  A required `grid` submitted while still empty rendered its "is required" message
+  but marked nothing — every row was a ghost row, and ghost rows were skipped by
+  the widget's per-cell validity channel. A sighted user saw the red message; a
+  screen-reader user was told nothing at all.
+  
+  The host failure now drives the per-cell channel the widget already owns: when
+  the `error` slot is set on an empty grid, the ghost entry row's required cells
+  flag, and the mark sits on each cell's own control rather than on the `td`
+  wrapper (a `td` is not focusable, and assistive tech reads validity from the
+  control). Populated grids are unaffected — they already marked their own empty
+  required cells inline.
+- cef27e2: The value-fallback label prettifier `humanizeLabel` has one implementation instead of two byte-identical copies.
+  
+  `humanizeLabel` turns a stored value into a display string when nothing else
+  resolves it — an option with no declared label, an object name, a chart axis
+  member. It existed twice, byte for byte: once in `@object-ui/fields` (read by
+  `plugin-grid`, `plugin-gantt`, `plugin-detail` and by that package's own
+  renderers) and once as a deliberate local copy in `plugin-charts`'
+  `ObjectChart.tsx`, whose comment said it was there "to avoid a dependency on
+  `@object-ui/fields`".
+  
+  Two copies of one convention is a live hazard rather than tidiness: one
+  dashboard can hold a chart and a grid over the same stored value, so a change
+  landing on one copy alone would put that value on screen under two spellings at
+  once. The single implementation now lives in `@object-ui/core` — the shared
+  ancestor both packages already depend on, so the dependency the copy existed to
+  avoid is still avoided and no new edge is created, and core takes no React
+  (objectui#4389: core-canonical logic, plugins consume). Both former sites
+  re-export it, so `import { humanizeLabel } from '@object-ui/fields'` keeps
+  working unchanged.
+  
+  **Nothing rendered changes.** The surviving implementation is byte-identical to
+  both deleted copies, and each former call site is pinned by identity against the
+  core function — not by a copied output table that someone would have to remember
+  to edit in two places.
+  
+  The core module also writes down, for the first time, why this convention stays
+  distinct from `humanizeFieldKey` (the KEY fallback, in `@object-ui/plugin-dashboard`),
+  which additionally splits camelCase:
+  
+  ```
+  input                humanizeFieldKey     humanizeLabel
+  needs_analysis       Needs Analysis       Needs Analysis
+  NeedsAnalysis        Needs Analysis       NeedsAnalysis        <- differ
+  unitPrice            Unit Price           UnitPrice            <- differ
+  BestCase             Best Case            BestCase             <- differ
+  lost-to-competitor   Lost-To-Competitor   Lost To Competitor   <- differ
+  ```
+  
+  A field KEY is authored in the codebase and carries a machine spelling, so
+  splitting camelCase recovers words its author meant. A stored VALUE is arbitrary
+  tenant data, where a mid-token capital is not reliably a word boundary and
+  splitting it rewrites what the tenant wrote (`McDonald` to `Mc Donald`). The two
+  conventions also do not nest — on the last row each leaves alone the separator
+  the other rewrites. Whether they should ever converge is a separate decision
+  that would move rendered output in four packages at once; it is deliberately not
+  made here.
+- e4e9557: A multi-value lookup cell no longer grows its row without bound: `LookupCellRenderer`
+  now shows at most 3 chips and collapses the rest into one muted `+N` chip, the same
+  cap `UserCellRenderer` has always applied to its avatar stack in the very same file.
+  
+  Previously the array branch rendered EVERY referenced record as its own chip inside a
+  `flex-wrap` container. In a grid column that wraps to one chip per line, so a cell
+  referencing a large set — a production 排班计划 row referencing 60+ work objects — grew
+  a single row to several screens of height and blew the page layout apart. The same
+  uncapped rendering reached every surface that resolves through `getCellRenderer('lookup')`:
+  grid, related lists, gallery, kanban, report and dashboard tables, and the record detail
+  sections.
+  
+  The collapsed names stay reachable: the `+N` chip's `title` lists the display names of
+  the hidden references (resolved through the same option/label/record-name path as the
+  visible chips), and the record's own detail view remains the place to see the full set.
+  The first 3 chips keep their per-record links (#4336) and their resolution order —
+  nothing changes for cells with 3 or fewer references.
+- 7a28e1e: A lookup's inline dropdown renders its columns through the same cell renderer the browse-all picker uses, so one `lookup_columns` declaration cannot produce two answers.
+  
+  A form's lookup field offers two ways to pick a related record, and both read
+  the same declaration: the inline dropdown under the field, and the
+  "browse all records" picker behind it. The picker resolved every cell through
+  the type-aware cell renderer. The dropdown did not — it printed
+  `record[descriptionField]` verbatim into the option subtitle and concatenated
+  `label: String(rawValue)` into the row's `title` attribute. Measured on the
+  same declaration, on a real 17.1.0 deployment:
+  
+  ```
+  column          inline dropdown (before)          browse-all picker
+  lookup          T5MsMCuwP4t_yUHq (bare FK id)     the related record's name
+  date            2026-08-20T00:00:00.000Z (ISO)    a formatted date
+  select          pending (enum code)               the authored option label
+  ```
+  
+  Both surfaces now call one shared module — `widgets/lookupColumnDisplay.tsx`,
+  which owns column normalisation, the field-descriptor enrichment from the
+  referenced object's schema, and the render itself. The picker's own
+  `renderCellContent` and `columnFieldDescriptors` are now thin calls into it, so
+  there is a single renderer left to drift from. The dropdown's extra columns are
+  rendered into the option row itself; the row's `title` keeps the full option
+  label, which is what a truncated label needs, instead of a raw-value dump.
+  
+  No query changed and no contract widened. `lookupColumns` entries stay bare
+  field names — no dot paths, no populate/expand semantics — because neither
+  surface's request carries populate to begin with: the picker resolves a
+  foreign-key id to a name client-side, in the lookup cell renderer, and the
+  dropdown now inherits exactly that. An unresolved reference therefore renders
+  what the picker renders for it, and keeps its column: a slot is dropped only
+  when the record holds no value for the field, decided on the raw value and
+  never on what the renderer makes of it, so an unresolved id can never degrade
+  into a silently empty column.
+- b6e83be: **Bug — a `code`/`text` value whose text is JSON rendered as the literal `[Object]`.** `coerceToSafeValue` classified strings by SHAPE: any string starting `{`/`[` and ending `}`/`]` was `JSON.parse`d and the result run through the reference-label extraction (`name || label || externalId || id || _id || '[Object]'`), which answers the placeholder for an object carrying none of those keys. Every text-like cell reaches that helper — `text`, `textarea`, `code`, `time`, `auto_number` and `qrcode` all register to `TextCellRenderer` — so a stored `{"ok": true}` displayed as `[Object]`, and `[1, 2, 3]` in a text field displayed as `1, 2, 3`.
+  
+  A string is now returned verbatim, whatever its shape. The reference case the parse was written for (an unresolved external-id reference arriving as `'{"externalId":"…"}'`) belongs to reference-TYPED columns and is already handled there: `LookupCellRenderer` carries its own JSON-string branch, which resolves the label through the referenced object's schema and links to the record — neither of which the type-blind helper could do. The behaviour is scoped to the column type that owns it, not dropped. Object and array VALUES still coerce, so React error #310 stays fixed.
+- 4bb940b: A readonly `markdown` / `html` / `richtext` form field now renders its content
+  FORMATTED instead of showing the user its markup source (objectui#5498).
+  
+  `RichTextField`'s readonly early return rendered `{value}` as a React text child,
+  so a readonly field of any of those three types displayed the stored markup as
+  literal characters — a markdown field's asterisks and hashes, a richtext field's
+  tags. The `prose` classes on that wrapper were the tell: they style rendered rich
+  content, and there was none to style. Every other read surface — grid, kanban
+  card, gallery, related list, dashboard record panel and the record detail page's
+  read mode — dispatches through `getCellRenderer` and rendered the same stored
+  bytes formatted, so one field disagreed with itself depending on which surface it
+  was read on.
+  
+  The readonly branch now renders through the same components `getCellRenderer`
+  resolves: `markdown` through the GFM renderer, `html` and `richtext` through the
+  sanitizing HTML renderer. The two renderers moved out of the package barrel into
+  `widgets/richTextDisplay.tsx` so the widget can reach them without importing the
+  barrel back, and both sides now read one shared type-to-renderer table rather
+  than two that can drift apart.
+  
+  The editor header's format label is fixed with it: it was computed as
+  `field.format || 'markdown'`, and `format` is declared on `date` / `datetime` /
+  `time` / `phone` / `auto_number` and on no rich-content type — so it read
+  `undefined` for every real field and labelled an `html` field "Format: markdown".
+  The label is now derived from the field type's display pipeline, so it names the
+  syntax the value is actually stored in.
+- 6c6cee7: A RETIRED field-type spelling is now refused — out loud, once — by every
+  field-type predicate in the renderer, not just by the widget road
+  (objectui#4914, maintainer ruling B of 2026-08-18).
+  
+  `@object-ui/fields` exports a single `isRetiredFieldType(t)` gate, and it runs
+  ahead of six predicate faces that previously granted a retired spelling
+  first-class treatment: the filter builder's operator buckets and its value
+  control (`@object-ui/components`), the detail page's highlight-strip picker
+  (`@object-ui/plugin-detail`), `normalizeFieldType` (`@object-ui/plugin-view`),
+  the dashboard's `$expand` whitelist and `isLookupType`
+  (`@object-ui/plugin-dashboard`), and the list toolbar's lookup-like filter
+  control (`@object-ui/plugin-list`). Each one now fires the migration
+  prescription on the console — once per spelling across all of them, never once
+  per predicate — and then answers as it would for a spelling it does not
+  recognise.
+  
+  This closes the whole CLASS rather than one word: the gate is quantified over
+  `RETIRED_FIELD_TYPES`, so the next retirement covers all seven consumers on the
+  day it lands. It is the shape objectui#4932 and objectui#4942 already
+  established for the form and inline-edit roads.
+  
+  Measured before the change, and the reason the fix is a gate rather than a
+  deletion: `owner` was not dead in these faces. `operatorsForFieldType('owner')`
+  equalled the `user` bucket item for item, `computeLookupExpand` actively
+  requested `$expand` for it, `isLookupType('owner')` was `true` alongside
+  `reference`, and `normalizeFieldType('owner')` answered `'select'` exactly as
+  `picklist` does. Deleting the members alone would have traded a visible
+  contradiction for a SILENT degradation — a filter picker collapsing to a bare id
+  box, `$expand` quietly stopping so cells show raw foreign-key ids — which is
+  verbatim the failure mode `RETIRED_FIELD_TYPES`' own docblock exists to prevent.
+  The gate keeps that fallback and adds the half that was missing: the author is
+  told.
+  
+  The boundary question is answered on record: `owner` arriving through a
+  backend-vocabulary normalizer is an authoring error to refuse loudly, not
+  legitimate foreign input to tolerate. The open backend vocabulary those
+  normalizers exist for is untouched — `reference`, `picklist`, `money`, `int`,
+  `datetime_tz` and the rest are equally absent from the spec's closed `FieldType`
+  and are equally unretired, so they classify exactly as before.
+  
+  `RETIRED_FIELD_TYPES`, `reportRetiredFieldType` and `resetRetiredFieldTypeReports`
+  move to `@object-ui/core` and are re-exported from `@object-ui/fields`, so that
+  package's published surface is unchanged apart from the newly ruled gate.
+  `@object-ui/components` is a consumer of the gate and `@object-ui/fields`
+  depends on it, so a single shared table could not live in `fields` — and a
+  second copy would have meant a second dedupe set and two console lines for one
+  spelling. No package gained a new dependency.
+  
+  A retired spelling never loses a stored value: `retypeFilterValue` is
+  deliberately not gated, and the refused filter row stays operable rather than
+  drawing a blank operator trigger.
+- f1690d4: A populated `richtext` field no longer renders as a blank cell (objectui#5452).
+  
+  `richtext` stores HTML — the spec documents the type as "Formatted content with
+  HTML/WYSIWYG", the showcase seed's own specimen is `<p>Rich <strong>text</strong></p>`,
+  and this repo's designer bridge already maps `richtext` onto its `html` type. The
+  display registry nevertheless dispatched it to `MarkdownCellRenderer`, whose
+  sanitizing GFM pipeline runs react-markdown with no `rehype-raw` and therefore drops
+  raw HTML. Because a richtext value is *entirely* HTML, everything was dropped and the
+  cell body came out empty — with no error, no fallback and no console warning, so a
+  populated field read as an empty field and anyone auditing data through a grid
+  concluded the records were blank. Measured on the same stored bytes, a neighbouring
+  `html`-typed column rendered them correctly, which is what ruled out "the value never
+  arrived".
+  
+  `richtext` now resolves to `HtmlCellRenderer`, which sanitizes with `sanitizeHtml`
+  (script/style/iframe/object/embed blocks, inline event handlers and `javascript:`
+  URLs removed) and keeps everything a rich-text editor legitimately emits — headings,
+  paragraphs, emphasis, lists, links, quotes. One map entry fixes every read surface at
+  once: the grid, the kanban card, the gallery, the related list, the dashboard record
+  panel and the record detail page all resolve their read-mode cells through this same
+  `getCellRenderer`.
+  
+  The markdown pipeline is untouched. Passing raw HTML through it would have "fixed"
+  one type by moving every `markdown` cell's trust boundary, so `markdown` still drops
+  raw HTML — pinned alongside the fix, on the same bytes `richtext` must now render.
+- Updated dependencies [64dae8e]
+- Updated dependencies [b06e374]
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [9801765]
+- Updated dependencies [460575f]
+- Updated dependencies [d796c8d]
+- Updated dependencies [594704f]
+- Updated dependencies [d3995fe]
+- Updated dependencies [1b1d772]
+- Updated dependencies [d88e20f]
+- Updated dependencies [2d7304d]
+- Updated dependencies [636b236]
+- Updated dependencies [4172589]
+- Updated dependencies [64d624d]
+- Updated dependencies [053fdc8]
+- Updated dependencies [41b7ce3]
+- Updated dependencies [39f4309]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [7cd3987]
+- Updated dependencies [e304a4e]
+- Updated dependencies [490d9a9]
+- Updated dependencies [a1c41c5]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [95f8704]
+- Updated dependencies [f8cdbf2]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [e176053]
+- Updated dependencies [e30ed15]
+- Updated dependencies [90665e0]
+- Updated dependencies [8d3a529]
+- Updated dependencies [5ac2e2c]
+- Updated dependencies [194fae1]
+- Updated dependencies [7e19d03]
+- Updated dependencies [b08b7eb]
+- Updated dependencies [546ddf7]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [44d075b]
+- Updated dependencies [40c479a]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [6fd2cf7]
+- Updated dependencies [5fa06c4]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [129bcc5]
+- Updated dependencies [a26b9e4]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [8ec11e1]
+- Updated dependencies [6f81384]
+- Updated dependencies [22ba927]
+- Updated dependencies [f8c70f4]
+- Updated dependencies [5d3a2d1]
+- Updated dependencies [8f1d995]
+- Updated dependencies [b362c1b]
+- Updated dependencies [f9c34df]
+- Updated dependencies [dddb942]
+- Updated dependencies [00c665e]
+- Updated dependencies [29754cf]
+- Updated dependencies [3c2b6f7]
+- Updated dependencies [6e88630]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [5961030]
+- Updated dependencies [f24de8b]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [9602dc8]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [299102e]
+- Updated dependencies [30c73cd]
+- Updated dependencies [830ed58]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [c71e14d]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [748494b]
+- Updated dependencies [5967be0]
+- Updated dependencies [831be72]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [d0889e2]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [12402a9]
+- Updated dependencies [aff3d7a]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [fff9645]
+- Updated dependencies [9c3b7ce]
+- Updated dependencies [2c1c967]
+- Updated dependencies [9486ac6]
+- Updated dependencies [9486ac6]
+- Updated dependencies [4d5f9b4]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [dc4365c]
+- Updated dependencies [e321d52]
+- Updated dependencies [969ba84]
+- Updated dependencies [4c68077]
+- Updated dependencies [7977ff9]
+- Updated dependencies [3beef6d]
+- Updated dependencies [06b8c42]
+- Updated dependencies [46b9bc9]
+- Updated dependencies [b97790a]
+- Updated dependencies [dbd5194]
+- Updated dependencies [7c9b044]
+- Updated dependencies [d47de51]
+- Updated dependencies [3fe6463]
+- Updated dependencies [b392674]
+- Updated dependencies [4f3a1e2]
+- Updated dependencies [31ab372]
+- Updated dependencies [846889b]
+- Updated dependencies [26896c6]
+- Updated dependencies [67fc3b0]
+- Updated dependencies [33a3b3c]
+- Updated dependencies [b87f15b]
+- Updated dependencies [045d20b]
+- Updated dependencies [c18d099]
+- Updated dependencies [adb2a86]
+- Updated dependencies [03380aa]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [320374d]
+- Updated dependencies [b0d308d]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [6a449fc]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [220c18d]
+- Updated dependencies [00d3f09]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [639114c]
+- Updated dependencies [1490691]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [d1842ab]
+- Updated dependencies [78ca238]
+- Updated dependencies [d8ec8d6]
+- Updated dependencies [351eb31]
+- Updated dependencies [866cd1d]
+- Updated dependencies [20c04b2]
+- Updated dependencies [01c9023]
+- Updated dependencies [48c19bd]
+- Updated dependencies [a6d8b8d]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [adbda1b]
+- Updated dependencies [8952395]
+- Updated dependencies [e8c553b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [7c3df8f]
+- Updated dependencies [a4514e8]
+- Updated dependencies [b9f5ff1]
+- Updated dependencies [e75f4c9]
+- Updated dependencies [19f1639]
+- Updated dependencies [4704aa4]
+- Updated dependencies [47547d0]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [26e06d7]
+- Updated dependencies [669d71b]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [3399704]
+- Updated dependencies [7bf244b]
+- Updated dependencies [f0bb9fa]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [20cb8db]
+- Updated dependencies [00d2fa6]
+- Updated dependencies [c6198c2]
+- Updated dependencies [2f61238]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [2a5bf45]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [daf9d57]
+- Updated dependencies [c15d7ec]
+- Updated dependencies [5d0876c]
+- Updated dependencies [f7ace0a]
+- Updated dependencies [b041b9c]
+- Updated dependencies [ce2aaef]
+- Updated dependencies [2ce2612]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [c14d3a0]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [91f9276]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [a915064]
+- Updated dependencies [52cac38]
+- Updated dependencies [64a252d]
+- Updated dependencies [d1bebb0]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [0758bd8]
+- Updated dependencies [0ea7054]
+- Updated dependencies [fc32921]
+- Updated dependencies [8f9d87a]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [81c0bc4]
+- Updated dependencies [3c76801]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [77f846a]
+- Updated dependencies [bc5870c]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [dd19463]
+- Updated dependencies [100547e]
+- Updated dependencies [3a58149]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [bf3edfe]
+- Updated dependencies [2c8474c]
+- Updated dependencies [6ce89da]
+- Updated dependencies [0e05aac]
+- Updated dependencies [ae61ad4]
+- Updated dependencies [5aed9e4]
+- Updated dependencies [83c77dc]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [e719ebd]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [fe76ece]
+- Updated dependencies [8ebd57f]
+- Updated dependencies [c40f3b8]
+- Updated dependencies [58770f3]
+- Updated dependencies [aefe428]
+- Updated dependencies [485f096]
+- Updated dependencies [199d31b]
+- Updated dependencies [b655a9d]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [7138bc1]
+- Updated dependencies [cef27e2]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [d7bd274]
+- Updated dependencies [98c3a74]
+- Updated dependencies [ebce5a3]
+- Updated dependencies [9d9040d]
+- Updated dependencies [20e317c]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [9850c6e]
+- Updated dependencies [de570cc]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [ab92940]
+- Updated dependencies [a691c0b]
+- Updated dependencies [0b1326d]
+- Updated dependencies [1e66879]
+- Updated dependencies [c5200f0]
+- Updated dependencies [af3861f]
+- Updated dependencies [515f171]
+- Updated dependencies [4f14ad7]
+- Updated dependencies [258d264]
+- Updated dependencies [cac64b3]
+- Updated dependencies [fa140b8]
+- Updated dependencies [71cba28]
+- Updated dependencies [190fbd0]
+- Updated dependencies [c00bf28]
+- Updated dependencies [f2158ec]
+- Updated dependencies [fd8dace]
+- Updated dependencies [72ffc34]
+- Updated dependencies [bf28341]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [42887e0]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [38a9568]
+- Updated dependencies [f90b8fb]
+- Updated dependencies [91783c4]
+- Updated dependencies [dba7d84]
+- Updated dependencies [5a07e67]
+- Updated dependencies [2d36552]
+- Updated dependencies [45d8288]
+- Updated dependencies [b2437a7]
+- Updated dependencies [f157423]
+- Updated dependencies [7a90afd]
+- Updated dependencies [eddc1dd]
+- Updated dependencies [490f482]
+- Updated dependencies [27308c5]
+- Updated dependencies [8689166]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [9101be5]
+- Updated dependencies [f53a8d0]
+- Updated dependencies [57f9b07]
+- Updated dependencies [3c73d99]
+- Updated dependencies [d91aed9]
+- Updated dependencies [ed71d9e]
+- Updated dependencies [7776fc2]
+- Updated dependencies [c86185e]
+- Updated dependencies [fb96ecb]
+- Updated dependencies [1170ed1]
+- Updated dependencies [4d73b07]
+  - @object-ui/i18n@17.7.0
+  - @object-ui/core@17.7.0
+  - @object-ui/types@17.7.0
+  - @object-ui/components@17.7.0
+  - @object-ui/react@17.7.0
+  - @object-ui/providers@17.7.0
+
 ## 17.6.0
 
 ### Minor Changes
