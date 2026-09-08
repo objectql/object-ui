@@ -39,54 +39,44 @@ constraints are measured, and the reasoning lives on `defineNodeComponentUnion` 
 `zod/base.zod.ts`.
 
 
-## Four more public-surface facts this ships
+## Three more public-surface facts this ships
 
 **1. `DashboardWidgetSchema.component` narrows.** That legacy `{ id, component, layout }`
 envelope names `BaseSchema` explicitly instead of following the redirect, so the widget
 slot keeps admitting `metric-card`, objectui's closed widget-slot extension. One measured
-delta and only one: a PRIMITIVE in that slot (`component: 'text'`) was accepted through
-`SchemaNodeSchema` and is refused now. No corpus document, fixture or pin writes one.
+delta on that slot and only one: a PRIMITIVE in it (`component: 'text'`) was accepted
+through `SchemaNodeSchema` and is refused now. No corpus document, fixture or pin writes
+one.
 
-**2. `SchemaNodeSchema` moves from `TDZ_BOUND` to `MEMOISED`.** Its `z.lazy` getter now
-returns the one live union rather than building one per call, so `getter() === getter()`
-and `.unwrap() === .unwrap()` are TRUE for this export where they were FALSE. The
-supported handle is unchanged and is still the exported wrapper; the other seven mirrors
-in that ledger are untouched.
-
-**3. ⚠️ One WIDENING, in the same stroke: `chatbot` nodes with a record `body`.**
+**2. The `chatbot` record `body` is refused NESTED, and still accepted at the ROOT.**
 `ChatbotSchema.body` mirrors the chat API's body params as
-`z.record(z.string(), z.unknown())`, which is WIDER than `BaseSchemaCore.body`. Judging a
-child by its own schema therefore admits, at every child slot, a document that the base
-arm refused. Measured, corpus-valid chatbot seed plus `body: { model, temperature }`:
-accepted at the root before and after; inside `card.body[]` and `div.children[]` REFUSED
-before, ACCEPTED now. It is the only wider redeclaration among 109 base-key
-redeclarations across the union's arms, and no corpus document writes one — which is why
-the 45 to 54 headline does not show it. Declared here rather than eliminated, by ruling:
-narrowing a published `chatbot` mirror is its own contract decision, and it is filed as
-objectui#8572.
+`z.record(z.string(), z.unknown())`, which is WIDER than `BaseSchemaCore.body` — the only
+wider redeclaration among the 109 base-key redeclarations across the union's arms. Judging
+a child by its own schema would therefore have ADMITTED, at every child slot, a document
+the base arm refused. ⛔ That widening is eliminated rather than declared: the arm the
+recursion point installs carries a check that a nested `chatbot` node's `body` still fits
+the node slot. Measured, corpus-valid chatbot seed plus `body: { model, temperature }`:
+accepted at the root before and after; inside `card.body[]` and `div.children[]` refused
+before and refused now. ⇒ the redirect narrows at all 109 redeclarations and widens at
+none. The published `ChatbotSchema` is untouched — whether its own `body` should carry the
+chat API's params is a separate question, recorded on objectui#8572 and deliberately not
+decided here.
 
-**⚠️ 4. Caveat for BUNDLED consumers — this redirect can be tree-shaken away, and it is not
-fixed here.** The arm is filled by this package's `./zod` barrel, and the package declares
-`"sideEffects": false`, so a bundler is entitled to drop that fill when a consumer imports one
-schema by name without also importing `AnyComponentSchema`. When it does, every child slot
-validates with the PRE-redirect arm — no error, no warning, the old accept set, and the fill's
-own assertion dropped with it so nothing can announce the failure. Measured on this repo's own
-Vite/rollup lib build: an entry importing only `CardSchema` ACCEPTS a nested off-spec node
-(370,652 bytes, no fill in the output); the same entry with `AnyComponentSchema` also imported
-REFUSES it (1,149,749 bytes, fill present).
+**3. The redirect survives BUNDLING, and that is a property of how it is wired.** The arm
+is an import binding read inside `SchemaNodeSchema`'s `z.lazy` getter, ⛔ not a write into
+a live option array from the barrel's body. The difference is measurable, on this repo's
+own Vite/rollup lib build, with an entry that imports only `CardSchema` from
+`@object-ui/types/zod`: with the write, the bundler dropped it and a nested off-spec node
+was ACCEPTED — the pre-redirect accept set, with no error and no warning; with the
+binding, the same entry REFUSES it, because whatever retains `SchemaNodeSchema` retains
+the union it names. ⚠️ The cost is real and is stated rather than hidden: that entry grows
+from 113,887 to 342,193 bytes gzipped, and this repo's own console `framework` chunk from
+72,248 to 90,969 (its ceiling is 100,000). That is the price of the redirect being real
+for bundled consumers rather than a promise that depends on a bundler flag.
 
-Three fixes were measured and none of them is a manifest edit this change may make on its own:
-narrowing `sideEffects` to an array is not a legal declaration for this package (one gate
-requires an array to name every entry form, another refuses a named entry that has no load-time
-effect, and this package's entry forms are pure); a bare top-level call in the barrel is dropped
-too, because `"sideEffects": false` is a package-level promise no in-module spelling can
-override; and removing the field closes it at a measured cost of 16,078 more gzipped bytes in
-this repo's console `framework` chunk, which now FITS its ceiling but moves a workspace census
-a guard pins — a maintainer-floor authorisation, deliberately not taken here.
-
-⇒ **Declared, follow-ups filed**, not an accepted permanent state: objectui#8577 carries the
-leak and that manifest decision with every figure, and objectui#8578 carries the reason the gate
-built to see load-time effects scored this package zero — it counts top-level call statements and
-cannot see an effect performed inside a `const` initializer. Until objectui#8577 is ruled, a
-consumer that bundles `@object-ui/types/zod` should keep `AnyComponentSchema` in its import
-graph, which is enough to make the redirect apply.
+⚠️ `"sideEffects": false` is unchanged and stays true: with the write gone, this package
+performs no load-time side effect at all. ⚠️ One cost is paid inside this repo: a test
+that entered the zod graph at a category module rather than at the `./zod` barrel now
+throws `ReferenceError` at import instead of silently validating against the old arm, and
+102 `packages/types` test files took a one-line barrel-first import because of it.
+Consumers cannot hit that: `./zod` is the package's only zod subpath.
