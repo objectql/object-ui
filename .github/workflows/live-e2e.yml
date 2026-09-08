@@ -102,6 +102,11 @@ jobs:
       LIVE_APP_URL: http://localhost:5190
 
     steps:
+      - name: ABLATION objectui#8084 - force this job to fail
+        run: |
+          echo "ablation leg: a genuine job failure, so the RUN conclusion can be read"
+          exit 1
+
       - name: Checkout code
         uses: actions/checkout@v7
         with:
