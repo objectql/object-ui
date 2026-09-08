@@ -129,8 +129,10 @@
  *     a delta to this number; count the registry. Nothing asserts it against a written
  *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **41 entries** in `KnownDrift`, **63 keys** across them — 42 / 64 until
- *     objectui#8338 RETIRED that same `feedback.zod.ts#ToastSchema` key on BOTH faces
+ *   - **41 entries** in `KnownDrift`, **64 keys** across them — 41 / 63 until
+ *     objectui#8344 added `component` to `complex.zod.ts#DashboardWidgetSchema`, an
+ *     existing entry (so the entry count did not move). 42 / 64 until
+ *     objectui#8338 RETIRED the `feedback.zod.ts#ToastSchema` key on BOTH faces
  *     (ADR-0049 enforce-or-remove: `?: never` on the declaration, `retirementTombstone()`
  *     on the mirror), the entry's whole content, so the entry went with it. ⭐ The first
  *     entry this ledger has lost by RETIRING the key rather than by moving either face
@@ -1136,8 +1138,31 @@ interface KnownDrift {
    * comparison, and this entry going stale is precisely what surfaced that.
    */
   'complex.zod.ts#DashboardComponentSchema': 'header' | 'widgets' | 'globalFilters';
-  /** TS declares `unknown`; the mirror declares a structured options object. The mirror is the STRICTER side here — narrowing the check would be wrong, widening the TS declaration is the ADR-0049 question. */
-  'complex.zod.ts#DashboardWidgetSchema': 'options';
+  /**
+   * `options` — TS declares `unknown`; the mirror declares a structured options object.
+   * The mirror is the STRICTER side here — narrowing the check would be wrong, widening
+   * the TS declaration is the ADR-0049 question.
+   *
+   * `component` — joined with objectui#8344, and the mirror is the stricter side here too.
+   * TS declares `SchemaNode` (`BaseSchema | string | number | boolean | null | undefined`);
+   * the mirror declares `BaseSchema` alone, so the five primitive arms are the drift. The
+   * key is the legacy `{ id, component, layout }` envelope's node slot, and it was spelled
+   * `SchemaNodeSchema` until #8344 redirected that const's component arm at
+   * `AnyComponentSchema`. This slot cannot follow it: `metric-card` is objectui's CLOSED
+   * widget-slot component extension (`DASHBOARD_COMPONENT_WIDGET_TYPES`), admitted by the
+   * 2026-08-14 ruling (objectstack#8593) and deliberately NOT an arm of the component
+   * union — `DashboardWidgetSlotComponentSchema` says the routing is "an internal property
+   * of the widget slot, not new authoring surface" — so following the redirect would have
+   * refused the very envelope this key exists for. ⇒ the slot names the passthrough the
+   * ruling assigns it, and the primitives it stops admitting land here.
+   *
+   * ⚠️ This entry is the reason objectui#8344 could not read its own type-check as green:
+   * the ledger is a TYPE MAP over the mirrors, so a `complex.zod.ts` edit moves a row
+   * INSIDE this file without editing it, and `tsc -p tsconfig.json` (the BUILD project)
+   * excludes every `.test.ts` under `src` and stays green while `tsconfig.test.json`
+   * reddens.
+   */
+  'complex.zod.ts#DashboardWidgetSchema': 'component' | 'options';
   /**
    * `fields` — inherited from `FilterFieldSchema.operators` below; the element type is
    * the drifted one. `onChange` — RUNTIME SLOT (objectui#6124): the `filter-builder` renderer

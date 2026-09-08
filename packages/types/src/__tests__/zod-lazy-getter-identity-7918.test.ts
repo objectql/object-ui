@@ -24,10 +24,24 @@
  *   TreeNodeSchema            ReferenceError: Cannot access 'TreeNodeSchema' before initialization
  *
  * Seven name the very const being declared (`children: z.array(TreeNodeSchema)`
- * sits inside `TreeNodeSchema`'s own initialiser); `SchemaNodeSchema` names
- * `BaseSchemaCore`, which `base.zod.ts` declares BELOW it. For those eight the
- * `z.lazy` is LOAD-BEARING — it is buying a TDZ dodge, not a style — and they
- * keep the spelling they have. `mechanism` below reproduces the failure.
+ * sits inside `TreeNodeSchema`'s own initialiser); `SchemaNodeSchema` named
+ * `BaseSchemaCore`, which `base.zod.ts` declared BELOW it. For those eight the
+ * `z.lazy` was LOAD-BEARING — buying a TDZ dodge, not a style — and they keep
+ * the spelling they have. `mechanism` below reproduces the failure.
+ *
+ * ⚠️ SEVEN, not eight, since objectui#8344. That card redirected the node
+ * recursion point at `AnyComponentSchema` and had to build `SchemaNodeSchema`'s
+ * union ONCE, at module scope, immediately below `BaseSchemaCore` — because the
+ * component arm is a written option slot and there has to be an array to write
+ * into. Declaring it below `BaseSchemaCore` is what dissolves the TDZ, so the
+ * memoisation this file calls "worth doing where it is free" became free for this
+ * one const, and the row moved to {@link MEMOISED}. ⛔ It is a BYPRODUCT, not a
+ * goal: nobody memoised it to make `.unwrap()` honest, and ⛔ nothing here licenses
+ * moving the remaining seven — each still names the const being declared, and
+ * `mechanism` still reproduces their ReferenceError.
+ *
+ * ⇒ the eight-name list above is kept VERBATIM as the objectui#7918 reading it
+ * was. It is history, not the current ledger; the arrays below are the ledger.
  *
  * The two that loaded clean were memoised: `FilterBuilderConditionSchema` is not
  * recursive at all, and `NavigationItemSchema` already defers its self-reference
@@ -115,6 +129,9 @@ const innerTypeStable = (S: unknown): boolean => (S as LazyInternals)._zod.inner
 const MEMOISED: ReadonlyArray<readonly [string, unknown]> = [
   ['FilterBuilderConditionSchema', FilterBuilderConditionSchema],
   ['NavigationItemSchema', NavigationItemSchema],
+  // objectui#8344 — see the header. Its getter returns the ONE node union that
+  // `base.zod.ts` builds below `BaseSchemaCore`, so there is no TDZ left to dodge.
+  ['SchemaNodeSchema', SchemaNodeSchema],
 ];
 /** ⛔ Do not "fix" these — each one's `z.lazy` dodges a real ReferenceError. */
 const TDZ_BOUND: ReadonlyArray<readonly [string, unknown]> = [
@@ -124,7 +141,6 @@ const TDZ_BOUND: ReadonlyArray<readonly [string, unknown]> = [
   ['MenuItemSchema', MenuItemSchema],
   ['NavLinkSchema', NavLinkSchema],
   ['NavigationMenuItemSchema', NavigationMenuItemSchema],
-  ['SchemaNodeSchema', SchemaNodeSchema],
   ['TreeNodeSchema', TreeNodeSchema],
 ];
 
