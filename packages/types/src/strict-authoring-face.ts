@@ -252,10 +252,19 @@ function createStrictWalker(options: DeriveStrictAuthoringOptions = {}): <T exte
         // the other way round. Walking only `in` closes the first and silently
         // leaves the second's real schema tolerant — an asymmetry with no
         // symptom, because the accept set it produces looks exactly like a
-        // schema that had nothing to close. Measured on the published face at
-        // the head this landed on: one pipe reachable, `in` an array and `out`
-        // the transform, so this arm changes no accept set today. It is here so
-        // the first `z.preprocess` to reach the node face does not open a hole.
+        // schema that had nothing to close.
+        //
+        // Re-derived on the published face at the head this landed on, once the
+        // guard above stopped skipping callable nodes: FOUR pipes are reachable
+        // — `transform` into `enum` (a preprocessor, under
+        // `page.interfaceConfig.filterBy[]`), and `object`, `string` and
+        // `array` each into a `transform`. So a preprocessor is already here,
+        // and today no OBJECT sits on an `out` side, which is why this arm
+        // moves no accept set yet. It is here so the first preprocessor that
+        // wraps an object does not open a hole. ⚠️ The earlier version of this
+        // comment said "one pipe reachable" — that was a reading taken through
+        // the blind guard, and it is exactly the class of number this file's
+        // pins now re-derive instead of quoting.
         out = cloneWithDef(schema, {
           in: walk(def.in!, `${path}/in`),
           ...(def.out ? { out: walk(def.out, `${path}/out`) } : {}),
