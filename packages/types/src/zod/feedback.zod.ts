@@ -80,8 +80,13 @@ export const ToastSchema = BaseSchema.extend({
   // and not the #6124 named-refusal arm (`custom`, TS twin sometimes callable).
   // A plain deletion would NOT refuse it: `BaseSchema` is `.passthrough()`, so
   // an authored value would be KEPT unvalidated and silently inert.
-  action: retirementTombstone(
-    'RETIRED (objectui#8338, ADR-0049 enforce-or-remove) — `action` had two published faces whose '
+  // ⛔ First fragment on the CALL line, never alone on its own: an indented bare
+  // quoted string that ends a line is `check-widening-tells.mjs`'s T2 arm
+  // (`BARE_STRING_ELEMENT`), which read this NARROWING as a closed set gaining a
+  // member. Continuations carry `+ `, which is why 1 tell fired and not 8.
+  // ⛔ Never an array + `.join(' ')` (every element alone on a line = 8 tells),
+  // and ⛔ never edit the TEXT — `../__tests__/toast-button-keys.test.ts` pins it.
+  action: retirementTombstone('RETIRED (objectui#8338, ADR-0049 enforce-or-remove) — `action` had two published faces whose '
     + 'accept sets were DISJOINT and one of them EMPTY: this mirror admitted a node or a list of '
     + 'nodes, while `ToastSchema` declared `{ label: string; onClick: () => void }` with both members '
     + 'required, which no JSON document can satisfy. The `toast` renderer read neither face. There is '

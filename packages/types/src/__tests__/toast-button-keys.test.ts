@@ -237,10 +237,16 @@ describe('ToastSchema (TS) — compile-time pin on the same keys', () => {
 
 /** The shape the TS face declared: the one no JSON document could ever hold. */
 const RETIRED_TS_SHAPE = { label: 'Undo', onClick: () => undefined };
-/** The shape the MIRROR admitted: a node, and a list of nodes. Both parsed
- *  green until this retirement — they are the accept-set NARROWING, and the
- *  half the changeset calls breaking for already-authored metadata. */
-const RETIRED_MIRROR_SHAPES = [{ type: 'button', label: 'Undo' }, [{ type: 'button' }]];
+/** What the MIRROR admitted: `SchemaNodeSchema | SchemaNodeSchema[]` — and that
+ *  node union is `z.union([BaseSchemaCore, z.string(), z.number(), z.boolean(),
+ *  z.null(), z.undefined()])` (`../zod/base.zod.ts`), so BARE PRIMITIVES parsed
+ *  green here too, not just node objects. Re-derived by re-forming the old union
+ *  around the SHIPPED `SchemaNodeSchema`; the primitive arms are the larger half
+ *  of the narrowing and were missing from the first reading of it.
+ *  ⚠️ This list must stay MIXED — vitest spreads an `it.each` case only when
+ *  `cases.every(Array.isArray)`, and the list arm has to arrive as ONE argument.
+ *  Pinned below: it is a property of the DATA that nothing else here would miss. */
+const RETIRED_MIRROR_SHAPES = [{ type: 'button', label: 'Undo' }, [{ type: 'button' }], 'Undo', 1, null];
 
 describe('ToastSchema — `action` is retired, not deleted (objectui#8338)', () => {
   it('the mirror still DECLARES the key — a deletion would be a silent accept', () => {
@@ -262,7 +268,11 @@ describe('ToastSchema — `action` is retired, not deleted (objectui#8338)', () 
     expect(issue!.path).toEqual(['action']);
   });
 
-  it.each(RETIRED_MIRROR_SHAPES)('refuses the node shape the mirror used to admit: %j', (authored) => {
+  it('the shape list stays MIXED, so `it.each` hands each case over whole', () => {
+    expect(RETIRED_MIRROR_SHAPES.every(Array.isArray)).toBe(false);
+  });
+
+  it.each(RETIRED_MIRROR_SHAPES)('refuses the shape the mirror used to admit: %j', (authored) => {
     // ⚠️ THE breaking assertion. Every one of these parsed GREEN before this
     // card, so a document already authored this way stops parsing. Ablate the
     // tombstone back to `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`

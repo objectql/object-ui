@@ -33,8 +33,12 @@ the pins, then restoring and proving both files byte-identical to `HEAD`:
 | --- | --- | --- |
 | `{ "type": "button", "label": "Undo" }` — a node | **accepted** | refused, `invalid_type` at `action` |
 | `[{ "type": "button" }]` — a list of nodes | **accepted** | refused, `invalid_type` at `action` |
-| `{ "label": "Undo", "onClick": … }` — the TS face's own shape | refused, `invalid_union` at `action` | refused, `invalid_type` at `action` |
-| the key omitted | accepted | accepted |
+| `{ "label": "Undo", "onClick": … }` — the TS face's own shape, and `{}` | refused, `invalid_union` at `action` | refused, `invalid_type` at `action` |
+| `"Undo"`, `1`, `true`, `null`, `[]`, `["a", 1]` — bare primitives, and lists of them | **accepted** | refused, `invalid_type` at `action` |
+| `[[{ "type": "button" }]]` — a nested list | refused, `invalid_union` at `action` | refused, `invalid_type` at `action` |
+| the key omitted, or an explicit `undefined` | accepted | accepted |
+
+⭐ The primitive row is the LARGER half of this narrowing and is the easy one to miss: `SchemaNodeSchema` is `z.union([BaseSchemaCore, z.string(), z.number(), z.boolean(), z.null(), z.undefined()])` (`zod/base.zod.ts:84`), so `action: "Undo"` parsed green under the old union exactly as a node object did. Re-derived by re-forming the old spelling around the SHIPPED `SchemaNodeSchema` rather than a hand-rebuilt one, with a non-vacuity control: the two envelopes must disagree on the node case, else the probe is comparing a schema with itself.
 
 Nothing went from refused to accepted. The key stays DECLARED rather than deleted,
 because `BaseSchema` is `.passthrough()`: removing the member would KEEP an authored
