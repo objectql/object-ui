@@ -150,11 +150,13 @@ const SPEC_EXPORT_OPTIONS_OBJECT_SHAPE: SpecExportOptionsShape = ((): SpecExport
   }
   const arm = cur.options?.find((o) => o.shape);
   if (!arm?.shape) {
+    // Short on purpose: this string SHIPS (the console's `framework` chunk), while the
+    // docblock above it — which carries the rationale and the remedy — is stripped by the
+    // production minifier. It still names the moved spec symbol, the member that depends on
+    // it, and the card, which is what a diagnostic has to do.
     throw new Error(
-      '@object-ui/types: `ListViewSchema.shape.exportOptions` in @objectstack/spec no longer ' +
-        'exposes an object arm. `ObjectGridSchema.exportOptions` is bound to that arm by ' +
-        'reference (objectui#7762); re-derive it against the installed spec rather than ' +
-        'restating the key set here.',
+      '@object-ui/types: no object arm on `ListViewSchema.shape.exportOptions`; ' +
+        '`ObjectGridSchema.exportOptions` binds it by reference (objectui#7762).',
     );
   }
   return arm.shape;
@@ -174,10 +176,10 @@ const SPEC_EXPORT_OPTIONS_OBJECT_SHAPE: SpecExportOptionsShape = ((): SpecExport
  * no-op made loud; nothing that renders today stops rendering.
  */
 const OBJECT_GRID_EXPORT_OPTIONS_GUIDANCE =
-  'Export configuration for the grid toolbar export menu — the OBJECT form only: ' +
+  'Export configuration for the grid toolbar menu — the OBJECT form only: ' +
   '`{ formats, maxRecords, includeHeaders, fileNamePrefix, streaming }`. A bare format ' +
   'array is the `list-view` spelling and is NOT read here: `object-grid` reads ' +
-  '`exportOptions.formats`, so an array would be dropped in silence for the csv/json ' +
+  '`exportOptions.formats`, so an array is silently dropped for the csv/json ' +
   'default. Write `{ "formats": ["csv", "xlsx"] }` instead.';
 
 /**

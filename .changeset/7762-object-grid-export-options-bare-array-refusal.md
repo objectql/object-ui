@@ -48,6 +48,14 @@ no-op at runtime, so the narrowing costs no working artefact. `packages/plugin-g
 is untouched — the renderer's read was ruled correct and this is the declaration
 catching up to it.
 
+**One key moves with it, named rather than left to be discovered:**
+`ObjectViewSchema`'s `table` slot is `ObjectGridSchema.omit({ type, objectName }).partial()`,
+so `table.exportOptions` narrows in the same move. Measured on both sides: the base
+accepted `table: { exportOptions: ['csv', 'xlsx'] }` and the head refuses it, while the
+object form parses on both. It costs no working artefact — the key has zero runtime
+readers (no `table.exportOptions` read exists in `packages/**` or `apps/**`) and its
+TypeScript face was already object-only, so the array was unrenderable there too.
+
 **Migration:** write the object form — `exportOptions: { "formats": ["csv",
 "xlsx"] }` instead of `exportOptions: ["csv", "xlsx"]`. Delete `'pdf'` (the
 surviving formats are `'csv'`, `'xlsx'` and `'json'`) and any key outside the
