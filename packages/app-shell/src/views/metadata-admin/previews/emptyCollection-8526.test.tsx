@@ -17,13 +17,19 @@
  *      all — the assertion that refuses the caricature "EmptyDescription
  *      rendered unconditionally, populated collections included".
  *
- * ⚠️ Navigation vs. assertion. Every harness reaches a site's body slot
- * through a title its container owns (a `Section` heading, a rail label, a
- * panel header), never through anything the empty state renders. A pin that
- * navigated by `data-slot="empty-description"` would die on any caricature
- * that erases the description, and read as a strong refusal while measuring
- * nothing (objectui#8504, objectui#8520). The harness-kill leg — rename a
- * title the harness navigates by — fails with "Unable to find an element",
+ * ⚠️ Navigation vs. assertion. Every harness reaches the CONTAINER that owns
+ * a site — by a title that container renders (a `Section` heading, a rail
+ * label, a panel header) — never anything the empty state renders, and never
+ * a child position. A pin that navigated by `data-slot="empty-description"`
+ * would die on any caricature that erases the description and read as a
+ * strong refusal while measuring nothing (objectui#8504, objectui#8520); a
+ * pin that navigated by `children[1]` died the same way when the caricature
+ * was first run against this file — the inserted sibling shifted the rows one
+ * slot over, and eight populated cases failed on their marker lookup before
+ * the refusing assertion ran. Assertions are descendant queries on the
+ * container: the empty state can never BE the container, because the
+ * container is what holds the title. The harness-kill leg — rename a title
+ * the harness navigates by — fails with "Unable to find an element",
  * textually distinct from the assertion failures the other legs produce.
  */
 
@@ -66,43 +72,33 @@ const ED = '[data-slot="empty-description"]';
 const EV = '[data-slot="empty-value"]';
 
 /**
- * Self-inclusive query: several sites return the empty state AS the body
- * element itself, and `Element.querySelector` never matches the element it is
- * called on — the naive descendant query sat green through a measured
- * caricature on objectui#8520.
- */
-function self(el: Element, selector: string): Element | null {
-  return el.matches(selector) ? el : el.querySelector(selector);
-}
-
-/**
- * The body slot of a `Section` / `RailBlock` / rail-header block, reached by
+ * The `Section` / `RailBlock` / rail-header block that owns a site, reached by
  * the block's TITLE. Every such block in this directory renders
  * `<div><div.header>…{title}…</div>{children}</div>`: the title is either the
- * header's own text (a `div`) or a `span` inside it.
+ * header's own text (a `div`) or a `span` inside it. The block is returned,
+ * not a child slot — see the docblock above for why.
  */
-function bodyByTitle(title: string | RegExp, root: HTMLElement = document.body): HTMLElement {
+function blockByTitle(title: string | RegExp, root: HTMLElement = document.body): HTMLElement {
   const titleEl = within(root).getByText(title);
   const header = titleEl.tagName === 'SPAN' ? titleEl.parentElement! : titleEl;
-  const block = header.parentElement!;
-  const body = block.children[1] as HTMLElement | undefined;
-  expect(body, `body slot under "${String(title)}"`).toBeTruthy();
-  return body!;
+  const block = header.parentElement as HTMLElement | null;
+  expect(block, `the block titled "${String(title)}"`).toBeTruthy();
+  return block!;
 }
 
 /** The empty branch: the family's text slot, with this site's sentence, and no EmptyValue. */
-function expectEmptyState(body: HTMLElement, sentence: string) {
-  const slot = self(body, ED);
+function expectEmptyState(block: HTMLElement, sentence: string) {
+  const slot = block.querySelector(ED);
   expect(slot, 'the shared EmptyDescription slot').toBeTruthy();
   expect((slot!.textContent ?? '').trim()).toBe(sentence);
-  expect(self(body, EV)).toBeNull();
+  expect(block.querySelector(EV)).toBeNull();
 }
 
-/** The populated branch: no empty-description anywhere under this body — the caricature refuser. */
-function expectPopulated(body: HTMLElement, sentence: string) {
-  expect(self(body, ED)).toBeNull();
+/** The populated branch: no empty-description anywhere under this block — the caricature refuser. */
+function expectPopulated(block: HTMLElement, sentence: string) {
+  expect(block.querySelector(ED)).toBeNull();
   // queryAllByText, not queryByText: the latter throws on MULTIPLE matches.
-  expect(within(body).queryAllByText(sentence)).toHaveLength(0);
+  expect(within(block).queryAllByText(sentence)).toHaveLength(0);
 }
 
 // ───────────────────────────── AgentPreview ─────────────────────────────
@@ -127,7 +123,7 @@ describe('AgentPreview — the three hand-rolled empties and the local `Empty` t
 
   /** The side rail has no heading of its own: reached as the grid column next to the one holding "Instructions". */
   function rail(): HTMLElement {
-    const instructions = bodyByTitle('Instructions');
+    const instructions = blockByTitle('Instructions');
     const grid = instructions.closest('.grid') as HTMLElement | null;
     expect(grid, 'the preview grid').toBeTruthy();
     return grid!.children[1] as HTMLElement;
@@ -135,24 +131,24 @@ describe('AgentPreview — the three hand-rolled empties and the local `Empty` t
 
   it('Instructions: an empty prompt is the shared empty-description slot', () => {
     renderAgent({ ...AGENT, instructions: '' });
-    expectEmptyState(bodyByTitle('Instructions'), NO_PROMPT);
+    expectEmptyState(blockByTitle('Instructions'), NO_PROMPT);
   });
 
   it('Instructions: a set prompt renders the pre and no empty-description', () => {
     renderAgent(AGENT);
-    const body = bodyByTitle('Instructions');
+    const body = blockByTitle('Instructions');
     expect(within(body).getByText('Be kind.')).toBeTruthy();
     expectPopulated(body, NO_PROMPT);
   });
 
   it('Skills: an empty chip list is the shared empty-description slot', () => {
     renderAgent({ ...AGENT, skills: [] });
-    expectEmptyState(bodyByTitle('Skills'), NO_SKILLS);
+    expectEmptyState(blockByTitle('Skills'), NO_SKILLS);
   });
 
   it('Skills: an attached skill renders its chip and no empty-description', () => {
     renderAgent(AGENT);
-    const body = bodyByTitle('Skills');
+    const body = blockByTitle('Skills');
     expect(within(body).getByText('summarize_account')).toBeTruthy();
     expectPopulated(body, NO_SKILLS);
   });
@@ -184,7 +180,7 @@ describe('ToolPreview — the empty parameter set and the local `Empty` it went 
 
   it('no parameters is the shared empty-description slot', () => {
     render(<ToolPreview type="tool" name="ping" draft={TOOL} />);
-    expectEmptyState(bodyByTitle('Input Parameters'), SENTENCE);
+    expectEmptyState(blockByTitle('Input Parameters'), SENTENCE);
   });
 
   it('a declared parameter renders the table and no empty-description', () => {
@@ -195,7 +191,7 @@ describe('ToolPreview — the empty parameter set and the local `Empty` it went 
         draft={{ ...TOOL, parameters: { type: 'object', properties: { host: { type: 'string' } }, required: ['host'] } }}
       />,
     );
-    const body = bodyByTitle('Input Parameters');
+    const body = blockByTitle('Input Parameters');
     expect(within(body).getByText('host')).toBeTruthy();
     expectPopulated(body, SENTENCE);
   });
@@ -209,12 +205,12 @@ describe('SkillPreview — the empty tool whitelist', () => {
 
   it('no tools is the shared empty-description slot', () => {
     render(<SkillPreview type="skill" name="draft_email" draft={SKILL} />);
-    expectEmptyState(bodyByTitle('Tools (0)'), SENTENCE);
+    expectEmptyState(blockByTitle('Tools (0)'), SENTENCE);
   });
 
   it('a whitelisted tool renders its chip and no empty-description', () => {
     render(<SkillPreview type="skill" name="draft_email" draft={{ ...SKILL, tools: ['send_email'] }} />);
-    const body = bodyByTitle('Tools (1)');
+    const body = blockByTitle('Tools (1)');
     expect(within(body).getByText('send_email')).toBeTruthy();
     expectPopulated(body, SENTENCE);
   });
@@ -228,12 +224,12 @@ describe('DatasourcePreview — the empty connection config', () => {
 
   it('no config keys is the shared empty-description slot', () => {
     render(<DatasourcePreview type="datasource" name="warehouse" draft={DS} />);
-    expectEmptyState(bodyByTitle('Connection'), SENTENCE);
+    expectEmptyState(blockByTitle('Connection'), SENTENCE);
   });
 
   it('a config key renders the table and no empty-description', () => {
     render(<DatasourcePreview type="datasource" name="warehouse" draft={{ ...DS, config: { host: 'db.local' } }} />);
-    const body = bodyByTitle('Connection');
+    const body = blockByTitle('Connection');
     expect(within(body).getByText('host')).toBeTruthy();
     expectPopulated(body, SENTENCE);
   });
@@ -247,7 +243,7 @@ describe('ActionPreview — a result dialog with no fields', () => {
 
   it('no result fields is the shared empty-description slot', () => {
     render(<ActionPreview type="action" name="rotate_secret" draft={ACTION} />);
-    expectEmptyState(bodyByTitle('Result Dialog'), SENTENCE);
+    expectEmptyState(blockByTitle('Result Dialog'), SENTENCE);
   });
 
   it('a result field renders its row and no empty-description', () => {
@@ -258,7 +254,7 @@ describe('ActionPreview — a result dialog with no fields', () => {
         draft={{ ...ACTION, resultDialog: { title: 'Rotated', fields: [{ path: 'secret', label: 'New secret' }] } }}
       />,
     );
-    const body = bodyByTitle('Result Dialog');
+    const body = blockByTitle('Result Dialog');
     expect(within(body).getByText('New secret')).toBeTruthy();
     expectPopulated(body, SENTENCE);
   });
@@ -272,12 +268,12 @@ describe('EmailTemplatePreview — a template with no placeholders', () => {
 
   it('no placeholders is the shared empty-description slot', () => {
     render(<EmailTemplatePreview type="email_template" name="welcome" draft={{ subject: 'Welcome', bodyText: 'Hello there.' }} />);
-    expectEmptyState(bodyByTitle('Variables'), SENTENCE);
+    expectEmptyState(blockByTitle('Variables'), SENTENCE);
   });
 
   it('a detected placeholder renders its input and no empty-description', () => {
     render(<EmailTemplatePreview type="email_template" name="welcome" draft={{ subject: 'Welcome {{name}}', bodyText: 'Hello there.' }} />);
-    const body = bodyByTitle('Variables');
+    const body = blockByTitle('Variables');
     expect(within(body).getByText('name')).toBeTruthy();
     expectPopulated(body, SENTENCE);
   });
@@ -302,26 +298,24 @@ describe('FlowPreview — the variables rail with no declared variables', () => 
     vi.stubGlobal('fetch', vi.fn(async () => new Response('not found', { status: 404 })));
   }
 
-  /** The rail header is a `div` reading "Variables"; the toggle button reads the same word. */
-  function railBody(): HTMLElement {
+  /** The rail block whose header is a `div` reading "Variables"; the toggle button reads the same word. */
+  function railBlock(): HTMLElement {
     fireEvent.click(screen.getByTitle('Show variables panel'));
     const header = screen.getAllByText('Variables').find((el) => el.tagName === 'DIV');
     expect(header, 'the variables rail header').toBeTruthy();
-    const body = header!.parentElement!.children[1] as HTMLElement;
-    expect(body).toBeTruthy();
-    return body;
+    return header!.parentElement as HTMLElement;
   }
 
   it('no variables is the shared empty-description slot', () => {
     stubCatalogue();
     render(<FlowPreview type="flow" name="ping_flow" draft={FLOW} />);
-    expectEmptyState(railBody(), SENTENCE);
+    expectEmptyState(railBlock(), SENTENCE);
   });
 
   it('a declared variable renders its row and no empty-description', () => {
     stubCatalogue();
     render(<FlowPreview type="flow" name="ping_flow" draft={{ ...FLOW, variables: [{ name: 'amount', type: 'number' }] }} />);
-    const body = railBody();
+    const body = railBlock();
     expect(within(body).getByText('amount')).toBeTruthy();
     expectPopulated(body, SENTENCE);
   });
@@ -352,14 +346,14 @@ describe('FlowRunsPanel — no runs, and a run with no step log', () => {
     stubRuns([]);
     render(<FlowRunsPanel flowName="ping_flow" />);
     await screen.findByText(NO_RUNS);
-    expectEmptyState(bodyByTitle('Runs'), NO_RUNS);
+    expectEmptyState(blockByTitle('Runs'), NO_RUNS);
   });
 
   it('a listed run renders its row and no empty-description at the list level', async () => {
     stubRuns([RUN]);
     render(<FlowRunsPanel flowName="ping_flow" />);
     await screen.findByRole('button', { expanded: false });
-    expectPopulated(bodyByTitle('Runs'), NO_RUNS);
+    expectPopulated(blockByTitle('Runs'), NO_RUNS);
   });
 
   /** The expanded run body, reached by the run-id line it opens with. */
@@ -398,22 +392,22 @@ describe('FlowSimulatorPanel — no scratch variables, and a run that set none',
     edges: [{ source: 's', target: 'e' }],
   };
 
-  /** The variable-watch header is a `div` reading "Variables". */
-  function watchBody(): HTMLElement {
+  /** The variable-watch section, whose header is a `div` reading "Variables". */
+  function watchBlock(): HTMLElement {
     const header = screen.getAllByText('Variables').find((el) => el.tagName === 'DIV');
     expect(header, 'the variable-watch header').toBeTruthy();
-    return header!.parentElement!.children[1] as HTMLElement;
+    return header!.parentElement as HTMLElement;
   }
 
   it('no scratch rows is the shared empty-description slot', () => {
     render(<FlowSimulatorPanel nodes={FLOW.nodes} edges={FLOW.edges} variables={[]} />);
-    expectEmptyState(bodyByTitle('Set variables'), SCRATCH_HINT);
+    expectEmptyState(blockByTitle('Set variables'), SCRATCH_HINT);
   });
 
   it('an added scratch row renders its inputs and no empty-description', () => {
     render(<FlowSimulatorPanel nodes={FLOW.nodes} edges={FLOW.edges} variables={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /^add$/i }));
-    const body = bodyByTitle('Set variables');
+    const body = blockByTitle('Set variables');
     expect(within(body).getAllByRole('textbox').length).toBeGreaterThan(0);
     expectPopulated(body, SCRATCH_HINT);
   });
@@ -421,7 +415,7 @@ describe('FlowSimulatorPanel — no scratch variables, and a run that set none',
   it('a run that set no variables is the shared empty-description slot', () => {
     render(<FlowSimulatorPanel nodes={FLOW.nodes} edges={FLOW.edges} variables={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /^run$/i }));
-    expectEmptyState(watchBody(), NO_VARS);
+    expectEmptyState(watchBlock(), NO_VARS);
   });
 
   it('a run seeded from a declared input renders the variable and no empty-description', () => {
@@ -433,7 +427,7 @@ describe('FlowSimulatorPanel — no scratch variables, and a run that set none',
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /^run$/i }));
-    const body = watchBody();
+    const body = watchBlock();
     expect(within(body).getByText('amount')).toBeTruthy();
     expectPopulated(body, NO_VARS);
   });
@@ -447,12 +441,12 @@ describe('JobPreview — a job with no schedule keys', () => {
 
   it('no schedule is the shared empty-description slot', () => {
     render(<JobPreview type="job" name="nightly_cleanup" draft={JOB} />);
-    expectEmptyState(bodyByTitle('Schedule'), SENTENCE);
+    expectEmptyState(blockByTitle('Schedule'), SENTENCE);
   });
 
   it('a cron schedule renders its line and no empty-description', () => {
     render(<JobPreview type="job" name="nightly_cleanup" draft={{ ...JOB, schedule: { type: 'cron', expression: '0 0 * * *' } }} />);
-    const body = bodyByTitle('Schedule');
+    const body = blockByTitle('Schedule');
     expect(within(body).getByText('0 0 * * *')).toBeTruthy();
     expectPopulated(body, SENTENCE);
   });
@@ -464,12 +458,11 @@ describe('TranslationPreview — a category with no keys', () => {
   const SENTENCE = 'empty';
   const BUNDLE = { locale: 'en', data: { messages: { hello: 'Hello' }, objects: {} } };
 
-  /** The category card, reached by its label; its body is the card's second child. */
+  /** The category card, reached by its label. */
   function objectsCard(): HTMLElement {
     const label = screen.getAllByText('Objects').find((el) => el.closest('.rounded.border'));
     expect(label, 'the Objects category card label').toBeTruthy();
-    const card = label!.closest('.rounded.border') as HTMLElement;
-    return card.children[1] as HTMLElement;
+    return label!.closest('.rounded.border') as HTMLElement;
   }
 
   it('an empty category is the shared empty-description slot', () => {
@@ -498,16 +491,16 @@ describe('ScreenPreview — a screen with nothing configured', () => {
 
   it('an unconfigured screen is the shared empty-description slot, at the body scale', () => {
     render(<ScreenPreview node={{ id: 's1', config: {} }} />);
-    const body = bodyByTitle('Preview');
+    const body = blockByTitle('Preview');
     expectEmptyState(body, SENTENCE);
     // The deliberate outlier: this sentence stands in for the screen body,
     // whose description renders at text-sm — not for a text-xs rail row.
-    expect(self(body, ED)!.className).toContain('text-sm');
+    expect(body.querySelector(ED)!.className).toContain('text-sm');
   });
 
   it('a titled screen renders its heading and no empty-description', () => {
     render(<ScreenPreview node={{ id: 's1', config: { title: 'Step one' } }} />);
-    const body = bodyByTitle('Preview');
+    const body = blockByTitle('Preview');
     expect(within(body).getByText('Step one')).toBeTruthy();
     expectPopulated(body, SENTENCE);
   });
