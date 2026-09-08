@@ -19,6 +19,32 @@
  * This suite exists so the asymmetry cannot be "fixed" by accident: adding
  * `issues.length` to the Save gate turns the first case below red.
  *
+ * ## ⭐ The boundary, amended by objectui#8057 — read this before citing the above
+ *
+ * There is now a THIRD term in the Save gate, and it does block:
+ *
+ *     server-REFUSED   →  BLOCKS   (`refusalBlocking`, pinned by
+ *                                   `ResourceEditPage.serverRefusalGate.test.tsx`)
+ *     server-ACCEPTED  →  advisory (this suite, unchanged)
+ *
+ * That is not a narrowing of the ruling above, and the distinction is worth
+ * getting right because the two are easy to conflate. Everything this suite
+ * pins is about a verdict the client PREDICTS — and the reason it must not
+ * block is spelled out in its own terms: the client may be STRICTER than the
+ * server, so blocking would dead-bolt Save "on a draft the server accepts".
+ * `refusalBlocking` is armed only by a 422 the server actually returned, so it
+ * can never be armed by a draft the server accepts — there is no refusal to arm
+ * it with. The dead-bolt this suite guards against stays unreachable, and no
+ * prediction was promoted to a block.
+ *
+ * What objectui#8057 ended is narrower than it looks: the client used to
+ * re-send a document the server had ALREADY refused, on every later edit,
+ * reporting nothing — measured against a real 17.3.0 backend, where the
+ * designer rendered a rename as applied while the server held none of it.
+ *
+ * ⛔ Neither suite may be cited without the other. A carve-out with only its
+ * blocking half pinned is indistinguishable from having deleted this one.
+ *
  * ## The fixture is the real skew shape, not a contrived one
  *
  * The stored page carries `zzServerOnlyKey` — a key the bundled

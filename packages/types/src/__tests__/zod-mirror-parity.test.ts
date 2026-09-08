@@ -241,6 +241,22 @@
  *     restate one without checking that the pin's spelling still reaches it.
  *   - **22 entries** in `WiderThanDeclared`, **35 keys** across them, and **45 arms**
  *     under those keys — split **6** SCHEMA-NODE, **29** CONCRETE, **0** MIXED, **10** unions.
+ *     ⭐ objectui#8517 taught the operator to tell an OPEN record — `z.record(z.string(), V)`
+ *     — from a partial record over a finite key union, and NOT ONE figure on this line moved
+ *     with it. ⛔ Do not read that as the clause measuring nothing. It was built on two live
+ *     keys, `layout.zod.ts#GridSchema::columns` and
+ *     `reports.zod.ts#ReportComponentSchema::exportConfigs`, and reported BOTH at that card's
+ *     base (`3f775eeb8`); objectui#8516 / objectui#8556 then narrowed both MIRRORS to
+ *     `z.partialRecord` (`d4733f27e`, PR #8573) while the card was in review, so on the tree it
+ *     landed on (`main` at `7bf133d58`) the two faces agree and the operator reports neither.
+ *     Both readings are of FIXED trees and ⛔ neither can rot. ⇒ Every earlier reading of this
+ *     ledger, objectui#7759's census included, was a FLOOR for the open-record shape and not a
+ *     count; the two keys it was short are closed at the MIRROR instead of ledgered here. ⛔ Do
+ *     not delete the clause as unused: it is what makes a re-widening of either mirror fail
+ *     HERE, which is the file-level instrument objectui#8556 ruled that repair had to be
+ *     pinned against rather than against an accept set alone. Its discrimination is pinned on
+ *     synthetics at `assertionOpenRecordWideningIsReported`, with the `.passthrough()`
+ *     caricature beside it.
  *     (objectui#8252 built the arm split; objectui#7760 moved every figure in it.) It
  *     read 23 / 36 / 47 — 6 / 30 / 0 / 11 — until objectui#8338 RETIRED
  *     `feedback.zod.ts#ToastSchema::action`, the entry's whole content, so the entry, its
@@ -568,6 +584,124 @@ export type assertionSchemaNodeFaceIsConstrained =
 export type assertionRetainedAnnotationFaceIsUnconstrained =
   Expect< Equal< Unconstrained< z.input< typeof NavigationItemSchema > >, true > >;
 
+/* ── The OPEN-RECORD discriminator (objectui#8517) ──────────────────────────── */
+
+/**
+ * `T`'s union arms that are OPEN RECORDS — a string index signature and NO literal
+ * members of their own. That is exactly the `z.record(z.string(), V)` shape and
+ * nothing else.
+ *
+ * ⚠️ Both halves are load-bearing, and the second one is why this is not simply
+ * `string extends keyof T`. Measured in this package's test program: a zod LOOSE
+ * object (what `.passthrough()` produces, and what `BaseSchema` is) also answers
+ * `true` to `string extends keyof T` — `keyof z.input< typeof BaseSchema >`
+ * resolves to bare `string`. Reporting on that predicate alone would report every
+ * slot spelled as a nested passthrough object in this repo, which is the caricature
+ * this direction has to avoid: a guard that reports everything makes the ledger
+ * useless while passing any single-instance assertion. `DeclaredKeys` tells the two
+ * apart because it strips the index signature and keeps the members —
+ * `DeclaredKeys< z.input< typeof BaseSchema > >` resolves to that schema's literal
+ * names, while `DeclaredKeys< Record< string, number > >` is `never`.
+ *
+ * The `IsAny` guard is not defensive tidying: `keyof any` is
+ * `string | number | symbol`, so `any` answers `true` to the index-signature half
+ * and `never` to the member half, and would read as an open record on every face
+ * `Unconstrained` exists to keep out.
+ */
+type OpenRecordArms< T > =
+  IsAny< T > extends true
+    ? never
+    : T extends unknown
+      ? string extends keyof T
+        ? [DeclaredKeys< T >] extends [never] ? T : never
+        : never
+      : never;
+
+/**
+ * `T`'s union arms that state a FINITE key set — an object, not an array, literal
+ * members, no string index signature. `Partial[Record[BreakpointName, number]]` is
+ * one; `object`, `{}` and `unknown` are not, and that is the whole reason this half
+ * exists: a declaration that admits an ARBITRARY object refuses no key, so an
+ * open-record mirror against it is not wider. Requiring one finite-keyed arm is what
+ * holds the clause below to the unambiguous case — the declaration names a key set
+ * and the mirror does not.
+ *
+ * ⚠️ `T extends object` is not tidying, and it was added because the pin below
+ * caught the clause without it. `keyof number` resolves to that primitive's METHOD
+ * names, so `DeclaredKeys[number]` is not `never` and a bare `number` arm reads as a
+ * finite-keyed object. A declaration spelled `number | object` — permissive, refusing
+ * no key — would then be reported against an open-record mirror on the strength of
+ * its `number` arm alone. Arrays are excluded for the same reason (`length`,
+ * `toString`), and `assertionPermissiveDeclarationIsNotWidened` covers both.
+ *
+ * ⚠️ Written with SQUARE brackets in this docblock on purpose (objectui#8517): the
+ * same shape in the issue text is deleted by GitHub's body sanitizer, and the two
+ * spellings have to stay legible side by side while this is being read.
+ */
+type FiniteKeyedArms< T > =
+  IsAny< T > extends true
+    ? never
+    : T extends unknown
+      ? T extends object
+        ? T extends readonly unknown[]
+          ? never
+          : string extends keyof T
+            ? never
+            : [DeclaredKeys< T >] extends [never] ? never : T
+        : never
+      : never;
+
+/**
+ * The mirror admits an ARBITRARY string key at a position where the declaration
+ * names a finite key set — the widening objectui#8517 measured as invisible to the
+ * assignability test on its own.
+ *
+ * ## Why the assignability test cannot see it
+ *
+ * `Record[string, number]` and `Partial[Record[BreakpointName, number]]` are
+ * MUTUALLY assignable: TypeScript grants an implicit index signature to mapped and
+ * anonymous object types, so the partial record fits the open one, and the open
+ * one fits the partial one because every member it could supply is `number` where
+ * `number | undefined` is wanted. ⇒ `[A] extends [B]` and `[B] extends [A]` are
+ * BOTH true, so neither this direction's operator nor `NarrowerThanDeclared`
+ * reports the pair. That is not one direction missing a case; the pair is
+ * invisible to that predicate outright. Measured on `GridSchema.columns` at this
+ * card's base (`3f775eeb8`), where `safeParse({ type: 'grid', columns: { xxl: 6 } })`
+ * returned green and `tsc` refused the same node. ⚠️ That reading is HISTORICAL:
+ * objectui#8516 (`d4733f27e`) narrowed that mirror to a `z.partialRecord`, so the
+ * pair is clean on both faces today and this clause is what would report it if the
+ * mirror were widened back. ⛔ Do not restate it as a live one.
+ *
+ * ## The bound, stated because a predicate that does not state one reads as wider
+ *
+ * This looks at the TOP-LEVEL union arms of the slot and no deeper — not into array
+ * elements, not into an arm's own properties. Same shallowness as `Unconstrained`
+ * above and for the same reason: a recursive version of this predicate has the
+ * failure mode that one had, where descending drove whole instantiations to `any`
+ * and the invariant went silently green on exactly the pairs with the most
+ * structure. ⇒ An open record NESTED one level down is NOT reported, and a future
+ * card widening the reach has to re-run the census, not just the pins.
+ *
+ * ## Where it sits in the operator, and why that placement is the guarantee
+ *
+ * It runs ONLY on the branch the assignability test already called clean. A key
+ * this file reports today therefore cannot stop being reported by anything here —
+ * the change is additive by construction, not by assertion. Every ledgered pair is
+ * reconciled against the measurement anyway by `assertionWiderMatchesLedger`, and
+ * the additivity itself is pinned on a synthetic carrying BOTH classes at once
+ * (`assertionOpenRecordClauseIsAdditive`), because a guarantee nobody has watched
+ * fail is not a guarantee. ⛔ A bare count of the pairs stood here and was removed:
+ * no pin reached it, which is the objectui#7733 shape this file is about.
+ */
+type MirrorAdmitsOpenRecord< MirrorIn, DeclaredType > =
+  Unconstrained< DeclaredType > extends true
+    ? false
+    : [OpenRecordArms< MirrorIn >] extends [never]
+      ? false
+      : [OpenRecordArms< DeclaredType >] extends [never]
+        ? [FiniteKeyedArms< DeclaredType >] extends [never] ? false : true
+        : false;
+
 /**
  * Every key whose mirror ACCEPTS a spelling the declaration REFUSES.
  *
@@ -596,7 +730,9 @@ export type WiderThanDeclaredKeys< M, D > = {
   [K in MirroredKeys< M > & DeclaredKeys< D >]:
     Unconstrained< InputOf< ShapeOf< M >[K] > > extends true
       ? never
-      : [InputOf< ShapeOf< M >[K] >] extends [D[K]] ? never : K;
+      : [InputOf< ShapeOf< M >[K] >] extends [D[K]]
+        ? MirrorAdmitsOpenRecord< InputOf< ShapeOf< M >[K] >, D[K] > extends true ? K : never
+        : K;
 }[MirroredKeys< M > & DeclaredKeys< D >];
 
 /**
@@ -742,6 +878,182 @@ interface SyntheticNodeDeclaration { node: { type: string }; nodes: { type: stri
 
 export type assertionUnconstrainedFaceIsExcludedButNotAWaiver =
   Expect< Equal< WiderThanDeclaredKeys< SyntheticUnconstrainedMirror, SyntheticNodeDeclaration >, 'size' > >;
+
+/* ── Recognition: the OPEN-RECORD clause (objectui#8517) ────────────────────── */
+
+/**
+ * The two shapes objectui#8517 measured, and the fact that makes the pair invisible
+ * to a single assignability test: they are MUTUALLY assignable.
+ *
+ * ⚠️ Pinned rather than described because the intuition runs the other way and was
+ * wrong when two people derived it independently — the reasoning is that
+ * `Partial[Record[K, number]]` cannot fit an index signature demanding `number`,
+ * because its members are `number | undefined`. TypeScript grants an IMPLICIT index
+ * signature to mapped and anonymous object types, so it fits, and the open record
+ * fits the partial one because every member it could supply is a `number`. ⇒ Both
+ * directions hold, which is why NEITHER `WiderThanDeclaredKeys` nor
+ * `NarrowerThanDeclared` reported the pair. ⛔ Do not "simplify" the clause below
+ * back to an assignability test; these two lines are what says it cannot work.
+ */
+type SyntheticBreakpoint = 'xs' | 'sm' | 'md';
+
+export type assertionOpenRecordFitsThePartialRecord =
+  Expect< Equal< [Record< string, number >] extends [Partial< Record< SyntheticBreakpoint, number > >] ? true : false, true > >;
+
+export type assertionPartialRecordFitsTheOpenRecord =
+  Expect< Equal< [Partial< Record< SyntheticBreakpoint, number > >] extends [Record< string, number >] ? true : false, true > >;
+
+/**
+ * A synthetic pair in the live instance's shape: the slot is a union of a bare
+ * number and an OPEN record, the declaration is that same union over a finite key
+ * set, and a sibling key agrees on both faces.
+ *
+ * Both halves matter, and the second is the one that guards the caricature: an
+ * operator that reported `cols` by reporting EVERYTHING would satisfy the first
+ * assertion exactly as well as a correct one, so `agrees` is what tells them apart.
+ */
+type SyntheticOpenRecordSlot = z.ZodUnion< [z.ZodNumber, z.ZodRecord< z.ZodString, z.ZodNumber >] >;
+
+type SyntheticOpenRecordMirror = {
+  shape: { cols: SyntheticOpenRecordSlot; agrees: z.ZodString };
+};
+interface SyntheticFiniteKeyedDeclaration {
+  cols: number | Partial< Record< SyntheticBreakpoint, number > >;
+  agrees: string;
+}
+
+/** The widening is reported, and the agreeing sibling is not. */
+export type assertionOpenRecordWideningIsReported =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticOpenRecordMirror, SyntheticFiniteKeyedDeclaration >, 'cols' > >;
+
+/**
+ * ⭐ The caricature, pinned as a NEGATIVE. A LOOSE object — what `.passthrough()`
+ * produces, and what every declaration inheriting `BaseSchema` is — also answers
+ * `true` to `string extends keyof T`. A clause built on that predicate alone reports
+ * such a pair, and reporting it is the failure this direction has to avoid: the
+ * ledger would fill with the `.passthrough()` tolerance that `WithoutIndexSignature`
+ * above rules out of this file's question, while still passing an assertion that the
+ * live instance is now reported.
+ *
+ * ⛔ This is the assertion to run against a candidate clause FIRST, and it fires: the
+ * naive clause was BUILT AND RUN, and this pin reddened under it.
+ *
+ * ⚠️ What that run also measured, recorded because the intuition is wrong and was
+ * wrong here first. The naive clause does NOT flood the ledger — it moved 3 registry
+ * pairs where this one moved 2, both read at this card's base (`3f775eeb8`); on the
+ * tree this landed on, objectui#8516's narrowing has taken those two and this clause
+ * moves none, which is the header bullet's subject and ⛔ does not change the
+ * comparison below. The blast radius is small because the clause sits on
+ * the branch the assignability test already called clean and `Unconstrained` gates
+ * ahead of both, so nearly every loose face is spoken for before it is reached. Its
+ * one extra report is `objectql.zod.ts#ObjectViewSchema::form`, an inline `z.lazy`
+ * slot whose face is a passthrough object. ⇒ The argument against the naive clause is
+ * that its single false report is a WRONG KIND of finding, not that there would be
+ * many of them. ⛔ Do not restate this as "it reports everything"; that figure was
+ * asserted here from prediction once and the measurement replaced it.
+ */
+type SyntheticLooseObjectMirror = { shape: { cfg: typeof BaseSchema } };
+interface SyntheticClosedObjectDeclaration { cfg: { type: string } }
+
+export type assertionLooseObjectArmIsNotAnOpenRecord =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticLooseObjectMirror, SyntheticClosedObjectDeclaration >, never > >;
+
+/**
+ * The half of that pin a synthetic could not carry: the REAL loose face this repo
+ * runs on DOES answer `true` to the naive predicate. ⇒ The pin above is discriminating
+ * something that is actually there, and if a zod release ever stopped spelling a loose
+ * object with a bare `string` key this line fails and the pin above needs re-deriving
+ * rather than silently becoming vacuous.
+ */
+export type assertionTheLooseFaceReallyLooksLikeAnIndexSignature =
+  Expect< Equal< string extends keyof z.input< typeof BaseSchema > ? true : false, true > >;
+
+/**
+ * A declaration that REFUSES no key is not narrower than an open record, so the
+ * clause stays silent on every shape that admits anything: another open record (the
+ * two faces agree), a bare `object` and an `object` sitting beside a primitive arm
+ * (neither names a key set), an array element (below the bound), and `any`
+ * (`Unconstrained` already owns that case, and `keyof any` includes `string`, so a
+ * clause without the guard would read `any` as an open record on every pair).
+ *
+ * ⭐ The `beside` key is the one that was MEASURED rather than predicted: this pin
+ * failed on the first candidate clause, because `keyof number` resolves to that
+ * primitive's method names and so a `number` arm read as a finite-keyed object,
+ * carrying the whole permissive declaration into the report. ⛔ Do not drop the
+ * `T extends object` half of `FiniteKeyedArms` — this is the line that catches it.
+ */
+type SyntheticPermissiveMirror = {
+  shape: {
+    same: SyntheticOpenRecordSlot;
+    loose: z.ZodRecord< z.ZodString, z.ZodNumber >;
+    beside: SyntheticOpenRecordSlot;
+    anything: z.ZodRecord< z.ZodString, z.ZodNumber >;
+  };
+};
+interface SyntheticPermissiveDeclaration {
+  same: number | Record< string, number >;
+  loose: object;
+  beside: number | object;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the `any` face this pin exists to keep out of the clause.
+  anything: any;
+}
+
+export type assertionPermissiveDeclarationIsNotWidened =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticPermissiveMirror, SyntheticPermissiveDeclaration >, never > >;
+
+/**
+ * The BOUND, pinned so that widening the clause's reach is a deliberate act with a
+ * census behind it rather than a refactor.
+ *
+ * An open record NESTED inside an array element is NOT reported. The clause reads
+ * the slot's TOP-LEVEL union arms and no deeper, the same shallowness `Unconstrained`
+ * documents above and for the same measured reason. ⇒ A future card that descends
+ * has to re-run the census, and this pin is what fails when it does.
+ */
+type SyntheticNestedOpenRecordMirror = {
+  shape: { rows: z.ZodArray< z.ZodRecord< z.ZodString, z.ZodNumber > > };
+};
+interface SyntheticNestedDeclaration { rows: Partial< Record< SyntheticBreakpoint, number > >[] }
+
+export type assertionNestedOpenRecordIsBelowTheBound =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticNestedOpenRecordMirror, SyntheticNestedDeclaration >, never > >;
+
+/**
+ * ⭐ The non-regression axis, as a pin rather than as a property of the source.
+ *
+ * The clause runs ONLY on the branch the assignability test already called clean, so
+ * a key reported before it cannot stop being reported. That is true by construction
+ * — and a guarantee nobody has watched fail is not a guarantee, which is the whole
+ * argument this file makes about baselines. Here both classes meet on ONE pair: the
+ * ordinary widening `size` (a bare string against two literals) and the open-record
+ * widening `cols`, with `agrees` clean beside them. All three verdicts have to hold
+ * at once.
+ */
+type SyntheticBothClassesMirror = {
+  shape: { size: z.ZodString; cols: SyntheticOpenRecordSlot; agrees: z.ZodString };
+};
+interface SyntheticBothClassesDeclaration {
+  size: 'sm' | 'lg';
+  cols: number | Partial< Record< SyntheticBreakpoint, number > >;
+  agrees: string;
+}
+
+export type assertionOpenRecordClauseIsAdditive =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticBothClassesMirror, SyntheticBothClassesDeclaration >, 'size' | 'cols' > >;
+
+/**
+ * The clause does not disturb the other two directions: `NarrowerThanDeclared` and
+ * `UnmirroredDeclaredKeys` are still blind to an open-record widening, for the same
+ * structural reasons they are blind to every other one. ⚠️ The first line is NOT a
+ * restatement of `assertionNarrowerOperatorIsBlindToAWidening` above: that pair's
+ * blindness is a one-way assignability pass, this one's is a MUTUAL one, and only a
+ * pin over this shape would notice if a future narrower-side repair claimed the case.
+ */
+export type assertionNarrowerOperatorIsBlindToAnOpenRecord =
+  Expect< Equal< NarrowerThanDeclared< SyntheticOpenRecordMirror, SyntheticFiniteKeyedDeclaration >, never > >;
+
+export type assertionUnmirroredOperatorIsBlindToAnOpenRecord =
+  Expect< Equal< UnmirroredDeclaredKeys< SyntheticOpenRecordMirror, SyntheticFiniteKeyedDeclaration >, never > >;
 
 /* ── The registry ───────────────────────────────────────────────────────────── */
 
@@ -2264,7 +2576,10 @@ export type assertionWiderLedgerKeysAreRegistered =
  * the READING; do not re-attach it to a const.
  * The INLINE-LOCALE, FUNCTION-SLOT and structural sub-classes the docblocks above
  * name are all CONCRETE here — this axis asks only whether the instrument produced
- * the reading, and those finer names stay where they are.
+ * the reading, and those finer names stay where they are. ⛔ OPEN-RECORD is NOT in
+ * that list and its absence is deliberate: objectui#8517's clause can read the
+ * class but no row carries it today (see the header bullet), and a sub-class named
+ * here with no docblock above naming a row is the rot this file is about.
  */
 type WiderArmClass = 'SCHEMA-NODE' | 'CONCRETE';
 
