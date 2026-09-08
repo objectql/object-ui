@@ -121,6 +121,41 @@ function renderComponent(schema: AnySchema) {
 type ButtonSchema = SchemaByType<'button'>;
 ```
 
+### The strict authoring face
+
+`@object-ui/types/zod` publishes **two** faces over the same declarations.
+
+- The **rendering face** (`AnyComponentSchema`, `SchemaNodeSchema`, every named
+  mirror) is tolerant: a node may carry keys the schema does not declare, because
+  renderer props ride through it.
+- The **strict authoring face** is a derived twin that closes every declared
+  object, at every depth. It is meant for authoring-time checking — validating a
+  document a person or an agent just wrote — where an undeclared key is far more
+  likely to be a typo than a renderer prop.
+
+```typescript
+import {
+  AnyComponentSchema,
+  StrictAnyComponentSchema,
+  deriveStrictAuthoringSchema,
+} from '@object-ui/types/zod';
+
+const document = { type: 'card', childrn: [] }; // note the typo
+
+AnyComponentSchema.safeParse(document).success;       // true  — the tolerant face
+StrictAnyComponentSchema.safeParse(document).success; // false — `unrecognized_keys: ["childrn"]`
+
+// Take the strict twin of any schema on the face:
+const StrictButton = deriveStrictAuthoringSchema(ButtonSchema);
+```
+
+The twins are derived from the mirrors, never hand-written, so they cannot drift
+from them. Strictness here is a property of the parse, not of the declaration:
+the derived schema carries the same TypeScript type as the schema it came from.
+Opaque `custom` / `function` / `transform` validators have no shape to close;
+`deriveStrictAuthoringSchema` reports each one it meets through the optional
+`onOpaqueShape` callback.
+
 ## Type Categories
 
 ### Base Types
