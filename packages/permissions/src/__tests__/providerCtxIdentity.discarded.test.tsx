@@ -47,7 +47,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { act, cleanup, render, waitFor } from '@testing-library/react';
 import * as ReactNS from 'react';
 import type { ObjectPermissionConfig, RoleDefinition } from '@object-ui/types';
 import { PermCtx, type PermissionContextValue } from '../PermissionContext';
@@ -472,5 +472,188 @@ describe('MePermissionsProvider — ctx identity survives a discarded cache (obj
     expect(last.checkField('accounts', 'secret', 'write')).toBe(true);
     expect(last.getObjectApiOperations('accounts')).toBeUndefined();
     expect(last.check('accounts', 'update').allowed).toBe(true);
+  });
+});
+
+/**
+ * objectui#6862 — the EFFECT end of the same provider, and a different shape
+ * from the value end above.
+ *
+ * `MePermissionsProvider` built its fetch driver in a `useCallback` over
+ * `[endpoint, fetcher, maxRetries, retryBaseDelayMs]` and named THAT CALLBACK
+ * as its fetch effect's dependency. A discard rebuilds the callback with a new
+ * identity, so the effect tears down and re-runs with none of the four inputs
+ * changed — one redundant `/api/v1/auth/me/permissions` round trip on the
+ * provider that gates the whole console.
+ *
+ * ⚠️ WHY THESE PINS FORCE A DISCARD. Exactly the reason recorded at the top of
+ * this file: React does not discard spontaneously here (51 / 51 / 42 re-renders
+ * each returned ONE identity on the pinned React 19.2.8, and this repo still
+ * has no `Activity`/Offscreen subtree — re-verified for this card: zero imports
+ * of `Activity` from `react`, against 179 files importing `useMemo` from it on
+ * the same command shape). ⇒ An ordinary render-count or effect-count pin here
+ * would be GREEN on the defect AND on the fix, and would therefore assert
+ * nothing. The discriminating input is a FORCED discard, so the proxy above is
+ * armed and fired for the first pin. The three that follow are deliberately
+ * NOT armed: they are the non-regression axis, and what they must survive is a
+ * fix that over-reaches rather than a discard.
+ *
+ * ⚠️ AND WHY THE FIRST PIN COUNTS REQUESTS. An identity comparison alone can
+ * hold while the effect re-runs for some other reason, so the observable the
+ * card actually names — the number of `/me/permissions` requests — is asserted
+ * directly. Requests are served from a double passed as the `fetcher` prop, so
+ * nothing here can reach happy-dom's `http://localhost:3000` and be attributed
+ * to this file by the network-escape guard (objectui#8537).
+ */
+describe('MePermissionsProvider — the fetch effect survives a discarded cache (objectui#6862)', () => {
+  /**
+   * A fetch double that records who was called with what, and answers with a
+   * payload naming itself. The tag rides on `userId`, which the context value
+   * publishes — so a pin can tell a REAL refetch from a driver that has been
+   * mutated into answering one constant for every input.
+   */
+  function makeFetcher(tag: string, log: string[]): typeof fetch {
+    return vi.fn(async (input: RequestInfo | URL) => {
+      log.push(`${tag} ${String(input)}`);
+      return new Response(JSON.stringify({ ...ME, userId: tag }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+  }
+
+  /**
+   * Give a re-run effect a real turn to issue its request. Asserting the
+   * ABSENCE of a round trip needs a settle window; `waitFor` cannot express it.
+   */
+  const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+  it('costs no redundant round trip when a discard rebuilds the driver, inputs unchanged', async () => {
+    const log: string[] = [];
+    const fetcher = makeFetcher('A', log);
+    const { ctxSeen, effectRuns, Probe } = makeProbe();
+    const tree = () => (
+      <MePermissionsProvider endpoint="/api/v1/auth/me/permissions" fetcher={fetcher}>
+        <Probe />
+      </MePermissionsProvider>
+    );
+
+    let loaded: PermissionContextValue | undefined;
+    const restore = armDiscardProxy();
+    try {
+      const { rerender } = render(tree());
+      await waitFor(() => expect(log).toHaveLength(1));
+      loaded = ctxSeen[ctxSeen.length - 1]!;
+
+      // Armed but NOT fired: an ordinary re-render must not refetch either, so
+      // a green below cannot come from the proxy having broken caching outright.
+      rerender(tree());
+      await settle();
+      expect(log).toHaveLength(1);
+
+      // Two discards, each followed by a re-render with the SAME four inputs.
+      discardNow();
+      rerender(tree());
+      discardNow();
+      rerender(tree());
+      await settle();
+    } finally {
+      restore();
+    }
+
+    // THE observable this card names: a request count, not an identity compare.
+    expect(log).toEqual(['A /api/v1/auth/me/permissions']);
+    // …and the consequence that OUTLIVES the round trip. `setData` installs a
+    // fresh payload object even for a byte-identical answer, and that object is
+    // the key objectui#6813's caches are built on — so a discard that refetches
+    // walks straight through the guard #6813 landed: the ctx identity moves
+    // permanently (not just the transient `isLoaded` flip the card describes)
+    // and every consumer effect downstream re-runs.
+    expect(ctxSeen[ctxSeen.length - 1]).toBe(loaded);
+    expect(effectRuns).toHaveLength(1);
+  });
+
+  /**
+   * The non-regression axis, from the plausible WRONG fix rather than from the
+   * bug's shape: dropping the dependency altogether would also stop the
+   * redundant round trip — and would stop every LEGITIMATE refetch with it. The
+   * three pins below fail on such a fix. Together they cover all four inputs the
+   * discarded `useCallback` named, which is the parity claim: the fix removes
+   * React's licence to discard and narrows nothing else.
+   */
+  it('still refetches exactly once when the endpoint genuinely changes', async () => {
+    const log: string[] = [];
+    const fetcher = makeFetcher('A', log);
+    const { Probe } = makeProbe();
+    const tree = (endpoint: string) => (
+      <MePermissionsProvider endpoint={endpoint} fetcher={fetcher}>
+        <Probe />
+      </MePermissionsProvider>
+    );
+
+    const { rerender } = render(tree('/v1/me/permissions'));
+    await waitFor(() => expect(log).toHaveLength(1));
+
+    rerender(tree('/v2/me/permissions'));
+    await waitFor(() => expect(log).toHaveLength(2));
+    await settle();
+    expect(log).toEqual(['A /v1/me/permissions', 'A /v2/me/permissions']);
+  });
+
+  it('still refetches exactly once when the fetcher itself is swapped', async () => {
+    // ⚠️ Two CONCRETE, distinguishable fetchers. `fetcher` is optional, and a
+    // pin that swapped one `undefined` for another would prove nothing: it is
+    // green on a fix that never refetches at all, because the two compare equal.
+    const log: string[] = [];
+    const fetcherA = makeFetcher('A', log);
+    const fetcherB = makeFetcher('B', log);
+    const { ctxSeen, Probe } = makeProbe();
+    const tree = (f: typeof fetch) => (
+      <MePermissionsProvider endpoint="/me/permissions" fetcher={f}>
+        <Probe />
+      </MePermissionsProvider>
+    );
+
+    const { rerender } = render(tree(fetcherA));
+    await waitFor(() => expect(log).toHaveLength(1));
+    expect(ctxSeen[ctxSeen.length - 1]!.userId).toBe('A');
+
+    rerender(tree(fetcherB));
+    // Not merely "a request happened": the NEW fetcher's answer must reach the
+    // context. This is what a driver mutated to answer one constant fails.
+    await waitFor(() => expect(ctxSeen[ctxSeen.length - 1]!.userId).toBe('B'));
+    await settle();
+    expect(log).toEqual(['A /me/permissions', 'B /me/permissions']);
+  });
+
+  it('still refetches exactly once when either retry primitive changes', async () => {
+    // These two are the remaining members of the four the `useCallback` named.
+    // Pinning them is a PARITY claim — the fix must not narrow the trigger set —
+    // not an assertion that a retry-tuning knob ought to refetch on its own.
+    const log: string[] = [];
+    const fetcher = makeFetcher('A', log);
+    const { Probe } = makeProbe();
+    const tree = (maxRetries: number, retryBaseDelayMs: number) => (
+      <MePermissionsProvider
+        endpoint="/me/permissions"
+        fetcher={fetcher}
+        maxRetries={maxRetries}
+        retryBaseDelayMs={retryBaseDelayMs}
+      >
+        <Probe />
+      </MePermissionsProvider>
+    );
+
+    const { rerender } = render(tree(3, 500));
+    await waitFor(() => expect(log).toHaveLength(1));
+
+    rerender(tree(1, 500));
+    await waitFor(() => expect(log).toHaveLength(2));
+
+    rerender(tree(1, 20));
+    await waitFor(() => expect(log).toHaveLength(3));
+
+    await settle();
+    expect(log).toHaveLength(3);
   });
 });

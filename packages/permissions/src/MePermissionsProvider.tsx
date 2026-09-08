@@ -143,6 +143,93 @@ const NOT_LOADED: object = { isLoaded: false };
 const NO_ROW_FILTER: PermissionContextValue['getRowFilter'] = () => undefined;
 
 /**
+ * [objectui#6862] The four inputs a fetch is derived from, named once so the
+ * effect below and `retry` cannot drift apart on what "the fetch changed" means.
+ */
+interface FetchConfig {
+  endpoint: string;
+  fetcher: typeof fetch | undefined;
+  maxRetries: number;
+  retryBaseDelayMs: number;
+}
+
+/**
+ * Where a completed attempt reports. Every member is a `useState` setter, whose
+ * identity React DOES guarantee — unlike `useMemo`/`useCallback`, which is the
+ * whole point of moving this function out of the component in the first place.
+ */
+interface FetchSink {
+  setData: (data: MePermissionsResponse) => void;
+  setError: (error: Error | null) => void;
+  setLoading: (loading: boolean) => void;
+}
+
+/**
+ * Run the fetch, re-attempting a transient failure.
+ *
+ * `token` cancels an in-flight attempt. Retries put real time (a backoff, or
+ * a server-stated `Retry-After`) between the request and the `setState`, and
+ * during that window the effect may be torn down — by an unmount, or by
+ * `endpoint`/`fetcher` changing. Without the token a superseded attempt would
+ * still land, so a slow answer for the OLD endpoint could overwrite a fast
+ * answer for the new one.
+ *
+ * [objectui#6862] This is a module-level function rather than the `useCallback`
+ * it used to be. A `useCallback` carries no semantic guarantee: React may
+ * discard the cache and rebuild even when the dependency list compares equal,
+ * and the rebuilt function is a NEW identity. The fetch effect named that
+ * identity as its dependency, so a discard tore the effect down and re-ran it
+ * with none of the four inputs changed — a redundant
+ * `/api/v1/auth/me/permissions` round trip on the provider that gates the whole
+ * console. Nothing here closes over render scope, so there is no identity left
+ * for React to move: the effect keys on the four VALUES instead.
+ */
+async function loadPermissions(
+  { endpoint, fetcher, maxRetries, retryBaseDelayMs }: FetchConfig,
+  { setData, setError, setLoading }: FetchSink,
+  token?: { cancelled: boolean },
+): Promise<void> {
+  const live = () => !token?.cancelled;
+  setLoading(true);
+  setError(null);
+  const doFetch = fetcher ?? fetch;
+  const attempts = Math.max(0, maxRetries) + 1;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const res = await doFetch(endpoint, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) {
+        throw new HttpFetchError(
+          res.status,
+          retryAfterFrom(res),
+          `Permissions endpoint returned ${res.status}`,
+        );
+      }
+      const json = (await res.json()) as MePermissionsResponse;
+      if (!live()) return;
+      setData(json);
+      setLoading(false);
+      return;
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      if (!isTransientFailure(err) || attempt === attempts - 1) {
+        if (!live()) return;
+        setError(err);
+        setLoading(false);
+        return;
+      }
+      // `loading` stays true across the wait, so the fail-closed loading
+      // state holds and the recovery is invisible to consumers.
+      const stated = err instanceof HttpFetchError ? err.retryAfterMs : undefined;
+      await sleep(backoffMs(attempt, retryBaseDelayMs, stated));
+      if (!live()) return;
+    }
+  }
+}
+
+/**
  * MePermissionsProvider
  *
  * Fetches the current user's effective permissions from the framework's
@@ -168,68 +255,47 @@ export function MePermissionsProvider({
   const [loading, setLoading] = useState(!initialPermissions);
 
   /**
-   * Run the fetch, re-attempting a transient failure.
+   * [objectui#6862] Keyed on the four VALUES the fetch is derived from, never
+   * on a memoised driver's identity. React may discard a `useMemo`/`useCallback`
+   * cache even when its dependency list compares equal, and this effect used to
+   * name such a callback — so a discard cost a redundant round trip with nothing
+   * an author or a caller controls having changed.
    *
-   * `token` cancels an in-flight attempt. Retries put real time (a backoff, or
-   * a server-stated `Retry-After`) between the request and the `setState`, and
-   * during that window the effect may be torn down — by an unmount, or by
-   * `endpoint`/`fetcher` changing. Without the token a superseded attempt would
-   * still land, so a slow answer for the OLD endpoint could overwrite a fast
-   * answer for the new one.
+   * The trigger set is unchanged: these are exactly the four the old callback
+   * listed, so every legitimate refetch still happens (pinned in
+   * `providerCtxIdentity.discarded.test.tsx`). What is gone is React's licence
+   * to re-run this effect on its own. Merely DROPPING the dependency would also
+   * have stopped the redundant trip — and would have stopped the legitimate ones
+   * with it.
    */
-  const fetchPermissions = useCallback(
-    async (token?: { cancelled: boolean }) => {
-      const live = () => !token?.cancelled;
-      setLoading(true);
-      setError(null);
-      const doFetch = fetcher ?? fetch;
-      const attempts = Math.max(0, maxRetries) + 1;
-      for (let attempt = 0; attempt < attempts; attempt++) {
-        try {
-          const res = await doFetch(endpoint, {
-            credentials: 'include',
-            headers: { Accept: 'application/json' },
-          });
-          if (!res.ok) {
-            throw new HttpFetchError(
-              res.status,
-              retryAfterFrom(res),
-              `Permissions endpoint returned ${res.status}`,
-            );
-          }
-          const json = (await res.json()) as MePermissionsResponse;
-          if (!live()) return;
-          setData(json);
-          setLoading(false);
-          return;
-        } catch (e) {
-          const err = e instanceof Error ? e : new Error(String(e));
-          if (!isTransientFailure(err) || attempt === attempts - 1) {
-            if (!live()) return;
-            setError(err);
-            setLoading(false);
-            return;
-          }
-          // `loading` stays true across the wait, so the fail-closed loading
-          // state holds and the recovery is invisible to consumers.
-          const stated = err instanceof HttpFetchError ? err.retryAfterMs : undefined;
-          await sleep(backoffMs(attempt, retryBaseDelayMs, stated));
-          if (!live()) return;
-        }
-      }
-    },
-    [endpoint, fetcher, maxRetries, retryBaseDelayMs],
-  );
-
-  /** The `retry` handed to `errorFallback` — uncancelled, it is user-initiated. */
-  const retry = useCallback(() => { void fetchPermissions(); }, [fetchPermissions]);
-
   useEffect(() => {
     if (initialPermissions) return;
     const token = { cancelled: false };
-    void fetchPermissions(token);
+    void loadPermissions(
+      { endpoint, fetcher, maxRetries, retryBaseDelayMs },
+      { setData, setError, setLoading },
+      token,
+    );
     return () => { token.cancelled = true; };
-  }, [fetchPermissions, initialPermissions]);
+  }, [endpoint, fetcher, maxRetries, retryBaseDelayMs, initialPermissions]);
+
+  /**
+   * The `retry` handed to `errorFallback` — uncancelled, it is user-initiated.
+   *
+   * This one may stay a `useCallback`: nothing keys on its identity. It is
+   * passed to a render prop, so a discard rebuilds a function and costs a
+   * re-render of the error fallback — never a round trip, which is what the
+   * effect above was paying.
+   */
+  const retry = useCallback(
+    () => {
+      void loadPermissions(
+        { endpoint, fetcher, maxRetries, retryBaseDelayMs },
+        { setData, setError, setLoading },
+      );
+    },
+    [endpoint, fetcher, maxRetries, retryBaseDelayMs],
+  );
 
   const dataKey: object = data ?? NO_DATA;
 
