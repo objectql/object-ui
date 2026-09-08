@@ -78,9 +78,10 @@ ComponentRegistry.register('my-widget', MyWidgetComponent);
 
 ```tsx
 import { SchemaRenderer } from '@object-ui/react';
+import type { PageNodeSchema } from '@object-ui/types';
 
 function App() {
-  const schema = {
+  const schema: PageNodeSchema = {
     type: 'page',
     title: 'Dashboard',
     body: [

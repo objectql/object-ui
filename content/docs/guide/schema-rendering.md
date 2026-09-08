@@ -21,6 +21,7 @@ The `SchemaRenderer` is the primary component that interprets your JSON schemas:
 ```tsx
 import { SchemaRenderer } from '@object-ui/react'
 import { initializeComponents } from '@object-ui/components'
+import type { PageNodeSchema } from '@object-ui/types'
 // Side-effect import: loading the package runs its own field registration.
 import '@object-ui/fields'
 
@@ -28,10 +29,10 @@ import '@object-ui/fields'
 initializeComponents()
 
 function App() {
-  const schema = {
+  const schema: PageNodeSchema = {
     type: "page",
     title: "My Dashboard",
-    body: { type: "text", content: "Hello" }
+    body: [{ type: "text", content: "Hello" }]
   }
   
   return <SchemaRenderer schema={schema} />

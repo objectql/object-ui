@@ -22,9 +22,10 @@ npm install @object-ui/plugin-markdown
 ```tsx
 // Import once in your app entry point
 import '@object-ui/plugin-markdown'
+import type { MarkdownSchema } from '@object-ui/plugin-markdown'
 
 // Use in schemas
-const schema = {
+const schema: MarkdownSchema = {
   type: 'markdown',
   content: '# Hello World\n\nThis is **markdown** text with [links](https://example.com).'
 }
@@ -333,7 +334,9 @@ await updateData('user-123', { name: 'John Doe' })
 Use Tailwind Typography plugin for better markdown styling:
 
 ```tsx
-const schema = {
+import type { MarkdownSchema } from '@object-ui/plugin-markdown'
+
+const schema: MarkdownSchema = {
   type: 'markdown',
   content: '# My Document\n\nContent here...',
   className: 'prose prose-lg prose-slate dark:prose-invert max-w-none'
@@ -354,7 +357,9 @@ All markdown content is automatically sanitized using `rehype-sanitize` to preve
 
 ```tsx
 // Safe - HTML tags are sanitized
-const schema = {
+import type { MarkdownSchema } from '@object-ui/plugin-markdown'
+
+const schema: MarkdownSchema = {
   type: 'markdown',
   content: '**Safe** markdown with <script>alert("XSS")</script>'
 }
