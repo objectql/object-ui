@@ -874,13 +874,24 @@ export type assertionOpenRecordWideningIsReported =
  * ⭐ The caricature, pinned as a NEGATIVE. A LOOSE object — what `.passthrough()`
  * produces, and what every declaration inheriting `BaseSchema` is — also answers
  * `true` to `string extends keyof T`. A clause built on that predicate alone reports
- * this pair, and reporting it is the failure this whole direction has to avoid: the
- * ledger would name most of the registry and stop meaning anything, while still
- * passing an assertion that the live instance is now reported.
+ * such a pair, and reporting it is the failure this direction has to avoid: the
+ * ledger would fill with the `.passthrough()` tolerance that `WithoutIndexSignature`
+ * above rules out of this file's question, while still passing an assertion that the
+ * live instance is now reported.
  *
- * ⛔ This is the assertion to run against a candidate clause FIRST. Measured, not
- * predicted: the naive `string extends keyof T` clause was built and run, and it
- * moved 40 pairs of the registry rather than 2.
+ * ⛔ This is the assertion to run against a candidate clause FIRST, and it fires: the
+ * naive clause was BUILT AND RUN, and this pin reddened under it.
+ *
+ * ⚠️ What that run also measured, recorded because the intuition is wrong and was
+ * wrong here first. The naive clause does NOT flood the ledger — it moved 3 registry
+ * pairs where this one moves 2. The blast radius is small because the clause sits on
+ * the branch the assignability test already called clean and `Unconstrained` gates
+ * ahead of both, so nearly every loose face is spoken for before it is reached. Its
+ * one extra report is `objectql.zod.ts#ObjectViewSchema::form`, an inline `z.lazy`
+ * slot whose face is a passthrough object. ⇒ The argument against the naive clause is
+ * that its single false report is a WRONG KIND of finding, not that there would be
+ * many of them. ⛔ Do not restate this as "it reports everything"; that figure was
+ * asserted here from prediction once and the measurement replaced it.
  */
 type SyntheticLooseObjectMirror = { shape: { cfg: typeof BaseSchema } };
 interface SyntheticClosedObjectDeclaration { cfg: { type: string } }
