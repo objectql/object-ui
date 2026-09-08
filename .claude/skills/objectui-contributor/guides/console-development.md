@@ -148,8 +148,14 @@ The contract for "add a new metadata type" is therefore mostly *not* a UI change
 
 ### MetadataResourceConfig — the override surface
 
-Every field is optional. The ones you reach for most (see `registry.ts` for the full
-~30-field interface, which is documented field by field):
+Every field except `type` is optional. The fence below is a deliberately
+SIMPLIFIED teaching copy of the published `MetadataResourceConfig`
+(`import type { MetadataResourceConfig } from '@object-ui/app-shell';`), KEPT
+rather than replaced by an import: it shows the 22 fields you reach for most out
+of the **28** the interface declares, and the excerpt is what makes the section
+usable. Nothing checks the copy against the real type — `registry.ts` documents
+all 28 field by field, and the six not shown here are `hiddenFields`,
+`fieldOrder`, `createSeed`, `createSchema`, `createHint` and `emptyStateHint`.
 
 ```typescript
 interface MetadataResourceConfig {
@@ -279,6 +285,13 @@ item, or nothing at all is the answer more often than a bespoke page is.
 ```typescript
 type NavigationContextType = 'home' | 'app';
 ```
+
+⚠️ Unlike every other type quoted in this guide, `NavigationContextType` is
+INTERNAL: `@object-ui/app-shell` exports only `.` (→ `dist/index.d.ts`) and
+`./styles.css`, and its entry re-exports `useNavigationContext` but not this
+type. So there is no import a consumer can write for it — a contributor reaches
+it through the source path above, and the fence is a quotation of that file
+rather than a copy standing in for a published name.
 
 - `HomeLayout` sets context to `'home'` → sidebar shows workspace nav
 - `ConsoleLayout` sets context to `'app'` → sidebar shows app-specific nav
