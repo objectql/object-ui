@@ -71,9 +71,10 @@ describe('DataScopeManager hardening — field reads (objectui#7751 gap 1)', () 
 
   // The class, not three spellings of it. A name list enumerates; the prototype
   // chain has more members than any list holds, and each one that is not on the
-  // list reads as an absent field, which ADMITS on a negative operator. This is
-  // the gap the sibling still has (objectui#8044) and the reason this evaluator
-  // distinguishes "inherited" from "absent" instead of copying its read.
+  // list reads as an absent field, which ADMITS on a negative operator. That is
+  // the reason this evaluator distinguishes "inherited" from "absent" instead
+  // of copying the sibling's read — and objectui#8044 has since ported the same
+  // three-case read back to the sibling, so the two now agree.
   it.each([
     '__proto__',
     'constructor',
@@ -247,31 +248,30 @@ describe('cross-evaluator conformance — both evaluators refuse the same rules'
   });
 
   /**
-   * Where the two evaluators are NOT yet equal, asserted rather than left to be
-   * rediscovered. Both rows below are the sibling's open gap objectui#8044:
-   * its guard is a three-name list plus a `hasOwnProperty` read, which
-   * collapses "inherited" into "absent", and absent ADMITS on a negative
-   * operator. `DataScopeManager` distinguishes the two and denies.
+   * CLOSED at objectui#8044 — these two blocks were written as `KNOWN GAP`
+   * assertions expecting the sibling to ADMIT, precisely so that fixing it
+   * would turn this file red and lead the implementer here. It did. The
+   * sibling now reads its field in the same three cases `readField` above
+   * does, so the rows below have flipped to `false` and joined the conformance
+   * table: both evaluators refuse a prototype member name, and both refuse a
+   * value the record inherits rather than owns.
    *
-   * ⚠️ When objectui#8044 lands, these expectations FLIP to `false` and this
-   * block folds into the table above. It is written as an assertion, not a
-   * comment, so that fixing the sibling turns this red and tells the
-   * implementer where the standard is recorded. ⛔ Do not "fix" a red here by
-   * loosening `DataScopeManager` to match.
+   * ⛔ A red here is never fixed by loosening either evaluator to match the
+   * other. The whole file exists because the two diverged twice.
    */
   it.each([
     ['toString'],
     ['valueOf'],
     ['hasOwnProperty'],
-  ])('KNOWN GAP objectui#8044 — the sibling still admits the prototype member name %s', (field) => {
+  ])('a prototype member name outside the refusal list — %s — is refused by both', (field) => {
     expect(admits(field, NEGATIVE_EQ.core, 'x', record)).toBe(false);
-    expect(sibling(field, NEGATIVE_EQ.sibling, 'x', record)).toBe(true);
+    expect(sibling(field, NEGATIVE_EQ.sibling, 'x', record)).toBe(false);
   });
 
-  it('KNOWN GAP objectui#8044 — the sibling admits an inherited value under a negative rule', () => {
+  it('an inherited value under a negative rule is refused by both', () => {
     const inherited = Object.assign(Object.create({ tenant: 'acme' }), { id: 1 }) as Record<string, unknown>;
     expect(admits('tenant', NEGATIVE_EQ.core, 'acme', inherited)).toBe(false);
-    expect(sibling('tenant', NEGATIVE_EQ.sibling, 'acme', inherited)).toBe(true);
+    expect(sibling('tenant', NEGATIVE_EQ.sibling, 'acme', inherited)).toBe(false);
   });
 
   /**

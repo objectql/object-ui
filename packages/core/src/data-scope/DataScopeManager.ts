@@ -295,15 +295,16 @@ type FieldRead = { readable: true; value: unknown } | { readable: false };
  *          returned exactly as before, so the ordinary "this row has no
  *          `status`" rules keep the verdicts they have always had.
  *
- * Case 3 is where this goes further than the sibling, deliberately. Reading
- * with `hasOwnProperty` alone collapses "inherited" into "absent", and on a
+ * Case 3 is where this went further than the sibling. Reading with
+ * `hasOwnProperty` alone collapses "inherited" into "absent", and on a
  * negative operator absent ADMITS: `{ field: 'toString', operator: 'ne' }`
- * admits every row through `evaluateCondition` in `@object-ui/permissions`
- * today, measured, because `toString` is not one of the three names it
- * refuses. Distinguishing inherited from absent closes the whole class rather
- * than three spellings of it, and it is what keeps this change a NARROWING:
- * collapsing inherited into absent would have flipped inherited-value rows
- * from denied to admitted on `ne` / `nin`.
+ * admitted every row through `evaluateCondition` in `@object-ui/permissions`
+ * — measured — because `toString` was not one of the three names its list
+ * refused. objectui#8044 ported this same three-case read there, so the two
+ * evaluators now agree. Distinguishing inherited from absent closes the whole
+ * class rather than three spellings of it, and it is what keeps this change a
+ * NARROWING: collapsing inherited into absent would have flipped
+ * inherited-value rows from denied to admitted on `ne` / `nin`.
  *
  * A `null` / `undefined` row still throws from the `hasOwnProperty` call, as
  * the direct `row[field]` access it replaces did.
