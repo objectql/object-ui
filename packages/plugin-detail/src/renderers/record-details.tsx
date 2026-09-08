@@ -23,6 +23,7 @@ import {
   resolveNameField,
 } from '@object-ui/core';
 import { DetailView } from '../DetailView';
+import { deriveFieldGroupDetailSections } from '../synth/buildDefaultPageSchema';
 
 /** Normalize a field entry (string | {field} | {name}) to its machine name. */
 const fieldName = (entry: any): string | null => columnIdentity(entry) ?? null;
@@ -31,6 +32,43 @@ const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};
   return { designer: { 'data-obj-id': id, 'data-obj-type': type, style }, rest };
 };
+
+/**
+ * `sections[].group` references that resolved to no declared group, already
+ * reported. Keyed `<object>.<group>` so one typo is loud once per object
+ * rather than once per render (the shape `reportRetiredFieldType` established
+ * in `@object-ui/core` — the repo's one pattern for an authoring diagnostic
+ * this renderer cannot fix for the author).
+ */
+const reportedUnresolvedGroups = new Set<string>();
+
+/**
+ * Report a `group` that names no entry in the object's `fieldGroups`.
+ *
+ * ⚠️ Reported, not rendered, and that split is the spec's, not a convenience.
+ * `@objectstack/spec`'s `field-group-layout.ts` states existence is NOT a parse
+ * question — the key names something on a DIFFERENT schema, so parse takes any
+ * well-formed key and `page-section-group-unknown` (`@objectstack/lint`) is the
+ * declared reporter of one that resolves to nothing. `deriveFieldGroupLayout`'s
+ * own documented semantics drop a declared group no visible field references,
+ * so an unresolvable REFERENCE dropping is the same rule one level out. What
+ * the drop must never be is silent, which is what this reporter buys.
+ */
+function reportUnresolvedSectionGroup(objectName: string, group: string): void {
+  const key = `${objectName}.${group}`;
+  if (reportedUnresolvedGroups.has(key)) return;
+  reportedUnresolvedGroups.add(key);
+  console.error(
+    `[record:details] section group "${group}" is not declared in fieldGroups on object "${objectName}" — `
+    + 'the section renders nothing. Declare the group on the object, or enumerate `fields` on the section. '
+    + '(`@objectstack/lint` reports this as `page-section-group-unknown`.)',
+  );
+}
+
+/** Test seam — forget which unresolved group references have been reported. */
+export function resetUnresolvedSectionGroupReports(): void {
+  reportedUnresolvedGroups.clear();
+}
 
 export interface RecordDetailsRendererProps {
   schema?: RecordDetailsComponentProps & Record<string, any>;
@@ -130,8 +168,10 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // `field.name` / `field.label`, so we must coerce string → object form
   // before handing the schema to DetailView. Object entries pass through.
   // The bound object definition. Declared HERE rather than beside the
-  // title-dedupe ladder below because `withDeclaredLabel` (the field-label
-  // ladder) reads it earlier. One read, one name.
+  // title-dedupe ladder below because two readers now need it and it must
+  // precede the earlier of them: `withDeclaredLabel` (the field-label ladder)
+  // and `deriveFieldGroupDetailSections` (the `sections[].group` reference
+  // form). One read, one name.
   const objSchema: any = (ctx as any).objectSchema;
   const objSchemaFields: Record<string, any> | undefined = objSchema?.fields;
 
@@ -314,8 +354,65 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
 
   const filteredFields = dropHidden(normaliseList(filterList(schema.fields as any[])));
 
+  // ── `sections[].group` — the ADR-0085 §5 REFERENCE form ──────────────────
+  //
+  // `{ group: 'parties' }` inherits the object's `fieldGroups` entry with that
+  // key: its members (every visible field pointing at it, in declaration
+  // order) and its own presentation (label, icon, description, collapse) —
+  // `@objectstack/spec` 17.3.0 `RecordDetailsProps.sections[].group`
+  // (objectstack#13855), whose semantics are single-sourced in
+  // `deriveFieldGroupLayout`. This renderer used to read the key NOWHERE, and
+  // its own `inputs` description told authors so ("authoring it does nothing
+  // on this renderer"). Both were wrong in the worst direction: a section
+  // carrying `group` carries no `fields`, and `DetailView` mapped every
+  // section through `s.fields` unguarded, so an on-spec document did not
+  // no-op — it threw out of a `useMemo` ABOVE the section loop and the
+  // `SchemaErrorBoundary` replaced the WHOLE component with "Component
+  // `record:details` failed to render", taking every well-formed sibling
+  // section with it (objectui#8497). The declaration was right and the
+  // runtime had never honoured it.
+  //
+  // Resolved through `deriveFieldGroupDetailSections` — the SAME adapter the
+  // synthesized default page uses — deliberately, not a second derivation:
+  // that is what makes the two bodies agree. Authoring an object's fields as a
+  // group reference and enumerating the same fields by hand must render the
+  // same labels, and they now do because one of them IS the other's code path.
+  const authoredSections: any[] = Array.isArray(schema.sections) ? (schema.sections as any[]) : [];
+  const groupSectionByKey = new Map<string, Record<string, any>>();
+  if (authoredSections.some((s) => s && typeof s === 'object' && typeof s.group === 'string')) {
+    for (const derived of deriveFieldGroupDetailSections(objSchema) ?? []) {
+      // The trailing ungrouped bucket carries no `name`, so no reference can
+      // ever resolve to it — which is correct: it is not a declared group.
+      if (typeof derived.name === 'string') groupSectionByKey.set(derived.name, derived);
+    }
+  }
+
+  /**
+   * Resolve one authored entry to the section the body renders, or `null` when
+   * a `group` reference names no declared group.
+   *
+   * The spread order IS the spec's precedence. `sectionGroupReferenceRefinement`
+   * refuses, on a section carrying `group`, every key the group itself declares
+   * (`name`, `label`, `icon`, `description`, `collapsible`, `defaultCollapsed`)
+   * and `fields`; it permits exactly the keys that describe how THIS page lays
+   * the section out (`columns`, `showBorder`, `headerColor`). So the authored
+   * half can only ever carry layout, and letting it win over the derived half
+   * gives the group its presentation and the page its layout, with no key able
+   * to have two sources.
+   */
+  const resolveSectionGroup = (s: any): any | null => {
+    if (!s || typeof s !== 'object' || typeof s.group !== 'string') return s;
+    const derived = groupSectionByKey.get(s.group);
+    if (!derived) {
+      reportUnresolvedSectionGroup(objectName, s.group);
+      return null;
+    }
+    const { group: _group, ...authored } = s;
+    return { ...derived, ...authored };
+  };
+
   const filteredSections = Array.isArray(schema.sections)
-    ? (schema.sections as any[]).map((s) => {
+    ? (schema.sections as any[]).map(resolveSectionGroup).filter((s) => s != null).map((s) => {
         // Authored labels may carry inline translations (`{ en, 'zh-CN' }`) —
         // resolve via pickLocalized before any convention-based lookup.
         //
