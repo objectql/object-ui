@@ -15,11 +15,22 @@
  * ## What each case can and cannot discriminate — MEASURED
  *
  * The caricature was RUN, not predicted: `AuditPanel`'s lock cell rewritten to
- * `<EmptyValue />` unconditionally, locked rows included. Only
- * `NON-REGRESSION` refuses it. `THE DEFECT`'s headline claim — "the empty cell
- * has an accessible name" — is TRUE of a column that has stopped rendering lock
- * states altogether, so it is paired with a control that reads a real value out
- * of the sibling row and would itself be measuring nothing without it.
+ * `<EmptyValue />` unconditionally, locked rows included. All three cases go
+ * red, but on different assertions, and the difference is the point:
+ *
+ *   - `keeps the em-dash branch for a null lockState` fails on "CONTROL: the
+ *     locked sibling is still not a placeholder" — the ONE assertion here that
+ *     fails BECAUSE a filled cell gained a placeholder.
+ *   - `NON-REGRESSION` fails one assertion earlier, on "the lock state reaches
+ *     the cell": under the caricature the column stops printing states at all,
+ *     so its own `no placeholder` half is never reached.
+ *   - `THE DEFECT` fails ONLY on its control. Its headline claim — "the empty
+ *     cell has an accessible name" — is TRUE of a column that has given up on
+ *     lock states, which is exactly why the control is not optional.
+ *
+ * Reverting the fix instead (the hand-rolled span restored) turns `THE DEFECT`
+ * and the null-lockState case red on their headline assertions, and leaves
+ * `NON-REGRESSION` green — the correct shape for a non-regression case.
  *
  * ## A deliberate visual change
  *
@@ -138,8 +149,12 @@ describe('AuditPanel lock cell draws the shared EmptyValue (objectui#8504)', () 
     // THE DISCRIMINATING HALF: red for an EmptyValue-everywhere implementation.
     expect(emptyIn(locked), 'a locked cell carries NO placeholder').toBeNull();
     // The visual delta is opacity only — the glyph itself did not change.
+    // Guarded first: an unguarded dereference fails with a bare TypeError and
+    // the message below never reaches the summary (measured on the revert leg).
+    const unlocked = emptyIn(cell(0, LOCK_HEADER));
+    expect(unlocked, 'the unlocked sibling still draws a placeholder').not.toBeNull();
     expect(
-      (emptyIn(cell(0, LOCK_HEADER)) as HTMLElement).textContent,
+      (unlocked as HTMLElement).textContent,
       'the unlocked cell still reads as an em dash',
     ).toBe(EM_DASH);
   });

@@ -36,10 +36,20 @@
  * ## Which case DISCRIMINATES — MEASURED, not predicted
  *
  * The caricature was RUN: the transform cell rewritten to `<EmptyValue />`
- * unconditionally, transformed entries included. `THE DEFECT` stays GREEN under
- * it — "the untransformed cell has an accessible name" is also true of a table
- * that has stopped printing transforms — so it carries a control, and
- * `NON-REGRESSION` is the case that actually refuses the caricature.
+ * unconditionally, transformed entries included. All three cases go red, on
+ * three different assertions:
+ *
+ *   - `an explicit transform of 'none'` fails on "CONTROL: the transformed
+ *     sibling is still not a placeholder" — the one assertion here that fails
+ *     BECAUSE a filled cell gained a placeholder.
+ *   - `NON-REGRESSION` fails one assertion earlier, on "the transform reaches
+ *     the cell": the caricature also stops the column printing transforms, so
+ *     its own `no placeholder` half is never reached.
+ *   - `THE DEFECT` fails ONLY on its control — its headline claim is equally
+ *     true of a table that prints no transforms at all.
+ *
+ * Reverting the fix turns `THE DEFECT` and the `'none'` case red on their
+ * headline assertions and leaves `NON-REGRESSION` green.
  *
  * ## The visual delta
  *

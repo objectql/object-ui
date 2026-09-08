@@ -25,10 +25,21 @@
  * ## Which case DISCRIMINATES — MEASURED, not predicted
  *
  * The caricature was RUN: the Object cell rewritten to `<EmptyValue />`
- * unconditionally, objects included. `THE DEFECT` stays GREEN under it — "the
- * objectless row has an accessible name" is also true of a table that has
- * stopped printing objects — so it carries a control that reads a real object
- * out of the sibling row. `NON-REGRESSION` is what refuses the caricature.
+ * unconditionally, objects included. Every case goes red, on a different
+ * assertion:
+ *
+ *   - `exactly ONE of the two rows draws a placeholder` fails on "and the
+ *     filled row does NOT" — the assertion that fails BECAUSE a filled cell
+ *     gained a placeholder.
+ *   - `NON-REGRESSION` fails one assertion earlier, on "the object reaches the
+ *     cell": the caricature also stops the column printing objects, so its own
+ *     `no placeholder` half is never reached.
+ *   - `THE DEFECT` fails ONLY on its control. Its headline claim — "the
+ *     objectless row has an accessible name" — is equally true of a table that
+ *     has stopped printing objects.
+ *
+ * Reverting the fix turns `THE DEFECT` and the one-of-two case red on their
+ * headline assertions and leaves `NON-REGRESSION` green.
  *
  * ## The visual delta
  *
@@ -144,5 +155,20 @@ describe('PublicFormsPage object cell uses the shared EmptyValue (objectui#8504)
       .not.toBeNull();
     // THE DISCRIMINATING HALF: red for an EmptyValue-everywhere implementation.
     expect(emptyIn(filled), 'a cell with an object carries NO placeholder').toBeNull();
+  });
+
+  it('exactly ONE of the two rows draws a placeholder', () => {
+    // The assertion order matters, and it was measured. `NON-REGRESSION` above
+    // fails on its FIRST assertion under the caricature — the object stops
+    // reaching the cell — so its `no placeholder` half never runs. This case
+    // reaches that half: the empty row still has one, the filled row must not,
+    // and the second assertion is the one that fails BECAUSE a filled cell
+    // gained a placeholder.
+    return mount().then(({ cell }) => {
+      expect(emptyIn(cell('objectless_form', 'Object')), 'the empty row has one')
+        .not.toBeNull();
+      expect(emptyIn(cell('task_form', 'Object')), 'and the filled row does NOT')
+        .toBeNull();
+    });
   });
 });

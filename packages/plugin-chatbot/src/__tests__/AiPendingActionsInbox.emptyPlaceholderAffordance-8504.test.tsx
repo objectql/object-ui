@@ -53,10 +53,21 @@
  * ## Which cases DISCRIMINATE — MEASURED, not predicted
  *
  * The caricature was RUN: all three sites rewritten to render `<EmptyValue />`
- * unconditionally. Both `THE DEFECT` cases stay GREEN under it — "the empty
- * cell has an accessible name" is equally true of a drawer that has stopped
- * printing values — so each carries a control that reads a real value out of a
- * sibling field. The two `NON-REGRESSION` cases are what refuse it.
+ * unconditionally. Every case goes red, on three different assertions:
+ *
+ *   - The two `exactly ONE of the two …` cases fail on "and the filled … does
+ *     NOT" — the assertions that fail BECAUSE a filled field gained a
+ *     placeholder.
+ *   - The two `NON-REGRESSION` cases fail one assertion earlier, on "the value
+ *     reaches the field": the caricature also stops the drawer printing
+ *     values, so their own `no placeholder` halves are never reached. They were
+ *     the only refusal here until the pair above was added for exactly that
+ *     reason.
+ *   - Both `THE DEFECT` cases fail ONLY on their controls. Their headline
+ *     claims are equally true of a drawer that prints nothing.
+ *
+ * Reverting the fix turns both `THE DEFECT` cases red on their headline
+ * assertions and leaves both `NON-REGRESSION` cases green.
  *
  * ## Visual deltas, per site
  *
@@ -174,6 +185,20 @@ describe('AiPendingActionsInbox drawer identity fields (objectui#8504 adjacent, 
     // THE DISCRIMINATING HALF: red for an EmptyValue-everywhere implementation.
     expect(emptyIn(filled), 'a known identity carries NO placeholder').toBeNull();
   });
+
+  it('exactly ONE of the two identity fields draws a placeholder', async () => {
+    // Assertion order, measured: `NON-REGRESSION` above fails on its FIRST
+    // assertion under the caricature (the identity stops reaching the field),
+    // so its `no placeholder` half never runs. This case reaches it — the
+    // second assertion is the one that fails BECAUSE a filled field gained a
+    // placeholder.
+    const { field } = await openDrawer({
+      proposed_by: null,
+      decided_by: 'human@objectos.ai',
+    } as Partial<PendingActionRow>);
+    expect(emptyIn(field('Proposed by')), 'the unknown proposer has one').not.toBeNull();
+    expect(emptyIn(field('Decided by')), 'and the known decider does NOT').toBeNull();
+  });
 });
 
 describe('AiPendingActionsInbox JsonBlock (objectui#8504, :193)', () => {
@@ -206,5 +231,13 @@ describe('AiPendingActionsInbox JsonBlock (objectui#8504, :193)', () => {
     expect(filled.textContent, 'and it is the real input').toContain('t1');
     // THE DISCRIMINATING HALF: red for an EmptyValue-everywhere implementation.
     expect(emptyIn(filled), 'a filled JSON block carries NO placeholder').toBeNull();
+  });
+
+  it('exactly ONE of the two JSON blocks draws a placeholder', async () => {
+    // The same order argument as the identity pair — this case reaches the
+    // `no placeholder` half against a filled sibling in the SAME drawer.
+    const { field } = await openDrawer({ tool_input: '""', result: '{"ok":true}' });
+    expect(emptyIn(field('Tool input')), 'the empty block has one').not.toBeNull();
+    expect(emptyIn(field('Result')), 'and the filled block does NOT').toBeNull();
   });
 });

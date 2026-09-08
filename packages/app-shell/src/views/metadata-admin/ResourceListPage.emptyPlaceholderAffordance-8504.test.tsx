@@ -20,10 +20,21 @@
  * ## Which case DISCRIMINATES — MEASURED, not predicted
  *
  * The caricature was RUN: `defaultCell` rewritten to `return <EmptyValue />`
- * for every value, filled cells included. `THE DEFECT` stays GREEN under it —
- * "the empty cell has an accessible name" is equally true of a table that has
- * stopped printing values — so it carries a control that reads a real
- * description out of the sibling row. `NON-REGRESSION` is what refuses it.
+ * for every value, filled cells included.
+ *
+ *   - `NON-REGRESSION` refuses it, on "the value reaches the cell" — under the
+ *     caricature the Description column stops printing descriptions.
+ *   - `THE DEFECT` fails ONLY on its control. Its headline claim is equally
+ *     true of a table that has stopped printing values.
+ *   - The third case SURVIVES the caricature entirely, which is why it is
+ *     labelled a scope declaration rather than quoted as proof.
+ *
+ * A first run of the caricature failed all three on the HARNESS instead — the
+ * row lookup read column 0, which `defaultCell` also renders, so the name the
+ * row was found by disappeared. The lookup now reads the row link's `href`.
+ *
+ * Reverting the fix turns `THE DEFECT` red on "the empty cell draws the shared
+ * placeholder" and leaves `NON-REGRESSION` green.
  *
  * ## The visual delta
  *
@@ -165,15 +176,28 @@ describe('metadata list defaultCell uses the shared EmptyValue (objectui#8504)',
     expect(emptyIn(filled), 'a filled cell carries NO placeholder').toBeNull();
   });
 
-  it('the placeholder is inert inside the row link', async () => {
+  it('SCOPE DECLARATION — the placeholder is inert inside the row link', async () => {
     // Column 0's cell is rendered inside the row's `<Link>`. The shared
     // component's `pointer-events-none` / `no-underline` / `select-none` are
     // what stop a missing value from reading as clickable there; the
     // hand-rolled span had none of them.
+    //
+    // ⚠️ Labelled a SCOPE DECLARATION because it was MEASURED as the one case
+    // in this PR that the caricature survives: "the placeholder carries
+    // pointer-events-none" is true of an implementation that draws `EmptyValue`
+    // over every cell in the table. It goes red on the REVERT leg (there is no
+    // placeholder to read a class off), so it holds what the hand-rolled span
+    // lacked — it is not evidence that the placeholder is drawn CONDITIONALLY.
+    // That evidence is `NON-REGRESSION`'s.
     const { cell } = await mount();
-    const placeholder = emptyIn(cell('beta', DESCRIPTION_HEADER)) as HTMLElement;
+    const placeholder = emptyIn(cell('beta', DESCRIPTION_HEADER));
+    // Guarded: an unguarded dereference fails with a bare TypeError and the
+    // messages below never reach the summary (measured on the revert leg).
+    expect(placeholder, 'the empty cell drew a placeholder to read classes off')
+      .not.toBeNull();
     for (const cls of ['pointer-events-none', 'no-underline', 'select-none']) {
-      expect(placeholder.className, `the placeholder carries ${cls}`).toContain(cls);
+      expect((placeholder as HTMLElement).className, `the placeholder carries ${cls}`)
+        .toContain(cls);
     }
   });
 });

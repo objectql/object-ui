@@ -27,10 +27,21 @@
  * ## Which case DISCRIMINATES — MEASURED, not predicted
  *
  * The caricature was RUN: the `<dd>` rewritten to `<EmptyValue />`
- * unconditionally, filled rows included. Both cases below go red, but only
- * `NON-REGRESSION` refuses it through its headline assertion. `THE DEFECT`'s
- * claim — "the empty row has an accessible name" — is equally true of a drawer
- * that has stopped rendering values at all, which is what its control is for.
+ * unconditionally, filled rows included. All three cases go red, on three
+ * different assertions:
+ *
+ *   - `a field the record omits entirely` fails on "CONTROL: the filled sibling
+ *     is still not a placeholder" — the one assertion here that fails BECAUSE a
+ *     filled row gained a placeholder.
+ *   - `NON-REGRESSION` fails one assertion earlier, on "the value reaches the
+ *     row": the caricature also stops the drawer printing values, so its own
+ *     `no placeholder` half is never reached.
+ *   - `THE DEFECT` fails ONLY on its control. Its headline claim is equally
+ *     true of a drawer that renders nothing, which is why the control is not
+ *     optional.
+ *
+ * Reverting the fix turns `THE DEFECT` and the omitted-field case red on their
+ * headline assertions and leaves `NON-REGRESSION` green.
  *
  * ## A deliberate visual change
  *
