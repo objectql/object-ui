@@ -302,11 +302,38 @@ export default defineConfig({
           // walks a map), so `field:multiselect` exists at runtime and appears
           // in no `register('field:multiselect')` call site anywhere.
           //
+          // The `ComponentRegistry` is not the only shared state a single global
+          // object exposes. `globalThis` is the second, in the same class and
+          // with the same order-dependent failure shape, and it went unchecked
+          // until objectui#8500: four files replaced `globalThis.fetch` with a
+          // bare `vi.fn()` by assignment and never handed it back, so the
+          // network-escape guard's wrapper was gone for every later file in the
+          // worker and `scripts/__tests__/network-escape-ledger.test.ts` read
+          // `Mock` where `guardedFetch` belonged. So the same treatment: the
+          // invariant
+          //
+          //     a global the setup files install must be the same value at the
+          //     END of a file as it was at the START of it
+          //
+          // is ENFORCED, by `vitest.setup.shared-global-leak-guard.ts` below,
+          // which reds the file that leaked and puts the global back so no
+          // innocent file inherits it.
+          //
           // The `dom`/`dom-heavy` projects keep `isolate: true` — they DO leak
           // in ways nothing checks (registry overrides, happy-dom nodes);
-          // relaxing them needs the hermeticity fixes tracked separately.
+          // relaxing them needs the hermeticity fixes tracked separately. That
+          // is also why the leak guard is wired HERE and not into
+          // `vitest.setup.base.ts`: under `isolate: true` a double left up for a
+          // whole file crosses nothing, and the network-escape guard's own
+          // `Fix:` text prescribes exactly that shape.
           isolate: false,
-          setupFiles: [path.resolve(__dirname, 'vitest.setup.base.ts')],
+          setupFiles: [
+            path.resolve(__dirname, 'vitest.setup.base.ts'),
+            // LAST, and that is load-bearing: it snapshots what the setup files
+            // before it installed. Pinned by
+            // `scripts/__tests__/shared-global-leak-guard.test.ts`.
+            path.resolve(__dirname, 'vitest.setup.shared-global-leak-guard.ts'),
+          ],
           // `eslint-rules/**` holds the local ESLint plugin's RuleTester specs.
           // They were previously matched by no project glob, so the ratchet
           // rules shipped with tests that never ran (objectui#2879).
