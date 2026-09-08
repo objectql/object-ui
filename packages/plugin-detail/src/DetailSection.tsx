@@ -17,6 +17,7 @@ import {
   CollapsibleTrigger, 
   CollapsibleContent,
   Button,
+  EmptyValue,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -336,14 +337,34 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       }
       const isEmpty = !hasCellValue(value);
       if (isEmpty) {
+        // The SHARED placeholder (objectui#8506). The span that stood here
+        // spelled its own em-dash and resolved its own `aria-label` from
+        // `detail.noValue`; `EmptyValue` resolves EXACTLY that key, with the
+        // same `"No value"` English fallback, through a provider-safe hook — so
+        // the accessible name survives byte-for-byte in every locale and the
+        // duplicate resolution goes away. Two deliberate props:
+        //
+        //  - `title` — the sighted-mouse counterpart of the accessible name,
+        //    added alongside it in the same commit. It rides through
+        //    `EmptyValue`'s `...props`. `pointer-events-auto` is what keeps it
+        //    a real tooltip: the shared component sets `pointer-events-none`,
+        //    which stops the placeholder being a hit target, and a `title` on
+        //    an element that can never be hovered is a dead attribute — the
+        //    hover would fall through to this row's own
+        //    `title={t('detail.editInlineHint')}` instead. It is also the only
+        //    instrument that tells THIS placeholder apart from the one a cell
+        //    renderer draws one row over (`DetailSection.emptinessAuthority-8376`,
+        //    `record-details.emptySectionDefault`), which read it by title.
+        //  - no `className` typography — the retired `text-muted-foreground/60
+        //    text-sm` is a deliberate change, not an oversight: it made this
+        //    row's dash a different grey and a different size from the dash
+        //    `DateTimeCellRenderer` draws for an unparseable value in the very
+        //    next row of the same section. They now draw identically.
         return (
-          <span
-            className="text-muted-foreground/60 text-sm select-none"
-            aria-label={t('detail.noValue', { defaultValue: 'No value' })}
+          <EmptyValue
+            className="pointer-events-auto"
             title={t('detail.noValue', { defaultValue: 'No value' })}
-          >
-            —
-          </span>
+          />
         );
       }
       // Use type-aware cell renderer; respect format hints (e.g.

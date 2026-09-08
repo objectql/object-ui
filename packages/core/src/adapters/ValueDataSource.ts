@@ -18,7 +18,11 @@ import type {
   AggregateParams,
   AggregateResult,
 } from '@object-ui/types';
-import { asciiCaseInsensitiveContains, canonicalAstOperator } from '@objectstack/spec/data';
+import {
+  asciiCaseInsensitiveContains,
+  canonicalAstOperator,
+  RETIRED_FILTER_OPERATORS,
+} from '@objectstack/spec/data';
 import { emulateBatchTransaction } from './batchTransaction.js';
 
 // ---------------------------------------------------------------------------
@@ -64,6 +68,237 @@ function refuseFilterNode(refusals: Set<string>, reason: string): false {
 }
 
 /**
+ * The operators whose comparand IS an array by declaration, in both dialects.
+ *
+ * `$in` / `$nin` take a member list and `$between` a two-element range; every
+ * other operator reads its comparand as a single value. That split is what
+ * {@link refuseArrayComparand} is checked against — an array anywhere else is
+ * not a comparand this protocol has a meaning for.
+ */
+const DOLLAR_LIST_COMPARAND_OPERATORS = new Set(['$in', '$nin', '$between']);
+const AST_LIST_COMPARAND_OPERATORS = new Set(['in', 'nin', 'between']);
+
+/**
+ * The AST operators that never read the value slot at all, so nothing sitting
+ * there is a comparand. `matchesComparisonNode`'s null arms take their
+ * direction from the operator NAME and the ObjectUI client sends a truthy
+ * placeholder in the third position, so the array guard must not judge it.
+ */
+const AST_NO_COMPARAND_OPERATORS = new Set(['is_null', 'is_not_null']);
+
+/**
+ * An ARRAY where a single-value comparand belongs — `{ tags: ['a', 'b'] }`,
+ * `{ tags: { $eq: ['a', 'b'] } }`, `['tags', '=', ['a', 'b']]` (objectui#8514).
+ *
+ * ## Why this is refused rather than given a deep-equality reading
+ *
+ * The card was filed as "reference comparison excludes even the deep-equal
+ * row", which is true, and the obvious repair is to make `['a','b']` equal
+ * `['a','b']`. The census says otherwise, and the spec says who owns the
+ * question. `assertListComparandShapes` (`@objectstack/spec/data`) lists
+ * "arrays outside `$in`/`$nin`/`$between`" among the positions its comparand
+ * door deliberately does NOT judge, on the stated ground that the ruling does
+ * not name it and the matrix did not measure it — it is left "to the layers
+ * that already answer it". Those layers do not agree, and the two nearest to
+ * this one both REFUSE:
+ *
+ * - `@objectstack/formula`'s `matchesFilter` — the record-at-a-time evaluator
+ *   this adapter is the closest sibling of — answers `false` structurally, on
+ *   the comment "a bare array value is not a valid field spec (must be
+ *   `{ $in: [...] }`)".
+ * - `@objectstack/driver-sql` refuses an array comparand with its own message.
+ * - Only the document stores give it array-equality, as a native behaviour of
+ *   the store rather than a ruled contract.
+ *
+ * So there is no protocol answer to implement, and inventing one HERE is the
+ * lenient-consumer fallback the repo forbids (AGENTS.md #0.1): a second
+ * de-facto contract, agreed with by no backend, that a `provider: 'value'` list
+ * would honour and the same filter on the wire would not. Every producer in
+ * this repo already spells a multi-value comparand `{ $in: [...] }` — measured
+ * across every `$filter` literal under the packages' and apps' source trees,
+ * where the only array-valued comparands are `$in` / `$nin` members — so
+ * refusing costs no caller a working filter, and the message names the
+ * spelling that works. (The glob is spelled in words because a literal one
+ * would close this comment.)
+ *
+ * ## The rows do not move; the silence does — except on the negations
+ *
+ * For `{ tags: [...] }` and `{ tags: { $eq: [...] } }` this changes no result
+ * set: `!==` / `===` against a fresh array already excluded every row, so the
+ * repair is the diagnostic. `$ne` / `!=` are the exception and the reason this
+ * guard covers the operator positions too — `value !== target` against an
+ * array is always TRUE, so an array comparand there selected EVERY row, in
+ * silence. That is objectui#8447's fail-open direction surviving inside the
+ * arm objectui#8514 was filed about, and the same repair closes both.
+ */
+function refuseArrayComparand(
+  refusals: Set<string>,
+  field: string,
+  operator: string,
+): false {
+  return refuseFilterNode(
+    refusals,
+    `filter comparand for field '${field}' on operator '${operator}' is an ARRAY, `
+    + `which is a declared comparand only for $in / $nin / $between. The spec leaves `
+    + `an array in any other position unruled and the sibling in-memory matcher `
+    + `(@objectstack/formula) refuses it; express membership as `
+    + `{ ${field}: { $in: [...] } } or its negation { ${field}: { $nin: [...] } }`,
+  );
+}
+
+/**
+ * The operators a `{ $field }` reference is a legal comparand ON, in both
+ * dialects — the SIX scalar comparisons and nothing else.
+ *
+ * Not this file's choice: `FieldReferenceSchema` (`@objectstack/spec/data`)
+ * declares the reference on `$eq`/`$ne`/`$gt`/`$gte`/`$lt`/`$lte`, and
+ * objectstack#7596 REMOVED it from `$in` / `$nin` members and `$between`
+ * endpoints at the schema door, on the finding that no backend ever resolved
+ * one there.
+ */
+const DOLLAR_FIELD_REFERENCE_OPERATORS = new Set(['$eq', '$ne', '$gt', '$gte', '$lt', '$lte']);
+const AST_FIELD_REFERENCE_OPERATORS = new Set(['=', '!=', '>', '>=', '<', '<=']);
+
+/** A comparand this matcher refused; distinguishable from a resolved `undefined`. */
+const REFUSED_COMPARAND: unique symbol = Symbol('ValueDataSource:refused-comparand');
+
+/**
+ * Is this comparand shaped like a Filter Protocol FIELD REFERENCE?
+ *
+ * The test is `'$field' in value`, which is what `@objectstack/formula`'s
+ * `resolveValue` uses, so the three faces agree on what a reference IS before
+ * they differ on what to do with one. Validity of the `$field` VALUE is judged
+ * by {@link resolveFieldReference}, which refuses loudly — reporting a
+ * malformed reference beats letting it fall through to a comparison against
+ * the object, which is the silence this card is about.
+ */
+function isFieldReferenceComparand(value: any): boolean {
+  return !!value && typeof value === 'object' && !Array.isArray(value) && '$field' in value;
+}
+
+/**
+ * Resolve `{ $field: 'other_column' }` against the record being matched
+ * (objectui#8515), or refuse it with the reason.
+ *
+ * ## Why this is implemented rather than refused
+ *
+ * `@objectstack/spec/data` declares the shape, `@objectstack/formula`'s
+ * `compileCelToFilter` emits it for a field-to-field comparison in a CEL
+ * permission rule, and BOTH platform evaluation paths execute it — the
+ * in-memory `matchesFilter` resolves it in `resolveValue`, and `driver-sql`
+ * compiles it to a same-table column-to-column comparison (objectstack#5222),
+ * held to the same rows by a shared conformance corpus. Refusing it here would
+ * make this adapter the one face that answers a declared, executed shape with
+ * "no rows" — the outcome the sibling card ruled worse than the bug.
+ *
+ * Both of this file's matchers compared the reference OBJECT against the stored
+ * value: `value === target` for `$eq` (never equal — no rows) and `value > target`
+ * for the orderings (an object bound — no rows). Neither said anything.
+ *
+ * ## The three positions this refuses instead, each for a recorded reason
+ *
+ * - **A `$field` that is not a STRING.** `FieldReferenceSchema` declares
+ *   `z.string()`, and the spec's own lowering predicate (matching `driver-sql`'s
+ *   `fieldReferenceOf`) treats a non-string `$field` as "not a field reference
+ *   on any path". Downstream that means "refused as the uncompilable object it
+ *   is", which is what this does — loudly, rather than by object comparison.
+ * - **A DOTTED path.** This matcher addresses the left-hand side as
+ *   `record[field]`, flat, so resolving a dotted path only on the right would
+ *   make `['a.b', '=', x]` and `['x', '=', { $field: 'a.b' }]` disagree about
+ *   what a dot means. SQL push-down refuses a dotted path too, under the
+ *   maintainer's 2026-08-06 same-table ruling (no JOIN planning, no alias
+ *   contract). `@objectstack/formula` DOES walk dots — that divergence is named
+ *   here rather than papered over, because this adapter has no path accessor to
+ *   be consistent with.
+ * - **`addDays`.** The whole-day offset (objectstack#14104) is defined against
+ *   the referenced column's TEMPORAL CLASS — a `date` stays a calendar day, a
+ *   `datetime` keeps its time of day — and SQL push-down compiles it only
+ *   between two temporal columns of the same class, refusing everything else
+ *   loudly. This matcher has no field types to read a class from, so it refuses
+ *   for the same reason rather than guessing. Silently IGNORING the offset is
+ *   the one answer that must not happen: it would compare against an unshifted
+ *   column and return WRONG rows, where today's defect returns none.
+ */
+function resolveFieldReference(
+  record: any,
+  reference: Record<string, any>,
+  operator: string,
+  rawOperator: string,
+  field: string,
+  legalOperators: ReadonlySet<string>,
+  refusals: Set<string>,
+): any {
+  const path = reference.$field;
+
+  if (typeof path !== 'string') {
+    refuseFilterNode(
+      refusals,
+      `filter comparand for field '${field}' carries a non-string $field `
+      + `(${JSON.stringify(path) ?? String(path)}); a field reference declares `
+      + `$field as a string, so this is not one on any path`,
+    );
+    return REFUSED_COMPARAND;
+  }
+
+  if (!legalOperators.has(operator)) {
+    refuseFilterNode(
+      refusals,
+      `a { $field } reference is not a comparand for operator '${rawOperator}' on field `
+      + `'${field}'. It is declared only on the six scalar comparisons `
+      + `($eq/$ne/$gt/$gte/$lt/$lte and their AST spellings); the spec removed it from `
+      + `$in / $nin members and $between endpoints because no backend resolves one there`,
+    );
+    return REFUSED_COMPARAND;
+  }
+
+  if ('addDays' in reference && reference.addDays !== undefined) {
+    refuseFilterNode(
+      refusals,
+      `the { $field } reference on field '${field}' carries an addDays offset, which is `
+      + `defined against the referenced column's temporal class; this matcher has no field `
+      + `types to read one from, and answering without the offset would compare against an `
+      + `unshifted column and return the wrong rows`,
+    );
+    return REFUSED_COMPARAND;
+  }
+
+  if (path.includes('.')) {
+    refuseFilterNode(
+      refusals,
+      `the { $field } reference on field '${field}' names the dotted path '${path}'; this `
+      + `matcher addresses a flat record, so a dotted reference would not mean the same `
+      + `thing as the dotted field name on the other side of the comparison`,
+    );
+    return REFUSED_COMPARAND;
+  }
+
+  return record[path];
+}
+
+/**
+ * A `{ $field }` reference sitting INSIDE a list comparand — an `$in` / `$nin`
+ * member or a `$between` endpoint (objectstack#7596, ruled 2026-08-11).
+ *
+ * The positions were declared once and honoured by nobody; the ruling was
+ * REMOVE rather than implement. The `$nin` direction is why this is loud rather
+ * than left alone: an unresolved member drops an EXCLUSION the author wrote,
+ * so the row passes — a filter that widens its result set in silence.
+ */
+function refuseListMemberFieldReference(
+  refusals: Set<string>,
+  field: string,
+  operator: string,
+): false {
+  return refuseFilterNode(
+    refusals,
+    `a { $field } reference appears inside the list comparand of '${operator}' on field `
+    + `'${field}'. A reference may be the WHOLE comparand of a scalar comparison, never a `
+    + `member of $in / $nin nor an endpoint of $between — the spec removed those positions `
+    + `because no evaluation path resolved them`,
+  );
+}
+
+/**
  * Evaluate ONE comparison node — `[field, operator]` or `[field, operator, value]`.
  *
  * The operator is canonicalized through the spec's own
@@ -92,7 +327,37 @@ function matchesComparisonNode(
   const operator =
     rawOperator === 'not in' ? 'nin' : canonicalAstOperator(rawOperator);
   const value = record[field];
-  const target = node[2];
+  const rawTarget = node[2];
+
+  // objectui#8514 — an array where a single-value comparand belongs. Checked
+  // before the switch so `=` / `!=` cannot answer it by reference (never equal
+  // / always unequal), and skipped for the operators that DECLARE an array
+  // comparand and for the two that never read the slot.
+  if (
+    Array.isArray(rawTarget)
+    && !AST_LIST_COMPARAND_OPERATORS.has(operator)
+    && !AST_NO_COMPARAND_OPERATORS.has(operator)
+  ) {
+    return refuseArrayComparand(refusals, field, String(rawOperator));
+  }
+
+  // objectui#8515 — a `{ $field }` reference inside a list comparand. The
+  // members are walked only for the three operators that HAVE a list comparand;
+  // everywhere else an array was already refused above.
+  if (Array.isArray(rawTarget) && rawTarget.some(isFieldReferenceComparand)) {
+    return refuseListMemberFieldReference(refusals, field, String(rawOperator));
+  }
+
+  // objectui#8515 — a `{ $field }` reference as the WHOLE comparand. Resolved
+  // against this record so the switch below compares two of its own values,
+  // exactly as `matchesFilter` (`@objectstack/formula`) and `driver-sql` do.
+  const target = isFieldReferenceComparand(rawTarget)
+    ? resolveFieldReference(
+      record, rawTarget, operator, String(rawOperator), field,
+      AST_FIELD_REFERENCE_OPERATORS, refusals,
+    )
+    : rawTarget;
+  if (target === REFUSED_COMPARAND) return false;
 
   switch (operator) {
     // -- Null-ness. Direction comes from the operator NAME; the value slot is
@@ -236,55 +501,238 @@ function matchesASTFilter(record: any, filterNode: any, refusals: Set<string>): 
 }
 
 /**
- * Simple in-memory filter evaluation.
- * Supports flat key-value equality and basic operators ($gt, $gte, $lt, $lte, $ne, $in).
+ * Evaluate ONE `$`-dialect operator against a record's value for a field.
+ *
+ * The vocabulary is the spec's own `FILTER_OPERATORS` (`@objectstack/spec/data`)
+ * and each arm answers the same question its AST twin answers in
+ * {@link matchesComparisonNode} — `$eq`/`=`, `$nin`/`nin`, `$startsWith`/
+ * `starts_with`, and so on, one-to-one across ALL SIXTEEN: every declared
+ * operator is executed here, none is refused by name. That pairing IS the
+ * fix for objectui#8447: `find()` picks between the two matchers on nothing
+ * more than whether `$filter` arrived as an array or an object, so any operator
+ * one of them executes and the other waves through is a result that changes
+ * with the SHAPE of the filter rather than with its meaning.
+ *
+ * ## What the `default` arm used to be
+ *
+ * `default: break` — which adds NO constraint. An operator this switch did not
+ * name therefore matched EVERY row, silently, while the array arm of the very
+ * same `if` refused the unknown node, excluded the row and logged it
+ * (objectui#7349). Measured before the fix: `$nin`, `$startsWith`, `$null` and
+ * `$exists` each returned the full set, and so did `$eq` — the most ordinary
+ * operator an author can reach for, whose plain-equality sibling
+ * (`{ age: 26 }`) was correct all along.
+ *
+ * The direction of the change is worth stating plainly, because it MOVES
+ * RESULTS: a filter that silently selected everything now selects the rows it
+ * names, and one this matcher cannot execute selects nothing and says so. Both
+ * are louder than what they replace; neither is "match everything", which was
+ * nobody's intent.
+ *
+ * ## What is refused, and why each one
+ *
+ * Nothing the spec DECLARES is on this list — `REFUSED_OPERATORS` in the
+ * companion test is empty, so the `FILTER_OPERATORS` parity guard covers the
+ * whole published vocabulary rather than a subset of it. What follows is
+ * everything OUTSIDE that vocabulary.
+ *
+ * - **`$like` / `$ilike`** — declared by `StringOperatorSchema` but deliberately
+ *   kept OUT of `FILTER_OPERATORS` while the faces that cannot execute them are
+ *   staged in (objectstack#7536). This matcher has no pattern engine, and the
+ *   spec's own note says naming them before an arm exists turns a loud refusal
+ *   into a dropped predicate — i.e. every row, the defect this file just fixed.
+ * - **`$regex` / `$options`** — RETIRED from the protocol (objectstack#4706).
+ *   The refusal prints `RETIRED_FILTER_OPERATORS`' prescription verbatim, the
+ *   way the five driver-side refusal sites do, so six faces say one thing.
+ * - **Anything else**, including a nested relation constraint
+ *   (`{ profile: { verified: true } }`), whose keys are field names rather than
+ *   operators: this matcher does not descend into relations.
  */
-function matchesFilter(record: any, filter: Record<string, any>): boolean {
+function matchesDollarOperator(
+  record: any,
+  value: any,
+  operator: string,
+  rawTarget: any,
+  field: string,
+  refusals: Set<string>,
+): boolean {
+  // objectui#8514 — the `$` twin of the AST guard above, and the position that
+  // carries the fail-OPEN case: `$ne` against an array is always true.
+  if (Array.isArray(rawTarget) && !DOLLAR_LIST_COMPARAND_OPERATORS.has(operator)) {
+    return refuseArrayComparand(refusals, field, operator);
+  }
+
+  // objectui#8515 — a `{ $field }` reference inside a list comparand.
+  if (Array.isArray(rawTarget) && rawTarget.some(isFieldReferenceComparand)) {
+    return refuseListMemberFieldReference(refusals, field, operator);
+  }
+
+  // objectui#8515 — a `{ $field }` reference as the WHOLE comparand.
+  const target = isFieldReferenceComparand(rawTarget)
+    ? resolveFieldReference(
+      record, rawTarget, operator, operator, field,
+      DOLLAR_FIELD_REFERENCE_OPERATORS, refusals,
+    )
+    : rawTarget;
+  if (target === REFUSED_COMPARAND) return false;
+
+  switch (operator) {
+    case '$eq':
+      return value === target;
+    case '$ne':
+      return value !== target;
+    case '$gt':
+      return value > target;
+    case '$gte':
+      return value >= target;
+    case '$lt':
+      return value < target;
+    case '$lte':
+      return value <= target;
+    case '$in':
+      return Array.isArray(target) && target.includes(value);
+    case '$nin':
+      return Array.isArray(target) && !target.includes(value);
+    case '$between':
+      return Array.isArray(target) && target.length === 2
+        && value >= target[0] && value <= target[1];
+    // -- Text operators. Same ruling the AST arms carry (objectstack#4706 Q2):
+    // the `$contains` family is case-SENSITIVE and `$icontains` is its one
+    // case-insensitive member, folding ASCII only on both sides.
+    case '$contains':
+      return typeof value === 'string' && value.includes(String(target));
+    case '$icontains':
+      return typeof value === 'string' && asciiCaseInsensitiveContains(value, String(target));
+    case '$notContains':
+      return typeof value === 'string' && !value.includes(String(target));
+    case '$startsWith':
+      return typeof value === 'string' && value.startsWith(String(target));
+    case '$endsWith':
+      return typeof value === 'string' && value.endsWith(String(target));
+    // -- Null-ness. Unlike the AST spelling, direction comes from the VALUE:
+    // `$null: true` is IS NULL and `$null: false` is IS NOT NULL, which is the
+    // lowering `convertFiltersToAST` already performs.
+    case '$null':
+      return target
+        ? value === null || value === undefined
+        : value !== null && value !== undefined;
+
+    // `$exists` is the exact INVERSE of `$null`, and that is the platform's own
+    // reading rather than one invented here: `convertFiltersToAST`
+    // (`../utils/filter-converter.ts`) lowers `$exists: true` to `is_not_null`
+    // and `$exists: false` to `is_null`, three lines below where it lowers
+    // `$null` the other way round. Both operators are absent from that file's
+    // `convertOperatorToAST` map and both are special-cased BEFORE it, so that
+    // map's silence is not a decision about either of them. Two producers in
+    // this repo emit `$exists` — `FilterConditionField`'s `exists` /
+    // `notExists` (kept reachable on purpose by objectui#4736) and
+    // `datasetFilterCondition`'s `isEmpty` / `isNotEmpty` — so refusing it
+    // would have turned "every row" into "no rows" on a filter that looks like
+    // it works, which is the one outcome worse than the bug.
+    case '$exists':
+      return target
+        ? value !== null && value !== undefined
+        : value === null || value === undefined;
+
+    // objectui#8515 — the hand-authored IMPLICIT form `{ amount: { $field: 'x' } }`.
+    // It is not a reference comparand: an object whose only key starts with `$`
+    // reads as an OPERATOR SPEC named `$field`, which is why this arrives here
+    // as an operator at all. objectstack#7597 ruled that form keeps its
+    // fail-closed fate rather than being promoted, and named the spelling that
+    // works — the same one `driver-sql`'s refusal names. The default arm below
+    // already excluded the row; this arm only replaces "not implemented" with
+    // the prescription, so an author reading the console can act on it.
+    case '$field':
+      return refuseFilterNode(
+        refusals,
+        `field '${field}' carries a bare { $field } object, which reads as an operator `
+        + `named '$field' rather than as a comparand. Write the explicit comparison `
+        + `{ ${field}: { $eq: { $field: ${JSON.stringify(String(rawTarget))} } } }`,
+      );
+
+    default: {
+      const retired = RETIRED_FILTER_OPERATORS[operator];
+      if (retired) {
+        return refuseFilterNode(
+          refusals,
+          `filter operator '${operator}' on field '${field}' is retired. ${retired.why}`,
+        );
+      }
+      if (!operator.startsWith('$')) {
+        return refuseFilterNode(
+          refusals,
+          `filter condition on field '${field}' carries the non-operator key `
+          + `'${operator}'; the in-memory matcher does not descend into a nested `
+          + `relation constraint`,
+        );
+      }
+      return refuseFilterNode(
+        refusals,
+        `filter operator '${operator}' on field '${field}' is not implemented by the `
+        + `in-memory matcher`,
+      );
+    }
+  }
+}
+
+/**
+ * In-memory evaluation of an OBJECT-shaped (`$`-dialect) filter.
+ *
+ * Reads a flat key/value equality (`{ age: 26 }`) or a `FieldOperatorsSchema`
+ * condition object (`{ age: { $gte: 25 } }`), one entry per field, ANDed. What
+ * it cannot execute it refuses through {@link refuseFilterNode} — excluded and
+ * logged once per distinct refusal per `find()` — rather than adding no
+ * constraint, which is what its `default: break` used to do (objectui#8447).
+ *
+ * ## Combinators are refused here, not implemented (objectui#8447, its own case)
+ *
+ * `$and` / `$or` / `$not` are `LOGICAL_OPERATORS`, not field names, and this
+ * matcher has no grouping. They were already excluded-and-silent in two of
+ * three cases before this card and fail-OPEN in the third, which is why they
+ * get an arm now rather than being swept into the operator fix:
+ *
+ * - `{ $and: [...] }` / `{ $or: [...] }` carry an ARRAY, so they fell to the
+ *   simple-equality branch below (`record['$and'] !== [...]` is always true) and
+ *   excluded every row with no diagnostic. The rows do not move; the silence does.
+ * - `{ $not: {...} }` carries an OBJECT (`FilterConditionSchema`, not an array),
+ *   so it entered the operator branch, its inner FIELD names were read as
+ *   operator names, and every one of them hit `default: break`. It therefore
+ *   matched EVERY row — the same fail-open direction as the operators, and the
+ *   one behaviour here whose result changes.
+ *
+ * Executing them is a feature with its own semantics to settle (the empty-group
+ * identities and `$not`'s NULL-safe rule, objectstack#5146 / #5322), not part of
+ * this repair. An author who needs a group today writes the AST array `$filter`,
+ * which the sibling arm of `find()` already executes.
+ */
+function matchesFilter(
+  record: any,
+  filter: Record<string, any>,
+  refusals: Set<string>,
+): boolean {
   for (const [key, condition] of Object.entries(filter)) {
+    if (key.startsWith('$')) {
+      return refuseFilterNode(
+        refusals,
+        `filter combinator '${key}' is not implemented by the object-dialect matcher; `
+        + `express the group as an AST array $filter, which this adapter executes`,
+      );
+    }
+
     const value = record[key];
 
     if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
-      // Operator-based filter
+      // Operator-based filter — every operator on the field is ANDed.
       for (const [op, target] of Object.entries(condition)) {
-        switch (op) {
-          case '$gt':
-            if (!(value > (target as any))) return false;
-            break;
-          case '$gte':
-            if (!(value >= (target as any))) return false;
-            break;
-          case '$lt':
-            if (!(value < (target as any))) return false;
-            break;
-          case '$lte':
-            if (!(value <= (target as any))) return false;
-            break;
-          case '$ne':
-            if (value === target) return false;
-            break;
-          case '$in':
-            if (!Array.isArray(target) || !target.includes(value)) return false;
-            break;
-          // The `$` dialect of the same ruling the AST arms carry
-          // (objectui#7379): `$contains` is case-SENSITIVE, `$icontains` is the
-          // case-insensitive one, and the fold is ASCII-only on both sides.
-          // This arm lower-cased both sides, so the two spellings named one
-          // predicate here too — and `$icontains` had no arm at all, which in
-          // this switch means the `default` below and therefore NO constraint:
-          // a case-insensitive filter selected every row. Making `$contains`
-          // exact without adding its twin would have left the dialect with no
-          // working case-insensitive door.
-          case '$contains':
-            if (typeof value !== 'string' || !value.includes(String(target))) return false;
-            break;
-          case '$icontains':
-            if (typeof value !== 'string'
-              || !asciiCaseInsensitiveContains(value, String(target))) return false;
-            break;
-          default:
-            break;
-        }
+        if (!matchesDollarOperator(record, value, op, target, key, refusals)) return false;
       }
+    } else if (Array.isArray(condition)) {
+      // objectui#8514 — the implicit-equality position this card was filed
+      // about. It reaches here because the operator branch above is guarded by
+      // `!Array.isArray(condition)`, and that guard STAYS: routing an array
+      // into the operator loop would read its INDICES as operator names, the
+      // exact shape `$not` had before objectui#8447 fixed it.
+      return refuseArrayComparand(refusals, key, 'implicit equality');
     } else {
       // Simple equality
       if (value !== condition) return false;
@@ -399,15 +847,20 @@ export class ValueDataSource<T = any> implements DataSource<T> {
 
     // Filter — support both MongoDB-style objects and AST-format arrays
     if (params?.$filter) {
+      // ONE collector for BOTH arms, drained after the pass: a node either
+      // matcher refuses would otherwise log once PER ROW. Shared on purpose —
+      // the two arms differ only in the SHAPE of `$filter`, and objectui#8447
+      // was exactly the asymmetry of one arm refusing loudly while the other
+      // waved everything through in silence.
+      const refusals = new Set<string>();
       if (Array.isArray(params.$filter) && params.$filter.length > 0) {
-        // One collector per `find()`, drained after the pass: a node the matcher
-        // refuses would otherwise log once PER ROW.
-        const refusals = new Set<string>();
         result = result.filter((r) => matchesASTFilter(r, params.$filter as any[], refusals));
-        for (const message of refusals) console.warn(message);
       } else if (!Array.isArray(params.$filter) && Object.keys(params.$filter).length > 0) {
-        result = result.filter((r) => matchesFilter(r, params.$filter!));
+        result = result.filter(
+          (r) => matchesFilter(r, params.$filter as Record<string, any>, refusals),
+        );
       }
+      for (const message of refusals) console.warn(message);
     }
 
     // Search (simple text search across all string fields)

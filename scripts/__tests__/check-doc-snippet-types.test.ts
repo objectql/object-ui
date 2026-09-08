@@ -1260,6 +1260,47 @@ describe('the ROOT BOUND — what only this repository declares does not resolve
       expect(source).toContain('resolves ONLY through the repository root');
       expect(source).toContain('ROOT-');
     });
+
+    /**
+     * objectui#8059 — the refusal is a contract with its reader, and until this
+     * pin existed NOTHING in the repository asserted a word of it. That is how
+     * it came to name two remedies, one of which reads as impossible on a peer
+     * (the package DOES declare it, in a field this map does not read) and one
+     * of which surrenders the whole block — including the documented package's
+     * own surface, which is where objectui#3999 and objectui#4817 both landed
+     * defects. A diagnostic nothing pins drifts silently, so the three remedies
+     * and the reason each is ordered where it is are pinned by content here.
+     */
+    it('the refusal names a remedy a reader of a PEER can actually perform (objectui#8059)', () => {
+      const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+
+      // 1. "DECLARES" is qualified, so the sentence stops reading as impossible
+      //    on a package that declares the specifier in `peerDependencies`.
+      expect(source).toContain('Import what an imported ');
+      expect(source).toContain('package declares in its `dependencies`.');
+      expect(source).toContain('a peer is a requirement ON the reader');
+
+      // 2. The stand-in shape is named, with the property that earns it: the
+      //    block still compiles, so the documented surface stays judged.
+      expect(source).toContain('If the specifier IS such a peer and this block needs its bindings, stand ');
+      expect(source).toContain('them in with `declare const` typed to what the block uses them as');
+      expect(source).toContain("The block still compiles, so the documented package's own surface around it ");
+
+      // 3. The fragment remedy is still offered, but ranked last and with its
+      //    cost stated — it is the one that deletes coverage.
+      expect(source).toContain('Declaring the block a fragment is the LAST resort');
+      expect(source).toContain('it stops the WHOLE block ');
+
+      // The header bullet carries the same remedy, so the rule and the message
+      // cannot drift apart. The bullet lives BEFORE the fence-scanning banner.
+      const banner = source.indexOf('── Fence scanning');
+      expect(banner).toBeGreaterThan(0);
+      const header = source.slice(0, banner);
+      expect(header).toContain('**`dependencies` only**');
+      expect(header).toContain('without surrendering the block: stand');
+      expect(header).toContain("the peer's bindings in with `declare const`");
+      expect(header).toContain('reads as IMPOSSIBLE on a');
+    });
   });
 });
 

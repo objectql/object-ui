@@ -116,9 +116,21 @@ function EmptyContent({ className, ...props }: React.ComponentProps<"div">) {
  * EmptyValue — universal inline placeholder for missing cell/field values.
  *
  * Use this anywhere a renderer would otherwise show "-" or "—" for a null,
- * undefined or empty value. It renders a muted, non-interactive en-dash that
- * does not inherit link/button colors from surrounding ancestors, so a missing
- * value never looks clickable.
+ * undefined or empty value. It renders a muted, non-interactive EM-dash (the
+ * `glyph` default below is U+2014, and every call site depends on that width)
+ * that does not inherit link/button colors from surrounding ancestors, so a
+ * missing value never looks clickable. This sentence said "en-dash" until
+ * objectui#8506: the word was wrong, never the code — do not "fix" the glyph
+ * to match a stale docblock.
+ *
+ * ⚠️ A caller that passes a `title` through `...props` must also pass
+ * `pointer-events-auto` in `className`. `pointer-events-none` below stops this
+ * span being a hit target, so a `title` on it never renders a tooltip — the
+ * hover falls through to whichever ancestor has one. The attribute stays in the
+ * DOM either way, which is exactly why nothing catches it: a test that reads
+ * `getAttribute('title')` is green over a tooltip that can never appear
+ * (objectui#8506, where `DetailSection` kept such a `title` and two landed pins
+ * navigate by it).
  */
 function EmptyValue({
   className,

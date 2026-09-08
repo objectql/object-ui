@@ -133,9 +133,12 @@ const dataSource = new ObjectStackAdapter({
 
 ### PermissionProvider setup
 
+<!-- os:check -->
 ```typescript
 import { PermissionProvider } from '@object-ui/permissions';
+import { useAuth } from '@object-ui/auth';
 import type { ObjectPermissionConfig, RoleDefinition } from '@object-ui/types';
+declare function AppContent(): null; // stands in for your own app tree
 
 // A role definition carries identity and inheritance only. Its grants live in
 // `ObjectPermissionConfig.roles` below, keyed by object — that is the single
@@ -186,8 +189,8 @@ function App() {
     <PermissionProvider
       roles={roles}
       permissions={permissions}
-      userRoles={user?.roles || ['viewer']}
-      user={user}
+      userRoles={user?.positions || ['viewer']}
+      user={user ?? undefined}
     >
       <AppContent />
     </PermissionProvider>

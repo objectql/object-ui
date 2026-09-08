@@ -55,6 +55,7 @@ import {
   DialogTitle,
   Input,
   Label,
+  EmptyValue,
 } from '@object-ui/components';
 import { Copy, ExternalLink, FormInput, RefreshCw, Code2, Link2, Settings2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -382,7 +383,7 @@ export function PublicFormsPage() {
                         {row.object ? (
                           <Badge variant="secondary">{row.object}</Badge>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <EmptyValue />
                         )}
                       </TableCell>
                       <TableCell>

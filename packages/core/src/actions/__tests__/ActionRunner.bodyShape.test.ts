@@ -26,7 +26,7 @@
  * ordering, so there was one reading to mirror rather than a choice to make.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterAll, beforeEach } from 'vitest';
 import { ActionRunner } from '../ActionRunner';
 import { resetActionKeyWarnings } from '../actionKeys';
 
@@ -37,8 +37,16 @@ function sentBody(): any {
 }
 
 function okFetch() {
-  global.fetch = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({}) });
+  // `vi.stubGlobal` rather than `global.fetch = ...`: this file runs in the
+  // `unit` project, which is `isolate: false`, so a raw assignment to a shared
+  // global outlives the file and every later file in the worker inherits it
+  // (objectui#8500). Only a stub can be handed back.
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({}) }));
 }
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('ActionRunner.executeAPI — bodyShape', () => {
   beforeEach(() => {

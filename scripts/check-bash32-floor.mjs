@@ -857,11 +857,14 @@ const SELF_TEST_BATTERIES = Object.freeze({
   '⭐ end to end, through the real discovery path': 6,
   '⭐ the instrument is real: the flagged construct really does break': 4,
   'the real tree': 3,
+  // objectui#8404. Declared LAST because its third case reads `narrowed`, which
+  // only has its final value once every host-dependent leg above has run.
+  '⭐ objectui#8404: the self-test declares its own host premise': 5,
 });
 
 // DELETING an entry silences that battery's floor exactly as effectively as
 // zeroing it, so the roster's own size is pinned too.
-const SELF_TEST_BATTERY_FLOOR = 17;
+const SELF_TEST_BATTERY_FLOOR = 18;
 
 // The key an assertion is filed under when no battery is open. It is not a
 // declared battery, so it reds by the same set difference rather than silently
@@ -896,6 +899,62 @@ function selfTest() {
     console.error(`  ✗ ${label}${detail ? `\n      ${detail}` : ''}`);
   };
   const ids = (text) => scanText('f.sh', text).map((f) => f.id);
+
+  // ── objectui#8404: the self-test's own host premise, made explicit ───────
+  //
+  // ⭐ A floor gate whose battery cannot run ON the floor it declares is a gate
+  // asserting something it has never demonstrated. That was this file: every
+  // probe, harness and `bash -n` leg below drives a bash-4+ construct through
+  // the HOST's bash, and the host this gate exists for is macOS, which ships
+  // 3.2.57 and no bash 4+. There, `coproc`, `|&` and `&>>` are syntax errors
+  // `bash -n` refuses, `mapfile` is not a builtin there is anything to disable,
+  // and `[[ -v ]]` is a conditional operator `bash -n` also refuses (this
+  // file's `has-v` row already records that `bash -n` judges `[[` operators).
+  // So `--self-test` exited non-zero on the one host whose behaviour the whole
+  // gate is about, and `bash32-floor-wiring.test.ts` reported it as a red test.
+  //
+  // ⛔ The production scan is NOT affected and is not narrowed: `scanText` is
+  // pure JS, so `node scripts/check-bash32-floor.mjs` judges a 3.2 host exactly
+  // as it judges CI. Only `--self-test` needs the newer parser.
+  //
+  // The premise is detected by CAPABILITY and never by platform name — a
+  // `process.platform === 'darwin'` branch would red again on the next non-GNU
+  // host, which is the very species this gate is about. Two probes, because the
+  // legs below need two different things from the host: a parser that accepts
+  // bash-4 GRAMMAR, and a runtime that has a bash-4 BUILTIN to disable.
+  const HOST_PROBES = [
+    // The canonical bash-4.0 operator. A shell at the floor answers with a
+    // syntax error near the `&`.
+    { need: 'grammar', probe: 'echo a |& cat', run: () => spawnSync('bash', ['-n'], { input: 'echo a |& cat\n', encoding: 'utf8' }) },
+    // The canonical bash-4.0 builtin. A shell at the floor answers 127.
+    { need: 'builtin', probe: 'mapfile -t x < /dev/null', run: () => spawnSync('bash', ['-c', 'mapfile -t x < /dev/null'], { encoding: 'utf8' }) },
+  ];
+  const hostCan = Object.fromEntries(HOST_PROBES.map((h) => [h.need, h.run().status === 0]));
+  const HOST_JUDGES_BASH4 = HOST_PROBES.every((h) => hostCan[h.need]);
+  const NARROWING = HOST_PROBES.filter((h) => !hostCan[h.need]).map((h) => `\`${h.probe}\``).join(' and ');
+  let narrowed = 0;
+
+  /**
+   * An assertion whose SUBJECT is a bash-4 construct run through the host bash.
+   *
+   * Where the host can judge bash-4, this is `t` unchanged — CI and every
+   * bash-4+ host lose nothing. Where it cannot, the case still REGISTERS (so
+   * its battery floor still holds and a battery that stops running still names
+   * itself) but is reported as NARROWED rather than passed, and the verdict
+   * line carries the count. ⛔ A narrowed case is a real coverage loss and is
+   * printed as one: at the floor a typo and a bash-4 construct are the same
+   * syntax error, so "the probe is not a typo" is genuinely unmeasurable there.
+   */
+  const tHostBash4 = (label, ok, detail = '') => {
+    if (HOST_JUDGES_BASH4) {
+      t(label, ok, detail);
+      return;
+    }
+    registerCase();
+    cases += 1;
+    narrowed += 1;
+    console.log(`  \u2298 ${label} — NARROWED: this host's bash refuses ${NARROWING}, so it is at or below the 3.2 floor this gate declares and cannot judge the case.`);
+  };
 
   console.log('check-bash32-floor --self-test\n');
 
@@ -937,7 +996,7 @@ function selfTest() {
   battery('⭐ and the probes are real shell, not plausible-looking text');
   for (const c of CONSTRUCTS) {
     const parse = spawnSync('bash', ['-n'], { input: `${c.probe}\n`, encoding: 'utf8' });
-    t(`${c.id}: the probe is shell this host can parse`, parse.status === 0, (parse.stderr || '').trim());
+    tHostBash4(`${c.id}: the probe is shell a bash-4 parser accepts`, parse.status === 0, (parse.stderr || '').trim());
   }
 
   // --- E1: full-line comments are prose, trailing comments are not ---------
@@ -1070,7 +1129,7 @@ function selfTest() {
       `got ${JSON.stringify(ids(line))}`,
     );
     const vParse = spawnSync('bash', ['-n'], { input: `${line}\n`, encoding: 'utf8' });
-    t(`\`${label}\` is shell this host can parse`, vParse.status === 0, (vParse.stderr || '').trim());
+    tHostBash4(`\`${label}\` is shell a bash-4 parser accepts`, vParse.status === 0, (vParse.stderr || '').trim());
   }
   t('has-v after `&&` → RED', ids('cd "$d" && [ -v name ]').includes('has-v'));
   t('has-v inside `$( )` → RED', ids('n=$( [ -v name ] && echo 1 )').includes('has-v'));
@@ -1260,12 +1319,17 @@ function selfTest() {
   writeFileSync(probe, 'mapfile -t x < /dev/null && echo MAPFILE-WORKS\n');
   const plain = spawnSync('bash', [probe], { encoding: 'utf8' });
   const sim = spawnSync('bash', [probe], { encoding: 'utf8', env: { ...process.env, BASH_ENV: noBash4 } });
-  t(
+  // ⚠️ objectui#8404: both legs need a host that HAS `mapfile` to remove. At
+  // the 3.2 floor `plain` never prints MAPFILE-WORKS either, so the first leg
+  // is false for the wrong reason and the second passes for the wrong one —
+  // 127 there is the absent builtin, not the harness. Narrowed together,
+  // because the second leg's meaning is carried by the first.
+  tHostBash4(
     'the simulated-3.2 harness really removes the builtin (else the next leg proves nothing)',
     plain.stdout.includes('MAPFILE-WORKS') && !sim.stdout.includes('MAPFILE-WORKS') && /mapfile/.test(sim.stderr),
     `plain=${plain.stdout.trim()} sim.out=${sim.stdout.trim()} sim.err=${sim.stderr.trim()}`,
   );
-  t(
+  tHostBash4(
     'and a script this gate flags really does die at 127 under it',
     sim.status === 127,
     `status=${sim.status} err=${sim.stderr.trim()}`,
@@ -1336,6 +1400,50 @@ function selfTest() {
     + `${live.byShebang} by shebang alone — ${live.findings.length} finding(s)`,
   );
 
+  // --- ⭐ objectui#8404: the self-test declares its own host premise -------
+  //
+  // The narrowing mechanism above is itself a place a gate can go quiet, so it
+  // is pinned in both directions: a host that CAN judge bash-4 must narrow
+  // nothing, and a host that cannot must narrow something. A mechanism that
+  // narrowed on every host would read as green while measuring nothing.
+  battery('⭐ objectui#8404: the self-test declares its own host premise');
+  // ⚠️ E1 again, and for E1's reason: this file has to NAME the branch it
+  // refuses in order to explain why, and a check hunting that name has to name
+  // it too. So the needle is assembled from parts rather than written as a
+  // literal, and the prose lines are dropped before the search — exactly the
+  // mention-versus-use rule the CONSTRUCTS table is built on. A real branch
+  // lives on a code line, which is what survives the filter.
+  const PLATFORM_BRANCH = new RegExp(['process', 'platform'].join('\\.'));
+  const codeLines = readFileSync(SELF, 'utf8')
+    .split('\n')
+    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .join('\n');
+  t(
+    '⛔ the premise is a capability, never a platform name — a `darwin` branch reds again on the next non-GNU host',
+    !PLATFORM_BRANCH.test(codeLines),
+    'a code line here branches on the platform name; the host premise must be measured instead',
+  );
+  t(
+    'and the filter that allows the prose above is not blanket permission — a code line IS searched',
+    PLATFORM_BRANCH.test(codeLines + '\nconst x = process' + '.platform;'),
+    'the mention/use filter matched nothing at all, so the leg above proves nothing',
+  );
+  t(
+    'and the two capability probes are constructs THIS gate declares above the floor',
+    ids(HOST_PROBES[0].probe).includes('pipe-both') && ids(HOST_PROBES[1].probe).includes('mapfile'),
+    `got ${JSON.stringify(HOST_PROBES.map((h) => ids(h.probe)))}`,
+  );
+  t(
+    'judging and narrowing are exclusive: a host that judges bash-4 narrowed nothing',
+    !HOST_JUDGES_BASH4 || narrowed === 0,
+    `HOST_JUDGES_BASH4=${HOST_JUDGES_BASH4} narrowed=${narrowed}`,
+  );
+  t(
+    'and a host that does NOT judge bash-4 really did narrow — a narrowing nobody takes is a claim nobody made',
+    HOST_JUDGES_BASH4 || narrowed > 0,
+    `HOST_JUDGES_BASH4=${HOST_JUDGES_BASH4} narrowed=${narrowed}`,
+  );
+
   // ── The floor: every declared battery RAN, and ran its cases (#13489) ───
   //
   // Evaluated after every battery has had its chance and BEFORE the verdict, so
@@ -1386,7 +1494,18 @@ function selfTest() {
     console.error(`\n✗ check-bash32-floor self-test failed (${failed} of ${cases} case(s)).`);
     process.exit(1);
   }
-  console.log(`\n✓ check-bash32-floor self-test: ${cases} cases pass.`);
+  if (narrowed > 0) {
+    console.log(
+      `\n✓ check-bash32-floor self-test: ${cases - narrowed} cases pass, ${narrowed} NARROWED.\n`
+      + `  This host's bash refuses ${NARROWING}, so it is at or below the bash 3.2 floor this\n`
+      + '  gate declares and cannot judge a bash-4 construct. Those cases did not run here:\n'
+      + '  a real coverage loss, stated rather than hidden. CI runs bash 5 and runs them.\n'
+      + '  ⛔ The SCAN is not narrowed — `node scripts/check-bash32-floor.mjs` is pure JS and\n'
+      + '  judges this host exactly as it judges CI (objectui#8404).',
+    );
+  } else {
+    console.log(`\n✓ check-bash32-floor self-test: ${cases} cases pass.`);
+  }
   selfTestReachedVerdict = true;
 }
 
