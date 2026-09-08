@@ -216,8 +216,10 @@ function falseIdentityLeaf(field: string, value: unknown[]): FilterNode {
  * convertFiltersToAST({ $or: [{ status: 'open' }, { status: 'blocked' }] })
  * // => ['or', ['status', '=', 'open'], ['status', '=', 'blocked']]
  *
- * @throws {FilterOperatorError} If an unknown operator is encountered, or if
- * `$not` is used — see the `$not` arm for why the AST cannot carry it.
+ * @throws {FilterOperatorError} If an unknown operator is encountered, if
+ * `$not` is used — see the `$not` arm for why the AST cannot carry it — or if a
+ * field's value is a bare ARRAY (`{ tags: ['a', 'b'] }`) — see the array arm for
+ * why that is refused rather than read as `$in`.
  */
 export function convertFiltersToAST(filter: Record<string, any>): FilterNode | Record<string, any> {
   const conditions: FilterNode[] = [];
@@ -250,6 +252,46 @@ export function convertFiltersToAST(filter: Record<string, any>): FilterNode | R
         `$notContains); note those follow each operator's own answer for a missing ` +
         `value rather than $not's NULL-safe rule (objectstack#5146). ` +
         `Value: ${JSON.stringify(value)}.`
+      );
+    }
+
+    // A bare ARRAY in comparand position is the third shape this file cannot
+    // lower, after `$regex` and `$not` (objectui#8530). The equality `else`
+    // below used to catch it and emit `[field, '=', [...]]` — an array in a
+    // scalar-equality slot. The spec's own doors pass that node through
+    // unjudged (`isFilterAST` is true and `parseFilterAST` hands back
+    // `{ field: [...] }`; measured against @objectstack/spec 17.3.0, whose
+    // `assertListComparandShapes` rules only on `$in` / `$nin` / `$between`),
+    // so the refusal arrived two layers later: `@objectstack/driver-sql`
+    // answers 400 INVALID_FILTER, and the in-memory matchers
+    // (`@objectstack/formula`, `ValueDataSource` since objectui#8514) refuse
+    // the node and exclude every row. Either way the author learned nothing at
+    // lowering time. Refused HERE instead, where the field name and the
+    // offending value are both still in hand.
+    //
+    // NOT lowered to `in`. `{ tags: ['a', 'b'] }` and `{ tags: { $in: ['a', 'b'] } }`
+    // are different statements and the second is already spellable; rewriting
+    // one into the other guesses at intent and silently changes which rows a
+    // stored view returns — the lenient second contract objectui#8514 was
+    // resolved against on this same data shape one layer down. A lowering to
+    // `in` would be a deliberate, separately-argued change, not a fallback.
+    //
+    // `$in` / `$nin` / `$between` MEMBERS are legitimately arrays and are read
+    // by the operator loop below, never here; `$and` / `$or` carry arrays of
+    // conditions and were consumed by the combinator arm above.
+    if (Array.isArray(value)) {
+      throw new FilterOperatorError(
+        `[ObjectUI] The filter on field '${field}' carries a bare ARRAY as its ` +
+        `equality comparand: ${JSON.stringify(value)}. It cannot be lowered: the ` +
+        `ObjectQL filter AST has no array-equality node, so the lowered node ` +
+        `[${field}, '=', [...]] is refused by @objectstack/driver-sql (400 INVALID_FILTER) ` +
+        `and matches no row in the in-memory matchers — it can never select anything. ` +
+        `It is deliberately NOT read as membership here: { ${field}: [...] } and ` +
+        `{ ${field}: { $in: [...] } } are different statements, and guessing the ` +
+        `second from the first would silently change which rows a stored view ` +
+        `returns (objectui#8530; the same ruling objectui#8514 applied one layer ` +
+        `down). Spell membership as { ${field}: { $in: [...] } }, its negation as ` +
+        `{ ${field}: { $nin: [...] } }, or a range as { ${field}: { $between: [min, max] } }.`
       );
     }
 
