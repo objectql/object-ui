@@ -19,9 +19,7 @@
  * in precisely the case a reader most needs oriented.
  *
  * That case is the common one, not an edge: `safeValidateSchema` runs
- * `AnyComponentSchema`, a `z.union` over every component arm, so any document
- * matching no arm yields ONE top-level issue — `invalid_union` · `Invalid
- * input` · `path: []`. Measured on the parent commit of this file, a menu
+ * `AnyComponentSchema`. Measured on the parent commit of this file, a menu
  * carrying the retired `{ type: 'separator' }` divider spelling printed:
  *
  *     1. Invalid input
@@ -29,6 +27,23 @@
  *
  * — a bare verdict on a whole document, with nothing saying which node had
  * been judged.
+ *
+ * ⚠️ WHERE THE ROOT ISSUE COMES FROM MOVED (objectui#8498). This file used to
+ * say "`AnyComponentSchema` is a `z.union`, so any document matching no arm
+ * yields ONE top-level issue at `path: []`". That is now false in BOTH halves,
+ * and the cases below are restated rather than patched:
+ *
+ *   - the union discriminates on `type`, so a document whose `type` matches
+ *     nothing is judged AT THE DISCRIMINATOR — `invalid_union` at `['type']`,
+ *     printed as `Path: type`, which names the key that actually failed;
+ *   - a document whose `type` DOES select an arm no longer produces a union
+ *     issue at all: the arm's own issues are the top-level ones, already at
+ *     absolute paths.
+ *
+ * So the root-path line is now produced by documents that are not component
+ * objects at all (a bare scalar), and that is the case pinned first below. The
+ * non-root control is untouched and still load-bearing: a repair that printed
+ * `(root)` for everything would still be caught by it.
  *
  * ⚠️ These cases are written against BOTH sides of the guard on purpose. A fix
  * that printed `(root)` unconditionally would satisfy a root-only test while
@@ -65,8 +80,15 @@ const MENU_WITH_RETIRED_DIVIDER = {
   items: [{ label: 'New Tab', type: 'separator' }],
 };
 
-/** A document from an entirely foreign vocabulary — the other root producer. */
+/** A document from an entirely foreign vocabulary — judged at `type`. */
 const FOREIGN_DOCUMENT = { type: 'module', main: './index.js' };
+
+/**
+ * Not a component object at all. `AnyComponentSchema` cannot even look for a
+ * discriminator here, so the verdict is about the whole document and its path
+ * is genuinely `[]` — the shape this file exists to keep visible.
+ */
+const SCALAR_DOCUMENT = 42;
 
 /**
  * The non-root control, lifted from `validate-widget-namespace.test.ts` so both
@@ -121,8 +143,8 @@ afterEach(() => {
 });
 
 describe('objectui validate — a root-level issue says it is at the root', () => {
-  it('prints a Path line for the union failure that used to print none', async () => {
-    await validate(writeSchema('menu.json', MENU_WITH_RETIRED_DIVIDER));
+  it('prints a Path line for the root issue that used to print none', async () => {
+    await validate(writeSchema('scalar.json', SCALAR_DOCUMENT));
 
     expect(exitCodes).toEqual([1]);
     const text = printed();
@@ -131,14 +153,21 @@ describe('objectui validate — a root-level issue says it is at the root', () =
     // adjacent, with nothing between them.
     expect(text).toContain('1. Invalid input');
     expect(text).toContain('Path: (root)');
-    expect(text).toContain('Code: invalid_union');
+    expect(text).toContain('Code: invalid_type');
   });
 
-  it('does the same for a document from a foreign vocabulary', async () => {
+  it('names the discriminator, not the root, when no arm claims the type', async () => {
+    // ⚠️ Was `toContain('Path: (root)')` until objectui#8498. The verdict moved
+    // to the key it is about, and the `not` half is what keeps this honest: a
+    // printer that fell back to `(root)` for a union issue would still pass the
+    // positive half alone.
     await validate(writeSchema('package.json', FOREIGN_DOCUMENT));
 
     expect(exitCodes).toEqual([1]);
-    expect(printed()).toContain('Path: (root)');
+    const text = printed();
+    expect(text).toContain('Path: type');
+    expect(text).toContain('Code: invalid_union');
+    expect(text).not.toContain('Path: (root)');
   });
 
   it('gives EVERY reported issue a Path line, root or not', async () => {
@@ -214,15 +243,20 @@ describe('objectui validate — the arm-selection half, now that it is ruled', (
     // rides the per-arm issues, which is exactly why it never reached an author.
     expect(text).toContain('RETIRED (objectui#6523)');
     expect(text).toContain('Path: items → 0 → type');
-    // Unchanged, and load-bearing: the top-level entry still carries the root
-    // path line this file exists for.
-    expect(text).toContain('Path: (root)');
-    // Still exactly one NUMBERED issue. Arm entries are `1.1`-shaped, so a
-    // reader (and this assertion) can still count the top-level failures — an
-    // arm walk that emitted them as `2.`, `3.` … would have multiplied this.
-    const numbered = printed()
-      .split('\n')
-      .filter((line) => /^\d+\. /.test(line.trim()));
-    expect(numbered).toHaveLength(1);
+    // ⚠️ Was `toContain('Path: (root)')` and `toHaveLength(1)` until
+    // objectui#8498. With the root discriminated, `dropdown-menu` selects its
+    // arm outright and THAT ARM'S issues are the top-level ones — this document
+    // has two independent defects (the retired divider, and a missing required
+    // `trigger`), so it prints two. What must not happen is the multiplication
+    // this case was written against: entries contributed by arms the document's
+    // `type` did NOT select.
+    const numbered = text.split('\n').filter((line) => /^\d+\. /.test(line.trim()));
+    expect(numbered).toHaveLength(2);
+    expect(text).toContain('Path: trigger');
+    // Every top-level entry belongs to `dropdown-menu`. An arm that merely
+    // disagreed about `type` would show up as a discriminator complaint.
+    expect(text).not.toContain('Invalid discriminator value');
+    expect(text).not.toContain('expected "app"');
+    expect(text).not.toContain('No arm accepts type');
   });
 });

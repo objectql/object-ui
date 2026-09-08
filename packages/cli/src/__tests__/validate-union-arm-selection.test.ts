@@ -137,10 +137,13 @@ describe('objectui validate — the arm the document selected', () => {
     // at `['type']`, relative to its own node; printing that raw would name the
     // document's own `type` key, which is not what failed.
     expect(text).toContain('Path: items → 0 → type');
-    // The top-level entry is still exactly one numbered issue: the arm lines
-    // are `1.1`-shaped and cannot be read as separate top-level entries.
+    // ⚠️ `toHaveLength(1)` until objectui#8498: the root now discriminates, so
+    // `dropdown-menu`'s OWN issues are the top-level entries — two of them for
+    // this document, one per real defect (the retired divider at `items → 0`,
+    // and the required `trigger` it never carried). `MenuItemSchema` is still
+    // an undiscriminated union, so ITS arms are still `1.k` sub-entries.
     const numbered = text.split('\n').filter((line) => /^\d+\. /.test(line.trim()));
-    expect(numbered).toHaveLength(1);
+    expect(numbered).toHaveLength(2);
     expect(armEntries().length).toBeGreaterThan(0);
   });
 
@@ -241,6 +244,51 @@ describe('union-arm-diagnostics — the selection itself', () => {
   it('returns nothing for an issue that is not a union', () => {
     expect(explainUnionIssue({ code: 'custom', path: ['a'], message: 'x' }, {})).toEqual([]);
     expect(explainUnionIssue({ code: 'invalid_union', path: [], message: 'x' }, {})).toEqual([]);
+  });
+
+  it('reads the ruling\'s note off a DISCRIMINATED union that matched nothing', () => {
+    // Header fact 2 shape (c), the shape objectui#8498 made the common one:
+    // no arms at all, the accepted literals in `options`, and the path ending
+    // at the discriminator key — so the NODE is that path minus its last
+    // segment, which is what the note must name.
+    const lines = explainUnionIssue(
+      {
+        code: 'invalid_union',
+        path: ['items', 0, 'type'],
+        note: 'No matching discriminator',
+        errors: [],
+        options: ['dropdown-menu', 'context-menu', 'menubar', 'card', 'grid', 'div'],
+        message: 'Invalid input',
+      },
+      { items: [{ type: 'dropdwn-menu' }] },
+    );
+    expect(lines).toHaveLength(1);
+    const [note] = lines;
+    expect(note.kind).toBe('note');
+    if (note.kind !== 'note') return;
+    expect(note.path).toEqual(['items', 0]);
+    expect(note.authoredType).toBe('dropdwn-menu');
+    expect(note.candidates[0]).toBe('dropdown-menu');
+    expect(note.candidates.length).toBeLessThanOrEqual(MAX_UNION_ARMS_REPORTED);
+    expect(note.totalArmNames).toBe(6);
+  });
+
+  it('does NOT read that note off a union that still reports arms', () => {
+    // The guard that keeps shape (c) off the arm-walk path: an `invalid_union`
+    // carrying real arms is still selected among, not summarised — otherwise a
+    // stray `options` would silently replace a whole arm diagnosis with a hint.
+    const lines = explainUnionIssue(
+      {
+        code: 'invalid_union',
+        path: [],
+        note: 'No matching discriminator',
+        options: ['div', 'card'],
+        errors: [[{ code: 'invalid_type', path: ['type'], message: 'arm one' }]],
+        message: 'Invalid input',
+      },
+      {},
+    );
+    expect(lines.every((l) => l.kind === 'issue')).toBe(true);
   });
 
   it('reports every arm, capped, when a union has no `type` discriminator', () => {

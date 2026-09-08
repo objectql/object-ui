@@ -1268,8 +1268,13 @@ export const ObjectDataTableSchema = BaseSchema.extend({
  * Both nodes render (`plugin-list` registers `object-gallery`, `plugin-dashboard`
  * registers `object-data-table`); this is the validating face catching up with
  * the rendering one. The behaviour pin is `__tests__/objectql-union-arms-7363.test.ts`.
+ *
+ * `z.discriminatedUnion`, not `z.union` (objectui#8498) — see the same note on
+ * `crud.zod.ts#CRUDComponentSchema` for both reasons. All twelve arms already
+ * declared a distinct `type` literal, so ⛔ no document changes verdict; what
+ * changes is that a refusal now carries ONE arm's diagnosis instead of twelve.
  */
-export const ObjectQLComponentSchema = z.union([
+export const ObjectQLComponentSchema = z.discriminatedUnion('type', [
   ObjectGridSchema,
   ObjectFormSchema,
   ObjectViewSchema,
