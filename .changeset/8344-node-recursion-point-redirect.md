@@ -62,14 +62,28 @@ none. The published `ChatbotSchema` is untouched — whether its own `body` shou
 chat API's params is a separate question, recorded on objectui#8572 and deliberately not
 decided here.
 
-**3. ⚠️ KNOWN GAP, stated rather than papered over: the redirect can still be tree-shaken away
-for a bundled consumer.** This package declares `"sideEffects": false` and the arm is filled by
-a statement in the `./zod` barrel's body, so a bundler that honours the flag and sees no
-reference to `AnyComponentSchema` may drop the fill — and then every child slot validates with
-the PRE-redirect arm, with no error and no warning. Measured on this repo's own Vite/rollup lib
-build: an entry importing only `CardSchema` ACCEPTS a nested off-spec node (370,652 bytes, no
-fill in the output); the same entry with `AnyComponentSchema` also imported REFUSES it
-(1,149,749 bytes, fill present).
+**3. ⚠️ KNOWN GAP, declared rather than papered over: a bundled consumer that never reads
+`AnyComponentSchema` can tree-shake the redirect away.** This package declares
+`"sideEffects": false` and the arm is filled by a statement in the `./zod` barrel's body, so a
+bundler that honours the flag and sees no reference to `AnyComponentSchema` may drop the fill —
+and then every child slot validates with the PRE-redirect arm, with no error and no warning.
+Who is exposed, stated plainly: an external consumer whose bundler honours `sideEffects: false`
+and never reads `AnyComponentSchema` keeps `main`'s accept set for NESTED nodes. Root-level
+enforcement is unchanged by the gap, and every consumer whose import graph reads the union —
+the `./zod` barrel under Node or vitest, `@object-ui/cli`'s `check` / `validate` (they call
+`safeValidateSchema`, which references the union), any bundle that imports `AnyComponentSchema`
+— gets the new set at every depth.
+
+Measured on the published `dist/zod` face of this head (Vite 8.2.1 lib build, `es`,
+esbuild-minified, `zod` 4.4.3 and `@objectstack/spec` external, so the figures are this
+package's own bytes; nested off-spec node = `{ type: 'icon', icon: 'check', size: 'huge' }`
+inside `card.body[]`, parsed through `CardSchema`):
+
+| entry | nested off-spec node | bundle (raw / gzip) | fill in output |
+| --- | --- | --: | --- |
+| barrel, `CardSchema` and `AnyComponentSchema` imported | REFUSED | 750,542 / 206,815 B | present |
+| barrel, `CardSchema` only | **ACCEPTED (inert)** | 212,567 / 61,025 B | absent |
+| deep-link entry at `layout.zod.js` | **ACCEPTED (inert)** | 212,563 / 61,030 B | absent |
 
 ⛔ It is NOT closed here, and the reason is measured rather than argued. The route that closes
 it by binding the union inside `SchemaNodeSchema`'s `z.lazy` getter was implemented and pushed,
@@ -82,6 +96,10 @@ too: a narrowed `sideEffects` array is not a legal declaration for this package 
 requires every entry form to be named, another refuses a named entry with no load-time effect,
 and this package's entry forms are pure), a bare top-level call is dropped by the same flag,
 and dropping the flag costs 16,078 gzipped bytes on the console `framework` chunk and moves a
-workspace census a guard pins. ⇒ until a route survives CI, a consumer that bundles
+workspace census a guard pins.
+
+⇒ **The card that closes this gap is objectui#8598**: build the `./zod` subpath as ONE bundled
+module, so a consumer bundler has no internal graph to link past and every entry — one schema,
+the barrel, or a deep link — gets the same accept set. Until it lands, a consumer that bundles
 `@object-ui/types/zod` should keep `AnyComponentSchema` in its import graph, which is enough to
 make the redirect apply.

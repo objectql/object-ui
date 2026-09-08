@@ -179,13 +179,22 @@ export function defineNodeComponentUnion<T extends z.ZodType>(union: T): T {
  * declares `"sideEffects": false` and the fill is a statement in this barrel's body,
  * so a bundler that honours the flag and sees no reference to `AnyComponentSchema`
  * may drop the whole const — fill included — and then every child slot validates
- * with the PRE-#8344 arm. Measured on this repo's own Vite/rollup lib build: one
- * entry importing only `CardSchema` ACCEPTS a nested off-spec node (369,733 bytes,
- * no fill in the output), the same entry with `AnyComponentSchema` also imported
- * REFUSES it (1,144,999 bytes, fill present). The guard below cannot see this: it
- * runs inside the code that was dropped. ⇒ this window is silent, it is NOT the
- * pre-fill window this paragraph describes, and its disposition is a ruling in
- * flight on objectui#8344 — ⛔ do not close it by editing this comment.
+ * with the PRE-#8344 arm. Measured on the published `dist/zod` face of this package
+ * (Vite 8.2.1 lib build, `es`, esbuild-minified, `zod` 4.4.3 and `@objectstack/spec`
+ * external, so the figures are this package's own bytes — the same instrument and
+ * the same figures the objectui#8344 changeset cites): a barrel entry importing only
+ * `CardSchema` ACCEPTS a nested off-spec node (212,567 bytes, fill absent), an entry
+ * that deep-links `layout.zod.js` ACCEPTS it too (212,563 bytes, fill absent), and
+ * the barrel entry with `AnyComponentSchema` also imported REFUSES it (750,542
+ * bytes, fill present). The guard below cannot see this: it runs inside the code
+ * that was dropped. ⇒ this window is silent, it is NOT the pre-fill window this
+ * paragraph describes, and it ships DECLARED (objectui#8344 decision batch #98): an
+ * external consumer whose bundler honours the flag and never reads
+ * `AnyComponentSchema` keeps the pre-#8344 accept set for NESTED nodes; root-level
+ * enforcement and every consumer whose graph reads the union get the new set.
+ * Closing it is objectui#8598 — the `./zod` face built as ONE module — ⛔ not an
+ * import of the union from here: that spelling was measured to throw at load in a
+ * real consumer's bundle (the changeset carries the CI evidence).
  *
  * ## Both type arguments are filled, and that is the whole published input face
  *
