@@ -1,6 +1,16 @@
 #!/usr/bin/env node
 /**
- * Reverse i18n sweep (objectui#4658): pack key set MINUS referenced key set.
+ * Reverse i18n sweep (objectui#4658): declared key set MINUS referenced key set.
+ *
+ * TWO corpora, one question, one report — `sweep()` over the ten locale packs
+ * (objectui#4658), and `sweepDesignerTable()` over the metadata-admin
+ * designer's module-local `ENGINE_STRINGS_*` table (objectui#8388). They are
+ * one script because they ask the same mirror question from the same side, not
+ * because they share a walker: the pack half reads the call-site gate's own
+ * AST pass, the designer half has its own, because no call-site walker in this
+ * repo can see the designer table at all. That second corpus, why it needs a
+ * separate leg and what its legs are blind to, is documented at
+ * `DESIGNER_TABLE` below rather than here.
  *
  * `scripts/check-i18n-call-site-keys.mjs` (objectui#3530) answers "does the key
  * a component ASKS FOR exist in `en`?" — call site -> pack. This file asks the
@@ -210,21 +220,30 @@
  * ## Usage
  *
  *   node scripts/check-i18n-dead-keys.mjs             # report, exit 0 always
- *   node scripts/check-i18n-dead-keys.mjs --strict     # exit 1 if CONFIRMED is non-empty
- *   node scripts/check-i18n-dead-keys.mjs --json       # machine-readable, same tiers
+ *   node scripts/check-i18n-dead-keys.mjs --strict     # exit 1 if either CONFIRMED list is non-empty
+ *   node scripts/check-i18n-dead-keys.mjs --json       # machine-readable, same tiers, both corpora
  *
  * `--strict` is not called by any workflow today; it exists so a future PR can
  * flip this into a real gate without a rewrite, once the false-positive rate
  * measured here is judged low enough (see the PR body for objectui#4658).
+ * Making it enforcing is a maintainer decision for BOTH corpora, and for the
+ * designer table it is explicitly out of objectui#8388's ruled scope.
+ *
+ * The script does exit non-zero for one class of thing, and it is not a
+ * finding: a COLLAPSED scan. Both CLI guards below stop the run when the
+ * corpus, the reference side or (for the designer table) the dynamic-head set
+ * comes back implausibly small, because that failure does not look like a
+ * broken tool — it looks like a longer, more confident report.
  */
 
+import ts from 'typescript';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { analyze, collectEnKeys } from './check-i18n-call-site-keys.mjs';
+import { analyze, collectEnKeys, collectSourceFiles } from './check-i18n-call-site-keys.mjs';
 import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -289,6 +308,45 @@ function occursAtPropertyBoundary(content, probe) {
   }
 }
 
+/** Characters that would continue a DOTTED KEY, and therefore mean a full-key
+ *  match landed inside a longer key rather than on the key itself. Wider than
+ *  `IDENTIFIER_CHAR` by exactly `.` and `-`: `ns.group.leaf` is a substring of
+ *  `ns.group.leaf.detail`, and reporting the latter's line as a textual hit for
+ *  the former sends a reader to a line that does not mention their key. */
+const KEY_CHAR = /[A-Za-z0-9_$.-]/;
+
+/**
+ * Whether `key` occurs in `content` bounded on BOTH sides by a non-key
+ * character — i.e. at least one occurrence is the whole key rather than a
+ * prefix or suffix of a longer one.
+ *
+ * Opt-in (`keyBoundary`), because the two corpora want opposite defaults. The
+ * pack sweep has always used a plain substring test and its measured
+ * false-positive rate was taken with that behaviour; changing it here would
+ * silently re-tier that report. The designer table, by contrast, is densely
+ * prefix-nested — a chrome key and its own sub-keys sit in the same namespace —
+ * so without this check most of its NEEDS-REVIEW tier is evidence about a
+ * DIFFERENT key.
+ *
+ * ⚠️ The cost, stated rather than discovered: a prose mention that ends in a
+ * full stop no longer counts as a hit, so this can move a key from
+ * NEEDS-REVIEW up into CONFIRMED — the direction that claims MORE evidence of
+ * deadness. That is why CONFIRMED is documented as "read this first", never as
+ * "safe to bulk delete".
+ */
+function occursAtKeyBoundary(content, key) {
+  for (let from = 0; ; from += 1) {
+    const at = content.indexOf(key, from);
+    if (at === -1) return false;
+    const before = at === 0 ? undefined : content[at - 1];
+    const after = content[at + key.length];
+    const boundedLeft = before === undefined || !KEY_CHAR.test(before);
+    const boundedRight = after === undefined || !KEY_CHAR.test(after);
+    if (boundedLeft && boundedRight) return true;
+    from = at;
+  }
+}
+
 /**
  * Whether the literal dotted string of each `key` in `keys` occurs anywhere in
  * the repo outside `LOCALES_DIR`, OR — for keys of three or more segments —
@@ -305,12 +363,26 @@ function occursAtPropertyBoundary(content, probe) {
  * its own source (measured: an earlier draft named a real objectui#4658
  * target key here and self-polluted that key's report entry).
  *
+ * @param {object} [options]
+ * @param {string} [options.definitionPrefix] Repo-relative path prefix whose
+ *   hits are NOT evidence, because it is where the keys are defined. Defaults
+ *   to `LOCALES_DIR` (the packs). The designer corpus passes its single table
+ *   FILE instead — the whole file, not just its two table literals, because
+ *   that module's header docblock quotes example keys in prose and a grep
+ *   cannot tell prose from a call site.
+ * @param {boolean} [options.propertyChain=true] Run the property-chain probe.
+ *   Off for a corpus whose table is not exported, where no property-access
+ *   reader can exist (see `DESIGNER_TABLE`).
+ * @param {boolean} [options.keyBoundary=false] Require a full-key match to be
+ *   bounded by non-key characters — see `occursAtKeyBoundary()` for why the two
+ *   corpora want opposite defaults.
  * @returns {Map<string, string[]>} key -> repo-relative file paths that
- *   mention it outside the locale packs (deduped, sorted). A path matched only
- *   by the property-chain probe carries `PROPERTY_CHAIN_HIT_SUFFIX`. A key
+ *   mention it outside `definitionPrefix` (deduped, sorted). A path matched
+ *   only by the property-chain probe carries `PROPERTY_CHAIN_HIT_SUFFIX`. A key
  *   absent from the map, or mapped to `[]`, has no textual footprint at all.
  */
-export function textFootprint(root, keys) {
+export function textFootprint(root, keys, options = {}) {
+  const { definitionPrefix = LOCALES_DIR, propertyChain = true, keyBoundary = false } = options;
   const result = new Map(keys.map((key) => [key, []]));
   if (keys.length === 0) return result;
 
@@ -319,7 +391,7 @@ export function textFootprint(root, keys) {
   // — the whole point of the patterns file is that a repo this size makes
   // per-key greps the slow path, and that argument does not change because
   // there are now up to twice as many fixed strings in it.
-  const probes = keys.map((key) => ({ key, chain: propertyChainProbe(key) }));
+  const probes = keys.map((key) => ({ key, chain: propertyChain ? propertyChainProbe(key) : null }));
   const patterns = [...new Set(probes.flatMap(({ key, chain }) => (chain === null ? [key] : [key, chain])))];
 
   const patternsFile = join(mkdtempSync(join(tmpdir(), 'i18n-dead-keys-')), 'patterns.txt');
@@ -364,9 +436,9 @@ export function textFootprint(root, keys) {
     const file = line.slice(0, firstColon);
     const content = line.slice(secondColon + 1);
     const relFile = relative(root, file).split('\\').join('/');
-    if (relFile.startsWith(LOCALES_DIR)) continue;
+    if (relFile.startsWith(definitionPrefix)) continue;
     for (const { key, chain } of probes) {
-      const literal = content.includes(key);
+      const literal = keyBoundary ? occursAtKeyBoundary(content, key) : content.includes(key);
       if (!literal && !(chain !== null && occursAtPropertyBoundary(content, chain))) continue;
       const files = perKey.get(key);
       files.set(relFile, (files.get(relFile) ?? false) || literal);
@@ -453,6 +525,308 @@ export function sweep(root) {
   };
 }
 
+// ── the metadata-admin designer table (objectui#8388) ────────────────────────
+
+/**
+ * The SECOND corpus this file sweeps: the metadata-admin designer's own
+ * module-local string table, `ENGINE_STRINGS_EN` / `ENGINE_STRINGS_ZH` in
+ * `packages/app-shell/src/views/metadata-admin/i18n.ts`.
+ *
+ * ## Why it needs its own leg at all — both i18n gates are blind BY CONSTRUCTION
+ *
+ * Measured, not assumed (objectui#8388, comment 5592768866): a run of
+ * `check:i18n-keys` and `check:i18n-drift` over a PR that deleted four provably
+ * dead keys from this table returned exit 0 from both, and neither verdict was
+ * about this table:
+ *
+ *   - `check-i18n-call-site-keys.mjs` walks CALL SITES and resolves each against
+ *     the `en` PACK. A key no call site names is not a subject to it, so it can
+ *     never report a dead one — the defect and that gate's blind spot are the
+ *     same thing. It also classifies this module `module-local table` by
+ *     declaration and skips it outright.
+ *   - `check-i18n-en-drift.mjs` reads the TEN LOCALE PACKS. This table is not
+ *     one of them; it is out of that gate's population entirely.
+ *
+ * ⇒ two green verdicts that look like coverage and measure something else. The
+ * question this leg asks is the table's OWN MEMBERSHIP, from the declaration
+ * side — the same mirror question `sweep()` above asks of the packs, which is
+ * why it lives here rather than in a second script.
+ *
+ * ## Why it is report-only, and why the dynamic-head leg is load-bearing
+ *
+ * A plain literal-footprint sweep over this corpus finds ~226 of ~1660 `en`
+ * keys with no literal spelling anywhere in shipped source, and the
+ * overwhelming majority of those are LIVE — reached by a template head such as
+ * a severity level or an access-explain operation, built at the call site from
+ * a runtime value. Enforcing that would cry wolf ~226 times on a clean tree,
+ * which is objectui#4658's own ruling for the pack sweep and objectui#8068's
+ * argument against an instrument that claims more than it checks. Reporting it
+ * is no better: a report that lists 226 candidates every run is not a report.
+ *
+ * So this leg subtracts template-head reachability BEFORE reporting, exactly as
+ * `sweep()`'s `dynamicHeads` does for the packs, and in the same
+ * recall-over-precision direction: any table key sharing a collected head's
+ * prefix is a POSSIBLE runtime target of that substitution and is therefore
+ * NOT called dead. Being wrong towards "still live" costs a key nobody deletes;
+ * being wrong the other way deletes a shipping string.
+ *
+ * ## The three legs, and what each is blind to
+ *
+ *   1. LITERAL — every string literal (and no-substitution template) in
+ *      non-test source under `packages/`+`apps/` whose text starts with one of
+ *      `DESIGNER_KEY_ROOTS`. Deliberately not restricted to arguments of
+ *      `t()`/`tOptional()`/`tFormat()`: a key parked in a config object and
+ *      handed to a translator through a variable is just as live, and the AST
+ *      pass cannot follow that indirection. Blind to: keys never spelled.
+ *   2. DYNAMIC HEAD — the static head of every template expression in the same
+ *      files whose head starts with one of the roots, INCLUDING the ones inside
+ *      the table's own module (`translateNodeLabel` and `translateEnumOption`
+ *      index `pickTable(locale).strings[...]` directly, with no `t()` call for
+ *      any call-site walker to see). Blind to: a head composed across modules,
+ *      or built by concatenation rather than a template literal.
+ *   3. TEXT SAFETY NET — `textFootprint()`, the same whole-repo grep the pack
+ *      sweep uses, minus the property-chain probe. It splits the survivors into
+ *      CONFIRMED and NEEDS-REVIEW.
+ *
+ * ⚠️ The property-chain probe is OFF for this corpus, and that is a measured
+ * decision rather than an omission. It exists for a consumer that imports a
+ * locale PACK OBJECT and reads it by property access. Neither `ENGINE_STRINGS_`
+ * table is exported from this module at all, so no such consumer can exist; the
+ * only occurrences of those two identifiers outside the module are in one test
+ * that re-reads the table out of the source. Turning it on would demote keys on
+ * evidence about a shape this corpus cannot have.
+ *
+ * ⚠️ The DEFINITION FILE is excluded from the text net wholesale, not just its
+ * two table literals — the module's own header docblock quotes example keys in
+ * prose, and a whole-file grep would read that prose as a reader. The literal
+ * and head legs still read that file, through the AST, where a comment is not a
+ * node and the table literals are skipped explicitly.
+ */
+export const DESIGNER_TABLE = 'packages/app-shell/src/views/metadata-admin/i18n.ts';
+
+/** The two table constants whose PROPERTY NAMES are the corpus. Their own
+ *  initializers are skipped by the reader walk: a key's definition line is not
+ *  evidence that anything reads it. */
+export const DESIGNER_TABLE_CONSTS = ['ENGINE_STRINGS_EN', 'ENGINE_STRINGS_ZH'];
+
+/** The three top-level namespaces this table owns. A string literal or template
+ *  head that does not start with one of these cannot be one of its keys, so the
+ *  reader walk skips the file entirely when none of them occurs in its text. */
+export const DESIGNER_KEY_ROOTS = ['engine.', 'designer.', 'perm.'];
+
+/** Any table key sharing a head this wide would be swallowed silently, so a
+ *  head with no segment of its own after the root is REPORTED rather than
+ *  applied — `engine.` as a head would mark 1300+ keys live and read as a very
+ *  clean sweep. Measured on this checkout: no such head exists. */
+const MIN_HEAD_SEGMENTS = 2;
+
+/** Whether `text` could be a key of this table — starts with one of the three
+ *  roots and carries no whitespace. The corpus intersection does the real
+ *  filtering; this only keeps the collected sets small. */
+function isDesignerKeyShape(text) {
+  return DESIGNER_KEY_ROOTS.some((root) => text.startsWith(root)) && !/\s/.test(text);
+}
+
+/**
+ * The property names of each `ENGINE_STRINGS_*` table, read from the AST.
+ *
+ * Read through the TypeScript parser rather than by an indentation-anchored
+ * line scan: table membership is the whole question here, and an anchored
+ * `^  '…':` pattern answers a question about one indentation only — it cannot
+ * see a nested or re-indented region, and it would also match a commented-out
+ * row. The parser sees neither problem.
+ *
+ * @returns {{ tables: Map<string, Set<string>>, corpus: Set<string> }}
+ *   `corpus` is the UNION of both tables: a key present in only one of them is
+ *   still a key of this bundle, and a dead `zh`-only key is exactly as dead as
+ *   a dead `en` one.
+ */
+export function collectDesignerKeys(root) {
+  const file = join(root, DESIGNER_TABLE);
+  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+  const tables = new Map();
+
+  const visit = (node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      DESIGNER_TABLE_CONSTS.includes(node.name.text) &&
+      node.initializer &&
+      ts.isObjectLiteralExpression(node.initializer)
+    ) {
+      const keys = new Set();
+      for (const prop of node.initializer.properties) {
+        if (!ts.isPropertyAssignment(prop)) {
+          throw new Error(
+            `${DESIGNER_TABLE}: unsupported property form in ${node.name.text} ` +
+              `(${ts.SyntaxKind[prop.kind]}) — the extractor is stale`,
+          );
+        }
+        if (!ts.isStringLiteral(prop.name) && !ts.isIdentifier(prop.name)) {
+          throw new Error(`${DESIGNER_TABLE}: unsupported key form in ${node.name.text} — the extractor is stale`);
+        }
+        keys.add(prop.name.text);
+      }
+      tables.set(node.name.text, keys);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+
+  for (const name of DESIGNER_TABLE_CONSTS) {
+    if (!tables.has(name)) {
+      throw new Error(`${DESIGNER_TABLE}: \`const ${name} = { … }\` not found — the extractor is stale`);
+    }
+  }
+
+  const corpus = new Set();
+  for (const keys of tables.values()) for (const key of keys) corpus.add(key);
+  return { tables, corpus };
+}
+
+/**
+ * Everything in shipped source that could ask this table for a key.
+ *
+ * Scope is `collectSourceFiles()` — non-test `.ts`/`.tsx` under `packages/` and
+ * `apps/`, the SAME population the call-site gate audits, so the two directions
+ * stay comparable. `examples/` and `e2e/` are out of scope for this pass and
+ * are covered only by the text safety net, exactly as they are for `sweep()`.
+ *
+ * The table's own module IS walked (it holds real readers — the validation
+ * message helper spells keys literally, and the flow-node and enum-option
+ * helpers build them from template heads), but the two table initializers are
+ * skipped: a definition is not a reference.
+ *
+ * @returns {{
+ *   literalKeys: Map<string, string[]>,
+ *   dynamicHeads: Map<string, string[]>,
+ *   wideHeads: string[],
+ *   filesScanned: number,
+ * }} `literalKeys` and `dynamicHeads` map to the repo-relative files that carry
+ *   them. `wideHeads` are heads with fewer than `MIN_HEAD_SEGMENTS` segments,
+ *   reported and NOT applied.
+ */
+export function collectDesignerReaders(root) {
+  const literalKeys = new Map();
+  const dynamicHeads = new Map();
+  const tablePath = join(root, DESIGNER_TABLE);
+  let filesScanned = 0;
+
+  const add = (map, value, file) => {
+    const files = map.get(value) ?? [];
+    if (!files.includes(file)) files.push(file);
+    map.set(value, files);
+  };
+
+  for (const file of collectSourceFiles(root)) {
+    const text = readFileSync(file, 'utf8');
+    if (!DESIGNER_KEY_ROOTS.some((prefix) => text.includes(prefix))) continue;
+    filesScanned += 1;
+    const rel = relative(root, file).split('\\').join('/');
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    const isTableFile = file === tablePath;
+
+    const visit = (node) => {
+      if (
+        isTableFile &&
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        DESIGNER_TABLE_CONSTS.includes(node.name.text)
+      ) {
+        return; // the definition site — not a reader
+      }
+      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+        if (isDesignerKeyShape(node.text)) add(literalKeys, node.text, rel);
+      } else if (ts.isTemplateExpression(node)) {
+        const head = node.head.text;
+        if (DESIGNER_KEY_ROOTS.some((prefix) => head.startsWith(prefix))) add(dynamicHeads, head, rel);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+
+  const wideHeads = [...dynamicHeads.keys()].filter(
+    (head) => head.replace(/\.$/, '').split('.').length < MIN_HEAD_SEGMENTS,
+  );
+  for (const head of wideHeads) dynamicHeads.delete(head);
+
+  return { literalKeys, dynamicHeads, wideHeads, filesScanned };
+}
+
+/**
+ * The designer-table sweep: table membership MINUS everything that could read
+ * it. Same three tiers and the same report-only posture as `sweep()`.
+ *
+ * @returns {{
+ *   tableSizes: Map<string, number>,
+ *   corpusSize: number,
+ *   zhOnly: string[],
+ *   enOnly: string[],
+ *   literalReferencedCount: number,
+ *   dynamicHeads: Map<string, string[]>,
+ *   headHeldCounts: Map<string, number>,
+ *   wideHeads: string[],
+ *   headReachableCount: number,
+ *   candidateCount: number,
+ *   confirmed: Array<{ key: string, tables: string[] }>,
+ *   needsReview: Array<{ key: string, tables: string[], hits: string[] }>,
+ * }}
+ */
+export function sweepDesignerTable(root) {
+  const { tables, corpus } = collectDesignerKeys(root);
+  const { literalKeys, dynamicHeads, wideHeads } = collectDesignerReaders(root);
+
+  const en = tables.get('ENGINE_STRINGS_EN');
+  const zh = tables.get('ENGINE_STRINGS_ZH');
+  const heads = [...dynamicHeads.keys()];
+
+  const literalReferenced = [...corpus].filter((key) => literalKeys.has(key));
+  const headReachable = [...corpus].filter(
+    (key) => !literalKeys.has(key) && heads.some((head) => key.startsWith(head)),
+  );
+
+  // Per head: how many table keys it, and nothing else, keeps out of the
+  // candidate list — keys with NO literal spelling anywhere in shipped source.
+  // This is the negative control's own reading: each non-zero row is a family a
+  // literal-footprint sweep would have reported dead, and a row that falls to
+  // zero is the signal that the family stopped being template-built (or that
+  // the head extractor drifted), not a quiet improvement.
+  const headHeldCounts = new Map(
+    heads.map((head) => [head, headReachable.filter((key) => key.startsWith(head)).length]),
+  );
+
+  const candidates = [...corpus]
+    .filter((key) => !literalKeys.has(key) && !heads.some((head) => key.startsWith(head)))
+    .sort();
+
+  const footprints = textFootprint(root, candidates, {
+    definitionPrefix: DESIGNER_TABLE,
+    propertyChain: false,
+    keyBoundary: true,
+  });
+  const tablesOf = (key) => DESIGNER_TABLE_CONSTS.filter((name) => tables.get(name).has(key));
+
+  return {
+    tableSizes: new Map([...tables].map(([name, keys]) => [name, keys.size])),
+    corpusSize: corpus.size,
+    zhOnly: [...zh].filter((key) => !en.has(key)).sort(),
+    enOnly: [...en].filter((key) => !zh.has(key)).sort(),
+    literalReferencedCount: literalReferenced.length,
+    dynamicHeads,
+    headHeldCounts,
+    wideHeads,
+    headReachableCount: headReachable.length,
+    candidateCount: candidates.length,
+    confirmed: candidates
+      .filter((key) => footprints.get(key).length === 0)
+      .map((key) => ({ key, tables: tablesOf(key) })),
+    needsReview: candidates
+      .filter((key) => footprints.get(key).length > 0)
+      .map((key) => ({ key, tables: tablesOf(key), hits: footprints.get(key) })),
+  };
+}
+
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
 const invokedDirectly = isEntrypoint(import.meta.url);
@@ -462,6 +836,7 @@ if (invokedDirectly) {
   const strict = process.argv.includes('--strict');
   const asJson = process.argv.includes('--json');
   const result = sweep(root);
+  const designer = sweepDesignerTable(root);
 
   // Same collapse guard as the call-site gate's own CLI block: on the REAL
   // repo, an empty or near-empty comparison means the extractor or file walk
@@ -475,6 +850,30 @@ if (invokedDirectly) {
     process.exit(1);
   }
 
+  // The designer table's own collapse guard, and it needs BOTH halves for the
+  // same reason the pack one does — plus a third clause the pack sweep has no
+  // equivalent for. A run where every template head vanished (a parser change,
+  // a refactor that moves key construction out of template literals) does not
+  // look broken: it looks like a much longer, very confident candidate list.
+  // That is the failure mode this whole leg exists to avoid, so it is a hard
+  // stop rather than a line in the report.
+  if (designer.corpusSize < 1000 || designer.literalReferencedCount < 500 || designer.dynamicHeads.size === 0) {
+    console.error(
+      `The designer-table scan collapsed: ${designer.corpusSize} table key(s), ` +
+        `${designer.literalReferencedCount} literally referenced, ${designer.dynamicHeads.size} dynamic head(s). ` +
+        'Expected ~1700 / ~1400 / ~26 — the table extractor or the reader walk is broken, and a run ' +
+        'with no heads reports every dynamically-built key as dead.',
+    );
+    process.exit(1);
+  }
+
+  if (designer.wideHeads.length > 0) {
+    console.error(
+      `Dynamic head(s) with no segment of their own, NOT applied: ${designer.wideHeads.join(', ')}. ` +
+        'A head this wide would mark a whole namespace live and read as a very clean sweep.',
+    );
+  }
+
   if (asJson) {
     console.log(
       JSON.stringify(
@@ -484,6 +883,25 @@ if (invokedDirectly) {
           candidateCount: result.candidateCount,
           confirmed: result.confirmed,
           needsReview: result.needsReview,
+          designerTable: {
+            file: DESIGNER_TABLE,
+            tableSizes: Object.fromEntries(designer.tableSizes),
+            corpusSize: designer.corpusSize,
+            zhOnly: designer.zhOnly,
+            enOnly: designer.enOnly,
+            literalReferencedCount: designer.literalReferencedCount,
+            headReachableCount: designer.headReachableCount,
+            dynamicHeads: Object.fromEntries(
+              [...designer.dynamicHeads].map(([head, files]) => [
+                head,
+                { keysHeldLive: designer.headHeldCounts.get(head) ?? 0, sites: files },
+              ]),
+            ),
+            wideHeads: designer.wideHeads,
+            candidateCount: designer.candidateCount,
+            confirmed: designer.confirmed,
+            needsReview: designer.needsReview,
+          },
         },
         null,
         2,
@@ -525,8 +943,67 @@ if (invokedDirectly) {
       '\nThis is a REPORT, not a gate (see the header of scripts/check-i18n-dead-keys.mjs). Every ' +
         'CONFIRMED hit still needs a sampled human check before deletion — see objectui#4658.',
     );
+
+    // ── the metadata-admin designer table (objectui#8388) ────────────────────
+    const sizes = [...designer.tableSizes].map(([name, size]) => `${name} ${size}`).join(', ');
+    console.log(`\n${'='.repeat(78)}\nmetadata-admin designer table — ${DESIGNER_TABLE}`);
+    console.log(
+      `\n${sizes}; union ${designer.corpusSize} key(s) ` +
+        `(${designer.zhOnly.length} zh-only, ${designer.enOnly.length} en-only). ` +
+        `Read by: ${designer.literalReferencedCount} spelled as a literal in non-test packages/+apps/ ` +
+        `source, ${designer.headReachableCount} more held live by ${designer.dynamicHeads.size} dynamic ` +
+        'template head(s).',
+    );
+
+    console.log(
+      '\nDynamic template heads — each is a key family built from a runtime value. The count is how ' +
+        'many table keys THIS HEAD ALONE keeps out of the candidate list (no literal spelling ' +
+        'anywhere in shipped source), i.e. exactly what a literal-footprint sweep would have ' +
+        'reported dead. A row at zero means the family stopped being template-built, or the head ' +
+        'extractor drifted — not a quiet improvement:',
+    );
+    const headRows = [...designer.dynamicHeads]
+      .map(([head, files]) => ({ head, files, held: designer.headHeldCounts.get(head) ?? 0 }))
+      .sort((a, b) => b.held - a.held || a.head.localeCompare(b.head));
+    for (const { head, files, held } of headRows) {
+      console.log(`  ${head.padEnd(38)} ${String(held).padStart(4)} key(s)   ${files.join(', ')}`);
+    }
+
+    console.log(
+      `\n${designer.candidateCount} candidate(s) no leg can see a reader for: ` +
+        `${designer.confirmed.length} CONFIRMED (no textual footprint anywhere else in the repo ` +
+        `either), ${designer.needsReview.length} NEEDS-REVIEW (the literal string appears somewhere ` +
+        'else — read that occurrence first).',
+    );
+    const byNs = new Map();
+    for (const { key, tables } of designer.confirmed) {
+      const ns = namespaceOf(key);
+      if (!byNs.has(ns)) byNs.set(ns, []);
+      byNs.get(ns).push(`    [confirmed]     ${key}${tables.length === 2 ? '' : `  (${tables.join('')} only)`}`);
+    }
+    for (const { key, tables, hits } of designer.needsReview) {
+      const ns = namespaceOf(key);
+      if (!byNs.has(ns)) byNs.set(ns, []);
+      byNs
+        .get(ns)
+        .push(
+          `    [needs-review]  ${key}${tables.length === 2 ? '' : `  (${tables.join('')} only)`}` +
+            `  ← ${hits.slice(0, 3).join(', ')}${hits.length > 3 ? `, … and ${hits.length - 3} more` : ''}`,
+        );
+    }
+    for (const [ns, lines] of [...byNs].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))) {
+      console.log(`\n  ${ns} (${lines.length}):`);
+      for (const line of lines.sort()) console.log(line);
+    }
+
+    console.log(
+      '\nThis half is a REPORT too, and for a stronger reason than the pack half: both repo-wide ' +
+        'i18n gates are structurally blind to this table (see the header), so nothing else measures ' +
+        'it at all — but every entry above is still a CANDIDATE, not a verdict. Read the key, find ' +
+        'the screen, then delete.',
+    );
   }
 
-  if (strict && result.confirmed.length > 0) process.exit(1);
+  if (strict && (result.confirmed.length > 0 || designer.confirmed.length > 0)) process.exit(1);
   process.exit(0);
 }
