@@ -110,13 +110,23 @@ async function mount() {
   const headers = () =>
     Array.from(container.querySelectorAll('thead th')).map((th) => (th.textContent ?? '').trim());
 
-  /** The cell under `header` in the row whose first cell reads `name`. */
+  /**
+   * The cell under `header` in the row whose edit link points at `name`.
+   *
+   * The lookup deliberately reads the row LINK's `href`, not column 0's text.
+   * Column 0 is itself rendered through `defaultCell`, so an
+   * `EmptyValue`-everywhere implementation erases the name the row would be
+   * found by — measured: all three cases went red on "the row for beta
+   * rendered", i.e. on the harness, before any assertion about placeholders
+   * could run. `href` is built from `name` independently of `defaultCell`, so
+   * the caricature now has to be refused by the cases themselves.
+   */
   const cell = (name: string, header: string): HTMLElement => {
     const idx = headers().indexOf(header);
     expect(idx, `the ${header} column is present — headers were ${JSON.stringify(headers())}`)
       .toBeGreaterThanOrEqual(0);
-    const tr = Array.from(container.querySelectorAll('tbody tr')).find((r) =>
-      (r.querySelector('td')?.textContent ?? '').includes(name),
+    const tr = Array.from(container.querySelectorAll('tbody tr')).find(
+      (r) => r.querySelector(`a[href*="${name}"]`) !== null,
     );
     expect(tr, `the row for ${name} rendered`).toBeTruthy();
     const td = (tr as HTMLElement).querySelectorAll('td')[idx];
