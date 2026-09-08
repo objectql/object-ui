@@ -319,58 +319,12 @@ export interface CellRendererProps {
   onChange?: (value: any) => void;
 }
 
-/**
- * Coerce a value to a safe primitive for rendering.
- * Handles MongoDB wrapper types ($numberDecimal, $oid, $date), expanded
- * reference objects, and arrays so that no raw object is ever passed as
- * a React child — preventing React error #310.
- *
- * A STRING is returned verbatim, whatever its shape. This helper is reached by
- * every text-like cell (`text`, `textarea`, `code`, `time`, `auto_number`,
- * `qrcode` all register to `TextCellRenderer`), so it may not classify a value
- * by looking at its characters. It used to: any string starting `{`/`[` and
- * ending `}`/`]` was `JSON.parse`d and the result run through the
- * reference-label extraction below, which answers `[Object]` for an object
- * carrying no name/label/externalId/id. That turned the showcase Field Zoo's
- * `code` value `{"ok": true}` into the literal `[Object]`, and `[1, 2, 3]` in a
- * text field into `1, 2, 3` (objectui#7246).
- *
- * Shape is not a type. The reference case the parse was written for
- * (objectui#1426 — an unresolved external-id ref arriving as
- * '{"externalId":"Website Relaunch"}') belongs to reference-TYPED columns and
- * is handled there: `LookupCellRenderer` carries its own JSON-string branch,
- * which resolves the label through the referenced object's schema and links to
- * the record — neither of which this type-blind helper could ever do. Scoped,
- * not dropped; both halves are pinned in
- * `__tests__/textCellJsonText-7246.test.tsx`.
- */
-export function coerceToSafeValue(value: unknown): string | number | boolean | null | undefined {
-  if (value == null) return value as null | undefined;
-  if (typeof value === 'number' || typeof value === 'boolean') return value;
-  if (typeof value === 'string') return value;
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) {
-    return value.map((v) => {
-      if (v != null && typeof v === 'object') {
-        const obj = v as Record<string, unknown>;
-        return String(obj.name || obj.label || obj.externalId || obj.id || obj._id || '[Object]');
-      }
-      return String(v);
-    }).join(', ');
-  }
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    // MongoDB numeric wrapper: { $numberDecimal: "250000" }
-    if ('$numberDecimal' in obj) return Number(obj.$numberDecimal);
-    // MongoDB ObjectId wrapper: { $oid: "abc123" }
-    if ('$oid' in obj) return String(obj.$oid);
-    // MongoDB date wrapper: { $date: "2024-01-01T00:00:00Z" }
-    if ('$date' in obj) return String(obj.$date);
-    // Expanded reference / general object: extract name/label/externalId/id
-    return String(obj.name || obj.label || obj.externalId || obj.id || obj._id || '[Object]');
-  }
-  return String(value);
-}
+// `coerceToSafeValue` lives in `./coerceToSafeValue.ts` (objectui#8580) so
+// that `./widgets/richTextDisplay.js` — a module this barrel imports — can
+// reach it without importing the barrel back (the objectui#5498 cycle). It is
+// re-exported here unchanged: it is part of this package's published surface.
+import { coerceToSafeValue } from './coerceToSafeValue.js';
+export { coerceToSafeValue };
 
 /**
  * Format currency value. When `currency` is undefined, falls back to a
