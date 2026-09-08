@@ -53,14 +53,22 @@
  *
  * ## Reading the affordances
  *
- * Two different placeholders can carry `aria-label="No value"` on this page:
- * `HeaderHighlight`'s own span, and `@object-ui/components`' `EmptyValue`, which
- * the field cell renderers draw. Only the latter carries
- * `data-slot="empty-value"`, so the strip's own affordance is read as
- * `[aria-label="No value"]:not([data-slot="empty-value"])` and cannot pick up a
- * cell renderer's placeholder by accident. The summary chips are read through
- * the `aria-label="<field>: <display>"` each `Badge` already carries, which
- * names the field — so "which chip" is asserted, not merely "how many".
+ * ⚠️ This instrument was re-derived by objectui#8506 and the reason is worth
+ * keeping. It used to read the strip's affordance as
+ * `[aria-label="No value"]:not([data-slot="empty-value"])`, because two
+ * DIFFERENT placeholders could carry that name on this page — `HeaderHighlight`'s
+ * own hand-rolled span, and `@object-ui/components`' `EmptyValue`, which the
+ * field cell renderers draw — and only the latter carried the `data-slot`.
+ * objectui#8506 made the strip adopt the shared component, so that `:not()`
+ * matched NOTHING and this case failed while the surface was perfectly correct:
+ * the harness navigated by exactly the thing that changed.
+ *
+ * The replacement navigates by the field LABEL, which no placeholder change can
+ * move: each chip is `<span>{label}</span>` followed by the value slot, so
+ * `chipOf(label)` is the chip box and the affordance is read INSIDE it. That
+ * also strengthens the assertion from "how many" to "which chip", the way the
+ * summary chips below are already read through the `aria-label="<field>:
+ * <display>"` each `Badge` carries.
  */
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
@@ -90,9 +98,16 @@ afterEach(cleanup);
  *  CI summary would carry none of the reason. */
 const shown = (text: string) => screen.queryByText(text) !== null;
 
-/** `HeaderHighlight`'s OWN em-dash affordance — see the docblock. */
-const stripAffordances = (c: HTMLElement) =>
-  c.querySelectorAll('[aria-label="No value"]:not([data-slot="empty-value"])');
+/**
+ * The chip box a field's LABEL sits in — the strip renders the label as the
+ * chip's first child. Anchored on the label, never on the placeholder: see the
+ * docblock.
+ */
+const chipOf = (label: string) => screen.getByText(label).parentElement as HTMLElement;
+
+/** WHICH of `labels`' chips draw the em-dash affordance — see the docblock. */
+const chipsDrawingAffordance = (labels: string[]) =>
+  labels.filter((l) => chipOf(l).querySelector('[data-slot="empty-value"]') !== null);
 
 /** The summary chip for `field`, read by the `aria-label` the Badge carries. */
 const chipFor = (c: HTMLElement, field: string) =>
@@ -146,9 +161,9 @@ describe('HeaderHighlight — the ADR-0085 strip trims (#8394)', () => {
     expect(shown('Notes'), 'CONTROL: the whitespace-only chip is on screen at all').toBe(true);
 
     expect(
-      stripAffordances(container),
+      chipsDrawingAffordance(['Industry', 'Notes', 'Amount']),
       'exactly the whitespace-only chip draws the strip\'s `No value` em-dash',
-    ).toHaveLength(1);
+    ).toEqual(['Notes']);
     expect(
       container.textContent,
       'the raw whitespace must not reach the DOM as a rendered value',
@@ -180,15 +195,15 @@ describe('HeaderHighlight — the ADR-0085 strip trims (#8394)', () => {
     expect(shown('Alpha'), 'a multiselect array renders its options').toBe(true);
     expect(shown('Beta'), 'a multiselect array renders its options').toBe(true);
     expect(
-      stripAffordances(container),
+      chipsDrawingAffordance(['Office Location', 'Tags', 'Industry']),
       'NO chip here is empty — an object value is a value on this surface',
-    ).toHaveLength(0);
+    ).toEqual([]);
   });
 
   it('NON-REGRESSION — an emptiness test that answers EMPTY for everything is refused (`0` and a string)', () => {
     // Every whitespace case above is ALSO satisfied by deleting the feature.
     // This one is not: `0` is the value a careless `!value` rewrite loses.
-    const { container } = render(
+    render(
       <HeaderHighlight
         fields={highlights(['industry', 'amount'])}
         data={{ industry: 'Manufacturing', amount: 0 }}
@@ -199,9 +214,9 @@ describe('HeaderHighlight — the ADR-0085 strip trims (#8394)', () => {
     expect(shown('Manufacturing'), 'a plain string is a value').toBe(true);
     expect(shown('0'), '`0` is a value, not a blank').toBe(true);
     expect(
-      stripAffordances(container),
+      chipsDrawingAffordance(['Industry', 'Amount']),
       'no chip draws the em-dash — nothing here is empty',
-    ).toHaveLength(0);
+    ).toEqual([]);
   });
 });
 
