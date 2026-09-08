@@ -21,10 +21,34 @@
  * by the renderer and named by nothing at all.
  *
  * `SonnerSchema` — the sibling component with the same trigger mechanism —
- * declared both all along. This card is the declare-what-runs half only;
+ * declared both all along. objectui#6496 was the declare-what-runs half only;
  * `action` / `onDismiss` (declared-but-unread, the other direction the finding
- * recorded) are deliberately untouched here and stay with the objectui#6124 /
- * objectui#6182 handler-dialect family.
+ * recorded) were left to the objectui#6124 / objectui#6182 handler-dialect
+ * family, and `onDismiss` did land there.
+ *
+ * ## `action` came back here, and NOT to the handler family (objectui#8338)
+ *
+ * ⚠️ The sentence above used to say `action` was deliberately untouched here.
+ * That is no longer true, and the reason it moved is worth stating: `action` is
+ * ⛔ NOT a handler key. It is a VALUE key whose NESTED member was a function,
+ * which is exactly why objectui#6124's sweep — over TOP-LEVEL function-valued
+ * keys — walked past it and retired only `onDismiss`, four lines down. So it
+ * takes `retirementTombstone()` (an ADR-0049 retirement from the contract on
+ * both faces: `invalid_type`, `?: never`) and ⛔ not `handlerKeyRefusal()` (the
+ * #6124 named-refusal arm: `custom`, and a TS twin that stays callable for a
+ * runtime slot). `handler-keys-json-refusal-6124.test.ts` pins that family and
+ * its census asserts 45 runtime slots + 22 retired `on*` sites; a non-handler
+ * key has no seat in it. This file — the `ToastSchema` declaration pin — is the
+ * home, and the two helpers are pinned APART there, deliberately.
+ *
+ * What was wrong with `action`, measured before the retirement: the TS face
+ * declared `{ label: string; onClick: () => void }` with BOTH members required,
+ * so no JSON value satisfied it, while the mirror admitted
+ * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`. Disjoint accept
+ * sets, one of them empty — a green `safeParse` and a `tsc` refusal for the
+ * same document, and no spelling that satisfied both. The renderer read
+ * neither. ⛔ There is NO replacement spelling: objectui#6250 moved the toast
+ * demos off an in-toast action entirely and the capability was never fulfilled.
  *
  * ## Why `buttonVariant` is an enum and not `z.string()`
  *
@@ -208,3 +232,111 @@ describe('ToastSchema (TS) — compile-time pin on the same keys', () => {
     expect([...every, extra]).toHaveLength(7);
   });
 });
+
+/* ── `action` is RETIRED on both faces (objectui#8338, ADR-0049) ──────────── */
+
+/** The shape the TS face declared: the one no JSON document could ever hold. */
+const RETIRED_TS_SHAPE = { label: 'Undo', onClick: () => undefined };
+/** What the MIRROR admitted: `SchemaNodeSchema | SchemaNodeSchema[]` — and that
+ *  node union is `z.union([BaseSchemaCore, z.string(), z.number(), z.boolean(),
+ *  z.null(), z.undefined()])` (`../zod/base.zod.ts`), so BARE PRIMITIVES parsed
+ *  green here too, not just node objects. Re-derived by re-forming the old union
+ *  around the SHIPPED `SchemaNodeSchema`; the primitive arms are the larger half
+ *  of the narrowing and were missing from the first reading of it.
+ *  ⚠️ This list must stay MIXED — vitest spreads an `it.each` case only when
+ *  `cases.every(Array.isArray)`, and the list arm has to arrive as ONE argument.
+ *  Pinned below: it is a property of the DATA that nothing else here would miss. */
+const RETIRED_MIRROR_SHAPES = [{ type: 'button', label: 'Undo' }, [{ type: 'button' }], 'Undo', 1, null];
+
+describe('ToastSchema — `action` is retired, not deleted (objectui#8338)', () => {
+  it('the mirror still DECLARES the key — a deletion would be a silent accept', () => {
+    // `BaseSchema` is `.passthrough()`, so removing the member would KEEP an
+    // authored value unvalidated instead of refusing it. The tombstone is the
+    // whole point: the key stays declared and is unwritable.
+    expect(Object.keys(ToastSchema.shape)).toContain('action');
+  });
+
+  it('refuses the object the TS face used to declare, at the `action` path', () => {
+    const result = ToastSchema.safeParse({ ...MINIMAL, action: RETIRED_TS_SHAPE });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issue = result.error.issues.find((i) => String(i.path[0]) === 'action');
+    expect(issue, 'no issue addressed to `action`').toBeDefined();
+    // `invalid_type`, the tombstone's code — ⛔ not `custom`, which is what
+    // `handlerKeyRefusal()` (the neighbour on `onDismiss`) reports.
+    expect(issue!.code).toBe('invalid_type');
+    expect(issue!.path).toEqual(['action']);
+  });
+
+  it('the shape list stays MIXED, so `it.each` hands each case over whole', () => {
+    expect(RETIRED_MIRROR_SHAPES.every(Array.isArray)).toBe(false);
+  });
+
+  it.each(RETIRED_MIRROR_SHAPES)('refuses the shape the mirror used to admit: %j', (authored) => {
+    // ⚠️ THE breaking assertion. Every one of these parsed GREEN before this
+    // card, so a document already authored this way stops parsing. Ablate the
+    // tombstone back to `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`
+    // and this block goes green again — which is what makes it a pin.
+    const result = ToastSchema.safeParse({ ...MINIMAL, action: authored });
+    expect(result.success, `still accepts ${JSON.stringify(authored)}`).toBe(false);
+  });
+
+  it('carries its guidance in BOTH author-facing channels, as ONE string', () => {
+    // The `retirementTombstone()` invariant: the parse-time message and the
+    // `.describe()` metadata are the same argument, so they cannot drift.
+    const result = ToastSchema.safeParse({ ...MINIMAL, action: RETIRED_TS_SHAPE });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const message = result.error.issues.find((i) => String(i.path[0]) === 'action')!.message;
+    const described = (ToastSchema.shape.action as { description?: string }).description;
+    expect(message).toBe(described);
+    expect(message).toContain('RETIRED (objectui#8338');
+    // The remedy is that there ISN'T one — ⛔ not "not yet supported", and ⛔ not
+    // a future shape. The tombstone says the capability was never fulfilled and
+    // points at the keys that DO run.
+    expect(message).toContain('NO replacement spelling');
+    expect(message).toContain('buttonLabel');
+  });
+
+  it('a toast without `action` still parses — the refusal is about the key, not the node', () => {
+    // Counter-probe. Without it a mirror broken outright would satisfy every
+    // refusal above. The seven published fixtures in
+    // `examples/schema-catalog/src/schemas/components-feedback-toast/` are this
+    // shape, and objectui#6250 already moved them off in-toast action.
+    const result = ToastSchema.safeParse({ ...MINIMAL, title: 'Saved', buttonLabel: 'Undo' });
+    expect(result.success ? null : result.error.issues).toBe(null);
+  });
+});
+
+describe('ToastSchema (TS) — `action` is a `?: never` tombstone (objectui#8338)', () => {
+  it('refuses the object the declaration used to carry', () => {
+    // Compiled by `tsconfig.test.json` (objectui#3009), so this directive is
+    // real enforcement. It fails the build with TS2578 the moment the member is
+    // DELETED rather than tombstoned: the key then resolves to `any` through
+    // `BaseSchema`'s index signature and the assignment starts succeeding.
+    // @ts-expect-error — `action` is retired; the type is `never`.
+    const action: ToastSchemaTS['action'] = { label: 'Undo', onClick: () => undefined };
+    // @ts-expect-error — and the node shape the mirror used to admit is not it either.
+    const node: ToastSchemaTS['action'] = { type: 'button' };
+    expect([action, node]).toHaveLength(2);
+  });
+
+  it('reads as exactly `undefined` off the interface', () => {
+    // The type-level half runs at `tsc`; this body only keeps the assertion
+    // reachable from a test name. `Equal`, ⛔ not `extends`: a DELETED member
+    // reads `any` through the index signature and a one-way check would accept
+    // it — the same trap `handler-keys-json-refusal-6124.test.ts` names.
+    const absent: ToastSchemaTS = { type: 'toast' };
+    expect('action' in absent).toBe(false);
+  });
+});
+
+/* ── The TypeScript face, judged by `tsc -p tsconfig.test.json` ──────────── */
+
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+export type assertionToastActionIsTombstoned = [
+  Expect<Equal<ToastSchemaTS['action'], undefined>>,
+];

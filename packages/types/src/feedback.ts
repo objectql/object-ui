@@ -138,12 +138,29 @@ export interface ToastSchema extends BaseSchema {
    */
   position?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   /**
-   * Action button
+   * RETIRED (objectui#8338, ADR-0049 enforce-or-remove) — this declaration had
+   * NO satisfiable JSON inhabitant. `label` and `onClick` were both REQUIRED and
+   * `onClick` is a function, so a JSON document could omit the key but never
+   * author it, while the zod twin admitted `SchemaNode | SchemaNode[]`: two
+   * published faces whose accept sets were disjoint, one of them empty. An
+   * author who wrote `action` got a green `safeParse` and a `tsc` refusal, and
+   * no spelling satisfied both. The `toast` renderer read NEITHER face — it
+   * reads `variant`, `title`, `description`, `duration`, `buttonVariant`,
+   * `className` and `buttonLabel`, and nothing else — so nothing could ever have
+   * run it.
+   *
+   * ⛔ There is NO replacement spelling, and this capability was never
+   * fulfilled: objectui#6250 moved the toast demos off an in-toast action
+   * entirely, and an in-toast action button remains a capability expansion with
+   * zero runtime today. It survived objectui#6124's sweep only because that
+   * sweep was over TOP-LEVEL function-valued keys and this key's function is one
+   * level down — {@link ToastSchema.onDismiss} below is the same disposition,
+   * one member on. This is the direction objectui#6496 measured, prescribed
+   * enforce-or-remove for, and left behind when its `completed` close landed
+   * Direction 1 only.
+   * @deprecated Not part of this contract — the key never had an inhabitant.
    */
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
+  action?: never;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
    * `toast` renderer takes `({ schema })` and never reads it. The zod twin
