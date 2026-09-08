@@ -312,7 +312,7 @@ function noMatchingDiscriminator(
   // three siblings. ⛔ Both conditions, establishing different facts: the path
   // ending at `type` is what makes `slice(0, -1)` the node, the discriminator
   // being `type` is what makes the note's wording and `authoredTypeAt` right.
-  // Zod 4.4.3 fills both from `def.discriminator` (schemas.js:1189/1191) so they
+  // Zod 4.4.3 fills both from `def.discriminator` (schemas.js:1187/1190) so they
   // cannot disagree today — written this way, a shape that ever separates them
   // falls through to SILENT rather than to WRONG.
   const path = issue.path ?? [];
