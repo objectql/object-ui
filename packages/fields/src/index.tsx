@@ -1424,6 +1424,40 @@ export function getSemanticHex(name?: string, fallback: string = '#3b82f6'): str
 }
 
 /**
+ * An array with zero entries is not a cell value (objectui#8481).
+ *
+ * Three renderers below open a MULTI-VALUE container and map their entries
+ * into it — `SelectCellRenderer` (a flex-wrap row of badges/dots),
+ * `LookupCellRenderer` (a flex-wrap row of record chips) and
+ * `UserCellRenderer` (an overlapping avatar stack). Each one's opening guard
+ * tested only `null`/`undefined`/`''`, so `[]` reached the array branch and
+ * mapped over zero entries: the renderer's whole output was a CHILDLESS
+ * container — no glyph, no `aria-label`, a visually blank cell.
+ *
+ * That blindness lived in the SHARED renderer, so it was the same blank cell
+ * on every surface. `@object-ui/plugin-detail` had already grown two private
+ * upstream pre-checks against it (objectui#8474's `hasCellValue`, and
+ * `RelatedList`'s `isValueEmpty` from objectui#8459); every consumer that does
+ * NOT pre-check — `ObjectGrid`, `ObjectGallery`, `ObjectKanban`,
+ * `ObjectDataTable` — reached the renderer directly and painted the blank.
+ * A renderer with nothing to draw says so itself rather than depending on
+ * every caller remembering to ask first.
+ *
+ * ⛔ Deliberately NOT the package's general emptiness predicate, and
+ * deliberately not exported. The renderers in this file do NOT agree on what
+ * "empty" means, and that disagreement is measured and in several places
+ * intentional: `JsonCellRenderer` draws the two-character literal for `[]`
+ * (objectui#8474 measured and kept that), `FileCellRenderer` states "0 files",
+ * `BooleanCellRenderer` treats `false` as a value while `DateCellRenderer`'s
+ * `!value` treats the epoch as empty. This helper answers ONE question — "is
+ * this a multi-value container with no entries to draw?" — for the three
+ * renderers that ask it. Unifying the rest is a separate, contested change.
+ */
+function isEmptyMultiValue(value: unknown): boolean {
+  return Array.isArray(value) && value.length === 0;
+}
+
+/**
  * Select field cell renderer.
  *
  * Two visual styles, controlled by `field.appearance` (renderer-level option,
@@ -1441,7 +1475,10 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
   const options: SelectOptionMetadata[] = selectField.options || [];
   const appearance: 'badge' | 'dot' = selectField.appearance === 'dot' ? 'dot' : 'badge';
 
-  if (value == null || value === '') return <EmptyValue />;
+  // `[]` is handled HERE rather than in the array branch below, because this
+  // is the statement the renderer makes about having nothing to draw
+  // (objectui#8481).
+  if (value == null || value === '' || isEmptyMultiValue(value)) return <EmptyValue />;
 
   // Match a stored value to a configured option, falling back to a
   // case-insensitive comparison so seed data with mixed case
@@ -1897,7 +1934,10 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   // Always call the hook (rules of hooks). It safely no-ops when inputs are missing.
   const resolvedName = useLookupName(referenceTo, primaryPrimitiveId, displayField);
 
-  if (value == null || value === '') return <EmptyValue />;
+  // Same childless-container defect as `SelectCellRenderer` above: the array
+  // branch further down opens a flex-wrap row of chips and maps zero entries
+  // into it (objectui#8481).
+  if (value == null || value === '' || isEmptyMultiValue(value)) return <EmptyValue />;
 
   // A reference can arrive as a JSON-encoded object string — e.g. an
   // unresolved external-id reference '{"externalId":"Website Relaunch"}'.
@@ -2065,7 +2105,9 @@ export function FormulaCellRenderer({ value }: CellRendererProps): React.ReactEl
  * User/Owner field cell renderer (with avatars)
  */
 export function UserCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (!value) return <EmptyValue />;
+  // `!value` never saw `[]` — a truthy empty array reached the avatar-stack
+  // branch below and rendered an empty stack (objectui#8481).
+  if (!value || isEmptyMultiValue(value)) return <EmptyValue />;
 
   // Primitive value: just display the ID/username as text
   if (typeof value !== 'object') {

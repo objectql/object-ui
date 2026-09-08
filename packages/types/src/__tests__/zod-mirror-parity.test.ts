@@ -150,7 +150,9 @@
  *     and 37 / 53 until objectui#7344 swept the string / `z.any()` handler mirrors:
  *     `DetailSchema` and `DetailViewSchema` entered (one `onBack` each) and
  *     `CalendarViewSchema` grew by `onEventClick`.
- *   - **14 entries** in `UnmirroredDeclared`, **87 keys** across them — 14 / 96 until
+ *   - **14 entries** in `UnmirroredDeclared`, **86 keys** across them — 14 / 87 until
+ *     objectui#7762 MIRRORED `ObjectGridSchema.exportOptions` (the entry kept its other
+ *     fourteen keys, so the entry count held); 14 / 96 until
  *     objectui#7779 closed nine of `ObjectViewSchema`'s ten keys (maintainer ruling
  *     B, 2026-09-06): eight MIRRORED — `navigation`, `searchableFields`,
  *     `filterableFields` by reference to the spec's `ListViewSchema` slots,
@@ -1297,7 +1299,7 @@ interface KnownDrift {
  *
  * objectui#6058 seeded this ledger at **121 keys**, and — on ONE line, because the
  * pin below reads this sentence off disk —
- * **87 keys** is what this ledger records today.
+ * **86 keys** is what this ledger records today.
  * The movements between the two are different facts. objectui#6152 measured the 23
  * callback-shaped (`on*`) keys and ruled that mirroring is the wrong remedy for every
  * one of them;
@@ -1401,7 +1403,12 @@ interface KnownDrift {
  * explicit that forcing the 121 per-key decisions now would be wrong. Two splits
  * are recorded here so whoever works them off does not re-derive them:
  *
- *   - **SPEC-DERIVED (2 entries, 3 keys)** — `DashboardWidgetSchema`, and since
+ *   - **SPEC-DERIVED (3 entries, 17 keys)** — it was 2 / 3 until objectui#7762 MIRRORED
+ *     `ObjectGridSchema.exportOptions` as the spec's object arm BY REFERENCE, which
+ *     re-derived that entry (its fourteen remaining keys) into this half: the #7779
+ *     membership mechanism a second time, and the first entry to arrive here by a single
+ *     mirrored member. ⚠️ Its keys' remedy did NOT change with the half — they are still
+ *     plain local omissions; the reading is on the entry. Then `DashboardWidgetSchema`, and since
  *     objectui#7779 `ObjectViewSchema` again, by MEMBERSHIP this time rather than by
  *     the old false positive: that card made the mirror reference
  *     `SpecListViewSchema.shape.navigation` / `.searchableFields` /
@@ -1454,7 +1461,11 @@ interface KnownDrift {
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (12 entries, 84 keys)** — plain omissions from a hand-written mirror.
+ *   - **LOCAL (11 entries, 69 keys)** — plain omissions from a hand-written mirror.
+ *     It was 12 / 84 until objectui#7762 MIRRORED `ObjectGridSchema.exportOptions`: one key
+ *     REPAIRED and the entry's other fourteen carried out of this half with it, because the
+ *     spec reference that repair introduced re-derives the pair into the SPEC-DERIVED half
+ *     above — the same two-effects-in-one-move shape objectui#7779 had on `ObjectViewSchema`.
  *     It was 13 / 94 until objectui#7779 MIRRORED eight of `ObjectViewSchema`'s ten
  *     keys and RETIRED a ninth, and the spec reference that mirroring introduced
  *     re-derived the entry (down to `listViews`) into the SPEC-DERIVED half — 12 / 84
@@ -1485,10 +1496,14 @@ interface KnownDrift {
  * same entry from ten keys to one (96 → 87 keys; the entry count held) and moved it
  * back to the SPEC-DERIVED half by membership — the ledger's first shrink by
  * MIRRORING BY REFERENCE across most of an entry, and its second RETIREMENT on the
- * LOCAL half (`viewTabBar`). The seeded pair is no longer
+ * LOCAL half (`viewTabBar`). objectui#7762 then did both halves of that move again on
+ * `ObjectGridSchema` with ONE key: mirroring `exportOptions` as the spec's object arm by
+ * reference shrank the ledger 87 → 86 and re-derived the entry (fourteen keys) from the
+ * LOCAL half into the SPEC-DERIVED one, so the entry count held while BOTH split figures
+ * moved. The seeded pair is no longer
  * among them, and the ledger now totals — on ONE line, because the pin below reads
  * this sentence off disk —
- * **14 entries / 87 keys** — 2 / 3 spec-derived, 12 / 84 local.
+ * **14 entries / 86 keys** — 3 / 17 spec-derived, 11 / 69 local.
  *
  * ⛔ The four split figures above and this totals line are PINNED: 'objectui#7279'
  * at the bottom of this file derives every one of them from the `UnmirroredDeclared`
@@ -1614,14 +1629,29 @@ interface UnmirroredDeclared {
     | 'sections' | 'showStepIndicator' | 'splitDirection' | 'splitResizable' | 'splitSize'
     | 'subforms' | 'submitHandler' | 'tabPosition';
   /**
-   * LOCAL. It was 17: `onNavigate` is in `RuntimeOnlyDeclared` below (objectui#6152),
-   * and `title` was MIRRORED by objectui#6639 (census-directed ruling 2026-08-29,
-   * declare branch) — the ledger's first shrink by REPAIR rather than
+   * SPEC-DERIVED by MEMBERSHIP since objectui#7762, LOCAL before it: that card mirrored
+   * `exportOptions` as the spec's OBJECT ARM by reference, which puts a `Spec…` symbol in
+   * this mirror's initializer, so `SPEC_DERIVED_PAIRS` re-derives the pair — the same
+   * mechanism that moved `ObjectViewSchema` at objectui#7779, and the second pair to reach
+   * this half by a single mirrored member.
+   *
+   * ⚠️ Read the half as MEMBERSHIP, not as a remedy: the fourteen keys below are still
+   * plain hand-written omissions on a `BaseSchema.extend({…})` mirror — the ordinary local
+   * route (objectui#6152's worklist), NOT objectui#2231's unification question, which is
+   * what the SPEC-DERIVED half means for a mirror that IS the spec schema by reference.
+   * This is the per-key reading objectui#7279 recorded on `ObjectViewSchema` for the same
+   * reason, kept here so whoever works these off does not re-derive it.
+   *
+   * It was 15 until objectui#7762 MIRRORED `exportOptions` — the ledger's shrink by REPAIR
+   * on the route objectui#6639 opened, and the first one that also moved its entry between
+   * the split's halves. It was 17: `onNavigate` is in `RuntimeOnlyDeclared` below
+   * (objectui#6152), and `title` was MIRRORED by objectui#6639 (census-directed ruling
+   * 2026-08-29, declare branch) — the ledger's first shrink by REPAIR rather than
    * reclassification.
    */
   'objectql.zod.ts#ObjectGridSchema':
     | 'aggregations' | 'bulkActionDefs' | 'bulkSpecActions' | 'conditionalFormatting'
-    | 'emptyState' | 'exportOptions' | 'grouping' | 'navigation' | 'operations'
+    | 'emptyState' | 'grouping' | 'navigation' | 'operations'
     | 'reorderableColumns' | 'resizableColumns' | 'rowColor' | 'rowHeight' | 'rowSpecActions'
     | 'singleClickEdit';
   /**
@@ -1692,7 +1722,7 @@ interface UnmirroredDeclared {
  *
  * `UnmirroredDeclared` above was seeded at **121 keys** by objectui#6058, and — on
  * ONE line, because the pin below reads this sentence off disk —
- * `UnmirroredDeclared` records **87 keys** today.
+ * `UnmirroredDeclared` records **86 keys** today.
  * These 23 moved here whole. Keys have since left that ledger by MIRRORING and by
  * RETIREMENT, but the move recorded HERE is neither and repaired nothing. ⛔ Nothing
  * was mirrored by it, no declaration was removed, no defect was repaired and nothing was
@@ -2696,6 +2726,10 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
   'layout.zod.ts#PageNodeSchema',
   'objectql.zod.ts#ObjectGallerySchema',
   'objectql.zod.ts#ObjectGanttSchema',
+  // objectui#7762: `exportOptions` is the spec's OBJECT ARM by reference — peeled out of
+  // `SpecListViewSchema.shape.exportOptions` (the two-arm union) so the bare-array arm,
+  // which LIFTS, is left behind and refused by name on this node instead.
+  'objectql.zod.ts#ObjectGridSchema',
   'objectql.zod.ts#ObjectMapSchema',
   // objectui#7779: BACK, by a real code reference this time — `navigation`,
   // `searchableFields` and `filterableFields` are `SpecListViewSchema.shape.*`

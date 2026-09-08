@@ -186,23 +186,27 @@ function mountField(opts: {
  * to stay on raw mode and are held out of the round-trip denominator instead of
  * flattering it.
  */
+/* `src` names the FILE only. It carried a line address until objectui#8047:
+ * `$src` is spliced into the case name below, nothing reads a test name, and a
+ * line in another repository's example app moves without anything here going
+ * red. `$#` restores the identity the address was carrying. */
 const CORPUS: Array<{ src: string; cel: string; parens?: true }> = [
-  { src: 'showcase/dynamic-approval.flow.ts:29', cel: 'title != previous.title' },
-  { src: 'showcase/flows/index.ts:39', cel: 'status == "done" && previous.status != "done"' },
-  { src: 'showcase/flows/index.ts:153', cel: 'assignee != previous.assignee' },
-  { src: 'showcase/flows/index.ts:212', cel: 'budget > 100000 && budget != previous.budget' },
-  { src: 'showcase/flows/index.ts:325', cel: 'status == "done" && previous.status != "done"' },
-  { src: 'showcase/flows/index.ts:438', cel: 'status == "done" && previous.status != "done"' },
-  { src: 'showcase/flows/index.ts:691', cel: 'status == "done" && previous.status != "done"' },
-  { src: 'showcase/flows/index.ts:808', cel: 'status == "completed" && previous.status != "completed"' },
-  { src: 'showcase/flows/index.ts:924', cel: 'status == "done" && previous.status != "done"' },
-  { src: 'showcase/flows/index.ts:1004', cel: 'status == "done" && previous.status != "done"' },
-  { src: 'showcase/flows/index.ts:1099', cel: 'status == "sent" && previous.status != "sent"' },
-  { src: 'showcase/flows/index.ts:1201', cel: 'health == "red" && previous.health != "red"' },
-  { src: 'showcase/flows/index.ts:1532', cel: 'status == "submitted" && previous.status != "submitted"' },
-  { src: 'showcase/flows/index.ts:1582', cel: 'status == "submitted" && previous.status != "submitted" && total_amount >= 5000' },
-  { src: 'showcase/flows/index.ts:1696', cel: "priority == 'urgent' && (previous == null || previous.priority != 'urgent')", parens: true },
-  { src: 'todo/task.flow.ts:183', cel: 'status == "completed" && previous.status != "completed"' },
+  { src: 'showcase/dynamic-approval.flow.ts', cel: 'title != previous.title' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "done" && previous.status != "done"' },
+  { src: 'showcase/flows/index.ts', cel: 'assignee != previous.assignee' },
+  { src: 'showcase/flows/index.ts', cel: 'budget > 100000 && budget != previous.budget' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "done" && previous.status != "done"' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "done" && previous.status != "done"' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "done" && previous.status != "done"' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "completed" && previous.status != "completed"' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "done" && previous.status != "done"' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "done" && previous.status != "done"' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "sent" && previous.status != "sent"' },
+  { src: 'showcase/flows/index.ts', cel: 'health == "red" && previous.health != "red"' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "submitted" && previous.status != "submitted"' },
+  { src: 'showcase/flows/index.ts', cel: 'status == "submitted" && previous.status != "submitted" && total_amount >= 5000' },
+  { src: 'showcase/flows/index.ts', cel: "priority == 'urgent' && (previous == null || previous.priority != 'urgent')", parens: true },
+  { src: 'todo/task.flow.ts', cel: 'status == "completed" && previous.status != "completed"' },
   { src: '#6226 card body (HotCRM)', cel: 'contract_term_months > 24 && (previous == null || previous.contract_term_months <= 24)', parens: true },
 ];
 
@@ -220,7 +224,7 @@ describe('#6226 acceptance — the flow Entry condition opens in ROW mode', () =
     expect(ROW_ELIGIBLE).toHaveLength(15);
   });
 
-  it.each(ROW_ELIGIBLE)('adopts $src as structured rows AT THE FLOW FIELD', ({ cel }) => {
+  it.each(ROW_ELIGIBLE)('adopts $src (corpus row $#) as structured rows AT THE FLOW FIELD', ({ cel }) => {
     const p = probe(mountField({ value: cel }));
     expect(p.mode).toBe('row');
     // The rows exist as controls…
