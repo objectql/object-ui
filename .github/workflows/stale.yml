@@ -1,118 +1,136 @@
 name: Stale Issues & PRs
 
+# ⛔ THROWAWAY PROBE BRANCH (objectui#8126) — never merge.
+# One job per candidate ref. `Set up job` resolves the ref before the step runs,
+# so the job's FIRST step conclusion is the resolution reading.
+# Every job is a dry run that writes nothing:
+#   debug-only: true      -> the processor performs no operations
+#   days-before-*: -1     -> nothing is ever marked stale or closed
+# Permissions are read-only, narrower than the workflow on main.
+
 on:
-  schedule:
-    # Run daily at 00:00 UTC
-    - cron: '0 0 * * *'
   workflow_dispatch:
 
 permissions:
-  issues: write
-  pull-requests: write
+  issues: read
+  pull-requests: read
 
 jobs:
-  stale:
+  control_checkout:
+    # positive control: an action ref this repo resolves every day
     runs-on: ubuntu-latest
-
-    # ── NO job ceiling, and that is the DECISION, not its absence (objectui#7956) ──
-    # This job runs under GitHub's 360-minute default. objectui#7956 asked for a
-    # ceiling DERIVED from this job's own measured run-time distribution, in the
-    # shape objectui#7270 left beside `lint.yml::lint`. It is recorded here
-    # instead, because every run this job has to offer measures the wrong thing.
-    #
-    #   - Population: every completed run of this workflow, no status filter,
-    #     window 2026-01-16T01:14Z .. 2026-09-06T00:19Z, n=234, all `schedule`.
-    #     Measured 2026-09-06T17:24Z.
-    #   - `?status=success` returns a `total_count` of 0 over that same window.
-    #     This job has never once succeeded in the whole retained history.
-    #   - Wall clock, from the Actions jobs endpoint: min 1s / median 2s /
-    #     p95 4s / max 4s.
-    #   - ⚠️ Those seconds are NOT this job's work. Ten runs sampled evenly
-    #     across the window all report the same shape: a single step, `Set up
-    #     job`, with conclusion `failure` — the `actions/stale` step below never
-    #     starts. So the distribution above measures how fast this job fails to
-    #     begin, and says nothing whatever about how long it takes to sweep this
-    #     repository's issues and pull requests.
-    #
-    # ⛔ Do NOT derive 20-ish minutes from a 4-second maximum that belongs to a
-    # setup failure. That would be a ceiling with the look of provenance and
-    # none of the substance, sitting over a job whose real cost has never been
-    # observed — and `actions/stale` pages the issue and pull-request lists,
-    # which is the kind of work that grows with the repository. A ceiling set
-    # under a job's honest slowest run converts a working job into a permanently
-    # red one (objectui#7048); objectstack#16173 is the live counter-example,
-    # where a distribution mis-estimated by ~2.6x killed a test shard while the
-    # rollup read green. Here the mis-estimate would not be 2.6x, it would be
-    # unbounded, because the numerator has never been measured at all.
-    #
-    # ⚠️ Two separate things are true and only one of them is objectui#7956's:
-    # the exposure (no ceiling) is that card's, and the FAILURE (234 runs, 234
-    # failures, never a success) is objectui#8126's — filed separately, because
-    # bounding a job that cannot start would fix nothing and would hide the
-    # louder defect behind a tidy-looking diff.
-    #
-    # What would change this: fix the setup failure, let a few real sweeps run,
-    # then derive the number from THOSE the way `lint.yml::lint` documents,
-    # write the derivation here, and move this job out of the accept-360 table
-    # and into the `derived` table in
-    # `scripts/__tests__/workflow-cache-save-bound.test.ts` in the same commit —
-    # that pin holds this job's UNBOUNDED state deliberately, so adding a
-    # ceiling has to be an edit someone makes on purpose rather than a silent
-    # one.
+    timeout-minutes: 5
     steps:
-      - uses: actions/stale@e00e804f6792d3fedb5bd3a27df2761c5f86c981  # v9.0.0
+      - uses: actions/checkout@v7
+
+  control_broken_sha:
+    # negative control: the ref on main today
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/stale@e00e804f6792d3fedb5bd3a27df2761c5f86c981
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          
-          # Issues configuration
-          stale-issue-message: |
-            This issue has been automatically marked as stale because it has not had recent activity. 
-            It will be closed in 7 days if no further activity occurs. 
-            
-            If you believe this issue is still relevant, please:
-            - Comment on this issue to keep it open
-            - Add more details or context
-            - Update to the latest version and confirm the issue still exists
-            
-            Thank you for your contributions!
-          close-issue-message: |
-            This issue has been automatically closed due to inactivity. 
-            
-            If you believe this issue should remain open, please:
-            - Reopen the issue with updated information
-            - Create a new issue with a detailed description and reproduction steps
-            
-            Thank you for your understanding!
-          stale-issue-label: 'stale'
-          exempt-issue-labels: 'pinned,security,critical,bug,enhancement'
-          days-before-issue-stale: 60
-          days-before-issue-close: 7
-          
-          # Pull requests configuration
-          stale-pr-message: |
-            This pull request has been automatically marked as stale because it has not had recent activity. 
-            It will be closed in 14 days if no further activity occurs.
-            
-            If you're still working on this PR:
-            - Comment on this PR to keep it open
-            - Rebase on the latest main branch
-            - Address any review comments
-            
-            Thank you for your contributions!
-          close-pr-message: |
-            This pull request has been automatically closed due to inactivity.
-            
-            If you'd like to continue working on this:
-            - Reopen the PR and rebase on the latest main branch
-            - Create a new PR with updated changes
-            
-            Thank you for your understanding!
-          stale-pr-label: 'stale'
-          exempt-pr-labels: 'pinned,security,in-progress,blocked'
-          days-before-pr-stale: 45
-          days-before-pr-close: 14
-          
-          # General configuration
-          operations-per-run: 100
-          remove-stale-when-updated: true
-          ascending: true
+          debug-only: true
+          days-before-stale: -1
+          days-before-close: -1
+          operations-per-run: 1
+
+  stale_main:
+    # does the action repository resolve at all
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/stale@main
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          debug-only: true
+          days-before-stale: -1
+          days-before-close: -1
+          operations-per-run: 1
+
+  stale_master:
+    # same question, other default-branch spelling
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/stale@master
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          debug-only: true
+          days-before-stale: -1
+          days-before-close: -1
+          operations-per-run: 1
+
+  stale_v8:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/stale@v8
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          debug-only: true
+          days-before-stale: -1
+          days-before-close: -1
+          operations-per-run: 1
+
+  stale_v9:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          debug-only: true
+          days-before-stale: -1
+          days-before-close: -1
+          operations-per-run: 1
+
+  stale_v9_0_0:
+    # the tag the comment on main claims the SHA is
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/stale@v9.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          debug-only: true
+          days-before-stale: -1
+          days-before-close: -1
+          operations-per-run: 1
+
+  stale_v10:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/stale@v10
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          debug-only: true
+          days-before-stale: -1
+          days-before-close: -1
+          operations-per-run: 1
+
+  stale_v11:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/stale@v11
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          debug-only: true
+          days-before-stale: -1
+          days-before-close: -1
+          operations-per-run: 1
+
+  stale_v12:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/stale@v12
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          debug-only: true
+          days-before-stale: -1
+          days-before-close: -1
+          operations-per-run: 1
