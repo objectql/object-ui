@@ -268,6 +268,24 @@ export default tseslint.config({
     'object-ui/no-dynamic-import-in-test-hook': 'error',
   },
 }, {
+  // objectui#8047 ratchet — a `File.tsx:123` line address inside a test NAME is
+  // read by nothing: it is not an assertion, no gate parses it, the cited file
+  // is never opened. So it cannot fail, and it rots the first time a line is
+  // inserted above what it cites. objectui#7853 ruled the class (cite by
+  // CONTENT, not by line address) and five per-instance repairs followed it
+  // — #6548, #6998, #7289, #7913, #8045 — without closing it. Scoped to test
+  // files, because the property is "nothing reads a test name"; a line address
+  // in a comment, in an assertion message, or in data a test asserts ON is a
+  // human-read citation and is deliberately out of the population (the rule's
+  // own header carries the boundary and its measured false-positive cost).
+  // Error so a new one fails CI; the whole live population was converted in the
+  // same change, so this lints clean today.
+  files: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
+  plugins: { 'object-ui': objectUi },
+  rules: {
+    'object-ui/no-line-address-in-test-name': 'error',
+  },
+}, {
   // objectui#4045 ratchet — a `<button>` with no `type` is `type="submit"` per
   // HTML, so it submits any <form> it is composed into instead of running its
   // own handler. In an SDUI renderer that composition is a JSON metadata

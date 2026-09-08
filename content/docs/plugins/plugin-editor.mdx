@@ -30,9 +30,10 @@ npm install @object-ui/plugin-editor
 ```tsx
 // Import once in your app entry point
 import '@object-ui/plugin-editor'
+import type { CodeEditorSchema } from '@object-ui/plugin-editor'
 
 // Use in schemas
-const schema = {
+const schema: CodeEditorSchema = {
   type: 'code-editor',
   value: 'console.log("Hello, World!");',
   language: 'javascript',
@@ -97,7 +98,9 @@ The Monaco Editor supports 100+ programming languages including:
 ### JavaScript Editor
 
 ```tsx
-const schema = {
+import type { CodeEditorSchema } from '@object-ui/plugin-editor'
+
+const schema: CodeEditorSchema = {
   type: 'code-editor',
   value: 'function hello() {\n  console.log("Hello!");\n}',
   language: 'javascript',
@@ -109,7 +112,9 @@ const schema = {
 ### Read-only Code Display
 
 ```tsx
-const schema = {
+import type { CodeEditorSchema } from '@object-ui/plugin-editor'
+
+const schema: CodeEditorSchema = {
   type: 'code-editor',
   value: 'const API_KEY = "secret";\n// Do not modify',
   language: 'typescript',
@@ -121,7 +126,9 @@ const schema = {
 ### Python Editor
 
 ```tsx
-const schema = {
+import type { CodeEditorSchema } from '@object-ui/plugin-editor'
+
+const schema: CodeEditorSchema = {
   type: 'code-editor',
   value: 'def hello():\n    print("Hello, World!")',
   language: 'python',
