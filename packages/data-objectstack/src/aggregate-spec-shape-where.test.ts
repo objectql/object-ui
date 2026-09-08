@@ -45,6 +45,12 @@
  *   - it does not touch `AggregateParams` (`packages/types`), which is carded
  *     separately.
  *
+ * ⚠️ SINCE objectui#6864, the same branch also refuses the ANALYTICS branch’s
+ * own keys — `filter`, `field`, `function` — which it reads not at all and used
+ * to drop in silence. That is the same ruling applied to the rest of the branch,
+ * pinned in `aggregate-spec-shape-analytics-keys.test.ts`; the rows here vary only
+ * `where` and are unaffected, except the one that names #6864 inline.
+ *
  * ⭐ WHICH BRANCH RAN IS ASSERTED, NOT ASSUMED. The two branches post to
  * different endpoints, so the wire proves the branch for anything that reaches
  * it. A refusal reaches nothing, so for the refusing inputs the branch is
@@ -62,6 +68,7 @@ import {
   clearSharedDiscoveryCache,
   isMalformedFilterError,
   UnloweredAggregateWhereError,
+  AnalyticsKeysOnSpecShapeError,
 } from './index';
 
 /** Rows the spec-shape door answers with, so nothing degrades to a fallback. */
@@ -190,9 +197,26 @@ describe('the spec-shape branch is the branch under test — asserted on the wir
     // Same legacy params as the row above; only the KEY NAME changes. This is
     // the asymmetry the card reported, and it is what makes the branch
     // selection provable for params that never reach the wire.
+    //
+    // ⚠️ WHAT THIS ROW USED TO ASSERT, AND WHY IT MOVED (objectui#6864). It
+    // used to observe the flipped call landing on the spec-shape door with only
+    // its `where` in the body — which is to say, it pinned the very drop #6864
+    // reported: this call's `field` and `function` never reached the wire and
+    // nothing said so. Since #6864 the branch REFUSES them, applying #6825’s own
+    // ruling (refuse at the producer, never degrade quietly) to the keys it does
+    // not read. The flip is still what is being proven, and it is proven at
+    // least as well: only the spec-shape branch has this gate, so the refusal
+    // could not have come from the analytics branch.
     const r = await run({ function: 'sum', field: 'amount', groupBy: '_all', where: AST_WHERE });
-    expect(r.door).toBe('spec-shape');
-    expect(r.specShapeBodies[0].where).toEqual(AST_WHERE);
+    expect(r.error).toBeInstanceOf(AnalyticsKeysOnSpecShapeError);
+    expect(r.error.keys).toEqual(['field', 'function']);
+    expect(r.door).toBeNull();
+    // …and with those two analytics keys gone, the same flipped params post the
+    // `where` verbatim, exactly as this row observed before.
+    const clean = await run({ groupBy: '_all', where: AST_WHERE });
+    expect(clean.error).toBeNull();
+    expect(clean.door).toBe('spec-shape');
+    expect(clean.specShapeBodies[0].where).toEqual(AST_WHERE);
   });
 });
 
