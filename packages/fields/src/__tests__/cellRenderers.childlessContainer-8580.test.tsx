@@ -273,6 +273,9 @@ describe('objectui#8580 — a rich-content cell holding [] or {} says what it ho
     it('POPULATED — `html` and `richtext` still render the SAME bytes for the same stored value (objectui#5452)', () => {
       const html = renderCell('html', SEED_RICHTEXT);
       const htmlBytes = html.container.querySelector('div.prose')?.innerHTML;
+      // Pin the bytes as REAL before comparing them: on the caricature both
+      // sides are `undefined`, and `undefined` equals `undefined`.
+      expect(htmlBytes, 'html: the seed specimen must still render its bytes').toContain('<strong>text</strong>');
       cleanup();
       const rich = renderCell('richtext', SEED_RICHTEXT);
       expect(rich.container.querySelector('div.prose')?.innerHTML, 'richtext must render as html does').toBe(htmlBytes);
