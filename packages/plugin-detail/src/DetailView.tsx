@@ -44,7 +44,7 @@ import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
 import { HistoryTimeline } from './HistoryTimeline';
 import { RecordMetaFooter } from './RecordMetaFooter';
-import { SchemaRenderer, toRenderableSchema, useSafeFieldLabel, useDataInvalidation, useInlineEdit, useRowPredicate } from '@object-ui/react';
+import { SchemaRenderer, SchemaErrorBoundary, toRenderableSchema, useSafeFieldLabel, useDataInvalidation, useInlineEdit, useRowPredicate } from '@object-ui/react';
 import { buildExpandFields, getRecordDisplayName, formatTitleTemplate, userActionPredicates } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
@@ -186,6 +186,66 @@ export interface DetailViewProps {
    */
   onToggleFavorite?: (next: boolean) => void;
 }
+
+
+/**
+ * Every field entry named by every section, flattened — the ONE spelling.
+ *
+ * ⚠️ Tolerant of a section with no `fields` array ON PURPOSE, and the
+ * tolerance is not leniency toward off-spec metadata (Commandment #0.1): a
+ * section carrying `{ group }` instead of `{ fields }` is EXACTLY what
+ * `@objectstack/spec` 17.3.0 declares (`RecordDetailsProps.sections[].group`,
+ * objectstack#13855), so this is the renderer learning to read a document the
+ * contract already accepts.
+ *
+ * A bare `sections.flatMap((s) => s.fields)` does not skip such a section — it
+ * keeps `undefined` as an ELEMENT (flatMap flattens arrays, and `undefined` is
+ * not one), and the very next line reads `.name` off it. That threw
+ * `Cannot read properties of undefined (reading 'name')` from inside a
+ * `useMemo` ABOVE the section loop, so no per-section boundary could contain
+ * it and `SchemaErrorBoundary` blanked the whole `record:details` component —
+ * one authored key erasing every sibling section on the page (objectui#8497).
+ * The crash predates the key it fires on: it arrived with `e99770841`
+ * (2026-05-01), months before #13855 declared `group`, so it was never a
+ * deliberate refusal of anything.
+ */
+const sectionFieldEntries = (sections: any[] | undefined): any[] =>
+  (sections || []).flatMap((s) => (Array.isArray(s?.fields) ? s.fields : []));
+
+/**
+ * One section's blast radius is that section (objectui#8497 acceptance 2).
+ *
+ * `SchemaErrorBoundary` already existed one level UP, per COMPONENT — which is
+ * why a single malformed section rendered "Component `record:details` failed to
+ * render" over the whole body and every well-formed sibling vanished with it.
+ * Reusing that same boundary per section pushes the granularity down: the
+ * broken section shows the failure in its own place, its siblings keep
+ * rendering their fields and their labels.
+ *
+ * ⚠️ This is the SECOND half of the containment and it cannot be the only one.
+ * A React error boundary catches what throws while RENDERING ITS SUBTREE, and
+ * the crash this card was filed for throws in a `useMemo` in `DetailView`'s own
+ * body — above every section, outside any per-section subtree. Hence
+ * {@link sectionFieldEntries}: that one guards the path that actually fired,
+ * this one bounds every OTHER way a section can throw.
+ *
+ * `componentType` is the section identity, so the notice names which section
+ * failed rather than blaming the component that hosts it.
+ */
+const SectionBoundary: React.FC<{ section: any; index: number; children: React.ReactNode }> = ({
+  section,
+  index,
+  children,
+}) => (
+  <SchemaErrorBoundary
+    componentType={`record:details section ${
+      section?.name ?? section?.group ?? section?.title ?? section?.label ?? `#${index + 1}`
+    }`}
+  >
+    {children}
+  </SchemaErrorBoundary>
+);
+
 
 export const DetailView: React.FC<DetailViewProps> = ({
   schema: rawSchema,
@@ -424,7 +484,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const autoSummaryFields = React.useMemo<string[]>(() => {
     if (schema.summaryFields && schema.summaryFields.length > 0) return [];
     const allFields = [
-      ...(schema.sections?.flatMap((s) => s.fields) || []),
+      ...sectionFieldEntries(schema.sections as any[]),
       ...(schema.fields || []),
     ];
     const fieldDefMap: Record<string, any> = {};
@@ -515,7 +575,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
       // Collect all visible fields from sections and top-level fields
       const allFields = [
-        ...(schema.sections?.flatMap(s => s.fields) || []),
+        ...sectionFieldEntries(schema.sections as any[]),
         ...(schema.fields || []),
       ];
 
@@ -991,8 +1051,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   // Format value based on field type from schema or objectSchema.
                   // Best-effort: currency → localized currency, date/datetime →
                   // localized date string, others → String(val).
-                  const sectionField = (schema.sections || [])
-                    .flatMap((s) => s.fields)
+                  const sectionField = sectionFieldEntries(schema.sections as any[])
                     .concat(schema.fields || [])
                     .find((f) => f.name === fieldName);
                   const objField = objectSchema?.fields?.[fieldName];
@@ -1496,18 +1555,19 @@ export const DetailView: React.FC<DetailViewProps> = ({
             )}
             {schema.sections && schema.sections.length > 0 && (
               schema.sections.map((section, index) => (
-                <DetailSection
-                  key={index}
-                  section={section}
-                  data={{ ...data, ...editedValues }}
-                  objectSchema={objectSchema}
-                  objectName={schema.objectName}
-                  isEditing={isInlineEditing}
-                  onFieldChange={handleInlineFieldChange}
-                  onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
-                  autoFocusField={autoFocusField}
-                  dataSource={dataSource}
-                />
+                <SectionBoundary key={index} section={section} index={index}>
+                  <DetailSection
+                    section={section}
+                    data={{ ...data, ...editedValues }}
+                    objectSchema={objectSchema}
+                    objectName={schema.objectName}
+                    isEditing={isInlineEditing}
+                    onFieldChange={handleInlineFieldChange}
+                    onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+                    autoFocusField={autoFocusField}
+                    dataSource={dataSource}
+                  />
+                </SectionBoundary>
               ))
             )}
             {schema.fields && schema.fields.length > 0 && !schema.sections?.length && (
@@ -1684,18 +1744,19 @@ export const DetailView: React.FC<DetailViewProps> = ({
           {schema.sections && schema.sections.length > 0 && (
             <div className="space-y-3 sm:space-y-4">
               {schema.sections.map((section, index) => (
-                <DetailSection
-                  key={index}
-                  section={section}
-                  data={{ ...data, ...editedValues }}
-                  objectSchema={objectSchema}
-                  objectName={schema.objectName}
-                  isEditing={isInlineEditing}
-                  onFieldChange={handleInlineFieldChange}
-                  onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
-                  autoFocusField={autoFocusField}
-                  dataSource={dataSource}
-                />
+                <SectionBoundary key={index} section={section} index={index}>
+                  <DetailSection
+                    section={section}
+                    data={{ ...data, ...editedValues }}
+                    objectSchema={objectSchema}
+                    objectName={schema.objectName}
+                    isEditing={isInlineEditing}
+                    onFieldChange={handleInlineFieldChange}
+                    onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+                    autoFocusField={autoFocusField}
+                    dataSource={dataSource}
+                  />
+                </SectionBoundary>
               ))}
             </div>
           )}

@@ -132,11 +132,13 @@ describe('record:details dedupe — the declared `nameField` picks the hidden ro
 
     // CONTROL — the grid rendered at all. Without it this case is satisfied by
     // a build that rendered nothing: "queryByText is null" is trivially true on
-    // an empty document. (The row LABEL is `amount`, not `Amount` —
-    // `DetailSection` labels a row from the entry's own `label`, and these
-    // entries are bare strings.)
+    // an empty document. (The row LABEL is `Amount`, the object's DECLARED
+    // label. It read `amount` — the raw field name — until objectui#8497:
+    // `record:details` now fills a bare-string entry's `label` from the object
+    // definition, so the i18n ladder's middle rung resolves instead of falling
+    // straight through to the name.)
     expect(screen.getByText('42')).toBeInTheDocument();
-    expect(screen.getByText('amount')).toBeInTheDocument();
+    expect(screen.getByText('Amount')).toBeInTheDocument();
   });
 
   it('HALF 2 — KEEPS the ordinary `name` row (no field may vanish in its place)', () => {
