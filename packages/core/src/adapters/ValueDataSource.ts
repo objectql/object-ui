@@ -147,6 +147,158 @@ function refuseArrayComparand(
 }
 
 /**
+ * The operators a `{ $field }` reference is a legal comparand ON, in both
+ * dialects — the SIX scalar comparisons and nothing else.
+ *
+ * Not this file's choice: `FieldReferenceSchema` (`@objectstack/spec/data`)
+ * declares the reference on `$eq`/`$ne`/`$gt`/`$gte`/`$lt`/`$lte`, and
+ * objectstack#7596 REMOVED it from `$in` / `$nin` members and `$between`
+ * endpoints at the schema door, on the finding that no backend ever resolved
+ * one there.
+ */
+const DOLLAR_FIELD_REFERENCE_OPERATORS = new Set(['$eq', '$ne', '$gt', '$gte', '$lt', '$lte']);
+const AST_FIELD_REFERENCE_OPERATORS = new Set(['=', '!=', '>', '>=', '<', '<=']);
+
+/** A comparand this matcher refused; distinguishable from a resolved `undefined`. */
+const REFUSED_COMPARAND: unique symbol = Symbol('ValueDataSource:refused-comparand');
+
+/**
+ * Is this comparand shaped like a Filter Protocol FIELD REFERENCE?
+ *
+ * The test is `'$field' in value`, which is what `@objectstack/formula`'s
+ * `resolveValue` uses, so the three faces agree on what a reference IS before
+ * they differ on what to do with one. Validity of the `$field` VALUE is judged
+ * by {@link resolveFieldReference}, which refuses loudly — reporting a
+ * malformed reference beats letting it fall through to a comparison against
+ * the object, which is the silence this card is about.
+ */
+function isFieldReferenceComparand(value: any): boolean {
+  return !!value && typeof value === 'object' && !Array.isArray(value) && '$field' in value;
+}
+
+/**
+ * Resolve `{ $field: 'other_column' }` against the record being matched
+ * (objectui#8515), or refuse it with the reason.
+ *
+ * ## Why this is implemented rather than refused
+ *
+ * `@objectstack/spec/data` declares the shape, `@objectstack/formula`'s
+ * `compileCelToFilter` emits it for a field-to-field comparison in a CEL
+ * permission rule, and BOTH platform evaluation paths execute it — the
+ * in-memory `matchesFilter` resolves it in `resolveValue`, and `driver-sql`
+ * compiles it to a same-table column-to-column comparison (objectstack#5222),
+ * held to the same rows by a shared conformance corpus. Refusing it here would
+ * make this adapter the one face that answers a declared, executed shape with
+ * "no rows" — the outcome the sibling card ruled worse than the bug.
+ *
+ * Both of this file's matchers compared the reference OBJECT against the stored
+ * value: `value === target` for `$eq` (never equal — no rows) and `value > target`
+ * for the orderings (an object bound — no rows). Neither said anything.
+ *
+ * ## The three positions this refuses instead, each for a recorded reason
+ *
+ * - **A `$field` that is not a STRING.** `FieldReferenceSchema` declares
+ *   `z.string()`, and the spec's own lowering predicate (matching `driver-sql`'s
+ *   `fieldReferenceOf`) treats a non-string `$field` as "not a field reference
+ *   on any path". Downstream that means "refused as the uncompilable object it
+ *   is", which is what this does — loudly, rather than by object comparison.
+ * - **A DOTTED path.** This matcher addresses the left-hand side as
+ *   `record[field]`, flat, so resolving a dotted path only on the right would
+ *   make `['a.b', '=', x]` and `['x', '=', { $field: 'a.b' }]` disagree about
+ *   what a dot means. SQL push-down refuses a dotted path too, under the
+ *   maintainer's 2026-08-06 same-table ruling (no JOIN planning, no alias
+ *   contract). `@objectstack/formula` DOES walk dots — that divergence is named
+ *   here rather than papered over, because this adapter has no path accessor to
+ *   be consistent with.
+ * - **`addDays`.** The whole-day offset (objectstack#14104) is defined against
+ *   the referenced column's TEMPORAL CLASS — a `date` stays a calendar day, a
+ *   `datetime` keeps its time of day — and SQL push-down compiles it only
+ *   between two temporal columns of the same class, refusing everything else
+ *   loudly. This matcher has no field types to read a class from, so it refuses
+ *   for the same reason rather than guessing. Silently IGNORING the offset is
+ *   the one answer that must not happen: it would compare against an unshifted
+ *   column and return WRONG rows, where today's defect returns none.
+ */
+function resolveFieldReference(
+  record: any,
+  reference: Record<string, any>,
+  operator: string,
+  rawOperator: string,
+  field: string,
+  legalOperators: ReadonlySet<string>,
+  refusals: Set<string>,
+): any {
+  const path = reference.$field;
+
+  if (typeof path !== 'string') {
+    refuseFilterNode(
+      refusals,
+      `filter comparand for field '${field}' carries a non-string $field `
+      + `(${JSON.stringify(path) ?? String(path)}); a field reference declares `
+      + `$field as a string, so this is not one on any path`,
+    );
+    return REFUSED_COMPARAND;
+  }
+
+  if (!legalOperators.has(operator)) {
+    refuseFilterNode(
+      refusals,
+      `a { $field } reference is not a comparand for operator '${rawOperator}' on field `
+      + `'${field}'. It is declared only on the six scalar comparisons `
+      + `($eq/$ne/$gt/$gte/$lt/$lte and their AST spellings); the spec removed it from `
+      + `$in / $nin members and $between endpoints because no backend resolves one there`,
+    );
+    return REFUSED_COMPARAND;
+  }
+
+  if ('addDays' in reference && reference.addDays !== undefined) {
+    refuseFilterNode(
+      refusals,
+      `the { $field } reference on field '${field}' carries an addDays offset, which is `
+      + `defined against the referenced column's temporal class; this matcher has no field `
+      + `types to read one from, and answering without the offset would compare against an `
+      + `unshifted column and return the wrong rows`,
+    );
+    return REFUSED_COMPARAND;
+  }
+
+  if (path.includes('.')) {
+    refuseFilterNode(
+      refusals,
+      `the { $field } reference on field '${field}' names the dotted path '${path}'; this `
+      + `matcher addresses a flat record, so a dotted reference would not mean the same `
+      + `thing as the dotted field name on the other side of the comparison`,
+    );
+    return REFUSED_COMPARAND;
+  }
+
+  return record[path];
+}
+
+/**
+ * A `{ $field }` reference sitting INSIDE a list comparand — an `$in` / `$nin`
+ * member or a `$between` endpoint (objectstack#7596, ruled 2026-08-11).
+ *
+ * The positions were declared once and honoured by nobody; the ruling was
+ * REMOVE rather than implement. The `$nin` direction is why this is loud rather
+ * than left alone: an unresolved member drops an EXCLUSION the author wrote,
+ * so the row passes — a filter that widens its result set in silence.
+ */
+function refuseListMemberFieldReference(
+  refusals: Set<string>,
+  field: string,
+  operator: string,
+): false {
+  return refuseFilterNode(
+    refusals,
+    `a { $field } reference appears inside the list comparand of '${operator}' on field `
+    + `'${field}'. A reference may be the WHOLE comparand of a scalar comparison, never a `
+    + `member of $in / $nin nor an endpoint of $between — the spec removed those positions `
+    + `because no evaluation path resolved them`,
+  );
+}
+
+/**
  * Evaluate ONE comparison node — `[field, operator]` or `[field, operator, value]`.
  *
  * The operator is canonicalized through the spec's own
@@ -175,19 +327,37 @@ function matchesComparisonNode(
   const operator =
     rawOperator === 'not in' ? 'nin' : canonicalAstOperator(rawOperator);
   const value = record[field];
-  const target = node[2];
+  const rawTarget = node[2];
 
   // objectui#8514 — an array where a single-value comparand belongs. Checked
   // before the switch so `=` / `!=` cannot answer it by reference (never equal
   // / always unequal), and skipped for the operators that DECLARE an array
   // comparand and for the two that never read the slot.
   if (
-    Array.isArray(target)
+    Array.isArray(rawTarget)
     && !AST_LIST_COMPARAND_OPERATORS.has(operator)
     && !AST_NO_COMPARAND_OPERATORS.has(operator)
   ) {
     return refuseArrayComparand(refusals, field, String(rawOperator));
   }
+
+  // objectui#8515 — a `{ $field }` reference inside a list comparand. The
+  // members are walked only for the three operators that HAVE a list comparand;
+  // everywhere else an array was already refused above.
+  if (Array.isArray(rawTarget) && rawTarget.some(isFieldReferenceComparand)) {
+    return refuseListMemberFieldReference(refusals, field, String(rawOperator));
+  }
+
+  // objectui#8515 — a `{ $field }` reference as the WHOLE comparand. Resolved
+  // against this record so the switch below compares two of its own values,
+  // exactly as `matchesFilter` (`@objectstack/formula`) and `driver-sql` do.
+  const target = isFieldReferenceComparand(rawTarget)
+    ? resolveFieldReference(
+      record, rawTarget, operator, String(rawOperator), field,
+      AST_FIELD_REFERENCE_OPERATORS, refusals,
+    )
+    : rawTarget;
+  if (target === REFUSED_COMPARAND) return false;
 
   switch (operator) {
     // -- Null-ness. Direction comes from the operator NAME; the value slot is
@@ -379,17 +549,32 @@ function matchesASTFilter(record: any, filterNode: any, refusals: Set<string>): 
  *   operators: this matcher does not descend into relations.
  */
 function matchesDollarOperator(
+  record: any,
   value: any,
   operator: string,
-  target: any,
+  rawTarget: any,
   field: string,
   refusals: Set<string>,
 ): boolean {
   // objectui#8514 — the `$` twin of the AST guard above, and the position that
   // carries the fail-OPEN case: `$ne` against an array is always true.
-  if (Array.isArray(target) && !DOLLAR_LIST_COMPARAND_OPERATORS.has(operator)) {
+  if (Array.isArray(rawTarget) && !DOLLAR_LIST_COMPARAND_OPERATORS.has(operator)) {
     return refuseArrayComparand(refusals, field, operator);
   }
+
+  // objectui#8515 — a `{ $field }` reference inside a list comparand.
+  if (Array.isArray(rawTarget) && rawTarget.some(isFieldReferenceComparand)) {
+    return refuseListMemberFieldReference(refusals, field, operator);
+  }
+
+  // objectui#8515 — a `{ $field }` reference as the WHOLE comparand.
+  const target = isFieldReferenceComparand(rawTarget)
+    ? resolveFieldReference(
+      record, rawTarget, operator, operator, field,
+      DOLLAR_FIELD_REFERENCE_OPERATORS, refusals,
+    )
+    : rawTarget;
+  if (target === REFUSED_COMPARAND) return false;
 
   switch (operator) {
     case '$eq':
@@ -448,6 +633,22 @@ function matchesDollarOperator(
       return target
         ? value !== null && value !== undefined
         : value === null || value === undefined;
+
+    // objectui#8515 — the hand-authored IMPLICIT form `{ amount: { $field: 'x' } }`.
+    // It is not a reference comparand: an object whose only key starts with `$`
+    // reads as an OPERATOR SPEC named `$field`, which is why this arrives here
+    // as an operator at all. objectstack#7597 ruled that form keeps its
+    // fail-closed fate rather than being promoted, and named the spelling that
+    // works — the same one `driver-sql`'s refusal names. The default arm below
+    // already excluded the row; this arm only replaces "not implemented" with
+    // the prescription, so an author reading the console can act on it.
+    case '$field':
+      return refuseFilterNode(
+        refusals,
+        `field '${field}' carries a bare { $field } object, which reads as an operator `
+        + `named '$field' rather than as a comparand. Write the explicit comparison `
+        + `{ ${field}: { $eq: { $field: ${JSON.stringify(String(rawTarget))} } } }`,
+      );
 
     default: {
       const retired = RETIRED_FILTER_OPERATORS[operator];
@@ -523,7 +724,7 @@ function matchesFilter(
     if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
       // Operator-based filter — every operator on the field is ANDed.
       for (const [op, target] of Object.entries(condition)) {
-        if (!matchesDollarOperator(value, op, target, key, refusals)) return false;
+        if (!matchesDollarOperator(record, value, op, target, key, refusals)) return false;
       }
     } else if (Array.isArray(condition)) {
       // objectui#8514 — the implicit-equality position this card was filed
