@@ -105,8 +105,10 @@ const FENCE = '```';
  */
 const README_SAMPLE_DOC = 'content/docs/plugins/plugin-markdown.mdx';
 // 195 until objectui#6972 replaced two prop-table rows above it with a
-// retirement blockquote (+11 lines); re-declared here, as this pin intends.
-const README_SAMPLE_FENCE_LINE = 206;
+// retirement blockquote (+11 lines); 206 until objectui#8125's annotation sweep
+// added one `import type` line to the page's first block (+1 line);
+// re-declared here each time, as this pin intends.
+const README_SAMPLE_FENCE_LINE = 207;
 
 /**
  * The regex reader objectui#7555 removed from both gates, kept HERE and only
