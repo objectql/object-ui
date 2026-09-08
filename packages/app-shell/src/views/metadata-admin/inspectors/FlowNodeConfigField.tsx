@@ -7,6 +7,7 @@
  */
 
 import * as React from 'react';
+import { isUnsetFieldValue } from './flow-node-config.js';
 import type { FlowConfigField, InactiveRetainedKind } from './flow-node-config.js';
 import { t } from '../i18n.js';
 import {
@@ -199,15 +200,47 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
             disabled={disabled}
           />
         );
-      case 'boolean':
+      case 'boolean': {
+        // objectui#6830 arm A — "show, do not write" (triage 2026-09-04), the
+        // boolean half (objectui#8451).
+        //
+        // The control shows the value IN EFFECT: the stored boolean, or — when
+        // the author has stored nothing — the `defaultValue` the descriptor
+        // declares, which is what the runtime applies to the omitted key.
+        // Nothing is WRITTEN: an untouched node still ships without the key,
+        // and the first author edit commits an explicit boolean as before.
+        //
+        // The seed used to be `value === true`, which flattened `undefined` and
+        // `false` onto one unchecked box although the runtime treats them
+        // oppositely on a `default(true)` key — the mechanism that turned a
+        // missing display into a false assertion. The distinction survives to
+        // here (`getFieldValue` returns `undefined` vs `false`), so the two
+        // branches are kept apart:
+        //
+        //  - unset  -> the declared default in the table's own 'true'/'false'
+        //    spelling, the one `controllerAdmits` compares a controller against;
+        //  - stored -> `=== true`, unchanged. Deliberately NOT widened to also
+        //    accept a stored string `'true'`: that would be a lenient
+        //    renderer-side alias for off-spec metadata (AGENTS.md #0.1).
+        //
+        // ⛔ Nothing is rendered NAMING the default — no "(default)" caption,
+        // no help line. Of the two boolean fields the offline table declares a
+        // default for, one (`escalation.enabled`) declares the OPPOSITE of what
+        // the installed spec applies to an omitted key (objectui#6620), so any
+        // caption asserting "this is the declared default" would ship that
+        // wrong claim to authors in words. The seed alone leaves that field
+        // rendering byte-identically to before; a caption would not. Pinned by
+        // `FlowNodeInspector.declaredDefault.test.tsx`'s #6620 case.
+        const checked = isUnsetFieldValue(value) ? field.defaultValue === 'true' : value === true;
         return (
           <InspectorCheckboxField
             label={field.label}
-            value={value === true}
+            value={checked}
             onCommit={(v) => onCommit(v)}
             disabled={disabled}
           />
         );
+      }
       case 'select':
         return (() => {
           const current = value != null ? String(value) : '';

@@ -6,12 +6,57 @@
    shared styles entry. Keep in sync with packages/app-shell/src/styles.css. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Scan sources for Tailwind classes */
-@source './src/**/*.{ts,tsx}';
-@source '../../packages/components/src/**/*.{ts,tsx}';
-@source '../../packages/react/src/**/*.{ts,tsx}';
-@source '../../packages/plugin-kanban/src/**/*.{ts,tsx}';
-@source '../../packages/plugin-charts/src/**/*.{ts,tsx}';
+/*
+ * Scan sources for Tailwind classes.
+ *
+ * ⚠️ Every path below is resolved relative to THIS FILE's directory
+ * (`packages/runner/src/`) — not the package root, not the CWD.
+ * `@tailwindcss/postcss` compiles with `base = dirname(<entry css>)`, and the
+ * `@source` params are rewritten against that same base before the scanner ever
+ * sees them. All five lines used to get it wrong by exactly one `src` segment
+ * (`./src/**` -> `packages/runner/src/src`, `../../packages/<pkg>/src` ->
+ * `packages/packages/<pkg>/src`), so every one of them named a directory that
+ * does not exist and contributed nothing: measured on objectui#8454, deleting
+ * all five produced a byte-identical artifact.
+ *
+ * What kept this sheet non-empty was Tailwind's automatic source detection,
+ * which roots at the PROCESS CWD — `packages/runner`, where `pnpm build` runs.
+ * That covers runner's own tree and nothing else, so the utilities its
+ * dependencies need were simply missing from the published bundle: fixing the
+ * four sibling paths takes it from 228 to 1456 compiled selectors (21 kB ->
+ * 136 kB). The automatic root is still on (there is no `source(none)` here, and
+ * that parity question is objectui#8455), which is why the first line below is
+ * a no-op today and still belongs here: it is the declared intent, and it is
+ * what keeps runner's own source scanned the day the root moves.
+ */
+@source './**/*.{ts,tsx}';
+@source '../../components/src/**/*.{ts,tsx}';
+@source '../../react/src/**/*.{ts,tsx}';
+@source '../../plugin-kanban/src/**/*.{ts,tsx}';
+@source '../../plugin-charts/src/**/*.{ts,tsx}';
+
+/*
+ * Only shipped source. A `*.test.tsx` never reaches a consumer, and neither
+ * does a helper that lives beside one, so a utility used solely by tests must
+ * not become a published byte. Same two-line spelling as
+ * `packages/plugin-kanban/src/index.css`, anchored one level up because this
+ * entry scans four sibling packages instead of only its own tree — `../../`
+ * bases these on `packages/`, which contains every tree named above AND the
+ * automatic-detection root, so runner's own tests are covered by the same two
+ * lines (measured: negations do apply to files the automatic root found).
+ *
+ * Both lines earn their place. The file line removes nine test-sourced classes
+ * (`flex-grow`, `flex-nowrap`, `h-[125px]`, `h-[400px]`, `invert`, `paused`,
+ * `slide-in-from-bottom`, `text-green-500`, `w-[250px]` — several of them
+ * ordinary English words picked out of prose comments). The directory line
+ * removes nothing extra today, but it is the only thing covering the
+ * non-`*.test.*` sources under `packages/components/src/__tests__/`
+ * (`test-utils.tsx`, `page-header-action-ids.dist.spec.tsx`); ablated with a
+ * marker class injected into the first of those, the file line alone ships it
+ * and the pair does not.
+ */
+@source not '../../**/*.test.{ts,tsx}';
+@source not '../../**/__tests__/**';
 
 /* Tailwind plugin for animations */
 @plugin 'tailwindcss-animate';

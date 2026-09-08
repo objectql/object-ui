@@ -12,35 +12,50 @@
  * declaration table would be a source-text snapshot and would pass on a build
  * where nothing rendered at all.
  *
+ * ⚑ objectui#8451 rewrote the BOOLEAN half of this file. Triage ruled arm A
+ * ("show, do not write") on objectui#6830, and the boolean control now seeds
+ * from the declared default, so the three rows that pinned the defect were
+ * turned green against the repaired behaviour rather than deleted — the same
+ * three PR #8431's ablation leg B predicted would move. Everything else is
+ * carried over unchanged, including every select case: that half is blocked on
+ * objectui#8450 and is still unrepaired.
+ *
  * The measurement, in four parts:
  *
- *  1. A declared default does NOT seed the control's value. An unset key draws
- *     an unchecked box / a select on its PLACEHOLDER, whatever the table
- *     declares. The placeholder is `InspectorSelectField`'s own em-dash, not
- *     anything the table said — it means "nothing is selected", which is
- *     precisely the point: the declared `'GET'` is nowhere on screen. (Until
- *     objectui#8450 the trigger was blank instead: the sentinel the field
- *     bridges `''` through kept Radix from ever recognising the empty state.
- *     Blank and em-dash are the same fact about `defaultValue`, told twice.)
- *  2. That holds on BOTH writers of the property — the hand-written table here
- *     and the engine-published `configSchema` that `json-schema-to-fields`
- *     converts (`default: true` -> `defaultValue: 'true'`). Same dead end.
- *  3. It is NOT inert, though: a declared default on a `showWhen` CONTROLLER
- *     changes which fields are on screen at all (`controllerAdmits`). That is
- *     the one read site, and it is a visibility effect, not a value effect.
- *  4. A boolean control cannot distinguish "key absent" from "key stored as
- *     `false`" — the mechanism that turns a missing display into a false
- *     assertion.
+ *  1. On a BOOLEAN control a declared default now seeds the value: an unset key
+ *     draws the declared state, a stored value beats it, and nothing is written
+ *     to the node. On a SELECT it still reaches nothing — an unset key draws
+ *     `InspectorSelectField`'s own em-dash PLACEHOLDER, which says "nothing is
+ *     selected" and is not anything the table declared. (objectui#8450 made
+ *     that placeholder reachable at all; before it the trigger was blank,
+ *     because the sentinel the field bridges `''` through kept Radix from ever
+ *     recognising the empty state. Blank and em-dash are the same fact about
+ *     `defaultValue`, told twice.)
+ *  2. Both writers of the property feed the repaired boolean — the hand-written
+ *     table here and the engine-published `configSchema` that
+ *     `json-schema-to-fields` converts (`default: true` -> `defaultValue:
+ *     'true'`). The select is a dead end on both.
+ *  3. The property also drives VISIBILITY: a declared default on a `showWhen`
+ *     CONTROLLER changes which fields are on screen at all (`controllerAdmits`).
+ *     That read site predates the repair and is unchanged by it.
+ *  4. A boolean control can now distinguish "key absent" from "key stored as
+ *     `false`" — the two used to render byte-identical DOM even though the
+ *     runtime treats them oppositely, which is the mechanism that turned a
+ *     missing display into a false assertion.
  *
- * The last describe is the non-regression half (objectui#8350's lesson): every
- * negative above is also satisfied by an inspector that renders NOTHING, so the
- * controls' existence and their stored-value behaviour are pinned beside them.
- * A change that deletes the boolean branch fails here even though it would
- * satisfy "the control shows no default".
+ * Two describes guard the repair from below:
  *
- * ⛔ These cases pin what the tree DOES today. They are not a ruling that it is
- * right — the direction (show the effective default vs. retire the property) is
- * a product call recorded on the card.
+ *  - the non-regression half (objectui#8350's lesson): every claim here is also
+ *    satisfied by an inspector that renders NOTHING, so the controls'
+ *    existence, their stored-value behaviour, the offered vocabulary and the
+ *    deprecated-value fallback are pinned beside them.
+ *  - the stored-`false` rows: an implementation strictly WORSE than the bug —
+ *    a box that is ALWAYS checked — satisfies "an absent key shows checked".
+ *    Only a stored `false` refuses it, so those rows are load bearing and must
+ *    not be softened into "differs from absent".
+ *
+ * ⛔ These cases pin what the tree DOES. The direction they pin is triage's
+ * ruling on objectui#6830, not this file's opinion.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -146,7 +161,7 @@ const triggerText = (name: string) => screen.getByRole('combobox', { name }).tex
 const checkbox = (name: string) =>
   screen.queryByLabelText(name) as HTMLInputElement | null;
 
-describe('a declared defaultValue does not reach the rendered control', () => {
+describe('select: a declared defaultValue still does not reach the control (objectui#8450)', () => {
   it('select: an unset key draws the placeholder, not the declared "GET"', () => {
     // Premise, read from the table the inspector renders from.
     const method = fieldsForNodeType('http_request').find((f) => f.id === 'method');
@@ -178,8 +193,10 @@ describe('a declared defaultValue does not reach the rendered control', () => {
     ).toBe('GET');
     expect(screen.queryByText('GET'), 'the lit control fires').not.toBeNull();
   });
+});
 
-  it('boolean: an unset key draws an UNCHECKED box, though the table declares true', () => {
+describe('boolean: a declared defaultValue seeds the control (objectui#8451, arm A)', () => {
+  it('boolean: an unset key draws a CHECKED box, because the table declares true', () => {
     const notify = fieldsForNodeType('approval').find((f) => f.id === 'escalation.notifySubmitter');
     expect(notify?.defaultValue, 'escalation.notifySubmitter declares a default').toBe('true');
 
@@ -191,15 +208,97 @@ describe('a declared defaultValue does not reach the rendered control', () => {
     expect(box, 'the Notify submitter control is rendered').not.toBeNull();
     expect(
       box!.checked,
-      'the box reads UNCHECKED while the runtime treats the omitted key as true',
-    ).toBe(false);
+      'the box reads CHECKED, which is what the runtime applies to the omitted key',
+    ).toBe(true);
   });
 
-  it('boolean: the same box IS checked when the key is stored true — the lit control', () => {
+  it('boolean: showing the default WRITES nothing — the node still omits the key', () => {
+    // The other half of "show, do not write". A seeded control that also
+    // committed would turn every visit to the inspector into a metadata edit,
+    // freezing today's default into the node and un-tracking it from the spec.
+    const { onPatch } = renderInspector(
+      draftWith('approval', { config: { escalation: { enabled: true, timeoutHours: 24 } } }),
+    );
+    expect(checkbox('Notify submitter')!.checked, 'the seed is on screen').toBe(true);
+    expect(
+      onPatch.mock.calls,
+      'rendering a seeded control patches the draft exactly zero times',
+    ).toEqual([]);
+  });
+
+  it('boolean: a stored true renders checked — unchanged by the repair', () => {
     renderInspector(
       draftWith('approval', { config: { escalation: { enabled: true, timeoutHours: 24, notifySubmitter: true } } }),
     );
     expect(checkbox('Notify submitter')!.checked, 'a stored true renders checked').toBe(true);
+  });
+
+  it('boolean: a stored FALSE beats the declared true and draws an UNCHECKED box', () => {
+    // ⛔ Load bearing, and not interchangeable with "differs from the absent
+    // rendering": this is the only row an ALWAYS-CHECKED control fails. Without
+    // it, an implementation strictly worse than the bug — one that ignores both
+    // the stored value and the declaration — satisfies every other claim here.
+    renderInspector(
+      draftWith('approval', { config: { escalation: { enabled: true, timeoutHours: 24, notifySubmitter: false } } }),
+    );
+    expect(
+      checkbox('Notify submitter')!.checked,
+      'a deliberate false is the author\'s answer and outranks the declaration',
+    ).toBe(false);
+  });
+
+  it('boolean: a field declaring NO default still draws unchecked when unset', () => {
+    // The seed belongs to the DECLARATION, not to the control: a boolean with
+    // nothing declared must not acquire a default from the repair. Measured on
+    // the online writer because the offline table has no undeclared boolean to
+    // measure — it carries exactly two boolean fields and both declare one.
+    stubs.configSchemas = {
+      approval: {
+        type: 'object',
+        properties: {
+          escalation: {
+            type: 'object',
+            title: 'SLA escalation',
+            properties: {
+              enabled: { type: 'boolean', default: true },
+              notifySubmitter: { type: 'boolean', title: 'Notify submitter' },
+            },
+          },
+        },
+      },
+    };
+    renderInspector(draftWith('approval', { config: { escalation: { timeoutHours: 24 } } }));
+    const box = checkbox('Notify submitter');
+    expect(box, 'the sibling is on screen — the gate default admitted it').not.toBeNull();
+    expect(
+      box!.checked,
+      'and it draws unchecked, because this schema declares no default for it',
+    ).toBe(false);
+  });
+
+  it('boolean: the #6620-wrong declaration ships NO worded claim (objectui#6620)', () => {
+    // `escalation.enabled` is the one field in the offline table whose declared
+    // default contradicts what the installed spec applies to an omitted key.
+    // This card ships the SEED and no caption, which is why: the seed renders
+    // that field exactly as it rendered before (unchecked — the declaration
+    // says 'false'), so no new claim about the declaration reaches the author,
+    // while a "(default)" caption would have asserted the wrong one in words.
+    //
+    // ⚠️ Deliberately does NOT compare the declaration against the spec. That
+    // comparison is objectui#6620's tripwire, held disarmed on purpose in
+    // `flow-node-config.spec-reconciliation.test.ts`; arming it here would
+    // discharge an on-hold card from an unrelated PR.
+    const gate = fieldsForNodeType('approval').find((f) => f.id === 'escalation.enabled');
+    expect(gate?.defaultValue, 'the gate declares a default at all').toBe('false');
+
+    renderInspector(draftWith('approval', { config: { escalation: { timeoutHours: 24 } } }));
+    const box = checkbox('SLA escalation');
+    expect(box, 'the gate control is on screen').not.toBeNull();
+    expect(box!.checked, 'and it renders as it always did — unchecked').toBe(false);
+    expect(
+      box!.closest('label')?.textContent,
+      'the control carries its label and nothing else — no caption naming a default',
+    ).toBe('SLA escalation');
   });
 });
 
@@ -253,10 +352,17 @@ describe('the one read site: a declared default on a showWhen CONTROLLER changes
   it('a gate whose default is true reveals its siblings for a node that omits the key', () => {
     stubs.configSchemas = { approval: escalationSchema };
     renderInspector(draftWith('approval', { config: { escalation: { timeoutHours: 24 } } }));
+    const sibling = checkbox('Notify submitter');
     expect(
-      checkbox('Notify submitter'),
+      sibling,
       'the sibling is on screen because the gate default resolved to true',
     ).not.toBeNull();
+    // objectui#8451 — and the ONLINE writer's own `default: true` seeds it, so
+    // the repair is not a property of the hand-written table.
+    expect(
+      sibling!.checked,
+      'the engine-published default reaches the control too',
+    ).toBe(true);
   });
 
   it('and hides them when the gate is stored off — the lit control for the same predicate', () => {
@@ -280,24 +386,45 @@ describe('the one read site: a declared default on a showWhen CONTROLLER changes
   });
 });
 
-describe('absent and stored-false are indistinguishable on a boolean control', () => {
-  it('renders identically whether the key is missing or explicitly false', () => {
+describe('absent and stored-false are now DISTINGUISHABLE on a boolean control', () => {
+  it('renders differently when the key is missing than when it is explicitly false', () => {
     renderInspector(draftWith('approval', { config: { escalation: { enabled: true, timeoutHours: 24 } } }));
-    const absent = checkbox('Notify submitter')!.outerHTML;
+    const absentBox = checkbox('Notify submitter')!;
+    const absentChecked = absentBox.checked;
+    const absent = absentBox.outerHTML;
     cleanup();
     renderInspector(
       draftWith('approval', { config: { escalation: { enabled: true, timeoutHours: 24, notifySubmitter: false } } }),
     );
-    const storedFalse = checkbox('Notify submitter')!.outerHTML;
+    const storedFalseBox = checkbox('Notify submitter')!;
+    const storedFalseChecked = storedFalseBox.checked;
+    const storedFalse = storedFalseBox.outerHTML;
+
+    // Named states, not just an inequality: "the two differ" is also satisfied
+    // by a control that gets BOTH wrong, so each side is asserted on its own.
+    expect(absentChecked, 'the omitted key draws the declared true').toBe(true);
+    expect(storedFalseChecked, 'the deliberate false draws unchecked').toBe(false);
     expect(
       absent,
-      'an omitted key and a deliberate false draw the same control — the author cannot tell them apart',
-    ).toBe(storedFalse);
+      'and the difference reaches the DOM — the author can tell them apart',
+    ).not.toBe(storedFalse);
   });
 });
 
 describe('non-regression — a change that deletes the control must not pass this file', () => {
+  /** The `notifySubmitter` value the last `onPatch` call carries, if any. */
+  const committed = (onPatch: { mock: { calls: unknown[][] } }) =>
+    (
+      onPatch.mock.calls.at(-1)?.[0] as
+        | { nodes: Array<{ config: { escalation?: Record<string, unknown> } }> }
+        | undefined
+    )?.nodes[0].config.escalation?.notifySubmitter;
+
   it('the boolean control exists, is a checkbox, and commits the author edit', () => {
+    // Both directions, because the repair moved the seeded state: clicking a
+    // control that shows the declared `true` must write the author's `false`,
+    // and clicking one that shows a stored `false` must write `true`. A control
+    // that committed the state it merely SHOWS would pass one and fail the other.
     const { onPatch } = renderInspector(
       draftWith('approval', { config: { escalation: { enabled: true, timeoutHours: 24 } } }),
     );
@@ -305,12 +432,19 @@ describe('non-regression — a change that deletes the control must not pass thi
     expect(box, 'the control is rendered at all').not.toBeNull();
     expect(box!.type, 'and it is a real checkbox input').toBe('checkbox');
     box!.click();
-    const patched = onPatch.mock.calls.at(-1)?.[0] as
-      | { nodes: Array<{ config: { escalation?: Record<string, unknown> } }> }
-      | undefined;
     expect(
-      patched?.nodes[0].config.escalation?.notifySubmitter,
-      'ticking the box writes the key — the control is live, not decorative',
+      committed(onPatch),
+      'clicking a seeded-true box writes the explicit false — the control is live, not decorative',
+    ).toBe(false);
+
+    cleanup();
+    const second = renderInspector(
+      draftWith('approval', { config: { escalation: { enabled: true, timeoutHours: 24, notifySubmitter: false } } }),
+    );
+    checkbox('Notify submitter')!.click();
+    expect(
+      committed(second.onPatch),
+      'and clicking a stored-false box writes true',
     ).toBe(true);
   });
 
