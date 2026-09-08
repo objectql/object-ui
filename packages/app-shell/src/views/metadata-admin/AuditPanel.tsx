@@ -23,7 +23,7 @@ import * as React from 'react';
 import { RefreshCw, Loader2, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { Badge } from '@object-ui/components';
-import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
+import { Empty, EmptyTitle, EmptyDescription, EmptyValue } from '@object-ui/components';
 import type {
   MetadataClient,
   MetadataAuditEntry,
@@ -249,7 +249,7 @@ export function AuditPanel({
                         {ev.lockOverridden ? ' *' : ''}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <EmptyValue />
                     )}
                   </td>
                   <td
