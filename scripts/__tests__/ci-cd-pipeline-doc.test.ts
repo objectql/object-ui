@@ -2136,3 +2136,221 @@ describe('live-e2e.yml — the run conclusion may not contradict the job (#8084)
     }
   });
 });
+
+/**
+ * objectui#8420: the same pairing again, on the two sections the card measured by
+ * hand — and the alias question that had to be settled before either pin could be
+ * pointed at them.
+ *
+ * ## The two instances
+ *
+ * `vi-mock-specifiers.yml` runs TWO gates in one job: `check-vi-mock-specifiers.mjs`
+ * and `check-vi-mock-inherit.mjs`. The section named only the first, and the second
+ * is a blocking step of a required context (`dependabot-merge-gate.mjs` classifies
+ * `Inert vi.mock Specifier Check`) — so a contributor reading that section to learn
+ * what CI does to their pull request did not know a gate that can stop it exists.
+ * Measured on `256c709e2`, searching the whole page for both spellings in one
+ * command: `check-vi-mock-inherit` returned 0 and `check-vi-mock-specifiers`
+ * returned 3, which is what makes the zero a reading rather than a failed probe.
+ *
+ * `shadcn-check.yml`'s section described the job in three prose bullets and named
+ * none of the three first-party commands it runs.
+ *
+ * ## ⛔ Why this is two pins and not a loop over the page
+ *
+ * The card measured the naive extension — pair every `## Heading (some.yml)`
+ * section against every job in that workflow — and it flags 24 of the 34 sections,
+ * MOST of which are not defects: a section that names a neighbouring gate for
+ * contrast (and says so), an illustrative `scripts/some-gate.mjs` placeholder
+ * inside a code block, and sections that name a `pnpm check:*` alias where the
+ * workflow invokes `node scripts/…` directly. A gate that cries wolf gets switched
+ * off rather than fixed — this repository's own words, in
+ * `check-unreferenced-sources`. So sections join this rule one at a time, each
+ * after somebody has decided what that section's documentation surface IS.
+ *
+ * ## ⭐ The alias decision, and its blast radius
+ *
+ * Settled here for these two units only: **an alias whose root `package.json`
+ * definition is exactly `node scripts/<file>` names the same gate as invoking that
+ * file directly.** `pnpm check:vi-mock-specifiers` IS
+ * `node scripts/check-vi-mock-specifiers.mjs` — same script, same population, same
+ * verdict — and the vi.mock section names the alias because that is how a
+ * contributor runs it locally. Without this, `undocumentedCommands` reads the two
+ * spellings as two commands and reports the page's own "run it locally" line as a
+ * phantom gate: cry wolf, on the first section this rule was pointed at.
+ *
+ * What the decision deliberately does NOT do:
+ *
+ *   - **It does not merge an alias that carries arguments.** `pnpm shadcn:check` is
+ *     `node scripts/shadcn-sync.js --check` and `pnpm shadcn:update` is the same
+ *     script with `--update`; collapsing both onto the script would let the page
+ *     document one and the workflow run the other. An alias with arguments selects
+ *     a MODE, and is only ever the same command as itself.
+ *   - **It does not reach the other 32 sections, nor the `ci.yml` table or the
+ *     `lint.yml` section above.** Those two were settled without it and are pinned
+ *     by the unmodified module-scope rule; re-pointing them is a separate card, not
+ *     a silent side effect of this one.
+ *   - **It does not make the pre-install distinction disappear.** Several workflows
+ *     invoke `node scripts/…` rather than the alias because the step runs BEFORE
+ *     `pnpm install`, which is real and deliberate. That is a fact about step
+ *     PLACEMENT; this rule measures which gates a job runs, and on that question
+ *     the two spellings are one gate.
+ */
+describe('ci-cd-pipeline.md — the vi-mock and shadcn sections', () => {
+  /** Root `package.json` script bodies, for resolving an alias to the gate it runs. */
+  const rootScriptBodies = (
+    JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    }
+  ).scripts;
+
+  /** `scripts/<file>` -> the one root alias that is exactly `node scripts/<file>`. */
+  function aliasByScript(): Map<string, string[]> {
+    const map = new Map<string, string[]>();
+    for (const [name, body] of Object.entries(rootScriptBodies)) {
+      const wrapped = /^node\s+(scripts\/[\w./-]+)$/.exec(body.trim())?.[1];
+      if (!wrapped) continue;
+      map.set(wrapped, [...(map.get(wrapped) ?? []), name]);
+    }
+    return map;
+  }
+
+  /**
+   * One spelling per gate: the alias when the alias is a pure wrapper, otherwise the
+   * command as written. Applied to both sides of a unit, so the two are compared by
+   * one rule rather than by two spellings of it.
+   */
+  function canonical(command: string, aliases: Map<string, string[]>): string {
+    const named = aliases.get(command);
+    if (named?.length === 1) return `pnpm ${named[0]}`;
+    return command;
+  }
+
+  /** A unit with both of its sides put through `canonical`. */
+  function byGate(unit: CommandParity): CommandParity {
+    const aliases = aliasByScript();
+    return {
+      label: unit.label,
+      ran: new Set([...unit.ran].map((c) => canonical(c, aliases))),
+      named: new Set([...unit.named].map((c) => canonical(c, aliases))),
+    };
+  }
+
+  /** A `##`/`###` section of the page, up to the next heading at its level or above. */
+  function section(heading: string): string {
+    const start = doc.indexOf(heading);
+    expect(start, `the page must still have a "${heading}" section`).toBeGreaterThan(-1);
+    const level = /^#+/.exec(heading)![0].length;
+    const rest = doc.slice(start + heading.length);
+    const next = rest.search(new RegExp(`^#{1,${level}} `, 'm'));
+    return next === -1 ? rest : rest.slice(0, next);
+  }
+
+  const VI_MOCK_HEADING = '## Inert vi.mock Specifiers (`vi-mock-specifiers.yml`)';
+  const SHADCN_HEADING = '### Shadcn Component Check (`shadcn-check.yml`)';
+
+  function units(): CommandParity[] {
+    return [
+      byGate(
+        commandParity(
+          'vi-mock-specifiers.yml',
+          'vi-mock-specifiers',
+          section(VI_MOCK_HEADING),
+          'vi-mock-specifiers.yml `vi-mock-specifiers`',
+        ),
+      ),
+      byGate(
+        commandParity(
+          'shadcn-check.yml',
+          'check-components',
+          section(SHADCN_HEADING),
+          'shadcn-check.yml `check-components`',
+        ),
+      ),
+    ];
+  }
+
+  it('resolves each pure alias to exactly one gate', () => {
+    // The control on the decision above. Two root scripts spelled `node scripts/x`
+    // for the same `x` would make `canonical` pick one arbitrarily, and the pins
+    // below would then compare a spelling nobody chose. `canonical` keeps the raw
+    // command when that happens; this says so out loud instead of leaving it silent.
+    const ambiguous = [...aliasByScript()].filter(([, names]) => names.length > 1);
+    expect(
+      ambiguous.map(([script, names]) => `${script}: ${names.join(', ')}`),
+      'more than one root `package.json` script is exactly `node <script>` for the same ' +
+        'script. The alias decision documented above assumes one alias per gate; with two, ' +
+        'the parity pins below fall back to the raw spelling and stop merging the alias with ' +
+        'the path — which reads as a phantom gate on any section that names the other alias.',
+    ).toEqual([]);
+
+    // And a positive control on the resolver itself: it must actually resolve the
+    // alias this section depends on, or the pins are green for the wrong reason.
+    expect(
+      canonical('scripts/check-vi-mock-inherit.mjs', aliasByScript()),
+      '`pnpm check:vi-mock-inherit` must still be exactly `node scripts/check-vi-mock-inherit.mjs` ' +
+        'in the root package.json — the vi.mock section names the gate both ways, and the pins ' +
+        'below only agree because those two spellings resolve to one gate.',
+    ).toBe('pnpm check:vi-mock-inherit');
+  });
+
+  it('documents the only job each of the two workflows defines', () => {
+    // The units above cover one job per workflow. A second job would run gates that
+    // no assertion here reads and no section here documents, so it comes through
+    // this test first — the shape `lint.yml`'s pin uses, one workflow each.
+    for (const [file, keys] of [
+      ['vi-mock-specifiers.yml', ['vi-mock-specifiers']],
+      ['shadcn-check.yml', ['check-components']],
+    ] as const) {
+      expect(
+        jobKeys(fs.readFileSync(path.join(workflowDir, file), 'utf8'), file),
+        `${file} no longer defines exactly ${keys.join(', ')}. The section pinned below ` +
+          'documents that job alone, so a new job needs its own documentation and its own unit ' +
+          'here — otherwise its gates are unpinned and undocumented at once.',
+      ).toEqual([...keys]);
+    }
+  });
+
+  it('names every first-party command the two jobs actually run', () => {
+    const all = units();
+
+    // A parser that matched nothing would make both directions vacuously green. The
+    // floor is a control on the matcher, not a ratchet on the gate count.
+    const ran = all.reduce((n, u) => n + u.ran.size, 0);
+    expect(ran, 'the `run:` parse found implausibly few first-party commands').toBeGreaterThan(3);
+
+    const missing = undocumentedCommands(all);
+
+    expect(
+      missing,
+      `these jobs run commands that the section documenting them in ` +
+        `content/docs/guide/ci-cd-pipeline.md does not name:\n` +
+        missing.map((m) => `  - ${m}`).join('\n') +
+        `\n\nAdd each one to its section, in the order the workflow runs it. An alias and a ` +
+        `\`node scripts/…\` invocation of the same wrapper count as one gate, so either ` +
+        `spelling satisfies this — objectui#8420: \`check-vi-mock-inherit.mjs\` blocked merges ` +
+        `from a section that never mentioned it.`,
+    ).toEqual([]);
+  });
+
+  it('credits the two jobs with no first-party command they do not run', () => {
+    const all = units();
+
+    const named = all.reduce((n, u) => n + u.named.size, 0);
+    expect(named, 'the two sections parsed to implausibly few commands').toBeGreaterThan(3);
+
+    const phantom = phantomCommands(all);
+
+    expect(
+      phantom,
+      `these sections of content/docs/guide/ci-cd-pipeline.md name commands the job they ` +
+        `document does not run:\n` +
+        phantom.map((p) => `  - ${p}`).join('\n') +
+        `\n\nEither the step was removed and the prose is stale, or the command runs in another ` +
+        `workflow and belongs in that section. A section reads as its job's gate list, so ` +
+        `naming a command inside it makes the page claim a guardrail — the objectui#3451 ` +
+        `mistake. To cite a neighbouring gate for contrast, name it without its \`scripts/\` ` +
+        `path and say why, as the Lint section does for \`check-entry-guard.mjs\`.`,
+    ).toEqual([]);
+  });
+});
