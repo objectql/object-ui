@@ -1913,14 +1913,15 @@ one by hand is what removes that guarantee.
 > `skip-changeset` or `dependencies` label. None of it existed;
 > [#3724](https://github.com/objectstack-ai/objectui/issues/3724) deleted the page.
 >
-> ⚠️ **The label object came back, and it still does nothing.** This note used to report a
-> point-in-time labels-API reading (2026-08-08: of the two names only `dependencies` existed).
-> That reading has since expired — a `skip-changeset` label now exists in this repository's
-> label set, because GitHub mints a label the first time one is applied by name, so a single
-> API call that applies it is enough to create it. By 2026-08-25 it sat on **seven** pull
-> requests, carrying the default grey `ededed` and an empty description that tell an
-> auto-minted label apart from a curated one.
-> [#4912](https://github.com/objectstack-ai/objectui/issues/4912) tracks deleting the object.
+> ⚠️ **The label object has been minted here before, and it never did anything.** This note
+> used to report a point-in-time labels-API reading (2026-08-08: of the two names only
+> `dependencies` existed), and that reading expired, because GitHub mints a label the first
+> time one is applied by name — so a single API call that applies it is enough to create it.
+> One did: by 2026-08-25 a `skip-changeset` label sat on **seven** pull requests, carrying the
+> default grey `ededed` and an empty description that tell an auto-minted label apart from a
+> curated one. [#4912](https://github.com/objectstack-ai/objectui/issues/4912) deleted that
+> object on 2026-09-09, and ⛔ that deletion is no more durable than the reading it replaced:
+> the same single API call re-mints it.
 >
 > ⛔ **Whether or not you can still see it in the picker, applying it declares nothing** — no
 > gate in this repository reads it. The real gate has no label escape hatch by design: its

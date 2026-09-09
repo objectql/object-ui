@@ -224,6 +224,12 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
    * recorded above, and the refusal was upheld on PR #6260. That is the exact harm #4912
    * predicted, arriving after the card was filed.
    *
+   * ⭐ The object was deleted under #4912 on 2026-09-09, once its stated precondition — that
+   * no open PR carried it — had been measured. ⛔ That does not retire these two pins, and
+   * they must not be read as obsolete: one API call that applies the name mints the label
+   * again, and the instruction to apply it still reaches agents from the `objectstack`
+   * sibling, so its absence is a moment and not a state this repository can hold.
+   *
    * ⛔ What these two cases can and cannot see, said plainly because the boundary is the whole
    * design of this file: **a label lives in GitHub's data, not in the tree, so nothing here
    * can assert the label object is gone.** Deleting it is an administrative act, and a test
@@ -289,9 +295,10 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
     expect(
       prose,
       'content/docs/guide/ci-cd-pipeline.md must keep stating that nothing reads the ' +
-        '`skip-changeset` label. The label object exists in this repository (auto-minted by ' +
-        'being applied, objectui#4912) and agents are being told to use it, so a page that ' +
-        'stops denying it leaves the label as the most authoritative-looking answer in reach.',
+        '`skip-changeset` label. The label object was auto-minted in this repository once by ' +
+        'being applied, and deleting it (objectui#4912) does not stop one API call from ' +
+        'minting it again while agents are still told to use it, so a page that stops ' +
+        'denying it leaves the label as the most authoritative-looking answer in reach.',
     ).toContain('no gate in this repository reads it');
 
     expect(
