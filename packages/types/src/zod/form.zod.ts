@@ -252,7 +252,7 @@ export const TextareaSchema = BaseSchema.extend({
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   wrapperClass: z.string().optional()
-    .describe('Classes on the wrapper div around the textarea and its label, read at renderers/form/textarea.tsx:37 — `cn("grid w-full gap-1.5", schema.wrapperClass)` (objectui#7722)'),
+    .describe('Classes on the wrapper div around the textarea and its label (objectui#7722)'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
   maxLength: z.number().optional().describe('Maximum length'),
 });
@@ -272,7 +272,7 @@ export const SelectSchema = BaseSchema.extend({
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   wrapperClass: z.string().optional()
-    .describe('Classes on the wrapper div around the trigger and its label, read at renderers/form/select.tsx:45 — `cn("grid w-full items-center gap-1.5", schema.wrapperClass)` (objectui#7722)'),
+    .describe('Classes on the wrapper div around the trigger and its label (objectui#7722)'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
@@ -286,9 +286,9 @@ export const CheckboxSchema = BaseSchema.extend({
   defaultChecked: z.boolean().optional().describe('Default checked state'),
   checked: z.boolean().optional().describe('Controlled checked state'),
   required: z.boolean().optional()
-    .describe("Required affordance, read at renderers/form/checkbox.tsx:45 (`required=` on the Radix Checkbox) and :49 (gates the label's `*` marker) (objectui#6150)"),
+    .describe("Required affordance — sets `required` on the Radix Checkbox and gates the label's `*` marker (objectui#6150)"),
   wrapperClass: z.string().optional()
-    .describe('Classes on the wrapper div around the box and its label, read at renderers/form/checkbox.tsx:36 — `cn("flex items-center space-x-2", schema.wrapperClass)` (objectui#6938)'),
+    .describe('Classes on the wrapper div around the box and its label (objectui#6938)'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
@@ -321,7 +321,7 @@ export const SwitchSchema = BaseSchema.extend({
   checked: z.boolean().optional().describe('Controlled checked state'),
   description: z.string().optional().describe('Help text'),
   wrapperClass: z.string().optional()
-    .describe("Classes on the wrapper div around the switch and its label, read at renderers/form/switch.tsx:26 — `flex items-center space-x-2 ${schema.wrapperClass || ''}` (objectui#7722)"),
+    .describe("Classes on the wrapper div around the switch and its label (objectui#7722)"),
   onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
 
@@ -363,9 +363,9 @@ export const FileUploadSchema = BaseSchema.extend({
   name: z.string().optional().describe('Field name for form submission'),
   label: z.string().optional().describe('Upload label'),
   buttonText: z.string().optional()
-    .describe('Drop-zone label, read at renderers/form/file-upload.tsx:123 — `schema.buttonText || "DROP PAYLOAD OR CLICK TO UPLOAD"` (objectui#6150)'),
+    .describe('Drop-zone label; falls back to "DROP PAYLOAD OR CLICK TO UPLOAD" when unset (objectui#6150)'),
   wrapperClass: z.string().optional()
-    .describe('Outer wrapper classes, appended to the renderer\'s own grid classes at renderers/form/file-upload.tsx:78 (objectui#6150)'),
+    .describe('Outer wrapper classes, appended to the renderer\'s own grid classes (objectui#6150)'),
   accept: z.string().optional().describe('Accepted file types'),
   multiple: z.boolean().optional().describe('Allow multiple files'),
   maxSize: z.number().optional().describe('Maximum file size (bytes)'),
@@ -391,7 +391,7 @@ export const DatePickerSchema = BaseSchema.extend({
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   wrapperClass: z.string().optional()
-    .describe("Classes on the wrapper div around the popover trigger and its label, read at renderers/form/date-picker.tsx:35 — `grid w-full max-w-sm items-center gap-1.5 ${schema.wrapperClass || ''}` (objectui#7722)"),
+    .describe("Classes on the wrapper div around the popover trigger and its label (objectui#7722)"),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
@@ -724,7 +724,7 @@ export const InputShorthandSchema = InputSchema.omit({ type: true, inputType: tr
   // second ledger row for a key that is demonstrably read; shrinking the existing
   // row is `InputSchema`'s own repair (objectui#7722's family) and not this card's.
   wrapperClass: z.string().optional()
-    .describe("Classes on the wrapper div around the input and its label, read at renderers/form/input.tsx:42 — `cn('grid w-full items-center gap-1.5', schema.wrapperClass)`"),
+    .describe("Classes on the wrapper div around the input and its label"),
 });
 
 /**
