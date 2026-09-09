@@ -2193,9 +2193,17 @@ const MEMBER_PINS: Record<string, MemberPin> = {
     file: 'packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts',
     pins: 'The I18nLabel trio — see `element:text_input.description` (objectui#5717).',
   },
+  'object-calendar.calendar': {
+    file: 'packages/plugin-calendar/src/__tests__/objectCalendarConfigMembers-8071.test.tsx',
+    pins: 'Members are FIELD NAMES the calendar projects onto an event: `startDateField` and `endDateField` name the record fields that become the event\'s `start`/`end` (an unauthored `endDateField` leaves `end` undefined rather than inventing one), and `titleField` OUTRANKS the object\'s own default display-name resolution (`getRecordDisplayName`) rather than only supplementing it. The sharp claim is PRECEDENCE: `getCalendarConfig` returns `schema.calendar` OUTRIGHT the moment it is set — never merged against the flat legacy spelling (`startDateField/endDateField/titleField/colorField` authored directly on the schema) it falls back to only when `calendar` is absent — so a schema carrying BOTH, with the two disagreeing, is read entirely from the nested object and not at all from the flat siblings, even for the keys the nested object leaves unset. `colorField`\'s own resolution ladder and `allDayField` (an objectui-local extra key inside the same object) are each pinned narrowly already and are not re-asserted here: `ObjectCalendar.colorFieldLadder-7243.test.tsx`, `ObjectCalendar.allDayFieldIsHonoured-8026.test.tsx`. The spec side is a `strictObject` of exactly the four documented keys, so it fixes the NAMES but nothing about how they are used once read — the read site is the whole member contract (objectui#8071).',
+  },
   'object-calendar.data': {
     file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.recordSourceMembers-8314.test.tsx',
     pins: 'The members are RECORDS, and the keys read inside one are the fields the declared `calendar` config names plus `id`: every member arrives in authored order, `allDay` is derived PER MEMBER from the declared end field, a member with no value in the start field is counted in the unscheduled area rather than dropped or given a fabricated date (objectui#7071 at the member level), and a member with no `id` gets a synthesised one rather than being discarded. Asserted through the REAL `SchemaRenderer`, because this key\'s sink is the props channel `index.tsx` resolves (`resolveExternalData`), not the schema. ⛔ NOT pinned on "the internal query is skipped": an authored array reaches this renderer on BOTH carriers, and the schema-channel one returns it as a config with no `provider`, so no query is issued on a tree where the boundary drops `data` either — measured by ablation, that row stays green while the ROWS-ARE-DRAWN rows go red, so it is kept as a labelled companion and the rows carry the claim. The spec side cannot supply any of it: the row is `z.array(z.unknown())`, so every coarse member kind parses and the read site is the whole member contract (objectui#8314).',
+  },
+  'object-calendar.dataSource': {
+    file: 'packages/plugin-calendar/src/ObjectCalendar.elementDataSource.test.tsx',
+    pins: 'The per-element binding\'s own members, read through the REAL `ElementDataSourceGate` + renderer pair and the same shared mapping mechanism `element:record_picker.dataSource` and `record:related_list.dataSource` already pin: `object` WRITES onto `objectName` (this block\'s own top-level key), a named `view`\'s `filter`/`sort` reach the fetch as `$filter`/`$orderby`, a `sort` member missing `order` reads as ascending rather than dropped (the shared `QueryParams.$orderby` member contract, objectui#4022), an unresolvable `view` reports instead of fetching the whole object, and a calendar carrying no binding at all behaves exactly as it did before one existed. `columns` and a row cap are deliberately UNMAPPED and asserted absent from the mapping\'s own declaration (`OBJECT_CALENDAR_DATA_SOURCE = { filter: true, sort: true }` in `index.tsx`) rather than pinned here, because this block projects fields off its own `calendar` config and fetches the whole window — neither key has a read site to write to. Pre-existing file, promoted to a pin here after being read end to end (objectstack#6953, objectui#8071).',
   },
   'object-calendar.filter': {
     file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.filterIsNotAConfigSlot-7711.test.tsx',
@@ -2502,27 +2510,37 @@ const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
   // DIFFERENT reason: see the constant.
   'record:related_list.actions': NO_READ_SITE_TO_PIN,
 
-  // objectui#8176 — the four this direction could not see. See
+  // object-calendar — objectui#8176 brought both `calendar` and `dataSource`
+  // into this population (see `NEWLY_JUDGED_UNPINNED_MEMBERS`'s docblock);
+  // objectui#8071 slice 5 pinned both, so the block is now fully pinned and
+  // this header stays only as a note for the next reader who greps for it.
+
+  // objectui#8176 — the other two this direction could not see. See
   // `NEWLY_JUDGED_UNPINNED_MEMBERS` below, which pins them BY NAME so the
   // ceiling correction cannot absorb anything else.
-  'object-calendar.calendar': AWAITING_A_PIN_NEWLY_JUDGED,
-  'object-calendar.dataSource': AWAITING_A_PIN_NEWLY_JUDGED,
   'object-kanban.columns': AWAITING_A_PIN_NEWLY_JUDGED,
   'object-kanban.dataSource': AWAITING_A_PIN_NEWLY_JUDGED,
 };
 
 /**
- * The four ids the ceiling below moves for, named so the move is auditable.
+ * The ids the ceiling below moved for, named so the move is auditable, MINUS
+ * whichever of them objectui#8071 has since converted to a real pin.
  *
  * A ceiling that goes up is worth exactly as much as the account of why, and
  * "+4, trust me" is not an account. Pinning the four by name means the
- * correction admits four SPECIFIC pre-existing keys and nothing else: a fifth
- * entry cannot hide inside the same headroom, because `the member-pin exemption
- * list only ratchets DOWN` still reads the total.
+ * correction admitted four SPECIFIC pre-existing keys and nothing else: a
+ * fifth entry cannot hide inside the same headroom, because `the member-pin
+ * exemption list only ratchets DOWN` still reads the total.
+ *
+ * This list is CHECKED against the live `MEMBER_PIN_EXEMPTIONS` state (`the
+ * ceiling correction admits exactly the four keys objectui#8176 made
+ * visible`), so it shrinks as the four are pinned rather than staying a
+ * frozen record of four forever — the frozen record of WHY the ceiling went
+ * up is `MEMBER_PIN_EXEMPTION_CEILING`'s own docblock below, not this array.
+ * objectui#8071 slice 5 pinned `object-calendar.calendar` and
+ * `object-calendar.dataSource`, so two of the original four remain here.
  */
 const NEWLY_JUDGED_UNPINNED_MEMBERS = [
-  'object-calendar.calendar',
-  'object-calendar.dataSource',
   'object-kanban.columns',
   'object-kanban.dataSource',
 ];
@@ -2629,11 +2647,43 @@ const NEWLY_JUDGED_UNPINNED_MEMBERS = [
  * suite is an ActionDef's own PER-ACTION field, a different mechanism — so it
  * is a new file.
  *
+ * ## 48 -> 46, the fifth slice, and a whole `object-calendar` block closed
+ *
+ * objectui#8071's fifth slice converted the two keys objectui#8176 had left
+ * unpinned on `object-calendar` — `calendar` and `dataSource` — and deleted
+ * their two entries, so the ceiling follows to 46 in the same commit. Every
+ * OTHER key this block declares (`data`, `filter`, `sort`, `staticData`) was
+ * already pinned, so the block now carries zero exemptions, the same shape
+ * `element:record_picker` (slice 3) and `record:quick_actions` (slice 4)
+ * closed in — chosen for exactly that reason: a two-key remainder on one
+ * already-mostly-pinned block, closeable outright rather than left with a
+ * straggler.
+ *
+ * `dataSource` is the per-element binding every `elementDataSourceBlock`
+ * publishes (`ELEMENT_DATA_SOURCE_INPUT`, `@object-ui/core`) — the same
+ * mechanism `element:record_picker.dataSource` and
+ * `record:related_list.dataSource` already pin — and it PROMOTES a
+ * pre-existing file, `ObjectCalendar.elementDataSource.test.tsx`, read end to
+ * end before being credited: it already drove the binding's `object` write
+ * onto `objectName`, `filter`/`sort` read off the named view, an unresolvable
+ * `view` reporting instead of fetching unfiltered, and a calendar with no
+ * binding behaving exactly as before. `calendar` had no single candidate that
+ * covered its own member set (which keys of the config object become which
+ * part of an event, and which of the two spellings — the nested object or the
+ * flat legacy fields `getCalendarConfig` falls back to — wins when a schema
+ * somehow carries both) — the ladder and all-day pieces of that config were
+ * each already pinned narrowly (`ObjectCalendar.colorFieldLadder-7243.test.tsx`,
+ * `ObjectCalendar.allDayFieldIsHonoured-8026.test.tsx`) but neither, nor
+ * anything else, asserted `startDateField`/`endDateField` reaching an event's
+ * `start`/`end`, `titleField` outranking the object's own display-name
+ * resolution, or the object-vs-flat precedence — so it is a new file,
+ * `objectCalendarConfigMembers-8071.test.tsx`.
+ *
  * ⇒ The rule for every future slice of objectui#8071: delete the entry, register
  * the pin, and set this constant to the new count. Not to the new count plus
  * room.
  */
-const MEMBER_PIN_EXEMPTION_CEILING = 48;
+const MEMBER_PIN_EXEMPTION_CEILING = 46;
 
 /**
  * Every test file a member pin can live in, as LAZY `?raw` loaders.
