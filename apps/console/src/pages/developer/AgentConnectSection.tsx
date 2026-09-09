@@ -30,6 +30,7 @@ import {
   AlertDescription,
 } from '@object-ui/components';
 import { Bot, KeyRound, Copy, Check, Download, ShieldAlert } from 'lucide-react';
+import { readEnvelopeFailureText } from '@object-ui/app-shell';
 
 import { renderObjectStackSkill } from './objectstack-skill';
 
@@ -116,7 +117,19 @@ export function AgentConnectSection() {
       const json = await res.json().catch(() => ({}));
       const data = json?.data;
       if (!res.ok || !data?.key) {
-        throw new Error(json?.error?.message || `Request failed (${res.status})`);
+        // objectui#7980 — the ADR-0112 failure envelope is read by the ONE
+        // shared rule (`readEnvelopeFailureText`, pinned in app-shell's
+        // `apiErrorEnvelope.test.ts`), not by a fourth local reading of it.
+        // This used to be `json?.error?.message`, which dropped two declared
+        // things: the producer's marked `error.userMessage` — the #9934 channel
+        // whose PRESENCE is the marking, and which rides through the 5xx prose
+        // withhold untouched, so a marked 500/503 showed the developer the
+        // generic `Internal server error` and discarded the sentence written
+        // for them — and `error.code`, which never reached the surface at all.
+        // `??`, not `||`: the helper answers `null` for a body carrying no
+        // prose (never an empty string), and that `null` is exactly the signal
+        // to state this caller's own fallback below.
+        throw new Error(readEnvelopeFailureText(json) ?? `Request failed (${res.status})`);
       }
       setGenerated(data as GeneratedKey);
       setDialogOpen(true);
