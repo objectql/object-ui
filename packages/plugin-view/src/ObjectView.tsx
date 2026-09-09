@@ -1491,10 +1491,20 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // (measured — it does not render empty and does not throw); pinned in
         // `plugin-gantt/src/ObjectGantt.unconfiguredRefusal-7070.test.tsx`.
         //
-        // ⛔ `progressField` / `dependenciesField` keep their floors: not date
-        // axes, different absent-value semantics, scoped out of #7070. They
-        // cannot resurrect a config on their own — `getGanttConfig` gates on the
-        // two date fields alone.
+        // `progressField` / `dependenciesField` are NOT floored either, as of
+        // objectui#7499 — the flavour-3 card #7070 scoped out and left pinned
+        // here so that whoever retired them had a place to declare it. OMIT,
+        // not refuse: "no progress" and "no dependencies" are legitimate and
+        // common states (unlike an absent date axis), so refusing would break
+        // the common case — but `|| 'progress'` / `|| 'dependencies'` invented
+        // a binding no author wrote, and its failure mode is a per-row
+        // `undefined` INDISTINGUISHABLE from that legitimate absence, so a
+        // misspelt key hit a same-named column silently. Omitting keeps the
+        // legitimate case rendering exactly as before while a declared value
+        // still passes verbatim through the `viewOptions.gantt` spread below.
+        // Deleting them cannot resurrect a config — `getGanttConfig` gates on
+        // the two date fields alone, so the refusal screen stays as reachable
+        // as it was (`plugin-gantt/src/ObjectGantt.unconfiguredRefusal-7070`).
         return {
           type: 'object-gantt',
           ...baseProps,
@@ -1504,8 +1514,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           ...(viewOptions.gantt?.endDateField
             ? { endDateField: viewOptions.gantt.endDateField }
             : {}),
-          progressField: viewOptions.gantt?.progressField || 'progress',
-          dependenciesField: viewOptions.gantt?.dependenciesField || 'dependencies',
           ...(viewOptions.gantt || {}),
         };
       case 'map':
