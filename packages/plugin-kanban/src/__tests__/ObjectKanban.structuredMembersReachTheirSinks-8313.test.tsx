@@ -323,7 +323,15 @@ describe('objectui#8313 — `object-kanban`.`cardFields`: members are bare field
 
     await waitFor(() => expect(container.querySelector('dl')).toBeTruthy());
     const cells = [...container.querySelectorAll('dl > div')];
-    expect(cells.map((c) => c.querySelector('dt')?.textContent)).toEqual(['amount', 'owner']);
+    // The `dt` carries `cell.label || cell.field`, and the label is
+    // `objectDef.fields[f].label` — so it reads as the DECLARED label once the
+    // async `getObjectSchema` has landed, and as the bare field name before
+    // that. Until objectui#8534 the board rendered one `columns` generation
+    // behind (its mirror was re-synced by a passive effect), so this row could
+    // observe the pre-`objectDef` generation and read bare names. It no longer
+    // can. WHICH cells these are, and their order, is unchanged and is what
+    // this row pins: `amount` then `owner`, as authored.
+    expect(cells.map((c) => c.querySelector('dt')?.textContent)).toEqual(['Amount', 'Owner']);
     expect(cells.map((c) => c.querySelector('dd')?.textContent)).toEqual(['10', 'ann']);
   });
 
@@ -349,8 +357,10 @@ describe('objectui#8313 — `object-kanban`.`cardFields`: members are bare field
 
     await waitFor(() => expect(container.querySelector('dl')).toBeTruthy());
     const cells = [...container.querySelectorAll('dl > div')];
-    // `name` duplicates the title; `region` is empty on this record.
-    expect(cells.map((c) => c.querySelector('dt')?.textContent)).toEqual(['amount']);
+    // `name` duplicates the title; `region` is empty on this record. The `dt`
+    // reads as the declared label rather than the bare field name — see the row
+    // above and objectui#8534; the CELL COUNT is what this row is about.
+    expect(cells.map((c) => c.querySelector('dt')?.textContent)).toEqual(['Amount']);
   });
 });
 

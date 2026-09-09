@@ -582,11 +582,31 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
     }));
   }, [columns]);
 
+  // The board keeps its own copy of the columns, and that mirror STAYS: the drag
+  // path writes it optimistically (`handleDragEnd` below), and the `columns`
+  // prop never carries card ORDER back. A same-column reorder notifies nobody —
+  // `handleDragEnd` takes its local branch without calling `onCardMove` — and
+  // `ObjectKanban.handleCardMove` early-returns on `fromColumnId === toColumnId`
+  // and discards `newIndex` outright. Order truth is local-only, so deriving
+  // this away would roll a committed reorder back on the next prop change.
+  //
+  // What does NOT stay is syncing it from a passive effect. An effect runs after
+  // commit, so every prop-driven column change reached the DOM one commit late:
+  // a board whose data resolved after mount painted a frame of headers with
+  // empty lists before the cards appeared. Aligning during render instead makes
+  // React re-run this component with the new state BEFORE it commits, so the
+  // first painted frame that has headers already has the cards. This is React's
+  // documented "adjusting state when a prop changes" pattern, and it keeps the
+  // reset trigger byte-identical to the effect's (`safeColumns` identity), so
+  // the rejected-move rollback of objectui#4138 still fires exactly as before.
+  // objectui#8534.
   const [boardColumns, setBoardColumns] = React.useState<KanbanColumn[]>(safeColumns)
+  const [syncedColumns, setSyncedColumns] = React.useState<KanbanColumn[]>(safeColumns)
 
-  React.useEffect(() => {
+  if (syncedColumns !== safeColumns) {
+    setSyncedColumns(safeColumns)
     setBoardColumns(safeColumns)
-  }, [safeColumns])
+  }
 
   // Compute swimlane rows when swimlaneField is provided
   const swimlanes = React.useMemo(() => {
