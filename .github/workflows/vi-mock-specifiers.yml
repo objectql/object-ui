@@ -108,9 +108,5 @@ jobs:
       # broken file entirely (objectui#6849). It asks whether the factory
       # OBTAINS the real module -- a callback parameter under any name, or
       # `vi.importActual` of the same specifier -- and SPREADS it.
-      #
-      # Narrow by ruling: only the covered workspace specifiers in
-      # `COVERED_SPECIFIERS` are judged. Whole-module replacement of a local
-      # module is legitimate and out of scope by construction, not by exemption.
       - name: Check every covered vi.mock factory inherits the real export surface
         run: node scripts/check-vi-mock-inherit.mjs
