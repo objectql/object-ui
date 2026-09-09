@@ -441,18 +441,34 @@ describe('check-handler-key-read-sites — this repository', () => {
     ).toEqual([]);
 
     // Named rather than counted: these three are the reason this gate exists.
-    // They sit four hops from `ComponentRegistry.register('kanban', …)`, so a
-    // walk that stopped following the document would leave the green above
-    // intact while losing exactly the instance the card was filed for.
+    // They sit four hops from the kanban plugin's registration, so a walk that
+    // stopped following the document would leave the green above intact while
+    // losing exactly the instance the card was filed for.
+    //
+    // ⚠️ Re-keyed by objectui#8802, and the re-key CHANGES ONE READING rather
+    // than merely renaming a string. The rows used to be `kanban.*`, DECLARED,
+    // carrying the RUNTIME SLOT disposition off the `'kanban'` Zod arm. That
+    // arm retired with the bare node type key, and the surviving
+    // `object-kanban` face declares none of the three — so the walk still finds
+    // all three reads (which is what this leg is for) and now reports them
+    // UNDECLARED, waived by the `object-kanban::…` rows objectui#7804 already
+    // owns in `KNOWN_UNDECLARED_READS`. ⛔ Not repaired here: declaring them on
+    // `ObjectKanbanSchema` widens a published accept set, which is a ruling.
     const judged = result.census.map((c) => `${c.type}.${c.key}`);
-    expect(judged).toContain('kanban.onCardClick');
-    expect(judged).toContain('kanban.onCardMove');
-    expect(judged).toContain('kanban.onQuickAdd');
+    expect(judged).toContain('object-kanban.onCardClick');
+    expect(judged).toContain('object-kanban.onCardMove');
+    expect(judged).toContain('object-kanban.onQuickAdd');
     for (const key of ['onCardClick', 'onCardMove', 'onQuickAdd']) {
-      const row = result.census.find((c) => c.type === 'kanban' && c.key === key);
-      expect(row?.declared, `'kanban'.${key} must be a declared member`).toBe(true);
-      expect(row?.disposition, `'kanban'.${key} must carry the RUNTIME SLOT disposition`).toBe('runtime-slot');
+      const row = result.census.find((c) => c.type === 'object-kanban' && c.key === key);
+      expect(row?.declared, `'object-kanban'.${key} is undeclared since objectui#8802`).toBe(false);
     }
+
+    // FIRING CONTROL for the `false`s above: the census still reports DECLARED
+    // runtime slots elsewhere, so `declared: false` is a reading about this face
+    // and not a census that lost its dispositions.
+    const chatbotSend = result.census.find((c) => c.type === 'chatbot' && c.key === 'onSend');
+    expect(chatbotSend?.declared).toBe(true);
+    expect(chatbotSend?.disposition).toBe('runtime-slot');
   });
 
   /**
@@ -491,11 +507,29 @@ describe('check-handler-key-read-sites — this repository', () => {
 
   it('derives its arms from the mirrors, including the one the card is about', () => {
     const { arms } = collectArms(repoRoot);
-    const kanban = arms.get('kanban');
-    expect(kanban?.schema).toBe('KanbanSchema');
-    expect(kanban?.file).toBe('complex.zod.ts');
-    expect(kanban?.unresolved, 'the `kanban` arm must resolve completely, or its reads go unjudged').toEqual([]);
-    expect(kanban?.members.get('onCardClick')).toBe('runtime-slot');
-    expect(kanban?.members.get('onColumnAdd')).toBe('retired');
+
+    // ⚠️ The worked example was the `'kanban'` arm (`complex.zod.ts`,
+    // `KanbanSchema`) until objectui#8802 retired the bare node type key and the
+    // arm with it. `object-kanban` is the surviving kanban face and is what the
+    // gate now resolves the plugin's reads against.
+    const objectKanban = arms.get('object-kanban');
+    expect(objectKanban?.schema).toBe('ObjectKanbanSchema');
+    expect(objectKanban?.file).toBe('objectql.zod.ts');
+    expect(
+      objectKanban?.unresolved,
+      'the `object-kanban` arm must resolve completely, or its reads go unjudged',
+    ).toEqual([]);
+    // It declares real members — the anti-vacuity half, so "resolves completely"
+    // is not satisfied by an empty arm.
+    expect(objectKanban?.members.has('groupBy')).toBe(true);
+    // ⛔ And it declares NONE of the three handler keys the plugin reads. That is
+    // the reading objectui#8802 moved; it is recorded, not repaired.
+    expect(objectKanban?.members.get('onCardClick')).toBeUndefined();
+
+    // A live arm that still carries both dispositions, so this leg keeps
+    // proving the resolver can read them at all.
+    const chatbot = arms.get('chatbot');
+    expect(chatbot?.members.get('onSend')).toBe('runtime-slot');
+    expect(chatbot?.members.get('onSendMessage')).toBe('retired');
   });
 });
