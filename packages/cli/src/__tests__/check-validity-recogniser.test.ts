@@ -182,27 +182,40 @@ describe('objectui check — a broken ObjectUI schema is never filed as a foreig
 
   it('reports a registered component type the bundled schemas do not model', async () => {
     // The other half of the bucket, and why its wording says "off-spec OR not
-    // modelled". `abbr` is a real registered type — `packages/components/src/
-    // renderers/basic/html-elements.tsx` registers the raw HTML elements in
-    // bulk — and `AnyComponentSchema` is a union of COMPONENT schemas that has
-    // no member for it. So the well-formed document below fails the validity
-    // arm. Reporting it is right (a registered type the shipped validator
-    // cannot validate is itself a finding) but calling it INVALID would
-    // overclaim: nothing about this document is wrong.
+    // modelled". `metric-card` is a real registered type — objectui's dashboard
+    // widget-slot component, registered by `apps/console/src/register-plugins.ts`
+    // and `@object-ui/plugin-dashboard` — and `AnyComponentSchema` is a union of
+    // COMPONENT schemas that has no member for it. So the well-formed document
+    // below fails the validity arm. Reporting it is right (a registered type the
+    // shipped validator cannot validate is itself a finding) but calling it
+    // INVALID would overclaim: nothing about this document is wrong.
     //
     // ## Pick this type by measurement, not memory (objectui#6939)
     //
-    // Measured on this tree: `KNOWN_SCHEMA_TYPES` carries 658 registered types
-    // and `AnyComponentSchema` declares 102 distinct literal `type` values, so
-    // 558 registered types have no member. The probe was controlled in both
-    // directions — `kanban`, `text` and `tree-view` all read as MODELLED (so it
-    // is not blind to real members) and a nonsense type reads as unmodelled.
+    // Re-measured on this tree (objectui#8499): `KNOWN_SCHEMA_TYPES` carries 656
+    // registered types and `AnyComponentSchema` declares 154 distinct literal
+    // `type` values, so 505 registered types have no member. The probe was
+    // controlled in both directions — `kanban`, `text` and `tree-view` all read
+    // as MODELLED (so it is not blind to real members) and a nonsense type reads
+    // as unmodelled.
     //
-    // Not every one of those 558 is a safe fixture. The type used here must be
-    // one nothing is about to model, and the raw HTML primitives are the stable
-    // inhabitants of this bucket: they are registered as a bulk passthrough
-    // list, not as authorable component schemas. A plugin-ish type such as
-    // `dashboard-grid` also lands here today and would be the wrong choice.
+    // ## Why it is no longer `abbr`
+    //
+    // This sample was `abbr` on the reasoning that "the raw HTML primitives are
+    // the stable inhabitants of this bucket". They were not: objectui#8499 armed
+    // the whole registered HTML passthrough set (`h1`…`h6`, `p`, `a`, `abbr`, …)
+    // together with the seven semantic sectioning tags, precisely because a
+    // registered renderer the validator cannot name is a defect rather than a
+    // stable state of affairs. The 47 literals that card added are what took 102
+    // to 154 above, and they took this fixture with them.
+    //
+    // The replacement is chosen for a stronger property than "nobody has got to
+    // it yet": `metric-card`'s absence from this union is RULED. It is objectui's
+    // CLOSED dashboard-widget-slot extension, admitted by the 2026-08-14 ruling
+    // (objectstack#8593), and `packages/types/src/zod/complex.zod.ts` records in
+    // as many words that it is "DELIBERATELY not an arm of `AnyComponentSchema`".
+    // So this fixture cannot rot the way `abbr` did without a maintainer
+    // reversing that ruling — which is exactly when this test SHOULD be re-read.
     //
     // ## Why it is no longer `kanban`
     //
@@ -215,24 +228,24 @@ describe('objectui check — a broken ObjectUI schema is never filed as a foreig
     // fork, the board started validating, and this case measured 0 candidates.
     // The defect this file's own subject matter exists to catch had been frozen
     // into an assertion of expected behaviour.
-    writeSchema('abbr.json', {
-      type: 'abbr',
-      content: 'HTML',
-      title: 'HyperText Markup Language',
+    writeSchema('metric-card.json', {
+      type: 'metric-card',
+      title: 'Total Revenue',
+      value: '$123,456',
     });
     // The precondition, asserted rather than assumed, so that the day someone
-    // models `abbr` this file says WHY it went red instead of reporting a bare
-    // `expected +0 to be 1`. If this fires: pick another registered type with
-    // no member in `AnyComponentSchema` (a raw HTML primitive) and update the
-    // counts above.
+    // models `metric-card` this file says WHY it went red instead of reporting a
+    // bare `expected +0 to be 1`. If this fires: the objectstack#8593 ruling has
+    // been revisited — re-read this case, then pick another registered type with
+    // no member in `AnyComponentSchema` and update the counts above.
     expect(
-      safeValidateSchema({ type: 'abbr', content: 'HTML', title: 'HyperText Markup Language' }).success,
-      '`abbr` is now modelled by AnyComponentSchema — this fixture needs a type that still is not; see the comment above',
+      safeValidateSchema({ type: 'metric-card', title: 'Total Revenue', value: '$123,456' }).success,
+      '`metric-card` is now modelled by AnyComponentSchema — this fixture needs a type that still is not; see the comment above',
     ).toBe(false);
     await check(cwd);
     expect(candidateCount()).toBe(1);
     expect(candidateLines()).toEqual([
-      expect.stringContaining('abbr.json (type "abbr")'),
+      expect.stringContaining('metric-card.json (type "metric-card")'),
     ]);
     expect(skippedCount()).toBe(0);
   });
