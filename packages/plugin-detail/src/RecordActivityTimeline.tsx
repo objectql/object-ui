@@ -311,7 +311,7 @@ export const RecordActivityTimeline: React.FC<RecordActivityTimelineProps> = ({
         'border-t border-border/60 pt-5',
         className,
       )}
-      aria-label="Discussion"
+      aria-label={t('detail.discussion')}
     >
       <header className="mb-4">
         <div className="flex items-center justify-between">

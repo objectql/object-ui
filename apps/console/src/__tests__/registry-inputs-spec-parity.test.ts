@@ -1994,14 +1994,46 @@ const MULTI_KIND_MEMBER_CONTRACTS: Record<string, string> = {
 // both `object-form` and `fields` — which is the concrete reason `MEMBER_PINS`
 // is reviewed rather than computed.
 //
-// 58 is the transition case, and this file already owns the pattern for it —
+// ⚠️ SECOND SLICE, AND THE FIRST ONE TAKEN A BLOCK AT A TIME. objectui#8071's
+// second slice converted four keys on ONE block — `record:related_list`'s
+// `columns`, `dataSource`, `filter` and `sort` — chosen for a coherent file
+// surface rather than for near-miss tests: one renderer
+// (`renderers/record-related-list.tsx` over `RelatedList.tsx`) and one existing
+// spec-parity file. Measured over this file's own ledger, before and after: 90
+// array/object-armed inputs, 32 pinned, 58 exempt -> 90, 36 pinned, 54 exempt,
+// and `MEMBER_PIN_EXEMPTION_CEILING` follows 58 -> 54 in the same commit.
+//
+// ⭐ Two of the four were PROMOTED pre-existing files, and slice 1's trap is the
+// reason that sentence needs the qualifier. `RelatedList.listFilter.test.tsx`
+// and `RecordRelatedListRenderer.elementDataSource.test.tsx` were read end to
+// end before being credited, and they really do pin the member shape their key
+// names. The second one ALSO names `columns` and `sort` — it asserts a saved
+// view's `columns`/`sort` reach the list — so the locator would have accepted it
+// for those two keys as well, on its strings, while pinning nothing about what
+// an authored member of either key IS. Those two got new behavioural files
+// instead. That is `sectionFields.spec-parity.test.ts` one slice on, in the same
+// file the correct credit came from.
+//
+// ⛔ AND THE BLOCK IS NOT EMPTY. `record:related_list.actions` stays exempt on a
+// reason of its own: nothing reads it. The registration declares it
+// (`of: 'string'`, "Action IDs available for related records"), the SPEC
+// declares it (`RecordRelatedListProps.actions`), and the renderer never touches
+// `schema.actions` — the row and toolbar actions it draws come from the host
+// bridge `useRelatedRecordActions()`. A member pin constrains what the RENDERER
+// READS, so there is nothing here to constrain; the honest pin available is "the
+// key is dead", which is a statement that the contract is wrong rather than a
+// member shape, and fixing it is an ADR-0049 enforce-or-remove decision the spec
+// owns. See `NO_READ_SITE_TO_PIN`.
+//
+// A list this size is the transition case, and this file already owns the
+// pattern for it —
 // `OFF_SPEC_EXEMPTIONS` / `UNPUBLISHED_EXEMPTIONS` / `OFF_SPEC_ARM_EXEMPTIONS`
 // are explicit, reasoned, issue-backed, and go RED once stale. This is the same
-// mechanism, not a second one: `MEMBER_PIN_EXEMPTIONS` below lists all 58 BY
-// NAME, every entry cites objectui#8071 (which owns writing the pins), and an
+// mechanism, not a second one: `MEMBER_PIN_EXEMPTIONS` below lists all 54
+// remaining keys BY NAME, every entry cites an issue, and an
 // entry whose key acquires a pin is reported STALE and must be deleted in the
 // same change. The list has a CEILING as well as a stale check, because the
-// cheap way to green a new array key is to add a 59th entry rather than a pin.
+// cheap way to green a new array key is to add a 55th entry rather than a pin.
 //
 // ## WHAT IS DELIBERATELY NOT IN THE POPULATION, stated rather than dropped
 //
@@ -2210,6 +2242,22 @@ const MEMBER_PINS: Record<string, MemberPin> = {
     file: 'packages/plugin-detail/src/__tests__/recordRelatedListInputs.spec-parity.test.ts',
     pins: 'Every spec member key of `add` must be discoverable from its description, the published defaults must be the RENDERER\'s rather than the spec\'s prose, and `picker.filter` must be documented as a real restriction (objectui#3808).',
   },
+  'record:related_list.columns': {
+    file: 'packages/plugin-detail/src/__tests__/RecordRelatedListRenderer.columnMembers.test.tsx',
+    pins: 'THE `page:header.actions` HOLE ON THIS KEY, asserted as the gap it is: the registration declares `of: \'string\'` and the block folds FIVE member spellings — a bare string, the spec-canonical `{ field }`, the legacy `{ name }` / `{ fieldName }`, and `{ key }`, a tail fallback that is this block\'s alone (`columnIdentity` REFUSES it, asserted next to it, which is the whole content of "tail"). Canonical-first is proven both ways on one mixed `{ field, name }` member, so a fold reading either key alone fails. Two rows carry the sharp edge: a member whose identity does not resolve is KEPT rather than dropped, so an entry the fold cannot name is an entry it cannot filter (`accessorKey` is the instance — excluded from `columnIdentity` on purpose, read by `RelatedList` as `accessorKey || columnIdentity`, so a redacted column authored that way is kept AND rendered: filed as objectui#8793, and this row reds when it lands), and a mixed set must come back SHORTER and in order, which is the non-vacuity a single-member array cannot give. Every positive carries its control in the same call (the member survives when a DIFFERENT field is redacted), and the instrument itself — `redactFields`, a renderer-only key on neither the spec nor `inputs` — is asserted to be undeclared so the file cannot be read as licensing it. The end-to-end half (an object member reaching the screen with VALUES) is objectui#5022\'s file, which drives `RelatedList` directly and never runs this fold (objectui#8071).',
+  },
+  'record:related_list.dataSource': {
+    file: 'packages/plugin-detail/src/__tests__/RecordRelatedListRenderer.elementDataSource.test.tsx',
+    pins: 'The per-element binding\'s own members, each read through the REAL renderer and asserted at what reaches `RelatedList`: `object` becomes the `objectName` this block lists, `view` resolves a saved view whose `columns` / `sort` / row cap land on the three keys `RECORD_RELATED_LIST_DATA_SOURCE` maps, an authored key WINS over the same key from the view, an unresolvable `view` reports instead of listing every child row, and the binding\'s own `filter` arrives ANDed with the view\'s rather than replacing it — so the mapping can never widen a named view. `baseFilter` is asserted to stay undefined in the same row, because routing the list scope onto the add-picker\'s restriction would filter the dialog and leave the list wide. Pre-existing file, promoted to a pin here after being READ rather than credited on its strings: it also names `columns` and `sort`, which it does NOT pin — those two are the objectui#8071 slice-1 trap, one slice on (objectui#8071).',
+  },
+  'record:related_list.filter': {
+    file: 'packages/plugin-detail/src/__tests__/RelatedList.listFilter.test.tsx',
+    pins: 'Members are spec `ViewFilterRule` entries, pinned at the WIRE rather than at a prop: `{ field, operator, value }` reaches `dataSource.find` as `[[field, operator, value]]` through the shared sink, ANDed BEHIND the parent relationship so "additional criteria" can only ever narrow this record\'s children. The negatives are what make it a member contract: an empty `filter: []` is unauthored (the query stays the byte-identical MongoDB-style object, not a freshly lowered AST that means the same), the composed AST a binding leaves on this key is accepted WITHOUT being converted twice, the filter survives onto the windowed fetch, and on the raw-URL fallback — a channel that cannot carry an operator — the block REFUSES to fetch rather than answering wider than the metadata asked. Pre-existing file, promoted after being read (objectui#8071).',
+  },
+  'record:related_list.sort': {
+    file: 'packages/plugin-detail/src/__tests__/RecordRelatedListRenderer.sortMembers.test.tsx',
+    pins: 'Members are `{ field, order }` and reach `$orderby` verbatim and IN ORDER, driven through the block to the wire because `normalizeSortSpec` — not the block — is what reads them. The rows a declaration reading only "array" can never publish: a member with no `field` is dropped SILENTLY while its siblings survive (a two-key order quietly becomes one-key), an all-unusable array sends no `$orderby` rather than an empty clause, and the STRING arm the registration does not declare at all is read as the OData-ish `field` / `-field` — deliberately NOT `ListView.sort`\'s legacy space-separated clause, which the same spec union spells the same way and means differently (objectui#8221 retired that one at the derivation boundary only, and this key still accepts what it accepts). A CONTROL row pins the declaration as a bare array with no `of` and no description, so making it honest reds this file and forces the pins to be re-read (objectui#8071).',
+  },
 };
 
 /**
@@ -2255,6 +2303,48 @@ const AWAITING_A_PIN_NEWLY_JUDGED =
   'objectui#8071 owns writing the pin; delete this entry in the same change that registers it.';
 
 /**
+ * The reason a key carries when there is no read site for a pin to constrain.
+ *
+ * The `Record<string, string>` shape exists for exactly this: a key that needs a
+ * DIFFERENT reason gets its own string rather than a second mechanism.
+ * `AWAITING_A_PIN` says "objectui#8071 owns writing the pin", and for this key
+ * that sentence would be FALSE in a way nothing else here could report — a
+ * member pin constrains the shape the RENDERER READS (objectui#8068's
+ * criterion), and this key is not read at all.
+ *
+ * Measured on `record:related_list.actions` while writing slice 2's four pins:
+ * `renderers/record-related-list.tsx` never touches `schema.actions`, and the
+ * row actions it does render come from `useRelatedRecordActions()` — the HOST's
+ * bridge, keyed on the child object, not on this array. The declaration
+ * (`type: 'array', of: 'string'`, "Action IDs available for related records")
+ * and the spec key `RecordRelatedListProps.actions` therefore both publish an
+ * authoring surface that changes nothing: no diagnostic, no `unknown-prop`, and
+ * a page that behaves identically with the key and without it.
+ *
+ * ⛔ NOT convertible by writing a better test. The honest pin available today is
+ * "this key is dead", which is a pin on CURRENT behaviour whose whole content is
+ * that the contract is wrong — and whether that is fixed by giving the key a
+ * read site or by retiring it is an ADR-0049 enforce-or-remove question the SPEC
+ * owns, not one a renderer-side member pin should settle.
+ *
+ * NOT filed as a card of its own, deliberately: objectui#7300 is open on the
+ * same mechanism from the other side — a page cannot declare its related lists
+ * read-only BECAUSE the affordances are host-resolved from the child object
+ * rather than from the node. This key is what that mechanism looks like on the
+ * authoring surface, so it belongs to that decision rather than beside it. This
+ * entry moves when it lands, in whichever direction it lands.
+ */
+const NO_READ_SITE_TO_PIN =
+  'No member pin is possible: nothing reads this key. A member pin constrains the shape the ' +
+  'RENDERER reads (objectui#8068), and `renderers/record-related-list.tsx` never touches ' +
+  '`schema.actions` — the row/toolbar actions it renders come from the host bridge ' +
+  '`useRelatedRecordActions()`, keyed on the child object. Declared by the registration AND by ' +
+  'the spec (`RecordRelatedListProps.actions`) while changing nothing that renders. Measured by ' +
+  'objectui#8071 slice 2; the fix is an ADR-0049 enforce-or-remove decision the spec owns ' +
+  '(give the key a read site, or retire it), not a pin. Same mechanism as objectui#7300, which ' +
+  'is open on the affordance side of it.';
+
+/**
  * Array/object-armed inputs accepted WITHOUT a member pin for now, each with the
  * reason. Key format: `BLOCK.INPUT`.
  *
@@ -2267,7 +2357,7 @@ const AWAITING_A_PIN_NEWLY_JUDGED =
  *
  * The ceiling below is the other half, and it is what makes this a transition
  * rather than an allowlist: a NEW array-typed key cannot be absorbed by adding a
- * 59th entry, because the count may only go down.
+ * 55th entry, because the count may only go down.
  */
 const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
   // element:button
@@ -2349,12 +2439,10 @@ const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
   'record:quick_actions.actionNames': AWAITING_A_PIN,
   'record:quick_actions.requiredPermissions': AWAITING_A_PIN,
 
-  // record:related_list
-  'record:related_list.actions': AWAITING_A_PIN,
-  'record:related_list.columns': AWAITING_A_PIN,
-  'record:related_list.dataSource': AWAITING_A_PIN,
-  'record:related_list.filter': AWAITING_A_PIN,
-  'record:related_list.sort': AWAITING_A_PIN,
+  // record:related_list — objectui#8071 slice 2 pinned `columns`, `dataSource`,
+  // `filter` and `sort`. `actions` is the one left, and it is left for a
+  // DIFFERENT reason: see the constant.
+  'record:related_list.actions': NO_READ_SITE_TO_PIN,
 
   // objectui#8176 — the four this direction could not see. See
   // `NEWLY_JUDGED_UNPINNED_MEMBERS` below, which pins them BY NAME so the
@@ -2430,11 +2518,24 @@ const NEWLY_JUDGED_UNPINNED_MEMBERS = [
  * shortens it. That is what "may only ever go DOWN" has to mean to be worth
  * anything — a number nobody lowers is a budget, not a ratchet.
  *
+ * ## 58 -> 54, the second slice, and the rule applied rather than restated
+ *
+ * objectui#8071's second slice converted four keys on ONE block —
+ * `record:related_list`'s `columns`, `dataSource`, `filter` and `sort` — and
+ * deleted their four entries, so the ceiling follows to 54 in the same commit.
+ * Nothing about the argument above changes; this is the paragraph existing to
+ * show it is a rule and not a one-off.
+ *
+ * ⚠️ The block is NOT emptied: `record:related_list.actions` stays exempt, and
+ * on a reason of its own (`NO_READ_SITE_TO_PIN`) rather than the shared one. A
+ * ceiling of 54 counts it like any other entry — a key that cannot be pinned
+ * still occupies a slot, because the ratchet counts EXEMPTIONS, not excuses.
+ *
  * ⇒ The rule for every future slice of objectui#8071: delete the entry, register
  * the pin, and set this constant to the new count. Not to the new count plus
  * room.
  */
-const MEMBER_PIN_EXEMPTION_CEILING = 58;
+const MEMBER_PIN_EXEMPTION_CEILING = 54;
 
 /**
  * Every test file a member pin can live in, as LAZY `?raw` loaders.
@@ -2451,7 +2552,7 @@ const MEMBER_PIN_EXEMPTION_CEILING = 58;
  * LAZY on purpose. `eager: true` would inline the raw text of every test file in
  * the repo — 2,000+ files, ~3 MB — into this module on every run of a gate that
  * already loads the whole registration graph. Lazy hands back loaders, so the
- * cost is the glob itself plus one read per REGISTERED pin (32 today).
+ * cost is the glob itself plus one read per REGISTERED pin (36 today).
  */
 const PIN_SOURCES = import.meta.glob(
   [
@@ -3787,7 +3888,7 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
   it('the member-pin exemption list only ratchets DOWN', () => {
     // The other half. A new array-typed key must be answered with a pin, not
-    // with a 59th entry carrying the same reason as its neighbours — that move
+    // with a 55th entry carrying the same reason as its neighbours — that move
     // is what made the discipline voluntary in the first place, one layer in.
     expect(Object.keys(MEMBER_PIN_EXEMPTIONS).length).toBeLessThanOrEqual(
       MEMBER_PIN_EXEMPTION_CEILING,

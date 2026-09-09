@@ -115,6 +115,7 @@ import {
 } from '@object-ui/core';
 import { omitServerResolvedDefaults, resolveSectionGroupReferences } from '@object-ui/plugin-form';
 import { usePredicateScope } from '@object-ui/react';
+import { useSafeFieldLabel } from '@object-ui/i18n';
 import type { FormFieldSpec, FormSectionSpec, FormViewSpec } from '@object-ui/app-shell';
 import { resolveSubmitRedirect } from './submitRedirect';
 
@@ -464,6 +465,29 @@ interface RenderableField {
 }
 
 interface RenderableSection {
+  /**
+   * The section's STABLE authored name (objectui#8813).
+   *
+   * Carried for ONE reason: it is the only member of this row that may appear
+   * in a translation key. The convention is
+   * `{ns}.objects.{objectName}._sections.{name}.label`, resolved by
+   * `useObjectLabel().sectionLabel` — so with `name` dropped at build time the
+   * key could not be CONSTRUCTED at the render site, whatever the renderer
+   * did there. That is why carrying it is a precondition of the section half
+   * of #8813 rather than a tidy-up that could follow it.
+   *
+   * ⛔ The authored `label` is never the key, not even as a fallback guess:
+   * `packages/plugin-form/src/__tests__/sectionLabelI18n.test.tsx` pins that
+   * for the sibling renderer, and that pin exists because the two halves of
+   * the form renderer had drifted apart once already.
+   *
+   * Optional because the authoring surface makes it optional
+   * ({@link FormSectionSpec}) — a section may be written with a heading and no
+   * name, and such a section simply has no key. A group-REFERENCED section
+   * (`{ group: 'parties' }`) arrives here already resolved, carrying the
+   * group's key as its `name`, so it is translatable on the same convention.
+   */
+  name?: string;
   label?: string;
   columns: 1 | 2 | 3 | 4;
   collapsible: boolean;
@@ -612,6 +636,12 @@ export function buildSections(
       });
     }
     return {
+      // objectui#8813 — the copy the render site's translation key is built
+      // from. Before it, this builder read `sec.label` and dropped `sec.name`
+      // on the floor, and the public form `/f/:slug` rendered every section
+      // heading in the authoring language no matter what the app bundle
+      // carried. See `RenderableSection.name`.
+      name: sec.name,
       label: sec.label,
       columns: cols,
       collapsible: !!sec.collapsible,
@@ -714,9 +744,12 @@ export function isSectionVisible(
   predicateScope?: Record<string, unknown>,
 ): boolean {
   return evalFieldPredicate(section.visibleWhen, values, true, previous ?? undefined, predicateScope, {
-    // Sections have no `name`, so the locator is the heading an author can
-    // actually find in their own metadata; an unlabelled section says so
-    // rather than printing `undefined`.
+    // The locator is the heading an author can actually find in their own
+    // metadata; an unlabelled section says so rather than printing
+    // `undefined`. Sections DO carry a `name` since objectui#8813, and this
+    // deliberately keeps naming the heading: a warning is read by the person
+    // looking at the screen, where the heading is what they see, and the
+    // wording is pinned by `FormPage.conditionalRules.test.tsx`.
     context: `visibleWhen of section '${section.label ?? '(unlabelled)'}'`,
   });
 }
@@ -1177,7 +1210,34 @@ async function loadPublicForm(slug: string): Promise<LoadedForm> {
   }
   const payload = (await res.json()) as PublicFormPayload;
   return {
-    label: payload.label ?? payload.form?.label ?? payload.object,
+    // objectui#8408 — `payload.form?.title` sits AHEAD of the API-name arm.
+    //
+    // Every arm of the pre-fix chain (`payload.label ?? payload.form?.label ??
+    // payload.object`) missed but the last one against what this endpoint
+    // actually serves, so the one Console surface an anonymous visitor sees
+    // greeted them with the database table name — `ats_inquiry` where the
+    // author wrote "Apply". Neither of the first two arms is reachable here:
+    //
+    //   • `payload.label` is the VIEW's identity label, carried on the
+    //     envelope; the public resolver does not send it (it is optional on
+    //     {@link PublicFormPayload} and absent from the served body).
+    //   • `payload.form.label` is reachable only on a FLATTENED runtime
+    //     overlay, where the identity and the config share one object
+    //     (`VIEW_METADATA_MEMBERS.formOverlay`). This endpoint returns the
+    //     config alone, and a form config carries `title`, NOT `label` —
+    //     `FormViewSchema` REJECTS that key outright (`unrecognized_keys`),
+    //     as the {@link FormViewBody} note above and `form-spec.ts` both
+    //     record.
+    //
+    // So the ONE real, typed, populated key naming this form was the only one
+    // never read. It is read now, and read BEFORE `form.label` because it is
+    // the spec-legal spelling of the same intent — the rejected key must never
+    // be able to outrank it (AGENTS.md #0.1).
+    //
+    // `payload.label` keeps its precedence: when an envelope identity label
+    // does arrive it is a deliberate per-view name, and this card changed the
+    // fallback ORDER, not which value wins where one already did.
+    label: payload.label ?? payload.form?.title ?? payload.form?.label ?? payload.object,
     object: payload.object,
     form: payload.form,
     objectSchema: payload.objectSchema,
@@ -1641,6 +1701,29 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
    * different card.
    */
   const predicateScope = usePredicateScope();
+  /**
+   * The two authored strings this renderer draws per row, routed through the
+   * SAME resolvers the app path uses (objectui#8813).
+   *
+   * `useSafeFieldLabel` rather than `useObjectLabel` for the reason the
+   * sibling renderers pick it (`ObjectForm`, `ModalForm`, `record-details`):
+   * one call site, provider or no provider. ⚠️ And that is exactly why a green
+   * test proves NOTHING here on its own — with no provider these degrade to
+   * identity functions instead of throwing, so "the resolver ran" and "the key
+   * was found" look alike. `FormPage.sectionLabelI18n.test.tsx` is written the
+   * only way that tells them apart: it asserts a TRANSLATED string on this
+   * route and goes red when the key is removed from the bundle.
+   *
+   * ⛔ No `I18nProvider` is mounted for this — one already sits above this
+   * route. `main.tsx` wraps the whole `App` (StrictMode -> MobileProvider ->
+   * `I18nProvider` -> `App`) and `/f/:slug` is a plain route inside `App`'s
+   * table, outside `ProtectedRoute` but not outside that wrapper. Measured on
+   * the real tree with a four-cell control matrix (objectui#8813): a probe
+   * calling `useI18nContext()` — which throws outside a provider — answers YES
+   * in `FormPage`'s exact route position under the real `main.tsx` wrapper,
+   * and NO in the same position with the wrapper removed.
+   */
+  const { sectionLabel, fieldLabel } = useSafeFieldLabel();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1926,8 +2009,34 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
     <div className="mx-auto max-w-2xl p-4 sm:p-6">
       <header className="mb-6">
         <h1 className="text-xl font-semibold">{loaded.label}</h1>
-        {loaded.form?.label && loaded.form.label !== loaded.label && (
-          <p className="mt-1 text-sm text-muted-foreground">{loaded.form.label}</p>
+        {/*
+          * objectui#8408 — the subtitle slot renders the form's `description`.
+          *
+          * It used to read `loaded.form.label`, guarded by
+          * `loaded.form.label !== loaded.label`, and that predicate was DEAD
+          * on the public route rather than merely selective — both branches
+          * were pushed through:
+          *
+          *   • `payload.label` absent  -> `loaded.label` IS `form.label`, so
+          *     the inequality is false;
+          *   • `payload.label` present -> `form.label` is undefined, so the
+          *     first conjunct is false.
+          *
+          * Neither renders, which is why replacing the predicate is the fix
+          * and adding a second condition beside it would not have been.
+          *
+          * `description` is what a form config actually carries next to
+          * `title` (the same contract that REJECTS `label`), it arrives in the
+          * payload untouched, and before this card the whole file never read
+          * it once — the author's sentence explaining the form to an
+          * anonymous visitor was fetched and dropped on the floor.
+          *
+          * No inequality guard: `description` and the heading are different
+          * keys saying different things, so equality between them is the
+          * author's business, not this renderer's.
+          */}
+        {loaded.form?.description && (
+          <p className="mt-1 text-sm text-muted-foreground">{loaded.form.description}</p>
         )}
       </header>
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -1942,7 +2051,22 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
           return (
           <section key={i} className="rounded-md border bg-card p-4 sm:p-5">
             {sec.label && (
-              <h2 className="mb-3 text-sm font-medium">{sec.label}</h2>
+              <h2 className="mb-3 text-sm font-medium">
+                {/*
+                  * objectui#8813 — the heading resolves
+                  * `objects.{object}._sections.{name}.label` and falls back to
+                  * the authored string, exactly as `ObjectForm` does on the
+                  * app path. The KEY is `sec.name`; a section authored without
+                  * one has no key and keeps its authored heading.
+                  *
+                  * The `sec.label &&` guard above is unchanged on purpose: this
+                  * card translates a heading that already renders, it does not
+                  * start rendering headings for sections that had none. A
+                  * translation cannot conjure a heading the author did not
+                  * write — that would be a different, wider change.
+                  */}
+                {sec.name ? sectionLabel(loaded.object, sec.name, sec.label) : sec.label}
+              </h2>
             )}
             <div
               className={
@@ -1976,7 +2100,17 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
                     htmlFor={`f_${f.name}`}
                     className="mb-1 block text-xs font-medium text-foreground"
                   >
-                    {f.label}
+                    {/*
+                      * objectui#8813 — `fields.{object}.{name}`, the same
+                      * resolver and the same fallback-to-the-served-label as
+                      * the app path (`ObjectForm`). On this route the served
+                      * label is usually ALREADY localized by the server
+                      * payload, which is why the symptom looked like "field
+                      * labels translate, section headings do not"; the client
+                      * lookup is the overlay an app bundle can put on top,
+                      * not a replacement for that server value.
+                      */}
+                    {fieldLabel(loaded.object, f.name, f.label)}
                     {state.required && <span className="ml-0.5 text-destructive">*</span>}
                   </label>
                   <FieldInput

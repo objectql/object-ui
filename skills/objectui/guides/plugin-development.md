@@ -53,9 +53,9 @@ ComponentRegistry.register('my-widget', MyWidgetRenderer, {
   category: 'plugin',             // Grouping: 'plugin' | 'view' | 'field' | 'layout'
   isContainer: false,
   inputs: [
-    { name: 'title', type: 'string', label: 'Title' },
-    { name: 'columns', type: 'array', label: 'Columns', required: true },
-    { name: 'mode', type: 'enum', label: 'Mode', enum: ['compact', 'full'] },
+    { name: 'title', type: 'string' },
+    { name: 'columns', type: 'array', required: true },
+    { name: 'mode', type: 'enum', enum: ['compact', 'full'] },
   ],
   defaultProps: { mode: 'full' },
 });

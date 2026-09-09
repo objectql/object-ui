@@ -82,7 +82,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
           '@container border-b border-border/60 pb-4',
           className,
         )}
-        aria-label="Record highlights"
+        aria-label={t('detail.highlightsLabel')}
       >
         <div className={cn('flex flex-wrap gap-y-4')}>
           {visibleFields.map((field) => {

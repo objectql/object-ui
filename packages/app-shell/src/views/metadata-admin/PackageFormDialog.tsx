@@ -50,6 +50,46 @@ export interface PackageSaveResult {
   package?: { manifest: ManifestRecord } & Record<string, unknown>;
 }
 
+/**
+ * Was this envelope's prose MARKED, i.e. did the producer address it to the end
+ * user (`error.userMessage`, #9934) rather than to whoever is debugging?
+ *
+ * ⚠️ Why this is read separately instead of taken from
+ * {@link readEnvelopeFailureText}: that reader answers *what prose to show* and
+ * deliberately collapses the two channels into one string
+ * (`userMessage || message`, plus the declared code). Its return value
+ * therefore cannot tell a caller WHICH channel won — and objectui#8051's two
+ * status arms need exactly that bit, because their localized constant is a
+ * generic substitution that objectui#3821 keeps for UNMARKED bodies only. So
+ * the mark is read here and carried across the throw; ⛔ the arms cannot
+ * re-derive it from the message they receive.
+ *
+ * ⛔ Not a second copy of the shared rule. The rule about what to SHOW stays in
+ * `readEnvelopeFailureText` and is not restated here; this answers a different
+ * question about the same body, at the one call site that asks it. Widening the
+ * shared reader's signature to return the provenance is objectui#7980's
+ * surface, not this card's.
+ *
+ * The predicate is byte-identical to the shared reader's `marked` const on
+ * purpose: a typed `string` check, not a truthiness one, so a non-string mark
+ * is not a mark (a producer bug — falling through to the diagnostic is the
+ * honest answer) and an empty-string mark is not one either.
+ */
+function readEnvelopeUserMessage(payload: unknown): string {
+  const error = (payload as { error?: unknown } | null | undefined)?.error;
+  if (!error || typeof error !== 'object') return '';
+  const { userMessage } = error as { userMessage?: unknown };
+  return typeof userMessage === 'string' ? userMessage : '';
+}
+
+/**
+ * What `apiJson` attaches to the `Error` it throws, and the whole of the
+ * contract `submit()`'s catch reads back. Named rather than cast away one
+ * property at a time so the carrier is legible from both ends: the catch cannot
+ * recover either field from the message, and objectui#8051 turns on that.
+ */
+type ApiJsonError = Error & { status: number; userMessage: string };
+
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: 'include',
@@ -78,8 +118,15 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
       payload?.error ||
       payload?.message ||
       `Request failed (${res.status})`;
-    const err = new Error(typeof msg === 'string' ? msg : `Request failed (${res.status})`);
-    (err as any).status = res.status;
+    const err = new Error(typeof msg === 'string' ? msg : `Request failed (${res.status})`) as ApiJsonError;
+    err.status = res.status;
+    // objectui#8051 — the mark travels WITH the refusal. `msg` above already
+    // resolved to the marked sentence when there was one, but it did so
+    // irreversibly; the status arms in `submit()`'s catch have to know whether
+    // the prose they are about to discard was addressed to the person reading
+    // the screen. Empty string when unmarked, which is the overwhelmingly
+    // common case and everything the two package doors emit today.
+    err.userMessage = readEnvelopeUserMessage(payload);
     throw err;
   }
   return (payload?.data ?? payload) as T;
@@ -227,18 +274,44 @@ export function PackageFormDialog({
       onOpenChange(false);
     } catch (e: any) {
       const msg: string = e?.message ?? '';
+      // objectui#8051 — WAS this refusal marked? The two status arms below
+      // answer with a localized constant, and that constant is a GENERIC
+      // SUBSTITUTION: objectui#3821's rule, which the envelope writer states as
+      // "a consumer that sees the field renders it verbatim and keeps its
+      // generic substitution for everything unmarked", keeps it for unmarked
+      // bodies and hands a MARKED body straight to the person. Until this card
+      // both arms applied the substitution to marked bodies too, so on the two
+      // statuses an author meets most — 409 (id taken) and 403 (no ADR-0066
+      // capability) — the one sentence a producer wrote for them was dropped.
+      //
+      // Ruling of record, objectui#8051 (2026-09-09), verbatim:
+      // 「本地化分支改为优先使用生产方消息」, 「⛔ 无产品语义分叉」.
+      //
+      // ⚠️ This bit is NOT derivable from `msg`. `apiJson` resolves the
+      // envelope through `readEnvelopeFailureText`, which returns
+      // `userMessage || message` and reports no provenance — a marked sentence
+      // and a diagnostic that happens to read the same are one value by then.
+      // Hence `readEnvelopeUserMessage` at the throw site and this read here.
+      const marked: boolean = typeof e?.userMessage === 'string' && e.userMessage !== '';
       if (e?.status === 409 || /already exists/i.test(msg)) {
-        setError(t('engine.packages.create.exists', locale));
+        setError(marked ? msg : t('engine.packages.create.exists', locale));
       } else if (e?.status === 403 || /manage_metadata/i.test(msg)) {
-        // objectstack#8270 — the `else` below renders the server's own English
-        // sentence, which is how "Managing packages requires the
-        // `manage_metadata` capability." reached a zh console untranslated. A
-        // deployment that withholds the capability does so deliberately
-        // (maintainer ruling 2026-08-13), so this is a settled posture to state,
-        // not a transient failure to retry. Probed the same way as the 409 arm
-        // above — the status when the transport reports one, the message when
-        // it does not.
-        setError(t('engine.packages.noCapability', locale));
+        // objectstack#8270 — for an UNMARKED body this arm still answers
+        // exactly as it did, and that is the whole of what #8270 measured. The
+        // sentence it was ruled about, "Managing packages requires the
+        // `manage_metadata` capability.", is the door's DIAGNOSTIC:
+        // `sendError(res, 403, 'FORBIDDEN', …)` in `@objectstack/rest`
+        // `package-routes.ts` passes no `extra`, so no `userMessage` rides with
+        // it, so `marked` is false and the localized copy answers — byte for
+        // byte as the 2026-08-13 maintainer ruling requires. A deployment that
+        // withholds the capability does so deliberately, so this is a settled
+        // posture to state in the user's language, not a transient failure to
+        // retry. What changes is only the case #8270 never saw: a body a
+        // producer deliberately marked for the end user.
+        //
+        // Probed the same way as the 409 arm above — the status when the
+        // transport reports one, the message when it does not.
+        setError(marked ? msg : t('engine.packages.noCapability', locale));
       } else {
         setError(msg || t(createMode ? 'engine.packages.create.failed' : 'engine.packages.edit.failed', locale));
       }

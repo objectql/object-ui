@@ -478,6 +478,72 @@ function resolvesToRegisteredFieldWidget(type: string): boolean {
 }
 
 /**
+ * Will this field render {@link BuiltinSelectEmptyState} — the built-in
+ * `select` branch's CONTROL-LESS output — objectui#3991?
+ *
+ * `<FormLabel>` emits `htmlFor={formItemId}` for every field by default, and
+ * `for` may only reference a LABELABLE element (`button`, `input`, `meter`,
+ * `output`, `progress`, `select`, `textarea`). When the built-in `select`
+ * branch's option list resolves empty — unconfigured, or a `dependsOn` gate
+ * withholding it (#2284) — the branch returns a `<div>` carrying the status
+ * text and NO control at all, so that `for` lands on a `div`. Measured on
+ * `origin/main` @ `b6d07df4b`, for `{ name: 'empty', label: 'Empty', type:
+ * 'select', options: [] }`:
+ *
+ * ```
+ *   label for="_r_2_-form-item"  ->  ownerTag = DIV
+ *   getByLabelText('Empty')      ->  throws "the element associated with this
+ *                                    label (<div />) is non-labellable"
+ * ```
+ *
+ * Inert HTML, and a test-side error that reads like a broken renderer when it
+ * is a correctly-rendered empty state. The honest output is a label with no
+ * `for` and the message beside it: nothing is lost, because nothing was ever
+ * associated — there is no focusable control in this state for a name to name.
+ *
+ * ## Why the answer is knowable HERE, and only here
+ *
+ * This is the third mirror of `renderFieldComponent`'s resolution, alongside
+ * `resolveFieldLabelling` and `resolvesToRegisteredFieldWidget`, and it is a
+ * mirror for the same reason: producer and consumer must not be able to
+ * disagree about which component actually renders.
+ *
+ *  - WHICH component: decided on the RAW type against `BUILTIN_FIELD_TYPES`,
+ *    exactly as there — a bare `select` renders this branch and the registry is
+ *    never consulted, while a `field:`-qualified `field:select` resolves to the
+ *    registered widget and never reaches it;
+ *  - WHETHER it takes the empty branch: read from `options`, which the call
+ *    site passes down as the very argument `renderFieldComponent`'s
+ *    `!options || options.length === 0` tests. One expression, two readers.
+ *
+ * ## ⛔ Deliberately NOT extended to the registered-widget path
+ *
+ * `@object-ui/fields`' `OptionsEmptyState` is the same FAULT on the
+ * `field:select` path (measured: the `for` dangles there instead, pointing at
+ * an id no element carries) but it is NOT the same mechanism, so it is not
+ * fixed by this predicate:
+ *
+ *  - the branch belongs to a component `ComponentRegistry` resolves, not to
+ *    this file. Any third party may register a `field:select` that renders a
+ *    real control for an empty list, and suppressing the `for` on a host-side
+ *    GUESS would break the association for a widget that had it right;
+ *  - what a widget renders is a widget DECLARATION (`labelling`,
+ *    objectui#3961), which is why the three group-labelled option widgets
+ *    (`radio` / `checkboxes` / `multiselect`) are already correct in this state
+ *    — they publish the label's id and answer with `aria-labelledby`
+ *    (objectui#3990 / #4005). Single `select` declares `labelling: 'control'`
+ *    and has no such channel; giving it one is a ruling, not a mirror.
+ */
+function rendersBuiltinSelectEmptyState(
+  type: string,
+  options: readonly unknown[] | undefined,
+): boolean {
+  if (!BUILTIN_FIELD_TYPES.has(type)) return false;
+  if (type !== 'select') return false;
+  return !options || options.length === 0;
+}
+
+/**
  * The container a registered field widget's replacement-display output is
  * wrapped in, so the field's visible label NAMES and its visible help text
  * DESCRIBES the surface that replaced the control (objectui#4788, maintainer
@@ -2724,6 +2790,27 @@ ComponentRegistry.register('form',
       // double channel #3978 removed.
       const groupLabelId = groupLabelled ? hostLabelId : undefined;
 
+      // The option set the field will actually be rendered with. Hoisted to a
+      // single const because TWO readers need the identical value: it is passed
+      // down as `options` below, and `rendersBuiltinSelectEmptyState` reads it
+      // here to decide whether the branch about to render has a control at all
+      // (objectui#3991). Two spellings of one expression is exactly how the
+      // label and the branch would come to disagree.
+      const resolvedOptions = isOptionField ? effectiveOptions : fieldProps.options;
+
+      // The built-in `select` branch renders `BuiltinSelectEmptyState` — a
+      // `<div>`, no control — when that set is empty, so the `for` `<FormLabel>`
+      // emits by default would name a non-labelable element: inert HTML
+      // (objectui#3991). No control ⇒ no `for`. ⛔ Not an `aria-labelledby`
+      // IDREF and ⛔ not a synthetic role: both name a thing that is not a
+      // control, which is the same category error spelled differently. See
+      // {@link rendersBuiltinSelectEmptyState} for why this is knowable here
+      // and why the registered-widget path is deliberately excluded.
+      const builtinBranchHasNoControl = rendersBuiltinSelectEmptyState(
+        resolvedType,
+        resolvedOptions as readonly unknown[] | undefined,
+      );
+
       return (
         <FormField
           key={fieldKey}
@@ -2755,6 +2842,18 @@ ComponentRegistry.register('form',
                   // reason: it was measurably DANGLING there, pointing at an
                   // id no element in the document carried.
                   {...(hostLabelId ? { id: hostLabelId, htmlFor: undefined } : null)}
+                  // No control renders in this branch, so there is nothing a
+                  // `for` could legally name (objectui#3991). `htmlFor:
+                  // undefined` is not a no-op — `<FormLabel>` sets
+                  // `htmlFor={formItemId}` BEFORE spreading its props, so this
+                  // key removes the attribute; the label stays visible text
+                  // beside the message. Mutually exclusive with the branch
+                  // above by construction: `hostLabelId` needs `groupLabelled`
+                  // or `hostWrappedDisplay`, and a BUILTIN type is neither
+                  // (`resolveFieldLabelling` answers `'control'` for it and
+                  // `resolvesToRegisteredFieldWidget` answers `false`) — pinned
+                  // from the DOM, not assumed.
+                  {...(builtinBranchHasNoControl ? { htmlFor: undefined } : null)}
                 >
                   {label}
                   {required && (
@@ -2805,7 +2904,7 @@ ComponentRegistry.register('form',
                   // accessible name. Renderer-only: both strips drop it, so it
                   // reaches no DOM attribute and no registered widget.
                   label,
-                  options: isOptionField ? effectiveOptions : fieldProps.options,
+                  options: resolvedOptions,
                   placeholder: fieldProps.placeholder ?? (resolvedType === 'select' ? t('common.selectOption') : undefined),
                   // `disabled` means "not interactive, muted"; `readonly` means
                   // "shown plainly, not editable" — keep them distinct so widgets

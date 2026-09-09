@@ -882,9 +882,6 @@ const DEBT = {
   "@object-ui/plugin-detail": [
     "RecordAlertProps",
   ],
-  "@object-ui/plugin-tree": [
-    "TreeConfig",
-  ],
 };
 
 // Files under these paths are not objectui's own authored surface.

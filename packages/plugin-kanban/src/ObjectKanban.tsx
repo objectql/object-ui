@@ -902,7 +902,10 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
   // CLOSED, not open — do not re-open it as a cleanup. If bucket-vocabulary
   // unification ever becomes a product direction that is a fresh ruling,
   // with visual-regression evidence across all four surfaces in one stroke.
-  const navConfig = (schema as any).navigation ?? { mode: 'drawer' };
+  // `navigation` is DECLARED on `KanbanSchema` since objectui#7742 (gantt
+  // precedent objectui#5903), so this read is typed rather than cast. It stayed
+  // `(schema as any)` for exactly as long as no schema face named the key.
+  const navConfig = schema.navigation ?? { mode: 'drawer' };
   // When this kanban is embedded in an ObjectView, the parent provides
   // `onRowClick`/`onCardClick` and owns the unified record-detail overlay.
   // We must always forward to the parent in that case — otherwise we'd open
@@ -1143,23 +1146,30 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
 
   return (
     <>
-      <KanbanRenderer schema={{
-        ...effectiveSchema,
+      <KanbanRenderer
         // Card conditional formatting evaluates against the card record, and
         // this fetch expands relations (`buildExpandFields` above) exactly as
         // the grid's does. Handing the renderer the object's field types is
         // what lets a rule comparing a relation see the stored foreign key
         // instead of the expanded record (objectui#3501).
-        objectFields: objectDef?.fields,
-        // objectui#8307 — the lane headers count rows that came back, so when
-        // the fetch saturated its window they must say `77+`, not `77`.
-        countsAreWindowed,
-        onCardClick: (card: any, event?: any) => {
-          navigation.handleClick(card, event);
-          onCardClick?.(card);
-        },
-        onCardMove: handleCardMove,
-      }} />
+        //
+        // A PROP, not a schema key (objectui#7742, decision batch #70): it is an
+        // internal channel from the one caller that fetched the object
+        // definition, never an authoring surface. On the schema bag it was
+        // reachable by an author through `BaseSchema`'s passthrough.
+        objectFields={objectDef?.fields}
+        schema={{
+          ...effectiveSchema,
+          // objectui#8307 — the lane headers count rows that came back, so when
+          // the fetch saturated its window they must say `77+`, not `77`.
+          countsAreWindowed,
+          onCardClick: (card: any, event?: any) => {
+            navigation.handleClick(card, event);
+            onCardClick?.(card);
+          },
+          onCardMove: handleCardMove,
+        }}
+      />
       {pendingMove && (
         <RequiredFieldsDialog
           open

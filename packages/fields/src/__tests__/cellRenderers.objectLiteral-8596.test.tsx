@@ -36,11 +36,14 @@
  *   - `location` / `geolocation` (and `json` / `object` / `composite` /
  *     `record`) print the `{}` literal behind objectui#8481's DECLARED
  *     json-literal fence. Left alone deliberately; pinned unchanged.
- *   - `date` still draws `formatDate`'s hand-rolled em-dash with no accessible
- *     name — objectui#8581's subject, the same renderer. This change does not
- *     touch it, and `THE CENSUS` pins that it did not: the row is recorded as
- *     a dash that is NOT the affordance, so a fix landing on it here would
- *     have to move a pin rather than pass silently.
+ *   - `date` drew `formatDate`'s hand-rolled em-dash with no accessible name
+ *     — objectui#8581's subject, the same renderer. This change did not touch
+ *     it, and `THE CENSUS` pinned that it did not: the row was recorded as a
+ *     dash that is NOT the affordance, so a fix landing on it here would have
+ *     to move a pin rather than pass silently. It did: objectui#8581 landed,
+ *     `DateCellRenderer` now answers every unparsable value with the shared
+ *     affordance, and this file's two `date` assertions moved with it — the
+ *     census row to `true`, and THE BOUNDARY to the fix's own record.
  *
  * ── The direction is not open per family: `valueSchemaFor`'s arm decides ──
  * Read from `@objectstack/spec` `src/data/field-value.zod.ts` (v17.3.0), per
@@ -185,8 +188,15 @@ const REGISTERED_TYPE_COUNT = 53;
  * `'[Object]'` below must print. `affordance` records whether the cell draws
  * the shared "No value" glyph.
  *
- * ⚠️ `date` is recorded as `'—'` WITHOUT the affordance on purpose: that dash
- * is `formatDate`'s own, and it is objectui#8581's subject, not this card's.
+ * ⚠️ `date` was recorded as `'—'` WITHOUT the affordance while
+ * objectui#8581 was open: that dash was `formatDate`'s own and belonged to
+ * that card's renderer, not this one's. objectui#8581 has since landed —
+ * `DateCellRenderer` now intercepts every value it cannot parse (`{}` coerces
+ * to `[Object]`, which `new Date` rejects) and returns the shared affordance,
+ * so the row reads `true` here. Exactly as this file predicted: the fix had to
+ * MOVE this pin rather than pass silently. The `date` census row and THE
+ * BOUNDARY below are now this file's record of the other card's landing, and
+ * the reason for the `{}` face itself is unchanged — `[Object]` is not a date.
  */
 const OBJECT_LITERAL_CENSUS: ReadonlyArray<readonly [type: string, text: string, hasAffordance: boolean]> = [
   // ── the twenty that already coerced correctly — LOAD-BEARING ────────────
@@ -246,8 +256,8 @@ const OBJECT_LITERAL_CENSUS: ReadonlyArray<readonly [type: string, text: string,
   ['secret', '••••••', false],
   ['vector', '[Vector]', false],
   ['grid', '[Grid]', false],
-  // ── objectui#8581's hand-rolled dash — NOT the affordance, NOT moved here ─
-  ['date', '—', false],
+  // ── objectui#8581 LANDED: the hand-rolled dash became the affordance ──
+  ['date', '—', true],
 ];
 
 /** A real value per type — the POPULATED half, which refuses the caricature. */
@@ -682,13 +692,24 @@ describe('objectui#8596 — an object literal is not a cell value, and these ren
       ).toBe('tel:13800138000');
     });
 
-    it('THE BOUNDARY — `date` still draws its own dash: objectui#8581 keeps its subject', () => {
+    it('THE BOUNDARY — `date` now draws the shared affordance: objectui#8581 landed on its own subject', () => {
+      // This assertion is INVERTED from what it was while objectui#8581 was
+      // open, and the inversion is the point: this file predicted that a fix
+      // there would have to move a pin here rather than pass silently, and it
+      // did. `{}` coerces to `[Object]`, which `new Date` rejects, so the
+      // `date` cell takes objectui#8581's unparsable branch — the same
+      // affordance `datetime` has always drawn for the same input. The reason
+      // `{}` is not a date is unchanged; only who draws the answer moved.
       const { container } = renderCell('date', {});
-      expect(textOf(container), 'date: the hand-rolled dash is unchanged here').toBe('—');
+      expect(textOf(container), 'date: the glyph is still an em-dash').toBe('—');
       expect(
         affordance(container),
-        'date: still NOT the shared affordance — objectui#8581 rules that renderer',
-      ).toBeNull();
+        'date: the dash is now the shared affordance, not `formatDate`\'s bare one (objectui#8581)',
+      ).not.toBeNull();
+      expect(
+        affordance(container)?.getAttribute('aria-label'),
+        'date: and it carries its accessible name',
+      ).toBe('No value');
     });
 
     it("THE BOUNDARY — objectui#8481's json-literal fence is not reopened", () => {

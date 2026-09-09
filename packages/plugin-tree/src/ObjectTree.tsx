@@ -20,7 +20,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import type { DataSource } from '@object-ui/types';
+import type { DataSource, TreeViewConfig } from '@object-ui/types';
 import {
   useNavigationOverlay,
   useSafeFieldLabel,
@@ -78,12 +78,26 @@ export interface ObjectTreeProps {
   loading?: boolean;
 }
 
-interface TreeConfig {
-  parentField?: string;
-  labelField: string;
-  fields: string[];
-  defaultExpandedDepth?: number;
-}
+/**
+ * The RESOLVED form of the host's `tree` block — what `getTreeConfig` hands the
+ * renderer after flooring, ⛔ not a second declaration of the config's shape.
+ *
+ * The shape itself is `TreeViewConfig` in `@object-ui/types`, exported for this
+ * card (objectui#8253, ruling batch #78, option (a)): the module-local
+ * `interface TreeConfig` that used to stand here was the ONLY description of a
+ * block a real host stores and re-writes. Every key name and every key TYPE
+ * below is `Pick`ed off that one declaration, so a key added, renamed or
+ * retyped there arrives here without an edit — which is the property a
+ * hand-copied interface cannot have, and the reason #7646's private copy is the
+ * shape to avoid.
+ *
+ * The only thing this adds is REQUIREDNESS, and only for the two keys the
+ * resolver floors: `labelField` falls back to `'name'` and `fields` to `[]`, so
+ * the renderer below indexes both without a guard.
+ */
+type ResolvedTreeConfig =
+  Required<Pick<TreeViewConfig, 'labelField' | 'fields'>>
+  & Pick<TreeViewConfig, 'parentField' | 'defaultExpandedDepth'>;
 
 interface TreeNode {
   id: string;
@@ -105,8 +119,8 @@ function fieldKey(f: any): string | undefined {
   return columnIdentity(f) || (f && typeof f === 'object' ? f.key : undefined) || undefined;
 }
 
-function getTreeConfig(schema: any): TreeConfig {
-  const nested = (schema.tree || schema.filter?.tree || {}) as Partial<TreeConfig>;
+function getTreeConfig(schema: any): ResolvedTreeConfig {
+  const nested = (schema.tree || schema.filter?.tree || {}) as TreeViewConfig;
   const rawFields = Array.isArray(schema.fields)
     ? schema.fields
     : Array.isArray(nested.fields)

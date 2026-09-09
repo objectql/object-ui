@@ -32,7 +32,36 @@ export function DateField({ value, onChange, field, readonly, error, ...props }:
     // `undefined` in the positional slot is how the published signature
     // `formatDate(value, style?, options?)` asks for the default face; the
     // positional argument outranks `options.style` (objectui#7745).
-    return value ? <span className="text-sm">{formatDate(value, undefined, { locale })}</span> : <EmptyValue />;
+    //
+    // An UNPARSABLE value reaches that SAME affordance (objectui#8809).
+    // `formatDate` answers this input with its own em-dash, and painting that
+    // dash in the plain span below is naked punctuation to a screen reader: no
+    // `data-slot` of `empty-value`, no accessible name. That is the
+    // objectui#8475 / objectui#8491 class of defect, and it is the CARRIER
+    // that is wrong here, not the glyph.
+    //
+    // The glyph does not move, and must not be read as moving: `EmptyValue`'s
+    // own default glyph IS this em-dash. So this swaps the carrier only,
+    // which is exactly why objectui#8194's landed pin stays green -- it reads
+    // `container.textContent`, and that text is still a dash.
+    //
+    // That distinction is also what keeps this repair inside the card's
+    // authority. objectui#8194 enumerated the four `formatDate` sites, fed
+    // each this exact input and split them 3-1 ON PURPOSE, putting this face
+    // on the dash side and `GridField` on the raw-string side ("showing the
+    // user what is actually stored beats hiding it", objectui#3569). Moving
+    // this face to the raw string would REVERSE that documented, pinned
+    // choice -- a maintainer-level call, not this one's.
+    //
+    // Co-extensive with the dash it replaces, never wider: `new Date(value)`
+    // reproduces `formatDate`'s own parse step, so this branch answers
+    // exactly the values the shared function answers with a dash for being
+    // UNREADABLE, while the falsy guard just below still owns every value it
+    // answers with a dash for being EMPTY.
+    if (!value) return <EmptyValue />;
+    const date = new Date(value as unknown as string);
+    if (isNaN(date.getTime())) return <EmptyValue />;
+    return <span className="text-sm">{formatDate(value, undefined, { locale })}</span>;
   }
 
   const domProps = toDomProps(props);

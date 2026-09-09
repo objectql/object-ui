@@ -220,6 +220,11 @@ describe("the 'kanban' validator arm accepts what the registered renderer reads 
       'objectName', 'groupBy', 'swimlaneField', 'cardTitle', 'cardFields', 'data', 'limit', 'columns',
       'onCardMove', 'className', 'quickAdd', 'onQuickAdd', 'coverImageField', 'allowCollapse',
       'conditionalFormatting', 'cardTemplates', 'columnWidths', 'grouping',
+      // objectui#7742 (decision batch #70): `navigation` joins as a LIVE member
+      // and `titleField` joins as a refusal arm. Both are on the shape for the
+      // same reason the four keys above still are — a REFUSED key is declared,
+      // and only a DROPPED key would be missing here.
+      'navigation', 'titleField',
     ]) {
       expect(declared, `\`${key}\` missing from the kanban mirror's shape`).toContain(key);
     }
@@ -294,17 +299,27 @@ describe('the declared body is measured, not inherited (objectui#7664)', () => {
     }));
   }
 
-  it('KanbanSchema declares 20 live members — the dialect\'s 19 (the ruling said 18; `type` is the difference) plus `onCardClick` — and exactly 3 tombstones', () => {
+  it('KanbanSchema declares 18 live members and exactly 7 tombstones after the batch #70 ruling', () => {
+    // objectui#7742 moved this count in BOTH directions in one change. It was
+    // 20 live / 3 tombstoned: three zero-read members (`allowCollapse`,
+    // `cardTemplates`, `columnWidths`) and the legacy `titleField` spelling
+    // retired, and `navigation` — a read this face never named — was declared.
+    // 20 - 3 + 1 = 18 live; 3 + 4 = 7 tombstones. `titleField` is the one that
+    // ADDS a member rather than converting one: it was never declared here at
+    // all, it rode `BaseSchema`'s index signature.
     const members = membersOf('KanbanSchema');
     const live = members.filter((m) => !m.never).map((m) => m.name);
     const tombstoned = members.filter((m) => m.never).map((m) => m.name);
     expect(live).toEqual([
       'type', 'objectName', 'groupBy', 'swimlaneField', 'cardTitle', 'cardFields', 'data', 'limit', 'columns',
-      'onCardMove', 'onCardClick', 'className', 'quickAdd', 'onQuickAdd', 'coverImageField', 'allowCollapse',
-      'conditionalFormatting', 'cardTemplates', 'columnWidths', 'grouping',
+      'onCardMove', 'onCardClick', 'className', 'quickAdd', 'onQuickAdd', 'coverImageField',
+      'conditionalFormatting', 'grouping', 'navigation',
     ]);
-    expect(live).toHaveLength(20);
-    expect(tombstoned).toEqual(['draggable', 'onColumnAdd', 'onCardAdd']);
+    expect(live).toHaveLength(18);
+    expect(tombstoned).toEqual([
+      'allowCollapse', 'cardTemplates', 'columnWidths', 'titleField',
+      'draggable', 'onColumnAdd', 'onCardAdd',
+    ]);
     // Both directions against the mirror, so the number above is the mirror's
     // too: every declared member is a key of the shape, and every shape key the
     // arm ADDS over `BaseSchema` is a declared member. (The parity ratchet,

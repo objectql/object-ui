@@ -24,6 +24,7 @@ import {
   DashboardWidgetSchema as SpecDashboardWidgetSchema,
   GlobalFilterSchema as SpecGlobalFilterSchema,
   GroupingConfigSchema as SpecGroupingConfigSchema,
+  NavigationConfigSchema as SpecNavigationConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
 import { KanbanConditionalFormattingRuleSchema } from './objectql.zod.js';
@@ -86,6 +87,36 @@ const retiredDeclarativeKanbanKey = (key: string, where: string, remedy: string)
       'kanban face), which no registered kanban renderer ever read. The `kanban` type key ' +
       'now validates the shape `@object-ui/plugin-kanban` renders: `objectName` + `groupBy` for ' +
       `an object-bound board, or \`columns[].cards[]\` for a static one. ${remedy}`,
+  );
+
+/**
+ * The ZERO-READ members this arm declared, named once so every refusal below
+ * says the same thing (objectui#7742, ADR-0049, maintainer decision batch #70,
+ * 2026-09-07: 「同意」).
+ *
+ * ⛔ Deliberately NOT {@link retiredDeclarativeKanbanKey}. That helper's message
+ * says the key "belonged to the retired `DeclarativeKanbanSchema` dialect",
+ * which is TRUE of `draggable` and the column `color` and FALSE of these three:
+ * they were members of the PLUGIN dialect objectui#7664 ruled authoritative,
+ * carried over member-for-member, and retired one card later for a different
+ * reason — declared on both faces, read by no registered board. Sharing the
+ * older message would hand the author a false history of their own document.
+ *
+ * The zeros are readings, not a dead grep: measured over
+ * `packages/plugin-kanban/src` with every file including tests, `allowCollapse`
+ * / `cardTemplates` / `columnWidths` returned 0 hits / 0 files while `groupBy`
+ * (85/27), `cardTitle` (18/9) and `coverImageField` (17/3) fired as controls on
+ * the same instrument.
+ *
+ * Refused BY NAME rather than dropped, for the reason this file states twice
+ * already: {@link BaseSchema} is `.passthrough()`, so a dropped key is KEPT,
+ * not refused.
+ */
+const retiredZeroReadKanbanKey = (key: string, taught: string, remedy: string) =>
+  retirementTombstone(
+    `\`${key}\` is RETIRED (objectui#7742, ADR-0049) — the \`kanban\` arm declared ` +
+      'it on both faces and NO registered board ever read it, so a document that set ' +
+      `it validated green and changed nothing. ${taught} ${remedy}`,
   );
 
 /**
@@ -186,11 +217,32 @@ export const KanbanSchema = BaseSchema.extend({
   quickAdd: z.boolean().optional().describe('Enable the Quick Add button at the bottom of each column'),
   onQuickAdd: handlerKeyRefusal('onQuickAdd', 'runtime-slot', 'Quick Add handler'),
   coverImageField: z.string().optional().describe('Field name to use as cover image on cards'),
-  allowCollapse: z.boolean().optional().describe('Allow columns to be collapsed/expanded'),
+  allowCollapse: retiredZeroReadKanbanKey(
+    'allowCollapse',
+    'The capability exists on another channel:',
+    'the enhanced board collapses a lane off that lane\'s own `collapsed` key, so write `columns[].collapsed`.',
+  ),
   conditionalFormatting: z.array(KanbanConditionalFormattingRuleSchema).optional().describe('Card conditional formatting rules'),
-  cardTemplates: z.array(CardTemplateSchema).optional().describe('Predefined card templates for quick-add'),
-  columnWidths: ColumnWidthConfigSchema.optional().describe('Custom column width configuration'),
+  cardTemplates: retiredZeroReadKanbanKey(
+    'cardTemplates',
+    'The capability exists on another channel:',
+    '`CardTemplates` takes its `templates` as a COMPONENT PROP, not off the board node; there is no authorable spelling for it.',
+  ),
+  columnWidths: retiredZeroReadKanbanKey(
+    'columnWidths',
+    'The capability exists on another channel:',
+    '`useColumnWidths` takes its `ColumnWidthConfig` as a HOOK OPTION, not off the board node; there is no authorable spelling for it. (The grid surface has an unrelated key of the same name — that one is untouched.)',
+  ),
   grouping: stripImportedDefaults(SpecGroupingConfigSchema).optional().describe('Grouping configuration from ListView; its first field is the swimlaneField fallback'),
+  navigation: stripImportedDefaults(SpecNavigationConfigSchema).optional().describe('Record navigation behaviour on card click (drawer/dialog/page)'),
+  titleField: retirementTombstone(
+    '`titleField` is RETIRED on the `kanban` arm (objectui#7742, ADR-0049) — one arm, one ' +
+      'spelling. Write `cardTitle`, which selects the same record field and which this arm ' +
+      'has always declared. ⛔ This is NOT an inertness retirement: `ObjectKanban` still ' +
+      'reads the key, because the SIBLING `object-kanban` arm declares it and keeps it ' +
+      '(objectui#7322 item ②). A `type: "object-kanban"` document naming `titleField` is ' +
+      'still accepted; a `type: "kanban"` one is not.',
+  ),
   draggable: retiredDeclarativeKanbanKey('draggable', 'board', 'Drag-and-drop is always on; delete the key.'),
   onColumnAdd: handlerKeyRefusal('onColumnAdd', 'retired', 'Column add handler'),
   onCardAdd: handlerKeyRefusal('onCardAdd', 'retired', 'Card add handler'),
@@ -487,8 +539,8 @@ export const FilterBuilderSchema = BaseSchema.extend({
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
   allowGroups: z.boolean().optional().describe('Allow grouped conditions'),
   maxDepth: z.number().optional().describe('Maximum nesting depth'),
-  wrapperClass: z.string().optional()
-    .describe("Outer wrapper classes, read at renderers/complex/filter-builder.tsx:37 — `className={schema.wrapperClass || ''}` (objectui#6150)"),
+  // Applied at renderers/complex/filter-builder.tsx:37 as `className={schema.wrapperClass || ''}`.
+  wrapperClass: z.string().optional().describe('Outer wrapper classes for the filter builder (objectui#6150)'),
 });
 
 /**
@@ -506,11 +558,11 @@ export const CarouselSchema = BaseSchema.extend({
   type: z.literal('carousel'),
   items: z.array(CarouselItemSchema).describe('Carousel items'),
   opts: z.record(z.string(), z.unknown()).optional()
-    .describe("Embla option bag forwarded verbatim at renderers/complex/carousel.tsx:23 — `opts={schema.opts}`. Left OPEN on purpose: the renderer passes the whole bag through, so narrowing it to the docs' `{loop, align}` pair would refuse authored documents that work today (objectui#6150)"),
+    .describe("Embla option bag forwarded verbatim (`opts={schema.opts}`). Left OPEN on purpose: the renderer passes the whole bag through, so narrowing it to the docs' `{loop, align}` pair would refuse authored documents that work today (objectui#6150)"),
   orientation: z.enum(['horizontal', 'vertical']).optional()
-    .describe("Scroll axis, read at renderers/complex/carousel.tsx:24 — `orientation={schema.orientation || 'horizontal'}` (objectui#6150)"),
-  itemClassName: z.string().optional()
-    .describe('Per-slide Tailwind classes, read at renderers/complex/carousel.tsx:30 — `className={schema.itemClassName}` on every CarouselItem (objectui#6150)'),
+    .describe("Scroll axis — `orientation={schema.orientation || 'horizontal'}` (objectui#6150)"),
+  // Applied at renderers/complex/carousel.tsx:30 as `className={schema.itemClassName}` on every CarouselItem.
+  itemClassName: z.string().optional().describe('Per-slide Tailwind classes, applied to every carousel item (objectui#6150)'),
   autoPlay: z.number().optional().describe('Auto-play interval (ms)'),
   showArrows: z.boolean().optional().describe('Show navigation arrows'),
   showDots: z.boolean().optional().describe('Show navigation dots'),
@@ -563,10 +615,10 @@ export const ChatMessageSchema = z.object({
   reasoning: z.string().optional().describe('Chain-of-thought reasoning text'),
   sources: z.array(ChatMessageSourceSchema).optional().describe('Citation sources'),
   traceId: z.string().optional().describe('Backend trace id (ai_traces.id)'),
-  avatar: z.string().optional()
-    .describe('Per-message avatar image URL overriding the chatbot-level userAvatarUrl / assistantAvatarUrl, read at plugin-chatbot/src/index.tsx:173–174 — `message.avatar || userAvatarUrl` (objectui#7295)'),
-  avatarFallback: z.string().optional()
-    .describe('Per-message avatar fallback text overriding the chatbot-level userAvatarFallback / assistantAvatarFallback, read at plugin-chatbot/src/index.tsx:177–178 — `message.avatarFallback || userAvatarFallback` (objectui#7295)'),
+  // Read at plugin-chatbot/src/index.tsx:172-174 as `message.avatar || userAvatarUrl` (or `|| assistantAvatarUrl` on the assistant branch).
+  avatar: z.string().optional().describe('Per-message avatar image URL overriding the chatbot-level userAvatarUrl / assistantAvatarUrl (objectui#7295)'),
+  // Read at plugin-chatbot/src/index.tsx:176-178 as `message.avatarFallback || userAvatarFallback` (or `|| assistantAvatarFallback` on the assistant branch).
+  avatarFallback: z.string().optional().describe('Per-message avatar fallback text overriding the chatbot-level userAvatarFallback / assistantAvatarFallback (objectui#7295)'),
 });
 
 /**

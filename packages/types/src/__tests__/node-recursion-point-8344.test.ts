@@ -100,14 +100,27 @@ describe('objectui#7869 — the off-spec node gets the same verdict at both dept
 
 describe('the arm IS the component union, and not the base shape', () => {
   /**
-   * `h1` is a REGISTERED RENDERER (`components/src/renderers/basic/html-elements.tsx`)
-   * with no mirror in `AnyComponentSchema` — so it is the input the two candidate
-   * recursion points answer differently: `BaseSchemaCore` takes any object with a
-   * string `type`, the component union takes none it does not declare. ⛔ Do not
-   * "fix" this by adding an `h1` arm to make some other test green: that is the
-   * public-surface widening objectui#8344 routes into its own card.
+   * A REGISTERED RENDERER with no mirror in `AnyComponentSchema` — the input the
+   * two candidate recursion points answer differently: `BaseSchemaCore` takes any
+   * object with a string `type`, the component union takes none it does not
+   * declare.
+   *
+   * ⚠️ This was `h1` until objectui#8499. That card was the one objectui#8344
+   * routed the widening into, and it LANDED: `h1` is now an arm
+   * (`zod/layout.zod.ts#HtmlElementSchema`), so the old example stopped
+   * discriminating and this leg went green for the wrong reason. ⛔ The remedy was
+   * NOT to weaken the leg — it is re-pointed at an input whose absence from the
+   * union is RULED rather than merely pending: `metric-card` is objectui's closed
+   * dashboard-widget-slot component extension, admitted by the 2026-08-14 ruling
+   * (objectstack#8593) and, in `zod/complex.zod.ts`'s own words, "DELIBERATELY not
+   * an arm of `AnyComponentSchema`". So this example cannot rot the way `h1` did
+   * without a maintainer reversing that ruling.
+   *
+   * ⛔ Do not "fix" a future failure here by adding an arm to make some other test
+   * green: an arm is a public-surface widening and belongs to its own card, which
+   * is what objectui#8344 said and what objectui#8499 then did properly.
    */
-  const UNMIRRORED = { type: 'h1', children: 'Sales Dashboard' } as const;
+  const UNMIRRORED = { type: 'metric-card', title: 'Sales Dashboard' } as const;
 
   it('refuses an unmirrored node nested in a declared child slot', () => {
     expect(AnyComponentSchema.safeParse(nested(UNMIRRORED)).success).toBe(false);
@@ -139,7 +152,7 @@ describe('the late-binding wiring, read by IDENTITY on the exported wrapper', ()
     // module imports the barrel and nothing else, so a break in `index.zod.ts`'s
     // `defineNodeComponentUnion(...)` initializer lands here rather than in whichever suite
     // happened to run second.
-    expect(AnyComponentSchema.safeParse(nested({ type: 'h1' })).success).toBe(false);
+    expect(AnyComponentSchema.safeParse(nested({ type: 'metric-card' })).success).toBe(false);
     expect(AnyComponentSchema.safeParse(nested(LEGAL_ICON)).success).toBe(true);
   });
 
