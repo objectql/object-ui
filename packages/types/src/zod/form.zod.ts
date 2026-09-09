@@ -252,7 +252,7 @@ export const TextareaSchema = BaseSchema.extend({
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   wrapperClass: z.string().optional()
-    .describe('Classes on the wrapper div around the textarea and its label, read at renderers/form/textarea.tsx:37 — `cn("grid w-full gap-1.5", schema.wrapperClass)` (objectui#7722)'),
+    .describe('Classes on the wrapper div around the textarea and its label (objectui#7722)'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
   maxLength: z.number().optional().describe('Maximum length'),
 });
@@ -272,7 +272,7 @@ export const SelectSchema = BaseSchema.extend({
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   wrapperClass: z.string().optional()
-    .describe('Classes on the wrapper div around the trigger and its label, read at renderers/form/select.tsx:45 — `cn("grid w-full items-center gap-1.5", schema.wrapperClass)` (objectui#7722)'),
+    .describe('Classes on the wrapper div around the trigger and its label (objectui#7722)'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
@@ -286,9 +286,9 @@ export const CheckboxSchema = BaseSchema.extend({
   defaultChecked: z.boolean().optional().describe('Default checked state'),
   checked: z.boolean().optional().describe('Controlled checked state'),
   required: z.boolean().optional()
-    .describe("Required affordance, read at renderers/form/checkbox.tsx:45 (`required=` on the Radix Checkbox) and :49 (gates the label's `*` marker) (objectui#6150)"),
+    .describe("Required affordance — sets `required` on the Radix Checkbox and gates the label's `*` marker (objectui#6150)"),
   wrapperClass: z.string().optional()
-    .describe('Classes on the wrapper div around the box and its label, read at renderers/form/checkbox.tsx:36 — `cn("flex items-center space-x-2", schema.wrapperClass)` (objectui#6938)'),
+    .describe('Classes on the wrapper div around the box and its label (objectui#6938)'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
@@ -321,7 +321,7 @@ export const SwitchSchema = BaseSchema.extend({
   checked: z.boolean().optional().describe('Controlled checked state'),
   description: z.string().optional().describe('Help text'),
   wrapperClass: z.string().optional()
-    .describe("Classes on the wrapper div around the switch and its label, read at renderers/form/switch.tsx:26 — `flex items-center space-x-2 ${schema.wrapperClass || ''}` (objectui#7722)"),
+    .describe("Classes on the wrapper div around the switch and its label (objectui#7722)"),
   onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
 
@@ -363,9 +363,9 @@ export const FileUploadSchema = BaseSchema.extend({
   name: z.string().optional().describe('Field name for form submission'),
   label: z.string().optional().describe('Upload label'),
   buttonText: z.string().optional()
-    .describe('Drop-zone label, read at renderers/form/file-upload.tsx:123 — `schema.buttonText || "DROP PAYLOAD OR CLICK TO UPLOAD"` (objectui#6150)'),
+    .describe('Drop-zone label; falls back to "DROP PAYLOAD OR CLICK TO UPLOAD" when unset (objectui#6150)'),
   wrapperClass: z.string().optional()
-    .describe('Outer wrapper classes, appended to the renderer\'s own grid classes at renderers/form/file-upload.tsx:78 (objectui#6150)'),
+    .describe('Outer wrapper classes, appended to the renderer\'s own grid classes (objectui#6150)'),
   accept: z.string().optional().describe('Accepted file types'),
   multiple: z.boolean().optional().describe('Allow multiple files'),
   maxSize: z.number().optional().describe('Maximum file size (bytes)'),
@@ -391,7 +391,7 @@ export const DatePickerSchema = BaseSchema.extend({
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   wrapperClass: z.string().optional()
-    .describe("Classes on the wrapper div around the popover trigger and its label, read at renderers/form/date-picker.tsx:35 — `grid w-full max-w-sm items-center gap-1.5 ${schema.wrapperClass || ''}` (objectui#7722)"),
+    .describe("Classes on the wrapper div around the popover trigger and its label (objectui#7722)"),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
@@ -687,6 +687,75 @@ export const FormSchema = BaseSchema.extend({
 });
 
 /**
+ * Input Shorthand Schema — the `email` / `password` aliases
+ * `packages/components/src/renderers/form/input.tsx` registers (objectui#8499).
+ *
+ * Both are the SAME renderer as `input`, wrapped so that `inputType` is pinned:
+ *
+ * ```tsx
+ * ComponentRegistry.register('password',
+ *   (props) => <InputRenderer {...props} schema={{ ...props.schema, inputType: 'password' }} />, …)
+ * ```
+ *
+ * ⛔ `inputType` is therefore ABSENT from this arm, deliberately, and that
+ * absence is the whole difference from {@link InputSchema}. The wrapper spreads
+ * its own value LAST, so an authored `inputType` is silently overwritten;
+ * declaring it here would publish a key the runtime discards. Write
+ * `{ type: 'input', inputType: 'email' }` when the input type is the choice.
+ *
+ * ⚠️ MEASURED, so the omission is not over-read: `BaseSchema` passes unknown
+ * keys through, so `{ type: 'password', inputType: 'text' }` still PARSES —
+ * omitting the key states the contract on the declared face, it does not refuse
+ * the value. Refusing it by name (the `./tombstone.zod.ts` mechanism) would be
+ * an accept-set NARROWING in the opposite direction from this card and is
+ * deliberately left to its own ruling; objectui#8499's report records it.
+ *
+ * Every other key is {@link InputSchema}'s, because it is literally the same
+ * renderer reading the same schema.
+ */
+export const InputShorthandSchema = InputSchema.omit({ type: true, inputType: true }).extend({
+  type: z.enum(['email', 'password'])
+    .describe('Input shorthand — `renderers/form/input.tsx` pins `inputType` to match'),
+  // Declared here and not (yet) on {@link InputSchema}, which is the pair
+  // `__tests__/zod-mirror-parity.test.ts` records as unmirrored for this very key.
+  // The renderer both arms share reads it — `renderers/form/input.tsx:42`,
+  // `cn('grid w-full items-center gap-1.5', schema.wrapperClass)` — so declaring it
+  // is the read site talking. ⛔ Copying the gap into a NEW pair would have minted a
+  // second ledger row for a key that is demonstrably read; shrinking the existing
+  // row is `InputSchema`'s own repair (objectui#7722's family) and not this card's.
+  wrapperClass: z.string().optional()
+    .describe("Classes on the wrapper div around the input and its label"),
+});
+
+/**
+ * Ui Calendar Schema — the date-picker primitive
+ * `packages/components/src/renderers/form/calendar.tsx` registers, reachable at
+ * `ui:calendar` ONLY (objectui#8499).
+ *
+ * ⚠️ `ui:calendar`, not `calendar`, and the two are different components. That
+ * registration carries `skipFallback: true` with its reason written beside it:
+ *
+ * > `calendar` collides with the plugin-calendar full CRUD calendar VIEW, which
+ * > owns the bare `type: 'calendar'` schema keyword; this date-picker primitive
+ * > is reached via `ui:calendar` only.
+ *
+ * So the namespaced spelling is not a stylistic variant of {@link CalendarSchema}
+ * — it is the only spelling that resolves to this renderer. Five catalog
+ * fixtures under `examples/schema-catalog/src/schemas/components-form-calendar/`
+ * author it, every one of them rendered and every one of them refused by
+ * `AnyComponentSchema` until this arm.
+ *
+ * The key set is {@link CalendarSchema}'s: `calendar.tsx` reads `schema.mode`,
+ * `schema.value`, `schema.defaultValue` and `className`, which is what that
+ * schema already declares — it mirrors this primitive's shape while its own
+ * literal resolves to the plugin view.
+ */
+export const UiCalendarSchema = CalendarSchema.extend({
+  type: z.literal('ui:calendar')
+    .describe('The `ui`-namespaced date-picker primitive — `calendar` alone names the plugin-calendar view'),
+});
+
+/**
  * Form Component Schema Union - All form component schemas
  */
 /**
@@ -733,4 +802,6 @@ export const FormComponentSchema = z.discriminatedUnion('type', [
   CommandSchema,
   FormSchema,
   CodeEditorSchema,
+  InputShorthandSchema,
+  UiCalendarSchema,
 ]);

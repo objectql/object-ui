@@ -153,16 +153,31 @@ const labelText = (label: any): string => {
 };
 
 /**
- * Lightweight built-in translation for well-known English tab/accordion
- * labels used by Lightning-style record pages (Details / Related /
- * Activity / History / Notes / Files / Tasks / Events / Attachments /
- * Chatter / Discussion). Keeps `@object-ui/components` free of an i18n
- * dependency while closing the gap between custom Page schemas (often
- * authored in English) and the localised default detail view.
+ * EXACT-LOCALE overrides for well-known English tab/accordion labels used by
+ * Lightning-style record pages (Details / Related / Activity / History /
+ * Notes / Files / Tasks / Events / Attachments / Chatter / Discussion),
+ * consulted AHEAD of `KNOWN_LABEL_KEYS` below.
+ *
+ * It shipped as the only source, with exactly two arms — and that was
+ * objectui#4645: `buildDefaultPageSchema` writes plain English tokens onto the
+ * synthesized record-detail tabs and three of its comments say they "localize
+ * through the tab strip's KNOWN_LABEL_DICT", which was true for Chinese and
+ * silently false for the eight other shipped packs. A ja-JP / es-ES record
+ * detail rendered `Details / Related / Attachments` inside otherwise fully
+ * localized chrome.
+ *
+ * What stays here is what the packs cannot answer:
+ *   - `zh-TW`. There is no `zh-TW` pack; i18next resolves it to the
+ *     SIMPLIFIED `zh` resource, so this map is the only source of the
+ *     Traditional forms. It must therefore win over the pack lookup, which is
+ *     why the dict is consulted first rather than second.
+ *   - the tokens no pack carries (`Notes`, `Files`, `Tasks`, `Events`,
+ *     `Overview`, and the object-name rows) — dropping them would take
+ *     coverage AWAY from zh.
  *
  * Authors can always override by passing a localised `label` (string or
- * `{ default, zh-CN, ... }` shape) directly in their schema; the map is
- * only consulted when the input matches a known English token.
+ * `{ default, zh-CN, ... }` shape) directly in their schema; neither map is
+ * consulted unless the input matches a known English token.
  */
 const KNOWN_LABEL_DICT: Record<string, Record<string, string>> = {
   'zh-CN': {
@@ -230,6 +245,29 @@ const KNOWN_LABEL_DICT: Record<string, Record<string, string>> = {
 };
 
 /**
+ * The other half of the same lookup: the well-known English tokens the ten
+ * shipped packs ALREADY translate, mapped to the key that carries them
+ * (objectui#4645). No pack key is minted here — every row below was in all ten
+ * packs before this change; the tab strip simply never asked for them.
+ *
+ * These are exactly the tokens `buildDefaultPageSchema` writes onto its
+ * synthesized tab nodes, plus the two `record:discussion` spellings, so the
+ * built-in record detail is covered end to end. A token absent from this map
+ * (an authored `Invoices` tab) is left alone, which is the contract the dict
+ * already had.
+ */
+const KNOWN_LABEL_KEYS: Record<string, string> = {
+  Details: 'detail.details',
+  Related: 'detail.related',
+  Activity: 'detail.activity',
+  History: 'detail.history',
+  Attachments: 'detail.attachments',
+  Approvals: 'detail.approvalsPanelTitle',
+  Discussion: 'detail.discussion',
+  Comments: 'detail.comments',
+};
+
+/**
  * `locale` is passed in rather than re-detected. Both call sites already
  * resolve it from `useObjectTranslation().language`; this function used to
  * call `detectLocale()` and read `document.documentElement.lang` on its own,
@@ -238,26 +276,46 @@ const KNOWN_LABEL_DICT: Record<string, Record<string, string>> = {
  * in-app, because the DOM attribute and the i18n instance update
  * independently (objectui#2871).
  */
-const translateLabel = (text: string, locale: string): string => {
+const translateLabel = (
+  text: string,
+  locale: string,
+  tt: (keyOrKeys: string | string[], fallback: string) => string,
+): string => {
   if (!text) return text;
   // Match `zh-CN`, `zh-TW`, then base `zh` → `zh-CN`.
   const exact = KNOWN_LABEL_DICT[locale];
   const base = locale.split('-')[0];
   const fallback = base === 'zh' ? KNOWN_LABEL_DICT['zh-CN'] : undefined;
   const dict = exact || fallback;
-  if (!dict) return text;
+  /**
+   * One token, in lookup order: the exact-locale dict, then the pack.
+   *
+   * `undefined` means "this token has no translation in this locale" — NOT
+   * "the pack answered with the English token". `tt` falls back to its second
+   * argument, so a pack miss and an `en` session both come back as `text`
+   * itself; collapsing them here is what keeps the compound path below from
+   * claiming a translation it does not have.
+   */
+  const one = (token: string): string | undefined => {
+    const hit = dict?.[token];
+    if (hit !== undefined) return hit;
+    const key = KNOWN_LABEL_KEYS[token];
+    if (key === undefined) return undefined;
+    const translated = tt(key, token);
+    return translated === token ? undefined : translated;
+  };
   // Direct hit on the full string.
-  if (dict[text] !== undefined) return dict[text];
+  const direct = one(text);
+  if (direct !== undefined) return direct;
   // Try splitting on " & " / " 和 " / " and " separators so labels like
   // "Notes & Attachments" translate piece-wise to "备注 & 附件" without
   // requiring every concrete combination to be enumerated in the dict.
   const sepRe = /\s*(?:&|and|和)\s*/i;
   if (sepRe.test(text)) {
-    const parts = text.split(sepRe);
-    const allKnown = parts.every((p) => dict[p.trim()] !== undefined);
-    if (allKnown) {
+    const parts = text.split(sepRe).map((p) => p.trim()).map(one);
+    if (parts.every((p) => p !== undefined)) {
       const sep = locale.startsWith('zh') ? '与' : ' & ';
-      return parts.map((p) => dict[p.trim()]).join(sep);
+      return (parts as string[]).join(sep);
     }
   }
   return text;
@@ -426,6 +484,11 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // `useObjectTranslation`), so the count-badge copy and the tab-label
   // localization below read the same session locale from one hook.
   const { t: tTabs, language } = useTabsTranslation();
+  // The pack half of `translateLabel` (objectui#4645). Per-call rather than a
+  // second defaults map: these keys carry no interpolation, and the English
+  // token IS the fallback, so `useSafeTranslate`'s (keys, fallback) shape is
+  // exactly the lookup.
+  const ttLabel = useSafeTranslate();
   const rawItems: PageTabsItem[] = schema?.items || [];
   // Tab visual style lives at `properties.type` ('line'|'card'|'pill') — the
   // outer `schema.type` is always 'page:tabs' (the component dispatch key).
@@ -633,7 +696,7 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     value: typeof (it as any).value === 'string' && (it as any).value !== '' ? (it as any).value : `tab-${idx}`,
     // pickLocalized first (honours `{ en, zh }` / `{ default }`); translateLabel
     // then maps any plain-English well-known token (Details/Related/…) to the locale.
-    labelStr: translateLabel(pickLocalized(it.label, language), language),
+    labelStr: translateLabel(pickLocalized(it.label, language), language, ttLabel),
     // Explicit spec count wins; otherwise fall back to the derived probe.
     count: it.count !== undefined && it.count !== null && it.count !== ''
       ? it.count
@@ -880,6 +943,10 @@ interface PageAccordionItem {
 const PageAccordionRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
   const { language } = useObjectTranslation();
+  // Same lookup the tab strip reads (objectui#4645) — `page:accordion` is the
+  // other renderer that localizes well-known English section labels, and the
+  // two must not answer differently for the same token.
+  const ttLabel = useSafeTranslate();
   const items: PageAccordionItem[] = schema?.items || [];
   const allowMultiple = !!schema?.allowMultiple;
   // Variants:
@@ -895,7 +962,7 @@ const PageAccordionRenderer: React.FC<any> = ({ schema, className, ...props }) =
   const itemsWithValue = items.map((it, idx) => ({
     ...it,
     value: `panel-${idx}`,
-    labelStr: translateLabel(pickLocalized(it.label, language), language),
+    labelStr: translateLabel(pickLocalized(it.label, language), language, ttLabel),
   }));
 
   const defaultOpen = itemsWithValue

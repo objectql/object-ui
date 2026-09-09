@@ -141,11 +141,11 @@ export const PopoverSchema = BaseSchema.extend({
 export const TooltipSchema = BaseSchema.extend({
   type: z.literal('tooltip'),
   trigger: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
-    .describe('Element the tooltip attaches to, read at renderers/overlay/tooltip.tsx:28 — `renderChildren(schema.trigger)` inside `TooltipTrigger` (objectui#6939)'),
+    .describe('Element the tooltip attaches to (objectui#6939)'),
   content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
-    .describe('Tooltip content, read FIRST at renderers/overlay/tooltip.tsx:31 — `schema.content || renderChildren(schema.body)`. Optional because `body` is the other half of that read (objectui#6939)'),
+    .describe('Tooltip content, checked before `body` — optional because `body` is the fallback for the same slot (objectui#6939)'),
   body: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
-    .describe('Rich tooltip content — the fallback half of the same read at renderers/overlay/tooltip.tsx:31, listed by the registration as the "Rich Content" slot (objectui#6939)'),
+    .describe('Rich tooltip content — the fallback for `content`, listed by the registration as the "Rich Content" slot (objectui#6939)'),
   side: z.enum(['top', 'right', 'bottom', 'left']).optional().describe('Tooltip side'),
   align: z.enum(['start', 'center', 'end']).optional().describe('Tooltip alignment'),
   delayDuration: z.number().optional().describe('Delay before showing (ms)'),
@@ -162,7 +162,7 @@ export const HoverCardSchema = BaseSchema.extend({
   open: z.boolean().optional().describe('Controlled open state'),
   side: z.enum(['top', 'right', 'bottom', 'left']).optional().describe('Hover card side'),
   align: z.enum(['start', 'center', 'end']).optional()
-    .describe('Alignment against the trigger, read at renderers/overlay/hover-card.tsx:24 — `align={schema.align}` on HoverCardContent, beside the already-declared `side` (objectui#6150)'),
+    .describe('Alignment against the trigger, forwarded as `align` on `HoverCardContent`, beside the already-declared `side` (objectui#6150)'),
   openDelay: z.number().optional().describe('Delay before opening (ms)'),
   closeDelay: z.number().optional().describe('Delay before closing (ms)'),
   onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),
@@ -246,13 +246,13 @@ export const ContextMenuSchema = BaseSchema.extend({
   type: z.literal('context-menu'),
   items: z.array(MenuItemSchema).describe('Menu items'),
   trigger: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
-    .describe("Right-clickable area, read at renderers/overlay/context-menu.tsx:95 — `renderChildren(schema.trigger || {type:'text', value:'Right click here'})`. Optional: the renderer substitutes a placeholder, so trigger-less documents are legal today (objectui#6150)"),
+    .describe("Right-clickable area. Optional: the renderer substitutes a placeholder (`Right click here`) when omitted, so trigger-less documents are legal today (objectui#6150)"),
   triggerClassName: z.string().optional()
-    .describe('Classes for the right-clickable area, read FIRST at renderers/overlay/context-menu.tsx:87 — `schema.triggerClassName || className || schema.className || <a dashed-border default>` (objectui#6939)'),
+    .describe('Classes for the right-clickable area — falls back to `className` / `schema.className`, or a dashed-border default when none are set (objectui#6939)'),
   contentClassName: z.string().optional()
-    .describe('Classes for the menu panel, read at renderers/overlay/context-menu.tsx:88 and applied to `ContextMenuContent` at :98 (objectui#6939)'),
+    .describe('Classes for the menu panel, applied to the underlying `ContextMenuContent` (objectui#6939)'),
   modal: z.boolean().optional()
-    .describe('Forwarded to the Radix `ContextMenu` root at renderers/overlay/context-menu.tsx:91 — `modal={schema.modal}` (objectui#6939)'),
+    .describe('Forwarded to the Radix `ContextMenu` root as `modal` (objectui#6939)'),
 });
 
 /**

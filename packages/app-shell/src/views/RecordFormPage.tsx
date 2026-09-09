@@ -202,15 +202,16 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
   // faulted here and failed OPEN while resolving normally on a nav item.
   const expressionEvaluator = useMemo(
     () =>
+      // ⛔ No `app`: objectui#8155 removed it from the predicate scope, because
+      // neither ADR-0068 nor the engine's `SCOPE_ROOTS` declares such a root.
       createExpressionEvaluator({
         // expressionUser already handles the anonymous fallback, so we can
         // pass it through unconditionally.
         user: expressionUser,
-        app: { name: appName },
         data: {},
         features,
       }),
-    [expressionUser, appName, features],
+    [expressionUser, features],
   );
 
   // Resolve the field list using the same visibility-aware logic as the

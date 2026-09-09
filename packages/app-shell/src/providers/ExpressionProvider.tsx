@@ -43,7 +43,14 @@ const ExprCtx = createContext<ExpressionContextValue | null>(null);
 /** The inputs an app-shell surface has when it needs a predicate scope. */
 export interface ExpressionScopeInput {
   user?: Record<string, any>;
-  app?: Record<string, any>;
+  /**
+   * ⛔ No `app`. It is not an input to the predicate scope, because the scope
+   * does not bind it — objectui#8155, ruled 2026-09-07. Accepting an argument
+   * this builder then discards is the declared-but-not-enforced shape the same
+   * ruling exists to remove, so the parameter is gone rather than ignored.
+   * `ExpressionProvider` still takes an `app` prop and still publishes it on
+   * the React context value; that is a different thing from a CEL root.
+   */
   data?: Record<string, any>;
   features?: Record<string, any>;
 }
@@ -77,15 +84,36 @@ export interface ExpressionScopeInput {
  * spec`'s `page.zod.ts` documents for component `visibleWhen` ("the shipping
  * renderer additionally mounts `app`, `features`, `os.user` … renderer
  * behaviour, NOT contract-guaranteed"). It is bound here because it is what
- * THIS tier's own diagnostic advice tells an author they may name.
+ * THIS tier's own diagnostic advice tells an author they may name. That quote
+ * still names `app`; this tier no longer mounts it — see below.
+ *
+ * ## Why there is no `app` root (objectui#8155, ruled 2026-09-07)
+ *
+ * There was one, and it was a root the protocol never declared. ADR-0068
+ * declares `current_user` with the `user` / `ctx.user` aliases and nothing
+ * named `app`; `@objectstack/formula`'s `SCOPE_ROOTS` (`cel-engine.ts`) has no
+ * `app` either. So an authored `app.name == 'crm'` was bound HERE and refused
+ * by the engine that lints it — an editor advertising a root its own linter
+ * rejects, with the nonsense remedy `record.app` and no spelling that both
+ * lints clean and resolves.
+ *
+ * The ruling is that the engine's `SCOPE_ROOTS` is the contract and this
+ * consumer aligns to it, NOT that the engine grows a root to match this
+ * consumer (option A, objectstack#16420, is explicitly not taken and stays
+ * open as the record to reopen should a real need for a "current app" root
+ * ever be measured). ⛔ The other refused route was suppressing the diagnostic
+ * in `celAuthoring.ts`: that is the lenient-fallback shape AGENTS.md #0.1
+ * bans.
+ *
+ * Every root below is one the engine accepts, so the three surfaces — what
+ * this binds, what the editor advertises, what the linter admits — now agree.
  */
 export function buildExpressionScope({
   user = {},
-  app = {},
   data = {},
   features = {},
 }: ExpressionScopeInput = {}): Record<string, any> {
-  return { current_user: user, user, ctx: { user }, os: { user }, app, data, features };
+  return { current_user: user, user, ctx: { user }, os: { user }, data, features };
 }
 
 /**
@@ -110,7 +138,9 @@ interface ExpressionProviderProps {
 
 export function ExpressionProvider({ children, user = {}, app = {}, data = {}, features = {} }: ExpressionProviderProps) {
   const value = useMemo(() => {
-    const evaluator = createExpressionEvaluator({ user, app, data, features });
+    const evaluator = createExpressionEvaluator({ user, data, features });
+    // `app` is still published on the context value — `DashboardView` reads it
+    // as a plain value. It is NOT handed to the evaluator: objectui#8155.
     return { user, app, data, features, evaluator };
   }, [user, app, data, features]);
 
@@ -120,8 +150,8 @@ export function ExpressionProvider({ children, user = {}, app = {}, data = {}, f
   // The SAME bag the evaluator above got — one builder, so the imperative and
   // the hook-driven halves of this provider cannot drift apart either.
   const scope = useMemo(
-    () => buildExpressionScope({ user, app, data, features }),
-    [user, app, data, features],
+    () => buildExpressionScope({ user, data, features }),
+    [user, data, features],
   );
 
   return (
@@ -142,8 +172,16 @@ export function useExpressionContext(): ExpressionContextValue {
     // Through the same builder: the hand-written version gave `current_user`,
     // `ctx.user` and `os.user` three DIFFERENT empty objects, which ADR-0068 D1
     // spells as aliases "pointing at the same object".
-    const fallback = { user: {}, app: {}, data: {}, features: {} };
-    return { ...fallback, evaluator: createExpressionEvaluator(fallback) };
+    //
+    // The scope input and the context value are no longer the same object:
+    // `app` is a readable context FIELD but not a CEL root (objectui#8155), so
+    // handing this bag straight to the builder would smuggle back the very
+    // binding the ruling removed.
+    // Left UNANNOTATED on purpose: annotating it `ExpressionScopeInput` widens
+    // every member to optional, and the spread below then fails to satisfy
+    // `ExpressionContextValue`, whose members are required.
+    const scope = { user: {}, data: {}, features: {} };
+    return { ...scope, app: {}, evaluator: createExpressionEvaluator(scope) };
   }
   return ctx;
 }

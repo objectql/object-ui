@@ -1068,6 +1068,7 @@ const ko = {
     sortBy: "정렬 기준",
     filterPlaceholder: "필터…",
     highlightFields: "주요 필드",
+    highlightsLabel: "레코드 주요 필드",
     createdBy: "작성자",
     updatedBy: "업데이트한 사람",
     created: "작성됨",
@@ -1084,6 +1085,12 @@ const ko = {
     hideEmptyFields: "빈 필드 숨기기",
     noValue: "값 없음",
     unresolvedReference: "확인되지 않은 참조: {{value}}을(를) 사용자로 확인하지 못했습니다",
+    repeaterItemCount: "항목 {{count}}개",
+    repeaterItemCount_one: "항목 {{count}}개",
+    repeaterItemCount_other: "항목 {{count}}개",
+    fileCount: "파일 {{count}}개",
+    fileCount_one: "파일 {{count}}개",
+    fileCount_other: "파일 {{count}}개",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps

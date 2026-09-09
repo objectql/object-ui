@@ -1001,6 +1001,7 @@ const zh = {
     sortBy: '排序',
     filterPlaceholder: '筛选…',
     highlightFields: '关键字段',
+    highlightsLabel: '记录关键字段',
     // Comments
     comments: '评论',
     searchComments: '搜索评论…',
@@ -1123,6 +1124,12 @@ const zh = {
     hideEmptyFields: '隐藏空字段',
     noValue: '无',
     unresolvedReference: '未解析的引用：{{value}} 未能解析为用户',
+    repeaterItemCount: '{{count}} 项',
+    repeaterItemCount_one: '{{count}} 项',
+    repeaterItemCount_other: '{{count}} 项',
+    fileCount: '{{count}} 个文件',
+    fileCount_one: '{{count}} 个文件',
+    fileCount_other: '{{count}} 个文件',
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps

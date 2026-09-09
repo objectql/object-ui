@@ -97,20 +97,40 @@ type SchemaLoader = (mode: DraftMode) => Promise<ZodLikeSchema | undefined>;
  * surfaced it during the 17.0.0-rc.2 uptake.
  *
  * So dispatch on the record's own discriminant rather than guessing: `viewKind`
- * is what makes a record a ViewItem, and it is the same test
- * `MetadataProvider.isViewItem()` applies on the read side. This is NOT a
+ * is what makes a record a ViewItem HERE — see {@link isViewItemDraft} for what
+ * that does and does not say about the read side. This is NOT a
  * tolerant fallback — neither shape is coerced or waved through, each is checked
  * strictly against its own schema. Which of the two should be the single
  * authorable shape is a real open question, tracked in objectui#3312.
  */
 /**
- * The `view` discriminant, in ONE place: `viewKind` is what makes a record a
- * ViewItem rather than the aggregated container, and it is the same test
- * `MetadataProvider.isViewItem()` applies on the read side.
+ * The `view` discriminant AS THE TWO GATES IN THIS FILE ASK IT — one place for
+ * those two, and deliberately not a claim about anywhere else.
  *
- * Both the create gate's schema dispatch (`viewSchemaForDraft`) and the edit
- * gate's union-diagnostic selection (`viewUnionMemberIndex`) read it here, so
- * the two can never drift apart into two different notions of "is a ViewItem".
+ * Two sentences here used to say this was "the same test
+ * `MetadataProvider.isViewItem()` applies on the read side". It is not, and had
+ * not been for an unknown length of time. What the three parties actually read,
+ * measured on the tree rather than inferred (objectui#8411):
+ *
+ *   this file, write side  `'viewKind' in value`  — `object` is never read
+ *   `MetadataProvider.isViewItem`, read side
+ *                          `!!view.viewKind && !!view.object`
+ *   `@objectstack/spec` `ViewMetadataSchema`
+ *                          a nested `config` marks the standalone ViewItem
+ *                          record; its absence marks the flattened overlay
+ *
+ * Three different tests. This one is the widest of the three: it admits every
+ * draft the read side admits and also a draft carrying `viewKind` with no
+ * `object`, which the read side does not treat as a ViewItem.
+ *
+ * Nothing here reconciles them, on purpose. Which of the two shapes should be
+ * the single authorable shape is a real open question tracked in objectui#3312,
+ * and the difference belongs to that card, not to a comment.
+ *
+ * What IS local and does hold: both the create gate's schema dispatch
+ * (`viewSchemaForDraft`) and the edit gate's union-diagnostic selection
+ * (`viewUnionMemberIndex`) read this one function, so those two cannot drift
+ * apart from each other.
  */
 function isViewItemDraft(value: unknown): boolean {
   return !!value && typeof value === 'object' && 'viewKind' in (value as object);

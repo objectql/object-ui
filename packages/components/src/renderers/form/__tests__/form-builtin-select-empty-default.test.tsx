@@ -21,7 +21,15 @@
  * The second assertion pins something the fix could plausibly have broken: the
  * empty state moved from an inline `<div>` to a small component, and
  * `<FormControl>` is a Radix `Slot` that hands the control its `id` — drop the
- * rest props and the field's `<label for>` points at nothing.
+ * rest props and the box stops receiving the id and the description link.
+ *
+ * ⚠️ That assertion used to read `expect(label).toHaveAttribute('for', box.id)`,
+ * which pinned the very association objectui#3991 removed: this branch renders
+ * NO control, and `for` may only reference a labelable element, so a `for`
+ * naming this `<div>` was inert HTML. The Slot half — the id and the
+ * `aria-describedby` reaching the box — is what #3263 actually needed to keep
+ * true, and it still is; the `for` half is now pinned from the other side, in
+ * `form-builtin-select-empty-label-association.test.tsx`.
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -46,14 +54,18 @@ describe('form renderer — built-in select empty state without an I18nProvider 
     expect(screen.getByText('No options available')).toBeInTheDocument();
   });
 
-  it('is still the labelled form control, not a detached box', () => {
+  it('still receives the Slot props, and carries no label association (objectui#3991)', () => {
     renderForm(unconfiguredSelect);
 
     const box = screen.getByText('No options available');
     const label = screen.getByText('Province');
 
+    // The #3263 half: the rest props still reach the box, so the component
+    // boundary did not swallow what `<FormControl>`'s Slot hands down.
     expect(box.id).toBeTruthy();
-    expect(label).toHaveAttribute('for', box.id);
     expect(box).toHaveAttribute('aria-describedby');
+    // The #3991 half: no control renders here, so the label names nothing —
+    // a `for` pointing at this `<div>` would be inert HTML.
+    expect(label).not.toHaveAttribute('for');
   });
 });

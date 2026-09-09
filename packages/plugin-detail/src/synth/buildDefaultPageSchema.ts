@@ -833,7 +833,10 @@ export function buildDefaultTabs(
   // dead tab. A peer of Details/Related for the same reason as Attachments
   // below: footer placement buried the one thing a submitter opens the
   // record to learn ("who is this waiting on"). The English label localizes
-  // through the tab strip's KNOWN_LABEL_DICT (→ 审批 etc.).
+  // in the tab strip, which reads the pack key for a well-known token
+  // (`detail.approvalsPanelTitle` → 审批 / 承認 / Aprobaciones …). That claim
+  // used to name `KNOWN_LABEL_DICT`, which shipped zh arms only and so was
+  // true for Chinese and silently false everywhere else — objectui#4645.
   if (options.approvals) {
     items.push({
       label: 'Approvals',
@@ -847,7 +850,9 @@ export function buildDefaultTabs(
   // widget buried under the discussion feed. `PageTabsRenderer` derives the
   // count badge from the `record:attachments` node the same way it counts
   // `record:related_list` tabs. The English label goes through the tab
-  // strip's KNOWN_LABEL_DICT (→ 附件 etc.), matching its sibling tabs.
+  // strip's pack lookup (`detail.attachments` → 附件 / 添付ファイル /
+  // Adjuntos …), matching its sibling tabs — see the Approvals tab above for
+  // why this no longer names `KNOWN_LABEL_DICT` (objectui#4645).
   if (def?.enable?.files === true && !options.hideAttachments) {
     items.push({ label: 'Attachments', value: 'attachments', children: [buildDefaultAttachments()] });
   }

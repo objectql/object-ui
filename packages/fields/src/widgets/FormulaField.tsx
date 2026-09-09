@@ -34,9 +34,27 @@ export function FormulaField({ value, field, ...props }: FieldWidgetComponentPro
     // produces — while the `date` field beside it showed `Jul 4`. Two faces
     // for one value, kept in step by nothing.
     //
-    // An unparseable computed value now reads `—` (the shared function's empty
+    // An unparseable computed value reads `—` (the shared function's empty
     // face) instead of the literal `Invalid Date`; that is a consequence of
     // using the one home, not a second convention.
+    //
+    // It now reads that dash through the shared AFFORDANCE rather than
+    // through the plain span below (objectui#8809). The glyph is identical --
+    // `EmptyValue`'s own default glyph IS this em-dash -- so what changes is
+    // the CARRIER: the dash gains `data-slot` of `empty-value` and an
+    // accessible name, where before a screen reader got naked punctuation.
+    // Same defect and same repair as `DateField`'s readonly face, which is
+    // why the two are fixed together: objectui#8194 converged these sites'
+    // GLYPH, and repairing one carrier alone would open a fresh split in the
+    // carrier right where that card closed one.
+    //
+    // objectui#8194's landed pin for this site reads `container.textContent`
+    // and stays green, because the text is still a dash. Co-extensive with
+    // the dash it replaces, never wider: `new Date(value)` reproduces
+    // `formatDate`'s own parse step, and the `value == null` guard above
+    // already owns the EMPTY half of what the shared function dashes.
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return <EmptyValue className={props.className} />;
     displayValue = formatDate(value, undefined, { locale });
   } else {
     displayValue = String(value);

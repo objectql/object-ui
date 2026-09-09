@@ -879,6 +879,10 @@ export type {
 export type {
   // View System Enhancements
   ViewType,
+  // Host-composition config for the `tree` view type (objectui#8253). The
+  // ONE declaration of the block `ObjectViewProps.views[n].tree` carries;
+  // `plugin-tree` imports it instead of re-deriving a module-local copy.
+  TreeViewConfig,
   DetailViewSchema,
   DetailViewField,
   DetailViewSection,

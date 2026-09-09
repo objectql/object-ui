@@ -122,7 +122,7 @@ Navigation items can be conditionally hidden using expressions:
 }
 ```
 
-`ExpressionProvider` (`@object-ui/app-shell`) wraps the layout and provides an `ExpressionEvaluator` that resolves `${}` templates against context variables (`user`, `app`, `data`).
+`ExpressionProvider` (`@object-ui/app-shell`) wraps the layout and provides an `ExpressionEvaluator` that resolves `${}` templates against context variables (`current_user` and its `user` / `ctx.user` / `os.user` aliases, `data`, `features`). It publishes `app` on the React context value for components to read, but does **not** bind it as an expression root — objectui#8155 removed that binding, because the engine's `SCOPE_ROOTS` has no `app`.
 
 ### 2. Action System
 

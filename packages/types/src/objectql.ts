@@ -98,6 +98,7 @@ import type {
   TimelineConfig,
   NavigationConfig,
   GanttConfig as SpecGanttConfig,
+  CalendarConfig as SpecCalendarConfig,
 } from '@objectstack/spec/ui';
 
 /**
@@ -2772,11 +2773,102 @@ export interface ObjectCalendarSchema extends BaseSchema {
   /** Field for event title */
   titleField?: string;
   /**
+   * Record field carrying the event's colour — any CSS colour or a semantic
+   * palette name, typically a server-computed status colour. Resolved PER
+   * RECORD by `plugin-calendar/src/ObjectCalendar.tsx`, which falls back to the
+   * record's own `color` value and then to the platform default, so an authored
+   * value that never arrives is invisible rather than loud.
+   *
+   * DERIVED from {@link CalendarConfig}, the same type the `calendar` block
+   * carries, so the flat spelling cannot drift from the block spelling. That is
+   * verbatim the pattern objectui#6051 established for
+   * {@link ObjectGanttSchema.colorField} — the same key name, the same
+   * mechanism, on this same file — and the reason this member is an indexed
+   * access rather than a fresh `string`.
+   *
+   * Undeclared here until objectui#8466, so an authored value reached the
+   * renderer only through {@link BaseSchema}'s `[key: string]: any` — admitted,
+   * never examined — while `plugin-calendar/README.md` taught it as authorable.
+   */
+  colorField?: SpecCalendarConfig['colorField'];
+  /**
+   * Record field carrying the all-day flag. LOAD-BEARING since objectui#8026:
+   * the events pass in `plugin-calendar/src/ObjectCalendar.tsx` reads it and a
+   * change to the authored key genuinely changes what is drawn. It is also in
+   * that component's `getCalendarConfig` memo dependency list, which is what
+   * makes the change reach the screen.
+   *
+   * objectui-LOCAL, and the one member here with no {@link CalendarConfig} twin
+   * to derive from: `@objectstack/spec`'s `CalendarConfigSchema` is a
+   * `strictObject` of four keys and refuses this one BY NAME with an
+   * `unrecognized_keys` diagnostic. That is the class this package's mirror
+   * already names out loud, where `.passthrough()` is kept explicitly for this
+   * key — "the renderers grow config knobs ahead of the protocol (calendar's
+   * `allDayField`, for one), and stripping them here would silently disable a
+   * shipped capability" (`zod/objectql.zod.ts`).
+   *
+   * ⛔ Declaring it widens NO accept set, which is why Commandment #0.1 is not
+   * engaged. Measured on spec 17.3.0: `ComponentPropsMap['object-calendar']`
+   * refuses ALL FIVE flat field-name keys with `unrecognized_keys` — including
+   * {@link ObjectCalendarSchema.titleField},
+   * {@link ObjectCalendarSchema.startDateField} and
+   * {@link ObjectCalendarSchema.endDateField} above, which have shipped
+   * DECLARED for releases. The flat face is objectui's own lane, taken whole;
+   * this key is its fifth member, not a new dialect. And under `BaseSchema`'s
+   * index signature the value was already `any`, so declaring only NARROWS.
+   *
+   * ⭐ Nor is it a new precedent: {@link CalendarViewSchema} — a sibling
+   * calendar interface in the same plugin, whose OWN renderer
+   * (`plugin-calendar/src/calendar-view-renderer.tsx`) reads the same five flat
+   * keys — has shipped all five declared, `allDayField` included, on both
+   * faces. Two interfaces, two renderers, one flat vocabulary: this interface
+   * was the odd one out, not the pioneer, and the pin keeps that shared
+   * vocabulary from drifting apart.
+   */
+  allDayField?: string;
+  /**
    * Default view mode — the renderer's rendered set. `'agenda'` was retired
    * (objectui#5784, following #5740): `CalendarView` renders no agenda view,
    * and the enforcement points read only these three values.
    */
   defaultView?: 'month' | 'week' | 'day';
+  /**
+   * Query filter (JSON Rules format), forwarded verbatim as `$filter` on the
+   * calendar's own fetch — `plugin-calendar/src/ObjectCalendar.tsx` reads
+   * `schema.filter` at the `dataSource.find` call and again in that effect's
+   * dependency list.
+   *
+   * Undeclared here until objectui#8174, so an authored value reached the
+   * renderer only through {@link BaseSchema}'s `[key: string]: any` — admitted,
+   * never examined. That is verbatim the reasoning objectui#7322 used to move
+   * `ObjectKanbanSchema.groupBy` into its interface, and this is the same
+   * situation one key over: `@objectstack/spec` declares it
+   * (`ComponentPropsMap['object-calendar']`), the plugin's registration
+   * `inputs` declares it, the renderer reads it — this declaration face was the
+   * only one that stayed silent.
+   *
+   * Spelled exactly as {@link ObjectGanttSchema.filter}, so the two views'
+   * query keys cannot fork.
+   */
+  filter?: any[];
+  /**
+   * Sort configuration, forwarded as `$orderby` via `convertSortToQueryParams`
+   * (`plugin-calendar/src/ObjectCalendar.tsx`, the same `dataSource.find` call
+   * as {@link filter} and the same effect dependency list).
+   *
+   * Array only — the legacy string clause is retired (objectui#8221), and
+   * declaring the member is what makes that retirement audible HERE. Undeclared,
+   * `sort: 'name asc'` type-checked green on {@link BaseSchema}'s index
+   * signature, parsed green through the mirror's `.passthrough()`, and was then
+   * DROPPED at runtime: `convertSortToQueryParams` (`@object-ui/core`,
+   * `utils/sort-query.ts`) no longer admits a string in its signature and
+   * returns `undefined` for one after reporting the retired spelling. So the
+   * calendar rendered unsorted with nothing refusing the node.
+   *
+   * Spelled exactly as {@link ObjectGanttSchema.sort}, so the two views' sort
+   * vocabularies cannot fork.
+   */
+  sort?: SortConfig[];
 }
 
 /**
@@ -2873,6 +2965,31 @@ export interface ObjectKanbanSchema extends BaseSchema {
    * @default 100 — `DEFAULT_KANBAN_LIMIT`
    */
   limit?: number;
+  /**
+   * Query filter (JSON Rules format), forwarded verbatim as `$filter` on the
+   * board's own fetch — `plugin-kanban/src/ObjectKanban.tsx` reads
+   * `schema.filter` at the `dataSource.find` call, alongside the `$top` that
+   * {@link limit} feeds, and again in that effect's dependency list.
+   *
+   * Undeclared here until objectui#8174, so an authored value reached the
+   * renderer only through {@link BaseSchema}'s `[key: string]: any` — admitted,
+   * never examined. That is verbatim the reasoning objectui#7322 used to move
+   * {@link groupBy} and {@link limit} into this interface; this is the same
+   * situation one key over. `@objectstack/spec` declares it
+   * (`ComponentPropsMap['object-kanban']`), the plugin's registration `inputs`
+   * declares it, the renderer reads it — this declaration face was the only one
+   * that stayed silent.
+   *
+   * Spelled exactly as {@link ObjectGanttSchema.filter}, so the two views'
+   * query keys cannot fork.
+   *
+   * ⚠️ There is deliberately NO `sort` twin on this interface, and its absence
+   * is measured rather than overlooked: `ObjectKanban.tsx` has ZERO
+   * `schema.sort` read sites (the board groups records into lanes and issues no
+   * `$orderby`), and the spec's `object-kanban` entry declares no `sort`
+   * either. Only {@link ObjectCalendarSchema} declares both keys.
+   */
+  filter?: any[];
   /** Field for card title */
   titleField?: string;
   /** Fields to display on card */

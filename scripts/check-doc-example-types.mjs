@@ -815,19 +815,19 @@ export const UNGATED_EXAMPLES = {
     reason:
       'usage fragment: references `myAdapter`, `report`, which the example never declares',
   },
-  'packages/plugin-view/src/ObjectView.tsx:591 ObjectView': {
+  'packages/plugin-view/src/ObjectView.tsx:618 ObjectView': {
     card: null,
     codes: [2304],
     reason:
       'usage fragment: references `dataSource`, which the example never declares',
   },
-  'packages/plugin-view/src/ObjectView.tsx:605 ObjectView': {
+  'packages/plugin-view/src/ObjectView.tsx:632 ObjectView': {
     card: null,
     codes: [2304],
     reason:
       'usage fragment: references `dataSource`, which the example never declares',
   },
-  'packages/plugin-view/src/ObjectView.tsx:622 ObjectView': {
+  'packages/plugin-view/src/ObjectView.tsx:649 ObjectView': {
     card: null,
     codes: [2304],
     reason:
@@ -1013,7 +1013,7 @@ export const UNGATED_EXAMPLES = {
     reason:
       'usage fragment: references `save`, `storedPage`, which the example never declares',
   },
-  'packages/types/src/objectql.ts:1613 ObjectFormSchema': {
+  'packages/types/src/objectql.ts:1614 ObjectFormSchema': {
     card: null,
     codes: [1005, 1109],
     reason:

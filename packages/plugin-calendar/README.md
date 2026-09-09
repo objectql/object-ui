@@ -268,7 +268,10 @@ import type { ObjectCalendarSchema } from '@object-ui/types';
 // What this annotation buys, and what it does not - measured, objectui#7925.
 // It type-checks the VALUES of the declared keys: `defaultView: 'agenda'` and
 // `titleField: 42` are both compile errors, and `check:doc-snippets` re-runs
-// that check on every commit. It does NOT check key NAMES - this interface
+// that check on every commit. Since objectui#8466 that cover reaches all five
+// flat field-name keys - `allDayField` and `colorField` were reachable only
+// through `BaseSchema`'s index signature until then, so this block is also
+// what proves they are declared. It does NOT check key NAMES - this interface
 // extends `BaseSchema`, whose `[key: string]: any` admits any spelling, so a
 // misspelt key still compiles clean. Read the block as type-checked values,
 // never as a guarded key set.
@@ -278,6 +281,8 @@ const schema: ObjectCalendarSchema = {
   titleField: 'name',
   startDateField: 'startDate',
   endDateField: 'endDate',
+  allDayField: 'isAllDay',
+  colorField: 'statusColor',
   defaultView: 'month'
 };
 ```

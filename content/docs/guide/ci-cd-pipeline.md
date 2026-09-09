@@ -56,7 +56,7 @@ one has its own section below.
 | `published-dist-gate.yml` | Published Dist Tooling Scan | Nightly cron `41 3 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
 | `spec-range-floors.yml` | Spec Range Floor Scan | Nightly cron `11 4 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
 | `node-esm-load-gate.yml` | Node ESM Load Scan | Nightly cron `17 4 * * *`; push to `main` touching the gate; manual | No — the per-PR half is `pnpm check:esm-specifiers` in **Type Check** |
-| `half-state-patrol.yml` | Half-State Patrol | 6-hourly cron `37 1,7,13,19 * * *`; manual; PR touching the sweeper or the workflow | No — **report-only**; it fails only when the sweep could not run |
+| `half-state-patrol.yml` | Half-State Patrol | 6-hourly cron `37 1,7,13,19 * * *`; manual; PR touching the sweeper or the workflow | No — **report-only**; it fails only when the sweep could not run, or a *configured* anchor could not be written |
 | `merge-queue-head-patrol.yml` | Merge queue head patrol | Every 15 minutes (cron `7,22,37,52 * * * *`); manual | No — it gates no branch and blocks no queue, but it **goes red on a finding**: a merge-queue head with no `merge_group` build is a live repo-wide block |
 | `hook-selftests.yml` | Hook Self-Tests | PR / push touching `.claude/hooks/**` or the workflow | **Yes** |
 
@@ -2103,16 +2103,30 @@ it found 0 half-states or 40. Its one write is the anchor issue's body, and `per
 nothing beyond `contents: read` + `issues: write`. A pull-request run proves the sweep on a real
 runner but skips the anchor write entirely, publishing the rendered body to the run summary instead.
 
-The run *does* go red when the sweep could not run or its report could not be delivered — that is
-the patrol reporting its own death, not a gate on the board. A workflow that quietly does nothing
-because a credential lapsed would leave a stale anchor body that reads exactly like a clean board.
-For the same reason the `Swept` timestamp is refreshed even when the findings are unchanged: a
-timestamp that stops advancing is how a reader learns the standing caller died.
+The run *does* go red when the sweep could not run, or when a **configured** anchor could not be
+written — that is the patrol reporting its own death, not a gate on the board. A workflow that
+quietly does nothing because a credential lapsed would leave a stale anchor body that reads exactly
+like a clean board. For the same reason the `Swept` timestamp is refreshed even when the findings
+are unchanged: a timestamp that stops advancing is how a reader learns the standing caller died.
 
-**One manual setup step.** The anchor issue is named by the repository *variable*
-`HALF_STATE_ANCHOR_ISSUE` (Settings → Secrets and variables → Actions → Variables). Until it is set
-the job fails loudly *after* sweeping, with the findings preserved in the run summary — it will not
-guess an issue number and rewrite an unrelated card.
+**The anchor is optional, and unset is a supported configuration**
+([#8740](https://github.com/objectstack-ai/objectui/issues/8740)). The anchor issue is named by the
+repository *variable* `HALF_STATE_ANCHOR_ISSUE` (Settings → Secrets and variables → Actions →
+Variables). With it unset — which is this repository's state, after the maintainer declined the
+setup on [#7852](https://github.com/objectstack-ai/objectui/issues/7852) — the job still sweeps,
+publishes the rendered body to the **run summary**, emits a `::notice::` naming the variable, and
+**exits 0**. It will not guess an issue number and rewrite an unrelated card, and it no longer goes
+red for a settled configuration: a check red on the healthy case trains everyone to ignore red
+([#6596](https://github.com/objectstack-ai/objectui/issues/6596)), and this one was red four times
+a day.
+
+⛔ That carve-out is **empty-only**. An anchor that is configured and unusable — a non-numeric
+value, an issue that is gone, a rejected write — still fails the run loudly: *nobody asked for
+delivery* and *delivery was asked for and failed* are opposite facts and do not share an exit code.
+The accepted cost of the empty branch, stated rather than discovered later, is that findings then
+live only in run summaries, which notify nobody
+([#5791](https://github.com/objectstack-ai/objectui/issues/5791) measured 58% of this board's
+machine-readable blocks false, one for a week, in exactly that silence).
 
 **Ported from objectstack, with the divergences listed in the workflow header.** The pair
 (`scripts/pm/check-half-states.mjs` + this workflow) is adopted from `objectstack-ai/objectstack`

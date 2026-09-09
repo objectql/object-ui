@@ -940,6 +940,7 @@ const ru = {
     sortBy: "Сортировать по",
     filterPlaceholder: "Фильтр…",
     highlightFields: "Ключевые поля",
+    highlightsLabel: "Ключевые поля записи",
     comments: "Комментарии",
     searchComments: "Поиск комментариев…",
     addCommentPlaceholder: "Добавить комментарий… (Ctrl+Enter для отправки)",
@@ -1094,6 +1095,12 @@ const ru = {
     hideEmptyFields: "Скрыть пустые поля",
     noValue: "Нет значения",
     unresolvedReference: "Неразрешённая ссылка: {{value}} не удалось сопоставить с пользователем",
+    repeaterItemCount: "Элементов: {{count}}",
+    repeaterItemCount_one: "{{count}} элемент",
+    repeaterItemCount_other: "{{count}} элементов",
+    fileCount: "Файлов: {{count}}",
+    fileCount_one: "{{count}} файл",
+    fileCount_other: "{{count}} файлов",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps

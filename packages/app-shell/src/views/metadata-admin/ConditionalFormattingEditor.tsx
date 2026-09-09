@@ -35,20 +35,64 @@ import type { CelLintIssue } from './celAuthoring.js';
  *
  * A formatting `condition` is evaluated by `@object-ui/core`'s
  * `evalRowPredicate` (ADR-0058 — list rows, grid rows, kanban cards), which
- * binds the row's fields BARE, under `record.*`, and under `data.*`, plus the
- * host shell's global predicate scope (`ExpressionProvider`, #1583/ADR-0068:
- * `current_user` / `user` / `ctx` / `app` / `features`). The engine's default
- * advertisement adds `previous` / `input` / `os` / `vars`, which are NOT bound
- * for row predicates — suggesting those would author a condition that silently
- * never matches, so this override pins the truthful catalog (#2571 follow-up).
+ * binds the row ONE way — as the `record` namespace — plus the host shell's
+ * global predicate scope (`ExpressionProvider`, #1583/ADR-0068:
+ * `current_user` / `user` / `ctx` / `os` / `features`).
+ *
+ * ## What changed, and why this list lost a member (objectui#7727)
+ *
+ * It used to bind the row THREE ways: bare fields, `record.*` and `data.*`.
+ * Phase 2 of the objectui#5330 canon (objectui#5741, ruled 2026-09-02, amended
+ * 2026-09-05) RETIRED the other two — see `@object-ui/core`'s
+ * `evaluator/rowPredicateCanon.ts`. Neither `status` nor `data.status` names
+ * this row any more; both fault as unknown variables, exactly as they always
+ * did on the server.
+ *
+ * `data` is therefore off this list. The subtlety worth keeping: a host scope
+ * may legitimately carry its OWN ambient `data` (app-shell's
+ * `buildExpressionScope` does), so `data.*` still RESOLVES — against the
+ * host's object rather than the row. That is the constant-false signature
+ * `rowPredicateCanon.ts` describes, and it is why "does `data` resolve?" is
+ * not a test of whether `data` names the row.
+ *
+ * The engine's default advertisement adds `previous` / `input` / `vars`, none
+ * of which are bound for row predicates at all. Suggesting an unbound root
+ * would author a condition that silently never matches, so this override pins
+ * the truthful catalog (#2571 follow-up).
+ *
+ * ## The two roots objectui#8155 settled, in opposite directions
+ *
+ * They were mirror images, and the ruling (2026-09-07) is that the engine's
+ * `SCOPE_ROOTS` is the contract this list aligns to — in BOTH directions.
+ *
+ * - ⛔ `app` is GONE. It was advertised here and bound by
+ *   `buildExpressionScope`, but the engine refuses it: ADR-0068 declares no
+ *   such root and `@objectstack/formula`'s `SCOPE_ROOTS` has no `app`, so the
+ *   record-scope lint read `app.name` as a bare field and errored with the
+ *   nonsense remedy `record.app`. This editor was advertising a root its own
+ *   linter rejected. `buildExpressionScope` stopped binding it in the same
+ *   patch, so all three surfaces now agree that `app` does not exist here.
+ * - ✅ `os` is ADDED. The mirror case: bound by `buildExpressionScope`,
+ *   ACCEPTED by the engine, and merely unadvertised — so it was the one root
+ *   an author could legitimately write but was never offered. It is also the
+ *   root authors actually reach for: `os.user.id` is the identity spelling
+ *   ADR-0068 declares and the `@objectstack/spec` expression docs describe,
+ *   and in-tree authored predicates spell `record.owner == os.user.id` across
+ *   `packages/core`, `packages/components` and `packages/plugin-grid`,
+ *   including a conditional-formatting `condition` in
+ *   `core/src/evaluator/__tests__/listConditional.test.ts`. Withholding a root
+ *   that is bound, accepted AND used was curation with nothing behind it.
+ *
+ * `data` is deliberately still absent, and that is NOT the same case: the
+ * engine accepts it but the row is not reachable through it. That half is
+ * objectui#8166.
  */
 export const ROW_PREDICATE_ROOTS = [
   'record',
   'current_user',
   'user',
   'features',
-  'app',
-  'data',
+  'os',
   'ctx',
 ];
 
@@ -326,11 +370,15 @@ export function ConditionalFormattingEditor({
             placeholder="record.status == 'overdue'"
             objectName={objectName}
             fieldNames={fieldNames}
-            // Row predicates bind the row's fields BARE at runtime
-            // (`status == 'overdue'` works — evalRowPredicate spreads the
-            // row), so lint stays in the flattened scope; only the advertised
-            // roots change to the runtime-bound set.
-            scope="flattened"
+            // Row predicates bind the row as `record.*` and nothing else at
+            // runtime — objectui#5741 (Phase 2 of the objectui#5330 canon)
+            // retired the bare shorthand and `data.*`. So this lints in the
+            // RECORD scope, the same one the field conditional rules
+            // `visibleWhen` / `readonlyWhen` / `requiredWhen` use: a bare
+            // `status` is an ERROR carrying the `record.status` fix instead of
+            // linting clean and authoring a rule that never matches
+            // (objectui#7727). The advertised roots stay the runtime-bound set.
+            scope="record"
             roots={ROW_PREDICATE_ROOTS}
             onChange={(v) => setRule(i, { condition: v })}
             onLintChange={(issues) => reportCel(i, issues)}

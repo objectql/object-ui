@@ -33,6 +33,7 @@ import type {
   NamedListView,
   ViewNavigationConfig,
   ObjectMapConfig,
+  TreeViewConfig,
 } from '@object-ui/types';
 import { ObjectGrid } from '@object-ui/plugin-grid';
 import { ObjectForm } from '@object-ui/plugin-form';
@@ -307,6 +308,32 @@ export interface ObjectViewProps {
     columns?: string[];
     sort?: Array<{ field: string; order: 'asc' | 'desc' }>;
     filter?: any[];
+    /**
+     * Per-view `tree` config — the block the `'tree'` branch of
+     * `generateViewSchema` below reads (objectui#8253, ruling batch #78,
+     * option (a), maintainer 「同意」).
+     *
+     * ⭐ This declaration can only NARROW, and that is the whole of its value.
+     * The `[key: string]: any` on the line under it already ADMITTED a `tree`
+     * key of any shape, so nothing that used to be refused becomes accepted;
+     * what changes is that a host writing this entry as an object LITERAL now
+     * gets `parentFeild` reported as an excess property instead of stored,
+     * dropped and never mentioned. That is the class-(c) defect this card was
+     * filed for.
+     *
+     * ⛔ Declared, ⛔ not re-declared: the shape is `TreeViewConfig` in
+     * `@object-ui/types`, which `plugin-tree`'s resolver imports as well. One
+     * declaration, three readers.
+     *
+     * ⚠️ Reach, measured on this tree and NOT claimed wider than it is: the
+     * console's own call site passes `mergedViews`, built by
+     * `app-shell/src/views/ObjectView.tsx` as `views.map((v: any) => …)` over
+     * STORED view records, so it arrives here as `any[]` and this declaration
+     * reports nothing about it. It bites a host that composes the entry inline
+     * against this prop's type. Typing the stored-record path is a separate
+     * change on app-shell, recorded rather than smuggled in here.
+     */
+    tree?: TreeViewConfig;
     [key: string]: any;
   }>;
 

@@ -242,10 +242,17 @@ export interface FormFieldSpec {
  *   visibleOn    the spec's `ExpressionInput`.
  *
  * This type describes what an AUTHOR WROTE, so it stays as wide as the document
- * -- `pane` and `name` are declared here even though no renderer in this repo
- * reads them yet. Keeping the incoming-document type wide and the honoured-row
- * type narrow is objectui#5542's distinction; the narrow types are this file's
- * `SchemaForm` sections and `FormPage`'s `RenderableSection`.
+ * -- `pane` is declared here even though no renderer in this repo reads it yet.
+ * Keeping the incoming-document type wide and the honoured-row type narrow is
+ * objectui#5542's distinction; the narrow types are this file's `SchemaForm`
+ * sections and `FormPage`'s `RenderableSection`.
+ *
+ * `name` used to be listed beside `pane` as the other declared-but-unread key.
+ * It is read now: `FormPage.buildSections` copies it onto `RenderableSection`
+ * so the section heading can resolve
+ * `objects.{object}._sections.{name}.label` (objectui#8813). Which is the
+ * distinction working as intended -- the key was declarable here for two cards
+ * before a renderer had any use for it.
  *
  * Declaring a key is not honouring it: objectui#5627 tracks the console renderer
  * still rendering every section unconditionally, which this type makes
