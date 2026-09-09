@@ -1996,15 +1996,21 @@ export type WriteWarningListener = (event: WriteWarningEvent) => void;
 
 /**
  * Codes that mean THE DOOR IS NOT THERE — the deployment never mounted the
- * `/meta` route this read goes through, so no answer about the `mapping` kind
+ * `/meta` route this read goes through, so no answer about the kind it names
  * exists to be had (objectui#7741).
  *
  * Both are the runtime dispatcher's own words, and both are already read this
  * way one face over by {@link classifyAnalyticsFailure} for the same question:
  * `ROUTE_NOT_FOUND` (framework#4019 stops mounting a route at all) and
  * `NOT_IMPLEMENTED` (the route is mounted with nothing behind it).
+ *
+ * ⚠️ Neutrally named because it is a fact about the PLATFORM's dispatcher, not
+ * about any one metadata kind, and both classifiers below now read it
+ * ({@link classifyImportMappingsFailure}, {@link classifyViewsFailure}). One
+ * platform fact, one spelling — a per-kind copy of the same two codes would be
+ * a second dialect for one condition, which is what drifts (objectui#8151).
  */
-const IMPORT_MAPPINGS_ROUTE_ABSENT_CODES = ['ROUTE_NOT_FOUND', 'NOT_IMPLEMENTED'] as const;
+const META_ROUTE_ABSENT_CODES = ['ROUTE_NOT_FOUND', 'NOT_IMPLEMENTED'] as const;
 
 /**
  * The code the metadata LIST door answers with when `:type` names a kind this
@@ -2019,7 +2025,12 @@ const IMPORT_MAPPINGS_ROUTE_ABSENT_CODES = ['ROUTE_NOT_FOUND', 'NOT_IMPLEMENTED'
  * promised to keep quiet — an older server without the `mapping` kind. (An
  * even older one, predating framework#9488, answered `200 {"items":[]}` and so
  * never reaches a `catch` at all; older still, with no `/meta` route, answers
- * on {@link IMPORT_MAPPINGS_ROUTE_ABSENT_CODES}.)
+ * on {@link META_ROUTE_ABSENT_CODES}.)
+ *
+ * ⛔ Deliberately NOT neutralized alongside its four siblings: this pair is the
+ * one arm that is about the `mapping` kind SPECIFICALLY, and it is exactly the
+ * arm {@link classifyViewsFailure} must not carry over — see that function's
+ * reading for why the same shape on `view` cannot mean this (objectui#8151).
  *
  * Matched on the code AND the status together, deliberately narrower than the
  * code alone. `INVALID_REQUEST` is a general-purpose catalog code; what makes
@@ -2042,14 +2053,24 @@ const IMPORT_MAPPINGS_UNKNOWN_KIND_STATUS = 400;
  * has declined, i.e. only when there is no contract field to read. Same
  * residual, same reason, as {@link ANALYTICS_ABSENT_STATUSES} — this door's own
  * 404s all ship a `code`, so a code-less 404 cannot be a refusal it wrote.
+ *
+ * Neutrally named for the reason {@link META_ROUTE_ABSENT_CODES} records: a
+ * code-less 404/501 is a fact about the HOST, identical whichever kind the URL
+ * named, and both classifiers read it.
  */
-const IMPORT_MAPPINGS_ABSENT_STATUSES: readonly number[] = [404, 501];
+const META_ABSENT_STATUSES: readonly number[] = [404, 501];
 
-/** Codes that mean the server ANSWERED and declined this caller. */
-const IMPORT_MAPPINGS_REFUSAL_CODES = ['UNAUTHENTICATED', 'PERMISSION_DENIED'] as const;
+/**
+ * Codes that mean the server ANSWERED and declined this caller. A fact about
+ * the SESSION, not about any kind — read by both classifiers.
+ */
+const META_REFUSAL_CODES = ['UNAUTHENTICATED', 'PERMISSION_DENIED'] as const;
 
-/** Statuses that are a refusal on their own terms, whatever code rides them. */
-const IMPORT_MAPPINGS_REFUSAL_STATUSES: readonly number[] = [401, 403, 405];
+/**
+ * Statuses that are a refusal on their own terms, whatever code rides them.
+ * Also session-scoped, also shared.
+ */
+const META_REFUSAL_STATUSES: readonly number[] = [401, 403, 405];
 
 /**
  * What a FAILED `listImportMappings` read actually was (objectui#7741).
@@ -2067,8 +2088,26 @@ const IMPORT_MAPPINGS_REFUSAL_STATUSES: readonly number[] = [401, 403, 405];
  * The last two are the same verdict for the user — *we could not find out* —
  * and they are separated because the sentence that helps differs. What they
  * share is what matters: neither is evidence that no mapping is registered.
+ *
+ * ⚠️ The three NAMES are shared by every classifier feeding
+ * {@link MetadataReadWarningEvent}; the POPULATION each name covers is not, and
+ * is decided per read door. `not-served` in particular is a strictly smaller
+ * set on `view` than on `mapping` — see {@link classifyViewsFailure}.
  */
-export type ImportMappingsFailureKind = 'not-served' | 'refused' | 'unreadable';
+export type MetadataReadFailureKind = 'not-served' | 'refused' | 'unreadable';
+
+/**
+ * The published spelling of {@link MetadataReadFailureKind}, kept as the name
+ * objectui#7741 shipped (`@object-ui/data-objectstack@17.2.0`).
+ *
+ * An ALIAS, not a second declaration: identical members, so every existing
+ * consumer's assignability is unchanged in both directions. It was renamed
+ * because the channel gained a second emitter (objectui#8151) and a type called
+ * `ImportMappingsFailureKind` describing a `view` read would be a name that
+ * lies; the old name stays because retiring a published one is not this card's
+ * business.
+ */
+export type ImportMappingsFailureKind = MetadataReadFailureKind;
 
 /**
  * Classify a FAILED `meta.getItems('mapping')` call so the caller knows whether
@@ -2125,7 +2164,7 @@ export function classifyImportMappingsFailure(error: unknown): {
   const found = { code, status, message };
 
   // ① The `/meta` door itself is absent — nothing here can be asked at all.
-  if (errorCodeIsAnyOf({ code }, IMPORT_MAPPINGS_ROUTE_ABSENT_CODES)) {
+  if (errorCodeIsAnyOf({ code }, META_ROUTE_ABSENT_CODES)) {
     return { kind: 'not-served', ...found };
   }
 
@@ -2138,10 +2177,10 @@ export function classifyImportMappingsFailure(error: unknown): {
   }
 
   // ③ The server answered and declined this caller.
-  if (errorCodeIsAnyOf({ code }, IMPORT_MAPPINGS_REFUSAL_CODES)) {
+  if (errorCodeIsAnyOf({ code }, META_REFUSAL_CODES)) {
     return { kind: 'refused', ...found };
   }
-  if (status !== undefined && IMPORT_MAPPINGS_REFUSAL_STATUSES.includes(status)) {
+  if (status !== undefined && META_REFUSAL_STATUSES.includes(status)) {
     return { kind: 'refused', ...found };
   }
 
@@ -2152,7 +2191,7 @@ export function classifyImportMappingsFailure(error: unknown): {
   if (
     code === undefined &&
     status !== undefined &&
-    IMPORT_MAPPINGS_ABSENT_STATUSES.includes(status)
+    META_ABSENT_STATUSES.includes(status)
   ) {
     return { kind: 'not-served', ...found };
   }
@@ -2161,6 +2200,134 @@ export function classifyImportMappingsFailure(error: unknown): {
   //   empty one. Deliberately NOT a silent bucket: this is where a 500, a
   //   dropped connection and a code this consumer cannot name all land, and
   //   none of them is evidence that no mapping is registered.
+  return { kind: 'unreadable', ...found };
+}
+
+/**
+ * Classify a FAILED `view` metadata list read so {@link ObjectStackAdapter.listViews}
+ * knows whether to stay quiet or to say something (objectui#8151).
+ *
+ * ## Why this is a SEPARATE reading and not a second caller of
+ * {@link classifyImportMappingsFailure}
+ *
+ * The two methods share a defect and a remedy, not a population. The quiet arm
+ * `listImportMappings` is built around — *an older server that does not serve
+ * this kind* — has no members on `view`, and carrying it over would put a fresh
+ * swallow into the method this card exists to un-swallow. Measured, on the
+ * framework tree, three ways:
+ *
+ *  1. **`view` is in the platform's static spelling contract**, so the metadata
+ *     LIST door's unknown-kind refusal is unreachable for it.
+ *     `RestServer.refuseUnknownMetaListType` (framework#9488,
+ *     `packages/rest/src/rest-server.ts`) returns without writing a refusal
+ *     whenever `unrecognisedMetaTypeRefusal(urlType)` is `null`, and that
+ *     predicate answers `null` for every spelling in the contract.
+ *     `packages/spec/src/meta-spelling/meta-url-data.generated.ts` carries both
+ *     `"views": "view"` and the canonical singular `view`. So a `400`
+ *     `INVALID_REQUEST` on `GET /meta/view` is NEVER that door saying "this
+ *     deployment carries no such kind" — it is some other refusal of the
+ *     request, and reading it as kind-absence would silence a real one.
+ *  2. **There is no "before" for `view` to be older than.** `mapping`'s quiet
+ *     arm exists because `mapping` was PROMOTED into the declared set
+ *     (framework#2611), so servers predating the promotion are a real, shipped
+ *     population. `view` is the kind the metadata surface is built around — the
+ *     compound-arity door `/meta/<object>/views/<name>`, the ADR-0017
+ *     `ViewItem` discriminant this very method filters on.
+ *  3. **A deployment that cannot serve `view` cannot render the caller.**
+ *     `listViews` is reached only from `ObjectView`, whose `objectDef` came from
+ *     `MetadataProvider`, which reads the SAME door and lists `view` among its
+ *     `EAGER_TYPES` at mount (`packages/app-shell/src/providers/MetadataProvider.tsx`).
+ *     A server that does not answer `/meta/view` has already failed that read
+ *     before any object page exists.
+ *
+ * ## So the quiet set here is strictly SMALLER — it is the DOORLESS one only
+ *
+ * What survives as quiet is not about `view` at all: it is *this host mounted no
+ * metadata door*. That stays silent for the reason objectui#7741 gave — a real,
+ * supported deployment shape must not be turned into a visible fault — and it
+ * costs nothing to keep silent here, because such a host has already failed
+ * `MetadataProvider`'s eager `app`/`object`/`view` reads; a per-object toast
+ * would be a fourth voice on one deployment fact, not a new one.
+ *
+ * Everything else is LOUD. In particular a `refused` (401/403/405,
+ * `UNAUTHENTICATED`, `PERMISSION_DENIED`) is the condition this card was filed
+ * for: a token that lapsed mid-session renders the object's view switcher as
+ * though the user's own saved views did not exist.
+ *
+ * ## It reads the ERROR, never the result — and from BOTH of this method's doors
+ *
+ * `listViews` is fed by two transports, unlike its sibling's one, and they
+ * decorate differently:
+ *
+ *   published  `client.meta.getItems('view')` -> `@objectstack/client`'s fetch
+ *              wrapper: `error.code` (flattened from either envelope family)
+ *              plus `error.httpStatus`.
+ *   drafts     `MetadataClient.withPreviewDrafts(true).list('view')` (ADR-0037,
+ *              `?preview=draft`) -> this package's own `parseError`:
+ *              `err.code` plus **`err.status`**, with no `httpStatus` at all.
+ *
+ * The status ladder below therefore reads `httpStatus`, then `status`, then
+ * `statusCode`, and is the reason a preview-mode failure classifies the same as
+ * a published-mode one instead of falling through to the code-less residual.
+ * What it must never read is "is the result an empty array": that is what BOTH
+ * a served-zero and a refusal produce, so a test on it can never fail for the
+ * condition it is supposed to be about. This is framework #13906 decision 1
+ * option A — *a thing that could not be READ is not a thing that is ABSENT*.
+ */
+export function classifyViewsFailure(error: unknown): {
+  kind: MetadataReadFailureKind;
+  code?: string;
+  status?: number;
+  message?: string;
+} {
+  const err = (error ?? {}) as Record<string, unknown>;
+  // An empty-string `code` is "the producer declared nothing", not a code —
+  // otherwise it would block the code-less residual while matching no branch.
+  const code = typeof err.code === 'string' && err.code.length > 0 ? err.code : undefined;
+  const message = typeof err.message === 'string' ? err.message : undefined;
+  const status =
+    typeof err.httpStatus === 'number' ? err.httpStatus
+    : typeof err.status === 'number' ? err.status
+    : typeof err.statusCode === 'number' ? err.statusCode
+    : undefined;
+  const found = { code, status, message };
+
+  // ① The `/meta` door itself is absent — nothing here can be asked at all.
+  //   The ONLY quiet arm on this face.
+  if (errorCodeIsAnyOf({ code }, META_ROUTE_ABSENT_CODES)) {
+    return { kind: 'not-served', ...found };
+  }
+
+  // ⛔ There is deliberately NO unknown-kind arm here. `classifyImportMappingsFailure`
+  //   reads 400 `INVALID_REQUEST` as "this deployment carries no such kind";
+  //   on `view` that shape cannot mean it (see this function's doc, point 1),
+  //   so it falls through to ④ and is announced. Adding the arm back would
+  //   re-create objectui#8151 inside its own fix.
+
+  // ② The server answered and declined this caller. The card's headline case.
+  if (errorCodeIsAnyOf({ code }, META_REFUSAL_CODES)) {
+    return { kind: 'refused', ...found };
+  }
+  if (status !== undefined && META_REFUSAL_STATUSES.includes(status)) {
+    return { kind: 'refused', ...found };
+  }
+
+  // ③ Residual — the answer declared NO ADR-0112 code, so no ObjectStack route
+  //   wrote it (a proxy, a gateway, a host with no API mounted). Only here is
+  //   the bare status the best signal available, and only because every code
+  //   branch has already declined. Same doorless fact as ①, arriving codeless.
+  if (
+    code === undefined &&
+    status !== undefined &&
+    META_ABSENT_STATUSES.includes(status)
+  ) {
+    return { kind: 'not-served', ...found };
+  }
+
+  // ④ Everything else could not be read, and an unreadable answer is not an
+  //   empty one: a 5xx, a dropped connection, a coded 4xx this consumer cannot
+  //   name — including the 400 the sibling classifier keeps quiet. None of them
+  //   is evidence that this object has no saved views.
   return { kind: 'unreadable', ...found };
 }
 
@@ -2182,25 +2349,46 @@ export function classifyImportMappingsFailure(error: unknown): {
  * them describe a write that SUCCEEDED, so carrying a failed read on one would
  * make the event lie about what happened.
  *
- * `operation` and `kind` are single-member unions on purpose. Exactly one
- * emitter exists today, and a closed union states that honestly; a second
- * emitter is an additive, reviewed widening rather than something a consumer's
- * exhaustive switch discovers at runtime. (The same trade `WriteWarningEvent`'s
- * required `operation` documents, taken deliberately here.)
+ * `operation` and `kind` are CLOSED unions on purpose. Every emitter is named
+ * in them, so widening is an additive, reviewed change rather than something a
+ * consumer's exhaustive switch discovers at runtime. (The same trade
+ * `WriteWarningEvent`'s required `operation` documents, taken deliberately
+ * here.)
+ *
+ * ## The widening this design was built for happened (objectui#8151)
+ *
+ * objectui#7741 shipped both fields as SINGLE-member unions and said in as many
+ * words that a second emitter should arrive as a reviewed widening. It has:
+ * `listViews` is the second, for the same defect one method over, and the
+ * mechanism worked as designed — the consumer that renders these events
+ * (`app-shell`'s `metadataReadWarningToast`) had a `switch` that named the one
+ * operation, so adding the member turned "a views failure is toasted as an
+ * import-mapping failure" into a COMPILE error instead of a runtime lie.
+ *
+ * ⚠️ The pair is the emitter's invariant, not the type's: `operation` and
+ * `kind` are two independent unions, so nothing in the type stops
+ * `{ operation: 'listViews', kind: 'mapping' }` being constructed. Each emitter
+ * writes its own pair, one line apart, and every consumer branches on
+ * `operation` — the adapter METHOD, which is what names the list the user is
+ * actually looking at. Tightening this to a discriminated union would mean
+ * turning a published `interface` into a type alias; that is a reviewable
+ * change on its own terms and is deliberately not smuggled in here.
  */
 export interface MetadataReadWarningEvent {
   /** The adapter method whose read failed. */
-  operation: 'listImportMappings';
+  operation: 'listImportMappings' | 'listViews';
   /** The metadata kind it asked for. */
-  kind: 'mapping';
+  kind: 'mapping' | 'view';
   /** The object the read was scoped to. */
   objectName: string;
   /**
-   * Which loud verdict this is — see {@link ImportMappingsFailureKind}. Never
+   * Which loud verdict this is — see {@link MetadataReadFailureKind}. Never
    * `'not-served'`: that arm is the supported deployment shape and is not
-   * emitted at all, so a subscriber never has to filter it out.
+   * emitted at all, so a subscriber never has to filter it out. ⚠️ WHICH
+   * failures fall in that un-emitted arm differs per `operation` — it is a
+   * strictly smaller set on `listViews` (see {@link classifyViewsFailure}).
    */
-  reason: Exclude<ImportMappingsFailureKind, 'not-served'>;
+  reason: Exclude<MetadataReadFailureKind, 'not-served'>;
   /** The server's own ADR-0112 code, when it declared one. */
   code?: string;
   /** The HTTP status, when the failure carried one. */
@@ -4979,6 +5167,42 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * the metadata index is name-only, not field-typed, so the route has no
    * `?object=` to push the filter down into. {@link listViewOverrides}
    * reads the same rows through the same accessor.
+   *
+   * ## Every failure still degrades to an empty list — and now says which kind
+   * ## of failure it was (objectui#8151)
+   *
+   * The degrade is unchanged and deliberate, exactly as it is one method over
+   * in {@link listImportMappings}: a host with no metadata door keeps answering
+   * `[]` rather than breaking the page. What changed is that the OTHER failures
+   * no longer render as that one.
+   *
+   * This method's empty list is read as *this object has no saved views*, and
+   * that reading reaches the user in two places measured on this tree: the list
+   * view switcher simply shows fewer tabs, and `@object-ui/core`'s
+   * `elementDataSourceViewNotFoundMessage` states it outright. So a session
+   * whose token lapsed mid-read was shown an object that appears to have no
+   * saved views AT ALL — including ones the user created — with a
+   * `console.warn` as the only discriminator, in a console nothing in the UI
+   * points at. That is the silence objectui#7741 removed from the sibling after
+   * it produced a confident wrong diagnosis in objectstack#14026.
+   *
+   * The `catch` now asks {@link classifyViewsFailure} what the failure WAS,
+   * reading the error's own ADR-0112 `code` and status — never "is the result
+   * empty", which is what both conditions produce and so can never tell them
+   * apart — and anything that is not the doorless shape is announced on
+   * {@link onMetadataReadWarning}.
+   *
+   * ⛔ That classifier is a SEPARATE reading, not a second caller of the
+   * sibling's: `view`'s quiet set is strictly smaller, because the arm
+   * `listImportMappings` is built around (*an older server without this kind*)
+   * has no members here. See {@link classifyViewsFailure} for the measurement.
+   *
+   * ⛔ The RETURN is untouched. This method has answered `Promise<any[]>`, never
+   * throwing, since `@object-ui/data-objectstack@17.1.0`; a consumer that reads
+   * nothing new sees exactly what it saw before, including on the loud arms.
+   * Applying framework #13906 decision 1 option A — *a thing that could not be
+   * READ is not a thing that is ABSENT* — is done by ADDING a channel, not by
+   * moving that contract.
    */
   async listViews(
     objectName: string,
@@ -5055,7 +5279,22 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         return isDraft ? { ...spec, _draft: true } : spec;
       });
     } catch (err) {
+      // Kept verbatim, on every arm. The console breadcrumb was never the
+      // problem — being the ONLY discriminator was — so it is not moved, not
+      // re-levelled, and not made conditional.
       console.warn('[OBJECTSTACKDataSource] listViews failed:', err);
+      const failure = classifyViewsFailure(err);
+      if (failure.kind !== 'not-served') {
+        this.emitMetadataReadWarning({
+          operation: 'listViews',
+          kind: 'view',
+          objectName,
+          reason: failure.kind,
+          ...(failure.code !== undefined ? { code: failure.code } : {}),
+          ...(failure.status !== undefined ? { status: failure.status } : {}),
+          ...(failure.message !== undefined ? { message: failure.message } : {}),
+        });
+      }
       return [];
     }
   }

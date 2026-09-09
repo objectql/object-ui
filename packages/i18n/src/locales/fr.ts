@@ -1470,6 +1470,9 @@ const fr = {
     importMappingsUnavailable: "Impossible de charger les mappages d’import enregistrés pour {{object}}",
     importMappingsRefused: "Le serveur a refusé cette requête : cette liste est donc vide parce qu’elle n’a pas pu être lue, et non parce que rien n’est enregistré. Reconnectez-vous ou demandez un accès à un administrateur.",
     importMappingsUnreadable: "Cette liste est vide parce qu’elle n’a pas pu être lue, et non parce que rien n’est enregistré. Réessayez, et signalez le problème s’il persiste.",
+    savedViewsUnavailable: "Impossible de charger les vues enregistrées pour {{object}}",
+    savedViewsRefused: "Le serveur a refusé cette requête : cette liste est donc vide parce qu’elle n’a pas pu être lue, et non parce que cet objet n’aurait aucune vue enregistrée. Reconnectez-vous ou demandez un accès à un administrateur.",
+    savedViewsUnreadable: "Cette liste est vide parce qu’elle n’a pas pu être lue, et non parce que cet objet n’aurait aucune vue enregistrée. Réessayez, et signalez le problème s’il persiste.",
     settingsHub: {
       title: "Paramètres",
       subtitle: "Configurez votre espace de travail, vos intégrations et vos indicateurs de fonctionnalité.",
