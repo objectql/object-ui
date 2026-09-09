@@ -343,7 +343,7 @@ ComponentRegistry.register('embeddable-form', EmbeddableFormRenderer, {
     { name: 'objectName', type: 'string', required: true },
     { name: 'title', type: 'string' },
     { name: 'description', type: 'string' },
-    { name: 'fields', type: 'array' },
+    { name: 'fields', type: 'array', description: 'Bare field names to show, in order (each looked up in the object schema; `{ name }` is tolerated). NOT the same vocabulary as `sections[].fields`, which also accepts the spec `FormFieldSchema` object (identity key `field`, e.g. `{ field: "note", colSpan: 2 }`) — that shape resolves to no name HERE and is silently skipped (`EmbeddableForm` passes this array straight through to `<ObjectForm>` with no `sections`, so it renders through the same `SimpleObjectForm` as `object-form` above — see its `fields` description).' },
     { name: 'allowMultiple', type: 'boolean' },
   ]
 });
