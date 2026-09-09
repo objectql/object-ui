@@ -1503,7 +1503,7 @@ export interface ChartDataSeries {
    * also tolerates a third spelling, `'current'` (`normalizeChartSchema.ts:247`),
    * but that is the renderer's INTERNAL default — written only by the
    * compare-to producers onto `dataKey`-shaped arrays handed straight to
-   * `ChartRenderer` (`ObjectChart.tsx:852`, `DatasetWidget.tsx:1450`), which
+   * `ChartRenderer` (`ObjectChart.tsx:852`, `DatasetWidget.tsx:1486`), which
    * never pass through this mirror — and by nothing an author writes (docs,
    * fixtures and designer inputs: 0, controls lit). It is NOT a member here,
    * so the published face does not fossilise a renderer-side tolerance into a

@@ -143,7 +143,7 @@ describe('objectui#7546 — each declaration is the read\'s own value domain, no
     // `normalizeSeries` tolerates `current` (`normalizeChartSchema.ts:247`), but
     // it is written only by the compare-to producers onto `dataKey`-shaped
     // arrays handed straight to `ChartRenderer` (`ObjectChart.tsx:852`,
-    // `DatasetWidget.tsx:1450`) — they never meet this mirror — and by nothing
+    // `DatasetWidget.tsx:1486`) — they never meet this mirror — and by nothing
     // an author writes. The spec's `ChartSeries.variant` is the pair; declaring
     // a third value here would fossilise a renderer-side tolerance into a
     // second contract (AGENTS.md #0.1). The normalizer's tolerance itself is
