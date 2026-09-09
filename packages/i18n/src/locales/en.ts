@@ -3151,6 +3151,15 @@ const en = {
     badgeTotal: '{{total}} total',
     badgeNotifications: '{{unread}} notifications',
     badgeApprovals: '{{approvals}} pending approvals',
+    // objectui#7011 — the arrival announcement (toast / desktop notification)
+    // and the two switches that govern it.
+    arrivalMany: '{{count}} new messages',
+    arrivalRepeats: '{{count}} new messages on this topic',
+    arrivalOpen: 'View',
+    toastEnabled: 'In-app alerts',
+    desktopEnabled: 'Desktop notifications',
+    desktopBlocked: 'Blocked. Allow notifications for this site in your browser settings.',
+    desktopUnsupported: 'This browser does not support desktop notifications.',
   },
   publicForm: {
     submit: 'Submit',

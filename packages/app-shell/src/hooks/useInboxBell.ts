@@ -31,7 +31,8 @@
  */
 import { useCallback, useMemo, useState } from 'react';
 import { bearerAuthHeaders } from '../utils/authToken.js';
-import { useSharedInboxFeed, useSharedPendingApprovalsCount } from './sharedUserFeeds.js';
+import { useSharedInboxFeed, useSharedPendingApprovalsCount, type SharedFeedStatus } from './sharedUserFeeds.js';
+import { useInboxArrivalNotifier } from './useInboxArrivalNotifier.js';
 import type { InboxNotification } from '../layout/inboxGrouping.js';
 
 /**
@@ -43,6 +44,12 @@ const EMPTY_READ_IDS: ReadonlySet<string> = new Set<string>();
 export interface InboxBell {
   /** The shared inbox rows, with this surface's optimistic read flips applied. */
   notifications: InboxNotification[];
+  /**
+   * Whether the rows are an ANSWER (`sharedUserFeeds`' four-word dialect).
+   * Surfaced because the arrival announcer may only scan a `ready` snapshot —
+   * a `loading` / `error` one carries the last value, not this cycle's.
+   */
+  status: SharedFeedStatus;
   /** Raw unread ROW count (the popover folds it into topics itself). */
   unreadCount: number;
   /** The badge's second addend — pending approvals waiting on this user. */
@@ -61,7 +68,7 @@ export function useInboxBell(): InboxBell {
    * does not read the re-modeled `sys_notification` L2 event (which carries no
    * recipient/read columns).
    */
-  const { value: inboxMessages } = useSharedInboxFeed();
+  const { value: inboxMessages, status } = useSharedInboxFeed();
 
   /**
    * Optimistic read-state, layered over the shared rows.
@@ -153,8 +160,26 @@ export function useInboxBell(): InboxBell {
     try { await postMarkRead('read', notifIds); } catch { /* best-effort */ }
   }, [notifications, markLocallyRead, postMarkRead]);
 
+  /**
+   * objectui#7011 — announce what newly ARRIVED (toast while the tab is
+   * visible, a system notification while it is hidden).
+   *
+   * Mounted here rather than in `AppHeader` for the reason this hook exists at
+   * all: it is the ONE wiring of the shared feed onto a bell, so the header
+   * bell and the `global:notifications` page block announce by the same rules
+   * and through the same `markRead`. Mounting both at once is safe — the seen
+   * set that decides what is new is module-scoped, so the first scan of a
+   * snapshot takes its arrivals and the second finds none.
+   *
+   * It is given `notifications` (the overlay applied) rather than the raw feed
+   * rows so a row the user just marked read in this tab cannot be announced by
+   * a poll that has not yet seen the receipt.
+   */
+  useInboxArrivalNotifier({ notifications, status, markRead });
+
   return {
     notifications,
+    status,
     unreadCount,
     pendingApprovalsCount,
     markAllRead,
