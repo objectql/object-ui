@@ -179,13 +179,11 @@ const familyMember = (name: (typeof FAMILY)[number]): Member | undefined =>
  * NEW disagreement anywhere under `custom/` fails regardless of this list.
  */
 const LEDGER: Record<string, string> = {
-  // `KbdGroup` declares "div" and returns a `kbd` (upstream shadcn's shape
-  // too). Whether the type or the element moves is a separate ruling, not
-  // objectui#8571's — the `p` reasoning above does not transfer to a `kbd`.
-  // Handed to the PM for filing in the objectui#8571 dev report (every issue
-  // search channel was dead in that session); this line takes the card's
-  // number when it exists.
-  'kbd.tsx:KbdGroup': 'div -> kbd',
+  // Empty. The one entry this ledger ever carried — `kbd.tsx:KbdGroup`, which
+  // declared "div" and returned a `kbd` — was retired by objectui#8576, which
+  // ruled the TYPE moves (`React.ComponentProps<"kbd">`) and pinned the result
+  // in `kbd-group-props-name-the-element-8576.test.tsx`. An empty ledger is the
+  // ratchet at its floor: any disagreement under `custom/` now fails outright.
 };
 
 describe('objectui#8571 — the declared intrinsic is the rendered one, across src/custom', () => {
