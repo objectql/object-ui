@@ -3003,6 +3003,20 @@ const ja = {
       countDashboards_one: "{{count}} 件のダッシュボード",
       countSeedData: "サンプルデータ",
     },
+    build: {
+      building: "{{app}}を構築しています…",
+      built: "{{app}}を構築しました",
+      appFallback: "アプリ",
+      addingSampleData: "サンプルデータを追加中",
+      group: {
+        object: "オブジェクト",
+        view: "ビュー",
+        dashboard: "ダッシュボード",
+        app: "アプリ",
+        seed: "サンプルデータ",
+      },
+      moreArtifacts: "他 {{n}} 件",
+    },
   },
   chatbotError: {
     title: "応答に失敗しました",

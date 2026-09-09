@@ -3340,6 +3340,13 @@ const en = {
   //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
   //                   set for both surfaces (they used to carry separate
   //                   tables and disagreed on casing).
+  //   `build.*`    — the apply_blueprint BUILD PANEL's own copy (objectui#7388).
+  //                   Everything else on that panel is fed by the host as an
+  //                   already-translated prop; these strings were literals in
+  //                   the component, so they stayed English in every language.
+  //                   `building`/`built` interpolate `appFallback` when the
+  //                   build has no app label, so each pack must keep BOTH
+  //                   frames in the one case/gender that noun phrase is in.
   //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
   //                   FAMILIES (base key + `_one`): i18next resolves every
   //                   CLDR category a pack does not enumerate to the base key,
@@ -3409,6 +3416,20 @@ const en = {
       countDashboards: '{{count}} dashboards',
       countDashboards_one: '{{count}} dashboard',
       countSeedData: 'sample data',
+    },
+    build: {
+      building: 'Building {{app}}…',
+      built: 'Built {{app}}',
+      appFallback: 'your app',
+      addingSampleData: 'adding sample data',
+      group: {
+        object: 'Objects',
+        view: 'Views',
+        dashboard: 'Dashboards',
+        app: 'App',
+        seed: 'Sample data',
+      },
+      moreArtifacts: '+{{n}} more',
     },
   },
   chatbotError: {

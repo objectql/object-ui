@@ -3000,6 +3000,20 @@ const ko = {
       countDashboards_one: "대시보드 {{count}}개",
       countSeedData: "샘플 데이터",
     },
+    build: {
+      building: "{{app}} 빌드 중…",
+      built: "{{app}} 빌드 완료",
+      appFallback: "앱",
+      addingSampleData: "샘플 데이터 추가 중",
+      group: {
+        object: "오브젝트",
+        view: "뷰",
+        dashboard: "대시보드",
+        app: "앱",
+        seed: "샘플 데이터",
+      },
+      moreArtifacts: "외 {{n}}개",
+    },
   },
   chatbotError: {
     title: "응답 실패",

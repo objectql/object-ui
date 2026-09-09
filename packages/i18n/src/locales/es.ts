@@ -3005,6 +3005,20 @@ const es = {
       countDashboards_one: "{{count}} panel",
       countSeedData: "datos de ejemplo",
     },
+    build: {
+      building: "Creando {{app}}…",
+      built: "Creación de {{app}} completada",
+      appFallback: "su aplicación",
+      addingSampleData: "añadiendo datos de ejemplo",
+      group: {
+        object: "Objetos",
+        view: "Vistas",
+        dashboard: "Paneles",
+        app: "Aplicación",
+        seed: "Datos de ejemplo",
+      },
+      moreArtifacts: "+{{n}} más",
+    },
   },
   chatbotError: {
     title: "Error en la respuesta",

@@ -3001,6 +3001,20 @@ const de = {
       countDashboards_one: "{{count}} Dashboard",
       countSeedData: "Beispieldaten",
     },
+    build: {
+      building: "{{app}} wird erstellt…",
+      built: "{{app}} wurde erstellt",
+      appFallback: "Ihre App",
+      addingSampleData: "Beispieldaten werden hinzugefügt",
+      group: {
+        object: "Objekte",
+        view: "Ansichten",
+        dashboard: "Dashboards",
+        app: "App",
+        seed: "Beispieldaten",
+      },
+      moreArtifacts: "+{{n}} weitere",
+    },
   },
   chatbotError: {
     title: "Antwort fehlgeschlagen",

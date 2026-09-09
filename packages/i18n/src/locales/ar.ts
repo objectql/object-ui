@@ -3008,6 +3008,20 @@ const ar = {
       countDashboards_one: "{{count}} لوحة معلومات",
       countSeedData: "بيانات تجريبية",
     },
+    build: {
+      building: "جارٍ إنشاء {{app}}…",
+      built: "تم إنشاء {{app}}",
+      appFallback: "تطبيقك",
+      addingSampleData: "جارٍ إضافة بيانات تجريبية",
+      group: {
+        object: "الكائنات",
+        view: "طرق العرض",
+        dashboard: "لوحات المعلومات",
+        app: "التطبيق",
+        seed: "بيانات تجريبية",
+      },
+      moreArtifacts: "+{{n}} أخرى",
+    },
   },
   chatbotError: {
     title: "فشل الرد",
