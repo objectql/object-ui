@@ -68,6 +68,30 @@
  * the PROTOTYPE and not `Object.keys(value).length === 0`: that count cannot
  * tell `{}` from `/x/`, and the two need opposite answers. Section 5 is the
  * control, and it must stay green in every ablation leg.
+ *
+ * ## What carries the weight — two legs, RUN against the committed tree
+ *
+ * Each was applied to the COMMITTED implementation, proved on disk before it was
+ * run (`git hash-object` moved off the `HEAD` blob, and the anchored marker count
+ * went 1 -> 0 for the removal and 0 -> 1 for the injection), and restored BY
+ * STATE afterwards (`git diff HEAD` empty and the blob back at `5ba58fb`). No
+ * rebuild is involved and none is needed: `vitest.config.mts` aliases
+ * `@object-ui/core` to `packages/core/src`, so these files execute the SOURCE and
+ * there is no `dist/` hop a stale build could make silently green.
+ *
+ * 1. **Ablation** — the refusal branch removed (16 lines). 10 of 34 red, across
+ *    BOTH files. MODE: the refusal is MISSING and it fails as the defect itself —
+ *    `convertFiltersToAST({ created: /abc/ })` hands back `{ created: /abc/ }`,
+ *    the original object, because `conditions` ended empty. Every control stayed
+ *    GREEN, both `{}` identity pins included.
+ * 2. **`Object.keys(value).length === 0` as the gate** — the caricature this arm
+ *    has to be distinguishable from, and the one a reader reaches for first. 4 of
+ *    34 red. MODE: over-refusal — `{}` is swept up and the TRUE identity becomes
+ *    a throw, so BOTH `{}` controls redden (this file's and
+ *    filter-date-comparand-8555.test.ts's), together with the `Money`
+ *    counter-case and the message pin. That is the leg that proves the control is
+ *    a control: it moves when the change is WRONG, and does not move when the
+ *    subject is merely absent.
  */
 
 import { describe, it, expect } from 'vitest';
