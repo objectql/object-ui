@@ -2522,6 +2522,10 @@ export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.Rea
  * the widget's readonly branch read.
  */
 export { MarkdownCellRenderer, HtmlCellRenderer } from './widgets/richTextDisplay.js';
+// The KEY SET of that same table, published for the form-side consumers that
+// used to hand-write it (objectui#8438). See its docblock for why a runtime
+// list is needed next to the `RichTextFieldType` union.
+export { RICH_TEXT_FIELD_TYPES, type RichTextFieldType } from './widgets/richTextDisplay.js';
 import { RICH_TEXT_CELL_RENDERERS } from './widgets/richTextDisplay.js';
 
 /**
