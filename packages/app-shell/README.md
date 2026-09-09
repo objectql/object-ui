@@ -392,7 +392,8 @@ Salesforce Flow Builder) instead of a flat step list. It is **dependency-free**
     { "id": "start", "type": "start", "label": "Start" },
     { "id": "decide", "type": "decision", "label": "Renew?",
       "ui": { "x": 220, "y": 180 } },   // optional persisted canvas position
-    { "id": "email", "type": "action", "label": "Send reminder" },
+    { "id": "email", "type": "notify", "label": "Send reminder",
+      "config": { "recipients": "{record.owner}", "title": "Renewal reminder" } },
     { "id": "end", "type": "end", "label": "End" }
   ],
   "edges": [
