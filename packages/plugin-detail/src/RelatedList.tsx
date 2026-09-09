@@ -188,15 +188,29 @@ export interface RelatedListProps {
    * Foreign-key field name on child records pointing back to the parent.
    * The renderer hides this column from the table and from the schema-derived
    * column list, since the parent record is already implicit context.
-   * Used in combination with `parentId` to scope the auto-fetch query.
+   * Used in combination with `parentId` to scope the auto-fetch query — its
+   * ARITY on the child object decides how that condition is compiled, see
+   * `parentId` below.
    */
   referenceField?: string;
   /**
    * Primary-key value of the parent record. When both `parentId` and
-   * `referenceField` are set, the auto-fetch query is scoped with
-   * `$filter: { [referenceField]: parentId }` so only true children
-   * are returned. Without this scope the list would dump the entire
-   * target object table.
+   * `referenceField` are set, the auto-fetch query is scoped to this parent's
+   * children so only true children are returned. Without this scope the list
+   * would dump the entire target object table.
+   *
+   * The condition is compiled to match the relationship field's ARITY on the
+   * child object (objectui#7299), because the two arities are two different
+   * questions about the stored value:
+   *
+   *   - single-valued → `$filter: { [referenceField]: parentId }` — equality,
+   *     byte for byte what this component has always sent;
+   *   - `multiple: true` → `$filter: { [referenceField]: { $contains: parentId } }`
+   *     — MEMBERSHIP, because the stored value is an ARRAY of ids and equality
+   *     asks whether the whole array IS one id.
+   *
+   * See {@link isMultiValueField} for where the arity comes from and why the
+   * answer is never guessed.
    */
   parentId?: string | number;
   /** Lucide icon name (kebab-case) to render next to the section title. */
@@ -313,6 +327,38 @@ export const RelatedToolbarButton: React.FC<{
     </Button>
   );
 };
+
+/**
+ * Is `fieldName` declared MULTI-VALUED (`multiple: true`) on this object schema?
+ *
+ * The sole input to the parent-scope arity decision (objectui#7299), and
+ * deliberately the only one. A `multiple: true` relationship — `Field.user({
+ * multiple: true })` is the platform's own shape for it — stores an ARRAY of
+ * ids, which the drivers persist as a JSON-valued column. `=` against that
+ * column compares the whole serialized array with a single value and can never
+ * equal one member; `driver-sql` says exactly that, by field name, and refuses
+ * with `400 INVALID_FILTER` while prescribing `$contains` for membership. So
+ * the arity is not a preference the renderer expresses, it is a fact about the
+ * stored value that decides which predicate is even answerable.
+ *
+ * BOTH served field-container shapes are read — the Record keyed by field name
+ * and the array of defs carrying their own `name`, the pair `FieldContainerLike`
+ * in `@object-ui/core` names. A reader that knows only one of them answers
+ * "single-valued" for the other, which is this card's bug spelled as a default.
+ *
+ * ⛔ Strictly `=== true`, never truthiness. An off-spec `multiple: 'yes'` is a
+ * producer bug (AGENTS.md #0.1) and coercing it here would make the renderer a
+ * second, looser contract for field arity — the one thing #0.1 forbids.
+ */
+function isMultiValueField(objectSchema: unknown, fieldName: string | undefined): boolean {
+  if (!fieldName || !objectSchema || typeof objectSchema !== 'object') return false;
+  const fields = (objectSchema as { fields?: unknown }).fields;
+  if (!fields || typeof fields !== 'object') return false;
+  const def = Array.isArray(fields)
+    ? fields.find((f) => (f as { name?: unknown } | null)?.name === fieldName)
+    : (fields as Record<string, unknown>)[fieldName];
+  return (def as { multiple?: unknown } | null | undefined)?.multiple === true;
+}
 
 export const RelatedList: React.FC<RelatedListProps> = ({
   title,
@@ -442,6 +488,27 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
   }, [api, dataSource]);
 
+  // ARITY of the parent-relationship field, read off the child object's own
+  // schema above (objectui#7299). `false` until that schema PROVES otherwise,
+  // and the direction of the default is load-bearing on both branches:
+  //
+  //   - a single-valued list never sees this value CHANGE (false → false), so
+  //     the fetch effect below does not re-run and its wire stays byte-identical
+  //     to what it sent before this card;
+  //   - a multi-valued one flips false → true when the schema lands and refetches
+  //     with the membership spelling. Its first attempt is the query this
+  //     component has always sent, so nothing new can go wrong on it — and that
+  //     query is loudly REFUSED by the driver rather than quietly answered.
+  //
+  // ⛔ Deliberately NOT gated on "schema has loaded". A `DataSource` without
+  // `getObjectSchema`, or one whose schema fetch rejects, would then never fetch
+  // rows at all — trading this card's loud 400 on one relationship shape for a
+  // silent empty list on EVERY related list in the app.
+  const referenceFieldIsMultiValue = React.useMemo(
+    () => isMultiValueField(objectSchema, referenceField),
+    [objectSchema, referenceField],
+  );
+
   // Add-picker target schema, fetched lazily on first open. It drives the
   // picker's display column (`add.picker.labelField` → displayField), the
   // auto-derived multi-column layout, and type-aware cell rendering — without
@@ -514,7 +581,16 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         return;
       }
       setLoading(true);
-      const parentScope = { [referenceField!]: parentId } as Record<string, any>;
+      // The parent-relationship condition, compiled to match the field's ARITY
+      // (objectui#7299). A multi-valued relationship asks a MEMBERSHIP question
+      // — "is this parent among the stored values" — and `$contains` is the
+      // spelling the drivers execute for it, the one `driver-sql` names in the
+      // `400 INVALID_FILTER` it answers the equality form with. Single-valued
+      // keeps `=`, unchanged. The author never writes either: they named a
+      // relationship, and its storage form is this component's business.
+      const parentScope = {
+        [referenceField!]: referenceFieldIsMultiValue ? { $contains: parentId } : parentId,
+      } as Record<string, any>;
       // Parent relationship AND the list's own scope (objectstack#7118). The
       // parent condition is never negotiable — an "additional" criterion may only
       // narrow this parent's children — and with nothing authored the query is
@@ -582,6 +658,32 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         setTotal(null);
         setHasMore(false);
         setLoading(false);
+      } else if (referenceFieldIsMultiValue) {
+        // The same refusal as the arm above, one cause earlier: this path's
+        // `filter[<field>]=<value>` grammar has no MEMBERSHIP operator, so the
+        // condition a multi-value relationship needs cannot be written here at
+        // all (objectui#7299).
+        //
+        // Measured, not assumed. The repo's one operator contract for this
+        // spelling is `drillUrlFilters`' `URL_FILTER_OPS` (#1752) — `gte`,
+        // `lte`, `gt`, `lt` and nothing else — and its parser DROPS an
+        // unrecognised suffix rather than downgrading it, so a hopeful
+        // `filter[<field>][contains]=` would arrive as no condition whatsoever:
+        // an unscoped fetch of the entire child table, exactly what the guard
+        // above exists to prevent. The platform's own REST surface does not
+        // take this bracket form at all — it reads one `filter=<JSON AST>`
+        // param — so there is no third spelling to reach for either.
+        //
+        // That leaves bare `=`, which is this card's defect. Empty-and-loud
+        // beats both a predicate known to be wrong and a silent full-table
+        // scan.
+        console.warn(
+          `[RelatedList] "${api}" relates through the multi-value field "${referenceField}" but has no dataSource adapter — the raw-URL fallback's \`filter[<field>]=<value>\` grammar has no membership operator, so no rows are fetched. Pass a dataSource (RecordContext) to use a related list on a multi-value relationship field.`,
+        );
+        setRelatedData([]);
+        setTotal(null);
+        setHasMore(false);
+        setLoading(false);
       } else {
         const qs = new URLSearchParams({
           [`filter[${referenceField}]`]: String(parentId),
@@ -615,8 +717,13 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     // body still reads the memoised values; only the re-run condition moves,
     // onto the very keys the memos are already keyed on, so a content change
     // still refetches exactly as before.
+    //
+    // `referenceFieldIsMultiValue` belongs here for the same reason the two
+    // relationship keys beside it do: it decides WHICH predicate this effect
+    // sends (objectui#7299). It is a boolean, so a single-valued list re-runs
+    // exactly as often as it did before — false → false is not a change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce, windowed, effectivePageSize, fetchPage, fetchSortField, fetchSortDirection, defaultSortKey, filterKey]);
+  }, [api, dataProvided, dataSource, referenceField, referenceFieldIsMultiValue, parentId, refreshNonce, windowed, effectivePageSize, fetchPage, fetchSortField, fetchSortDirection, defaultSortKey, filterKey]);
 
   // Windowed mode: a page beyond the (shrunken) collection — e.g. the last
   // row of the last page was just deleted — comes back empty. Step back one

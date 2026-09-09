@@ -287,7 +287,9 @@ const RecordRelatedListBody: React.FC<RecordRelatedListRendererProps> = ({
  * (objectstack#6953), because the block DECLARED it and no code read it: writing
  * the composed filter onto a dead key would have reproduced the very defect that
  * change removed, one layer deeper. objectstack#7118 gave it a read site —
- * `RelatedList` now ANDs it with `{ [referenceField]: parentId }` — so the
+ * `RelatedList` now ANDs it with the parent-relationship condition, whose
+ * spelling follows the relationship field's arity (`=` for a single-valued
+ * field, `$contains` for a `multiple: true` one — objectui#7299) — so the
  * mapping follows, and with it the consequence recorded here as open: a saved
  * view named on this block no longer contributes columns/sort/limit while its
  * FILTER is dropped, i.e. the list can no longer be wider than the view it names.
