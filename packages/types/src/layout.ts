@@ -427,8 +427,25 @@ export interface CardSchema extends BaseSchema {
    */
   footer?: SchemaNode | SchemaNode[];
   /**
-   * Variant style
-   * @default 'default'
+   * Variant style.
+   *
+   * NO `@default`, deliberately (objectui#8318), and for a different reason
+   * from the keys whose node type has no registration at all: `card` IS
+   * registered, twice, and neither registration reads this key, so nothing
+   * applies the `'default'` the tag used to publish.
+   * `renderers/layout/card.tsx:64` (`namespace: 'ui'`) forwards the node's
+   * remaining keys onto `<Card>` through `{...cardProps}` (`:32`, `:46`), and
+   * the primitive `ui/card.tsx` destructures only `className` and spreads the
+   * rest onto a `div`: `variant` occurs 0 times in that file, exit 1, with
+   * `ui/alert.tsx` as the firing control (5 occurrences, where the primitive
+   * really does consume it through `cva`). The second registration,
+   * `renderers/layout/containers.tsx:842` (`namespace: 'page'`,
+   * `skipFallback: true`), forwards only `{...designer}`, so on that route the
+   * key does not reach the element at all. Its siblings `clickable` and
+   * `hoverable` ARE read (`card.tsx:35-36`), which is what makes this a reading
+   * rather than a search that missed. Whether the key should exist is the
+   * ADR-0049 liveness worklist's question (objectui#4631, objectui#7963), not
+   * this card's.
    */
   variant?: 'default' | 'outline' | 'ghost';
   /**
@@ -785,8 +802,25 @@ export interface PageNodeSchema extends BaseSchema {
    */
   children?: SchemaNode | SchemaNode[];
   /**
-   * Whether this is the default page for the object/app
-   * @default false
+   * Whether this is the default page for the object/app.
+   *
+   * NO `@default`, deliberately (objectui#8318). `page` IS registered
+   * (`renderers/layout/page.tsx:692`), so the reason nothing applies the
+   * `false` this tag used to publish is neither a missing registration nor a
+   * primitive that ignores the prop: `PageRenderer` neither reads the key nor
+   * forwards it. `schema.isDefault` has zero hits repo-wide, exit 1, with
+   * `schema.pageType` as the firing control (it resolves inside the same
+   * renderer, `page.tsx:291`); and the wrapper element receives
+   * `toDomProps(props)` (`page.tsx:521`), an ALLOW-LIST --
+   * `SDUI_DOM_PASS_THROUGH_KEYS` in `core/src/utils/dom-props.ts`, plus the
+   * `aria-*` / `data-*` prefixes -- which does not contain `isDefault` (0
+   * occurrences in that file, exit 1; firing control `className`, 5). The
+   * rest-spread this renderer used to close by enumeration was replaced by that
+   * whitelist in objectui#4425 / objectui#7933. The `.isDefault` reads that do
+   * exist elsewhere in the tree are on APPS, saved views, flow edges and
+   * permission drafts -- other declarations, not this one. Whether the key
+   * should exist is the ADR-0049 liveness worklist's question (objectui#4631,
+   * objectui#7963), not this card's.
    */
   isDefault?: boolean;
   /**

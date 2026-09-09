@@ -44,8 +44,21 @@ export interface ActionSchema extends BaseSchema {
    */
   label: string;
   /**
-   * Action type/level
-   * @default 'default'
+   * Action type/level.
+   *
+   * NO `@default`, deliberately (objectui#8318). The tag published `'default'`
+   * and nothing applies it. `type: 'action'` is not a rendered node type --
+   * `register('action'` matches nothing repo-wide, exit 1, with
+   * `register('detail'` as the firing control (it resolves to
+   * `plugin-detail/src/index.tsx:387`). Nor does the channel that makes the
+   * neighbouring `ActionSchema` keys live read this one: in
+   * `packages/core/src/actions/ActionRunner.ts` the spellings `action.level`
+   * and `schema.level` have zero hits repo-wide, exit 1, with `action.method`
+   * as the firing control (`ActionRunner.ts:1787` and `:1793`). Until
+   * objectui#7735 the zod mirror's `.default('default')` substituted the value
+   * into a parsed document; with that gone the tag described nothing that runs.
+   * Whether the key should exist at all is the ADR-0049 liveness worklist's
+   * question (objectui#4631, objectui#7963), not this card's.
    */
   level?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' | 'default';
   /**
@@ -307,8 +320,20 @@ export interface DetailSchema extends BaseSchema {
    */
   onBack?: () => void;
   /**
-   * Whether to show loading state
-   * @default true
+   * Force the loading skeleton.
+   *
+   * `DetailView.tsx:995` reads this key as a bare disjunct beside the
+   * component's OWN fetch state (`const [loading, setLoading] = ...`, `:269`):
+   * `if (loading || schema.loading)`. An omitted key is `undefined`, so it
+   * contributes nothing to that gate -- the value the reader applies on absence
+   * is `false`, not the `true` the tag published until objectui#8318. That
+   * `true` arrived in `6f132f29` (2026-07-13), a bulk JSDoc pass copying the
+   * zod mirror's old `.default(true)`, so it was never an authored intent, and
+   * honouring it would have drawn a skeleton on every detail view that omits
+   * the key. Giving the reader the `?? true` the old tag promised is a
+   * behaviour change and a product question of its own (maintainer ruling
+   * 2026-09-09), not opened here.
+   * @default false
    */
   loading?: boolean;
 }
@@ -316,6 +341,18 @@ export interface DetailSchema extends BaseSchema {
 /**
  * CRUD Dialog/Modal component for CRUD operations
  * Note: For general dialog usage, use DialogSchema from overlay module
+ *
+ * NO RENDERER IS REGISTERED FOR `crud-dialog` (objectui#7344, re-measured for
+ * objectui#8318): `register('crud-dialog'` matches nothing repo-wide, exit 1,
+ * with `register('detail'` as the firing control (it resolves to
+ * `plugin-detail/src/index.tsx:387`). Nothing renders a node of this type, so
+ * no member below has a reader, and a `@default` on any of them would describe
+ * something that does not run -- which is why the four keys that used to
+ * publish one no longer do (objectui#8318). This is upstream of any per-key
+ * census: a census can only report where a spelling appears, and the reason
+ * these keys have no reader is that the node type never reaches a renderer at
+ * all. Whether the type should exist is the ADR-0049 liveness worklist's
+ * question (objectui#4631, objectui#7963), not this card's.
  */
 export interface CRUDDialogSchema extends BaseSchema {
   type: 'crud-dialog';
@@ -332,8 +369,13 @@ export interface CRUDDialogSchema extends BaseSchema {
    */
   content?: SchemaNode | SchemaNode[];
   /**
-   * Dialog size
-   * @default 'default'
+   * Dialog size.
+   *
+   * NO `@default`, deliberately (objectui#8318): the tag published `'default'`
+   * with no reader to apply it. `.size` is one of the most common spellings in
+   * this tree, so a name census answers nothing here; the interface docblock
+   * above carries the fact that decides it -- there is no `crud-dialog`
+   * registration, so no node of this type is ever handed to a renderer.
    */
   size?: 'sm' | 'default' | 'lg' | 'xl' | 'full';
   /**
@@ -353,18 +395,39 @@ export interface CRUDDialogSchema extends BaseSchema {
    */
   onClose?: never;
   /**
-   * Whether clicking outside closes dialog
-   * @default true
+   * Whether clicking outside closes dialog.
+   *
+   * NO `@default`, deliberately (objectui#8318): the tag published `true` with
+   * no reader to apply it. Here the name census is decisive on its own -- the
+   * spelling `closeOnOutsideClick` occurs NOWHERE in the tree outside this
+   * declaration and its zod twin (`zod/crud.zod.ts`), so there is not even a
+   * look-alike reader on some other node type to mistake for one. The missing
+   * registration is in the interface docblock above.
    */
   closeOnOutsideClick?: boolean;
   /**
-   * Whether pressing Escape closes dialog
-   * @default true
+   * Whether pressing Escape closes dialog.
+   *
+   * NO `@default`, deliberately (objectui#8318): the tag published `true` with
+   * no reader to apply it. `closeOnEscape` is the second of the two keys on
+   * this interface whose spelling occurs nowhere outside this declaration and
+   * its zod twin -- zero repo-wide hits, so nothing reads it under any node
+   * type. The missing registration is in the interface docblock above.
    */
   closeOnEscape?: boolean;
   /**
-   * Show close button
-   * @default true
+   * Show close button.
+   *
+   * NO `@default`, deliberately (objectui#8318): the tag published `true` with
+   * no reader to apply it. This key is the one on this interface whose census
+   * is NOT empty, and that is exactly why it needs saying: `showClose` has one
+   * occurrence outside this declaration and its zod twin --
+   * `packages/components/src/renderers/overlay/drawer.tsx:38`,
+   * `{schema.showClose && ...}` -- and that read belongs to
+   * `DrawerSchema.showClose`, a different member on a different, registered
+   * node type. Counting it here would be crediting this declaration with
+   * another one's reader. The missing registration is in the interface docblock
+   * above.
    */
   showClose?: boolean;
 }
