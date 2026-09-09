@@ -197,19 +197,45 @@ describe('formatMeasure leaves every non-date value exactly where it was (object
  * (`vitest.config.mts`, objectui#8366), so a `Z`-suffixed instant and the
  * local calendar day `formatRelativeDate` computes from it cannot disagree.
  *
- * ── Directions, predicted in writing BEFORE the run ─────────────────────────
- *   leg 1 in-window datetime      RED pre-fix — renders the absolute face
- *   leg 2 date-only control       GREEN on both sides — it is the RIG check,
- *                                 not the fix; it fails only if the harness
- *                                 itself is disconnected
- *   leg 3 out-of-window datetime  GREEN on both sides for the SHIPPED fix, and
- *                                 the only leg that goes RED for a fake fix
- *                                 that hand-rolls a relative phrase instead of
- *                                 routing to `formatRelativeDate` — legs 1+2
- *                                 pass for one of those
- *   the must-not-move cases       GREEN on both sides — they are the guard
- *                                 against the OTHER fake fix, wiring the arm
- *                                 to `formatRelativeDate` unconditionally
+ * ── Directions, MEASURED by ablating the fix four ways ──────────────────────
+ * Predicted first, then run; two predictions were wrong and these are the
+ * observed columns, not the predicted ones. A = the pre-#8352 arm (`format`
+ * dropped); B1 = wire the arm to `formatRelativeDate` unconditionally; B2 =
+ * hand-roll the relative phrase, skipping the ±7-day window; C = thread
+ * `format` into `formatDateTime`'s `options.style`.
+ *
+ *                                    A     B1    B2    C
+ *   leg 1  in-window datetime       RED   RED   RED   RED
+ *   leg 2  date-only control       green green green green   ← the rig check:
+ *                                    no ablation of the DATETIME arm can move
+ *                                    it, which is what makes it a control
+ *   leg 3  out-of-window datetime   RED  green   RED   RED
+ *   decisive pair                   RED  green   RED   RED
+ *   `short` parity                  RED   RED   green  RED
+ *   vocabulary equality             RED   RED   green  RED
+ *   pass-through anti-pin          green green green  RED
+ *   unstyled default guard         green  RED   green green
+ *
+ * ⭐ What each row adds, read off those columns. Leg 1 moves for all four, so
+ * it DETECTS every ablation — but it does not distinguish them, and each fake
+ * fix leaves something green that a trimmed suite would have relied on: B1
+ * leaves leg 3 and the decisive pair green (its relative face is correct
+ * inside the window), B2 leaves the `short` and vocabulary cases green (it
+ * only touches the relative branch). The two must-not-move guards are where
+ * the fake fixes separate from each other: B1 is the ONLY column that reddens
+ * the unstyled-default guard, C the ONLY one that reddens the pass-through
+ * anti-pin. Neither fake fix is hypothetical shape-fitting — both are what
+ * "just make it relative" looks like when written quickly, and C is the
+ * one-line change the signature invites.
+ *
+ * ⚠️ Leg 3 was predicted green-on-both-sides and measured RED under A. The
+ * prediction assumed the pre-fix arm rendered the same absolute face this one
+ * does; it does not — out of the window the honoured reading renders the
+ * absolute DATE face (`formatRelativeDate`'s own fallback) while the pre-fix
+ * arm rendered the absolute DATETIME face. The card's "indistinguishable out
+ * of window" trap is about the BROWSER comparison it was measured in —
+ * `format` absent beside `format: 'relative'`, which pre-fix were the same
+ * bytes — and that reading is pinned on its own in leg 3's second assertion.
  */
 describe('the DATETIME arm honours `format`, like the date arm (objectui#8352)', () => {
   /** Noon UTC, so the pinned day is unambiguous under the suite's `TZ=UTC`. */
@@ -251,20 +277,27 @@ describe('the DATETIME arm honours `format`, like the date arm (objectui#8352)',
   });
 
   // ── Leg 2 ────────────────────────────────────────────────────────────────
-  it('⭐ leg 2 — the date-only positive control renders the SAME relative face', () => {
-    // The rig check, in the same run and through the same entry point: if this
-    // fails, the harness is disconnected and legs 1 and 3 say nothing. It is
-    // green on both sides of the fix by design — the date arm always honoured
-    // `relative`, and that asymmetry IS the defect.
+  it('⭐ leg 2 — the date-only positive control renders the relative face', () => {
+    // The RIG check, and only that: same run, same entry point, same window.
+    // It is green on BOTH sides of the fix by design — the date arm always
+    // honoured `relative`, and that asymmetry IS the defect — so it fails only
+    // if the harness itself is disconnected, in which case legs 1 and 3 say
+    // nothing. Deliberately carries no cross-arm assertion: mixing one in
+    // costs this leg the one property that makes it a control, which is that
+    // the defect cannot move it. (Measured: it did carry one, and ablating the
+    // fix turned it red — the diagnostic separation the three legs exist for,
+    // lost. The cross-arm pair is its own case below.)
     const dateOnly = measure(IN_WINDOW_DATE, 'relative');
     expect(dateOnly).toBe(formatDate(IN_WINDOW_DATE, 'relative', { locale: EN }));
     expect(dateOnly).not.toBe(measure(IN_WINDOW_DATE));
+  });
 
-    // ⭐ The decisive pair from the card, now agreeing: the same calendar day
-    // reaches the same phrase whether the field is a `date` or a `datetime`.
-    // Pre-fix these two differed — one read `In 2 days`, the other an absolute
-    // datetime — which is the entire user-visible symptom.
-    expect(measure(IN_WINDOW_DATETIME, 'relative')).toBe(dateOnly);
+  it('⭐ the decisive pair — the same day reads the same on either field type', () => {
+    // The card's measured symptom, as one assertion: `min(created_at)` (a
+    // `Field.datetime`) and `min(due_date)` (a `Field.date`) five days apart
+    // from the same page load, one reading `后天` and the other an absolute
+    // datetime. Both arms now reach the same phrase for the same calendar day.
+    expect(measure(IN_WINDOW_DATETIME, 'relative')).toBe(measure(IN_WINDOW_DATE, 'relative'));
   });
 
   // ── Leg 3 ────────────────────────────────────────────────────────────────
