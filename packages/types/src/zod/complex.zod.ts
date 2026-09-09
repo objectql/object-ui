@@ -539,8 +539,8 @@ export const FilterBuilderSchema = BaseSchema.extend({
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
   allowGroups: z.boolean().optional().describe('Allow grouped conditions'),
   maxDepth: z.number().optional().describe('Maximum nesting depth'),
-  wrapperClass: z.string().optional()
-    .describe("Outer wrapper classes, read at renderers/complex/filter-builder.tsx:37 — `className={schema.wrapperClass || ''}` (objectui#6150)"),
+  // Applied at renderers/complex/filter-builder.tsx:37 as `className={schema.wrapperClass || ''}`.
+  wrapperClass: z.string().optional().describe('Outer wrapper classes for the filter builder (objectui#6150)'),
 });
 
 /**
@@ -558,11 +558,11 @@ export const CarouselSchema = BaseSchema.extend({
   type: z.literal('carousel'),
   items: z.array(CarouselItemSchema).describe('Carousel items'),
   opts: z.record(z.string(), z.unknown()).optional()
-    .describe("Embla option bag forwarded verbatim at renderers/complex/carousel.tsx:23 — `opts={schema.opts}`. Left OPEN on purpose: the renderer passes the whole bag through, so narrowing it to the docs' `{loop, align}` pair would refuse authored documents that work today (objectui#6150)"),
+    .describe("Embla option bag forwarded verbatim (`opts={schema.opts}`). Left OPEN on purpose: the renderer passes the whole bag through, so narrowing it to the docs' `{loop, align}` pair would refuse authored documents that work today (objectui#6150)"),
   orientation: z.enum(['horizontal', 'vertical']).optional()
-    .describe("Scroll axis, read at renderers/complex/carousel.tsx:24 — `orientation={schema.orientation || 'horizontal'}` (objectui#6150)"),
-  itemClassName: z.string().optional()
-    .describe('Per-slide Tailwind classes, read at renderers/complex/carousel.tsx:30 — `className={schema.itemClassName}` on every CarouselItem (objectui#6150)'),
+    .describe("Scroll axis — `orientation={schema.orientation || 'horizontal'}` (objectui#6150)"),
+  // Applied at renderers/complex/carousel.tsx:30 as `className={schema.itemClassName}` on every CarouselItem.
+  itemClassName: z.string().optional().describe('Per-slide Tailwind classes, applied to every carousel item (objectui#6150)'),
   autoPlay: z.number().optional().describe('Auto-play interval (ms)'),
   showArrows: z.boolean().optional().describe('Show navigation arrows'),
   showDots: z.boolean().optional().describe('Show navigation dots'),
@@ -615,10 +615,10 @@ export const ChatMessageSchema = z.object({
   reasoning: z.string().optional().describe('Chain-of-thought reasoning text'),
   sources: z.array(ChatMessageSourceSchema).optional().describe('Citation sources'),
   traceId: z.string().optional().describe('Backend trace id (ai_traces.id)'),
-  avatar: z.string().optional()
-    .describe('Per-message avatar image URL overriding the chatbot-level userAvatarUrl / assistantAvatarUrl, read at plugin-chatbot/src/index.tsx:173–174 — `message.avatar || userAvatarUrl` (objectui#7295)'),
-  avatarFallback: z.string().optional()
-    .describe('Per-message avatar fallback text overriding the chatbot-level userAvatarFallback / assistantAvatarFallback, read at plugin-chatbot/src/index.tsx:177–178 — `message.avatarFallback || userAvatarFallback` (objectui#7295)'),
+  // Read at plugin-chatbot/src/index.tsx:172-174 as `message.avatar || userAvatarUrl` (or `|| assistantAvatarUrl` on the assistant branch).
+  avatar: z.string().optional().describe('Per-message avatar image URL overriding the chatbot-level userAvatarUrl / assistantAvatarUrl (objectui#7295)'),
+  // Read at plugin-chatbot/src/index.tsx:176-178 as `message.avatarFallback || userAvatarFallback` (or `|| assistantAvatarFallback` on the assistant branch).
+  avatarFallback: z.string().optional().describe('Per-message avatar fallback text overriding the chatbot-level userAvatarFallback / assistantAvatarFallback (objectui#7295)'),
 });
 
 /**
