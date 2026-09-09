@@ -11,7 +11,7 @@
   "searchableFields": ["name", "email", "department"],
   "table": {
     "columns": ["name", "email", "role", "department", "status"],
-    "sort": "name asc",
+    "sort": [{ "field": "name", "order": "asc" }],
     "pagination": { "pageSize": 5 }
   }
 }

@@ -179,7 +179,7 @@ const GOOD = {
   dependencyTypes: false,
   staticData: [{ id: 1, name: 'Task' }],
   filter: [['name', '=', 'Task']],
-  sort: 'name desc',
+  sort: [{ field: 'name', order: 'desc' as const }],
 };
 
 describe('ObjectGanttSchema — the flattened gantt config is declared (objectui#6051)', () => {
@@ -394,7 +394,8 @@ describe('ObjectGanttSchema (TS) — compile-time pin on every declared key', ()
     const staticData: ObjectGanttSchemaTS['staticData'] = { id: 1 };
     // @ts-expect-error — `filter` is declared `any[] | undefined`.
     const filter: ObjectGanttSchemaTS['filter'] = 'name = 1';
-    // @ts-expect-error — `sort` is declared `string | SortConfig[] | undefined`.
+    // @ts-expect-error — `sort` is declared `SortConfig[] | undefined` (the legacy
+    // string clause was retired in objectui#8221).
     const sort: ObjectGanttSchemaTS['sort'] = 5;
 
     expect([

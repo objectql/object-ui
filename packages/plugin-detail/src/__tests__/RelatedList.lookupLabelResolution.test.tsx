@@ -17,10 +17,25 @@
  * as `options` (which outrank the resolved name inside LookupCellRenderer),
  * flipped the whole column to API names. One resolver now serves both paths.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import * as React from 'react';
 import { RelatedList } from '../RelatedList';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). `RelatedList` reads
+ * `useIsMobile` (breakpoint 768): above it a `type="table"` list renders a real
+ * `data-table`, below it an `object-gallery` card layout with no headers, no
+ * cells and no sort.
+ *
+ * Both cases read resolved lookup labels in rendered cells.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 // Capture the schema RelatedList hands to SchemaRenderer (the data-table), so
 // we can render a column's cell directly and read the label it shows.

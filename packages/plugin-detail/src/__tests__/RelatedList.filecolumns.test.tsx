@@ -7,10 +7,25 @@
  * chip / thumbnail), and excluding them hid business columns like an expense
  * line's receipt attachment unless the author declared columns explicitly.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { RelatedList } from '../RelatedList';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). `RelatedList` reads
+ * `useIsMobile` (breakpoint 768): above it a `type="table"` list renders a real
+ * `data-table`, below it an `object-gallery` card layout with no headers, no
+ * cells and no sort.
+ *
+ * This case reads a derived column and the file name its cell draws.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 const fields = {
   description: { type: 'text', label: 'Description' },

@@ -32,7 +32,7 @@
  */
 
 import * as React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ComponentRegistry } from '@object-ui/core';
@@ -41,6 +41,24 @@ import type { MetadataContextValue } from '@object-ui/react';
 // `page:header` is registered by the dom setup's `@object-ui/components`
 // import; `record:quick_actions` by this package's own entry.
 import '../index';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). Both surfaces draw
+ * through `action-bar`, which reads `useIsMobile` (breakpoint 768) and below it
+ * collapses all but `mobileMaxVisible ?? 1` buttons into a `More actions`
+ * overflow.
+ *
+ * The cross-surface comparison this file is built on holds only while both
+ * toolbars are flat: measured on the mobile branch, the header control reads
+ * ['Convert Lead', 'More actions'] and the equality precondition in the first
+ * case fails.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 const ACTIONS: Record<string, any> = {
   convert: { name: 'convert', label: 'Convert Lead', type: 'flow', locations: ['record_header'] },

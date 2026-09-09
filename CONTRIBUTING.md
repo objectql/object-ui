@@ -425,6 +425,8 @@ We use fumadocs for documentation. The published pages live in `content/docs/**`
 
 The repository root also has a `docs/` directory, and it is **not** part of the site: it holds internal engineering material (ADRs, audits, architecture notes) that the fumadocs collection never reads, so none of it is rendered or reachable at a `/docs/...` route. A page filed there never reaches the site.
 
+**A code block inside one of those records is a SPECIMEN, not an example to copy.** An ADR states what was decided on a date and a dated audit states what was measured on one, so a snippet inside either is part of the record — edited until it compiles, it makes the record say something it never said. Fence such a block `plaintext` (an unhighlighted spelling `scripts/check-doc-fence-languages.mjs` already lists, and one `scripts/check-doc-snippet-types.mjs` does not compile), never `ts` / `tsx` / `typescript`. Code a reader may copy belongs in `content/docs/**` or `skills/objectui/**`, where a gate compiles it and a wrong line can be fixed without falsifying a record. Maintainer ruling 2026-09-08 (objectui#8363); the four records that predate it are not edited — they are named, with their measured counts, in that gate's `UNGATED_DOCS` ledger.
+
 ```bash
 # Start the documentation site dev server
 pnpm site:dev

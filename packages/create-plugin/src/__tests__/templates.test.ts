@@ -57,6 +57,7 @@ const VARS: PluginTemplateVars = {
   pascalName: 'Heatmap',
   description: 'Heatmap plugin for ObjectUI',
   author: 'ObjectStack Team',
+  license: 'MIT',
   version: '0.1.0',
   year: 2026
 };
@@ -562,6 +563,7 @@ describe('generated file map', () => {
   it('writes the Vitest setup file next to the config that names it', () => {
     const files = buildPluginFiles(VARS);
     expect(Object.keys(files).sort()).toEqual([
+      'LICENSE',
       'README.md',
       'package.json',
       'src/HeatmapImpl.test.tsx',

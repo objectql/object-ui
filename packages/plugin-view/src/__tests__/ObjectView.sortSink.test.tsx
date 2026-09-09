@@ -57,7 +57,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
-import { convertSortToQueryParams } from '@object-ui/core';
+import { convertSortToQueryParams, resetRetiredSortSpellingReports } from '@object-ui/core';
 import { ObjectView } from '../ObjectView';
 import type { ObjectViewSchema } from '@object-ui/types';
 
@@ -141,15 +141,41 @@ describe('the legacy table.defaultSort no longer reaches $orderby as a map', () 
 });
 
 describe('every other member of the chain reaches $orderby normalized too', () => {
-  it('lowers the canonical string form of table.sort', async () => {
-    // `ObjectGridSchema.sort` is `string | SortConfig[]`. The string used to
-    // ride to the wire untouched (`name desc`); it now arrives as the one
-    // normalized shape, which the adapter serializes to `-name`.
-    expect(await orderbyFor({ table: { sort: 'name desc' } as any })).toEqual({ name: 'desc' });
+  it('REFUSES the retired string form of table.sort, and says so (objectui#8221)', async () => {
+    // `ObjectGridSchema.sort` was `string | SortConfig[]`; decision batch #77
+    // retired the string arm, so the shared sink now refuses it instead of
+    // lowering it. The type no longer admits it either — `as any` is how a
+    // JSON document or a stored metadata row still reaches this read site.
+    resetRetiredSortSpellingReports();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(await orderbyFor({ table: { sort: 'name desc' } as any })).toBeUndefined();
+      expect(errorSpy).toHaveBeenCalled();
+      const message = String(errorSpy.mock.calls[0][0]);
+      // The diagnostic names the array form — a refusal with no prescription
+      // just moves the author's problem.
+      expect(message).toContain("[{ field: 'name', order: 'desc' }]");
+      expect(message).toContain('"name desc"');
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
-  it('lowers a bare field string to ascending', async () => {
-    expect(await orderbyFor({ table: { sort: 'name' } as any })).toEqual({ name: 'asc' });
+  it('REFUSES a bare field string too — every retired spelling, not just the two-word one', async () => {
+    resetRetiredSortSpellingReports();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(await orderbyFor({ table: { sort: 'name' } as any })).toBeUndefined();
+      expect(errorSpy).toHaveBeenCalled();
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    // CONTROL — the array arm of the SAME key on the SAME read site still
+    // reaches `$orderby`, so the two refusals above are about the spelling and
+    // not a read site that stopped reading `table.sort`.
+    expect(await orderbyFor({ table: { sort: [{ field: 'name', order: 'desc' }] } as any }))
+      .toEqual({ name: 'desc' });
   });
 
   it('lowers the canonical SortConfig[] form of table.sort', async () => {
@@ -193,7 +219,7 @@ describe('precedence is unchanged by the lowering', () => {
         won: { label: 'Won', type: 'calendar', sort: [{ field: 'name', order: 'desc' }] },
       },
       defaultListView: 'won',
-      table: { sort: 'created asc', defaultSort: { field: 'created', order: 'asc' } } as any,
+      table: { sort: [{ field: 'created', order: 'asc' }], defaultSort: { field: 'created', order: 'asc' } } as any,
     } as any)).toEqual({ name: 'desc' });
   });
 });

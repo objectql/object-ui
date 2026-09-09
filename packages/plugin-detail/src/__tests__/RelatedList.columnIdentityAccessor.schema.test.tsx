@@ -17,10 +17,27 @@
  * The rendered-cell half lives in `RelatedList.columnIdentityAccessor.test.tsx`
  * — this file mocks `SchemaRenderer`, so it cannot see real cells.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { RelatedList } from '../RelatedList';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). `RelatedList` reads
+ * `useIsMobile` (breakpoint 768): above it a `type="table"` list renders a real
+ * `data-table`, below it an `object-gallery` card layout with no headers, no
+ * cells and no sort.
+ *
+ * Every case here reads the column objects `RelatedList` hands the table; on the
+ * mobile branch what it hands over is an `object-gallery` schema, which carries
+ * no `columns` at all.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 // Capture the schema RelatedList hands to SchemaRenderer (the data-table) —
 // the same lever `RelatedList.headerSort.test.tsx` uses.

@@ -706,6 +706,71 @@ function matchesDollarOperator(
 }
 
 /**
+ * Evaluate ONE `$and` / `$or` group against a record (objectui#8513).
+ *
+ * ## The identities are the JS reducers, not a special case
+ *
+ * `$and` is `every` and `$or` is `some`, and the empty-array answers those two
+ * reducers already give — `[].every(…)` is `true`, `[].some(…)` is `false` —
+ * ARE the ruled identities. objectstack#5322 (closed `completed`, merged as
+ * objectstack#5365) fixed `{ $and: [] }` as TRUE / every row and `{ $or: [] }`
+ * as FALSE / no row, and `@objectstack/spec` pins all four identity answers in
+ * the cross-backend `FILTER_LOGIC_CASES` table that
+ * `ValueDataSource.filterLogicConformance.test.ts` drives this matcher through.
+ * So there is no identity branch to write here and none to get wrong: writing
+ * one would be a second statement of the rule that could drift from the table.
+ *
+ * A `{}` branch needs no arm either. {@link matchesFilter} answers `true` for a
+ * filter with no entries, which is what makes a `{}` disjunct a TRUE branch
+ * that ABSORBS its `$or` and a `{}` conjunct one that drops out of an `$and` —
+ * the third and fourth identities, for free, from the same recursion.
+ *
+ * ## Why the members are checked BEFORE any of them is evaluated
+ *
+ * `every` / `some` short-circuit, so a lazy shape check would reach a malformed
+ * member for some records and not for others — and `refusals` is drained once
+ * per `find()`, so whether the author sees the diagnostic at all would depend
+ * on which row happened to be tested first. Validating the whole member list up
+ * front makes the refusal a property of the FILTER rather than of the data.
+ *
+ * A refused group excludes the row, the same direction every other refusal in
+ * this file takes. Inside `$or` that is narrowing (one fewer way to match) and
+ * inside `$and` it is exclusion outright; neither can widen a result set.
+ */
+function matchesLogicalGroup(
+  record: any,
+  keyword: '$and' | '$or',
+  value: any,
+  refusals: Set<string>,
+): boolean {
+  if (!Array.isArray(value)) {
+    return refuseFilterNode(
+      refusals,
+      `filter combinator '${keyword}' takes an ARRAY of conditions; received `
+      + `${typeof value === 'object' && value !== null ? 'an object' : typeof value}: `
+      + `${JSON.stringify(value) ?? String(value)}. The spec declares `
+      + `'${keyword}?: FilterCondition[]' (FilterConditionSchema, data/filter.zod.ts)`,
+    );
+  }
+
+  for (const branch of value) {
+    if (branch === null || typeof branch !== 'object' || Array.isArray(branch)) {
+      return refuseFilterNode(
+        refusals,
+        `every member of filter combinator '${keyword}' must be a filter condition `
+        + `OBJECT; received ${JSON.stringify(branch) ?? String(branch)}. The spec `
+        + `declares '${keyword}?: FilterCondition[]' (FilterConditionSchema, `
+        + `data/filter.zod.ts)`,
+      );
+    }
+  }
+
+  return keyword === '$and'
+    ? value.every((branch: any) => matchesFilter(record, branch, refusals))
+    : value.some((branch: any) => matchesFilter(record, branch, refusals));
+}
+
+/**
  * In-memory evaluation of an OBJECT-shaped (`$`-dialect) filter.
  *
  * Reads a flat key/value equality (`{ age: 26 }`) or a `FieldOperatorsSchema`
@@ -714,26 +779,41 @@ function matchesDollarOperator(
  * logged once per distinct refusal per `find()` — rather than adding no
  * constraint, which is what its `default: break` used to do (objectui#8447).
  *
- * ## Combinators are refused here, not implemented (objectui#8447, its own case)
+ * ## `$and` / `$or` are EXECUTED here; `$not` is still refused (objectui#8513)
  *
- * `$and` / `$or` / `$not` are `LOGICAL_OPERATORS`, not field names, and this
- * matcher has no grouping. They were already excluded-and-silent in two of
- * three cases before this card and fail-OPEN in the third, which is why they
- * get an arm now rather than being swept into the operator fix:
+ * The three `LOGICAL_OPERATORS` are not one case and this file must not let a
+ * fix flatten them into one. Before objectui#8447 made the refusal loud, they
+ * failed in two OPPOSITE directions: `{ $and: [...] }` / `{ $or: [...] }` carry
+ * an ARRAY, so they fell to the simple-equality branch below
+ * (`record['$and'] !== [...]` is always true) and excluded EVERY row, while
+ * `{ $not: {...} }` carries an OBJECT (`FilterConditionSchema`, not an array),
+ * entered the operator branch with its own nested FIELD names read as operator
+ * names, and matched every row. Two bugs, opposite signs, one heading.
  *
- * - `{ $and: [...] }` / `{ $or: [...] }` carry an ARRAY, so they fell to the
- *   simple-equality branch below (`record['$and'] !== [...]` is always true) and
- *   excluded every row with no diagnostic. The rows do not move; the silence does.
- * - `{ $not: {...} }` carries an OBJECT (`FilterConditionSchema`, not an array),
- *   so it entered the operator branch, its inner FIELD names were read as
- *   operator names, and every one of them hit `default: break`. It therefore
- *   matched EVERY row — the same fail-open direction as the operators, and the
- *   one behaviour here whose result changes.
+ * **`$and` / `$or` are executed** because the semantics they were waiting on
+ * have been ruled and shipped: objectstack#5322 (merged objectstack#5365)
+ * settled the empty-group identities, and five platform backends already answer
+ * to them through the shared `FILTER_LOGIC_CASES` conformance table. Refusing a
+ * shape the spec DECLARES, this repo's own `convertFiltersToAST` LOWERS, and
+ * every wire face EXECUTES made this adapter the one face that answers "no
+ * rows" to a filter the UI itself offers — the outcome objectui#8515 already
+ * ruled worse than the bug. Executing them is therefore restoring a declared
+ * invariant, not widening an accept set: no new operator, no new key, nothing
+ * admitted that `FilterConditionSchema` does not already declare.
  *
- * Executing them is a feature with its own semantics to settle (the empty-group
- * identities and `$not`'s NULL-safe rule, objectstack#5146 / #5322), not part of
- * this repair. An author who needs a group today writes the AST array `$filter`,
- * which the sibling arm of `find()` already executes.
+ * **`$not` keeps its refusal**, deliberately and with its own message rather
+ * than by falling through to the unknown-`$`-key arm below. objectstack#5146
+ * (merged objectstack#5296) did rule its NULL-safe semantics — the operand
+ * compiles to a TOTAL predicate before being negated — but this repo's own
+ * `convertFiltersToAST` (`../utils/filter-converter.ts`) still THROWS for
+ * `$not`, on a narrowing that is about the AST rather than about the ruling:
+ * `FILTER_ARRAY_LOGIC_KEYWORDS` is `['and', 'or']`, so the array dialect has no
+ * negation keyword, and rewriting the negation inward is silently partial
+ * because `startswith` / `endswith` / `between` / `icontains` have no negated
+ * counterpart in `VALID_AST_OPERATORS`. Whether that objectui-side narrowing
+ * should stand now that upstream has ruled is a question objectui#8513 does not
+ * decide, so `$not` is left exactly where it was — refused, loudly, and
+ * distinguishable in the log from a group that executes.
  */
 function matchesFilter(
   record: any,
@@ -741,11 +821,39 @@ function matchesFilter(
   refusals: Set<string>,
 ): boolean {
   for (const [key, condition] of Object.entries(filter)) {
+    // The two combinators this matcher executes. A group is one ENTRY of the
+    // condition object, so it ANDs with its siblings exactly as a field entry
+    // does — `{ status: 'open', $or: [...] }` is "status AND the group", which
+    // is what `FILTER_LOGIC_CASES` measures in both key orders.
+    if (key === '$and' || key === '$or') {
+      if (!matchesLogicalGroup(record, key, condition, refusals)) return false;
+      continue;
+    }
+
+    // Refused on its own terms, ahead of the generic `$` arm, so the log tells
+    // an author which of the three combinators they hit and why this one is
+    // different. See this function's doc for the reasoning; the short version
+    // is that the AST this repo lowers to has no negation keyword.
+    if (key === '$not') {
+      return refuseFilterNode(
+        refusals,
+        `filter combinator '$not' is not executed by the object-dialect matcher. `
+        + `Its NULL-safe semantics are ruled (objectstack#5146) but this repo's own `
+        + `lowering refuses it too: FILTER_ARRAY_LOGIC_KEYWORDS is ['and', 'or'], so `
+        + `the filter AST has no negation keyword, and rewriting the negation inward `
+        + `would be silently partial ('startswith', 'endswith', 'between' and `
+        + `'icontains' have no negated counterpart). Express the negation with a `
+        + `negated operator instead ($ne, $nin, $notContains); note those follow each `
+        + `operator's own answer for a missing value rather than $not's NULL-safe rule`,
+      );
+    }
+
     if (key.startsWith('$')) {
       return refuseFilterNode(
         refusals,
-        `filter combinator '${key}' is not implemented by the object-dialect matcher; `
-        + `express the group as an AST array $filter, which this adapter executes`,
+        `filter key '${key}' is not a field name and not one of the combinators this `
+        + `matcher executes ($and / $or). The spec's LOGICAL_OPERATORS are `
+        + `$and / $or / $not and nothing else`,
       );
     }
 

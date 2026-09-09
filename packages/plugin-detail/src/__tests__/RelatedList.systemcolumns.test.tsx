@@ -8,10 +8,25 @@
  * the leading columns and pushed business columns (qty, price, amount) past the
  * column cap. System audit fields are now sorted last.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { RelatedList } from '../RelatedList';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). `RelatedList` reads
+ * `useIsMobile` (breakpoint 768): above it a `type="table"` list renders a real
+ * `data-table`, below it an `object-gallery` card layout with no headers, no
+ * cells and no sort.
+ *
+ * Every case here reads the derived column ORDER through rendered headers.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 // Read the column order straight off the schema handed to the renderer. This
 // used to infer it from the row of sort buttons, which a `table` list no longer

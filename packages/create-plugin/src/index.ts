@@ -13,6 +13,7 @@ import prompts from 'prompts';
 import * as path from 'path';
 import fs from 'fs-extra';
 import { buildPluginFiles, type PluginTemplateVars } from './templates';
+import { LICENSE_PROMPT, resolveLicenseId } from './licenses';
 
 const program = new Command();
 
@@ -91,7 +92,14 @@ async function createPlugin(pluginName?: string, options: PluginOptions = {}) {
       name: 'author',
       message: 'Author name:',
       initial: options.author || ''
-    }
+    },
+    // objectui#8041: the generator used to assert `"license": "MIT"` on an
+    // author's package without asking, and then ship no LICENSE text beside
+    // the claim. The prompt is the consent half; `buildLicenseFile` is the
+    // text half. Taken from `./licenses` rather than written out here so the
+    // published prompt contract can be asserted — this module calls
+    // `program.parse()` at import time and so cannot be imported by a test.
+    LICENSE_PROMPT
   ]);
 
   const targetDir = path.join(process.cwd(), 'packages', fullPackageName);
@@ -114,6 +122,10 @@ async function createPlugin(pluginName?: string, options: PluginOptions = {}) {
     pascalName: pascalCaseName,
     description: answers.description,
     author: answers.author,
+    // Never `answers.license` directly: a non-TTY stdin or a cancelled prompt
+    // leaves it undefined, and the ruling says such a run takes MIT and still
+    // writes the text.
+    license: resolveLicenseId(answers.license),
     version: '0.1.0',
     year: new Date().getFullYear()
   };

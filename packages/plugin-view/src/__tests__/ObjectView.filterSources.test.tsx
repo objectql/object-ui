@@ -167,7 +167,7 @@ describe('ObjectView hands the view filter to the delegated renderer', () => {
 
   // ⚠️ CONTROL, green in BOTH states — named so it is not read as evidence
   // for objectui#6235. `table.sort` is the slot that legitimately carries an
-  // array (`ObjectGridSchema.sort: string | SortConfig[]`), and it must reach
+  // array (`ObjectGridSchema.sort: SortConfig[]`), and it must reach
   // the delegated node UNWRAPPED. What this guards is the wrong shape the fix
   // could have taken: wrapping the chain's RESULT instead of its final branch,
   // which would re-wrap this into `[[{ field, order }]]` — verbatim

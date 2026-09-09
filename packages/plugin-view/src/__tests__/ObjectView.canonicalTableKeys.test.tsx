@@ -172,10 +172,15 @@ describe('grid path: the canonical table keys reach ObjectGrid', () => {
     expect(grid.sort).toEqual([{ field: 'name', order: 'desc' }]);
   });
 
-  it('forwards the string form of table.sort', () => {
-    // `ObjectGridSchema.sort` is `string | SortConfig[]`; the legacy
-    // `defaultSort` has no string form, so this arity is reachable only
-    // through the canonical key.
+  it('forwards table.sort VERBATIM — even the retired string form (objectui#8221)', () => {
+    // `ObjectGridSchema.sort` is `SortConfig[]` since decision batch #77; the
+    // string arm is retired. This delegation is nonetheless VALUE-AGNOSTIC and
+    // stays that way on purpose: a stored metadata row still reaches it
+    // carrying the old spelling, and the place that judges the value is the
+    // shared sink downstream (`ObjectView.sortSink.test.tsx` pins the refusal
+    // and its diagnostic). Coercing or dropping it here would put a second
+    // opinion about the sort dialect in the delegation path — the fourth
+    // dialect this whole chain exists to avoid.
     const grid = forwardedGridSchema({ table: { sort: 'name desc' } as any });
     expect(grid.sort).toBe('name desc');
   });
@@ -279,14 +284,13 @@ describe('grid path: a named view still outranks the table segment', () => {
     // `defaultSort: [{ field: 'name', order: 'desc' }]` and said in so many
     // words that the pin should be UPDATED, not deleted, by whoever fixed the
     // arity. Updated here: the array now rides the canonical slot — the only
-    // one of the two whose declared type (`string | SortConfig[]`) can hold
-    // more than one key — and the legacy slot carries the `table` segment
-    // alone. Precedence is what this block asserts and it is unchanged:
+    // one of the two whose declared type (`SortConfig[]`) can hold more than
+    // one key — and the legacy slot carries the `table` segment alone. Precedence is what this block asserts and it is unchanged:
     // ObjectGrid resolves `schemaSort ?? defaultSort`, so the named view wins
     // over `table.sort` because it is what reaches the canonical slot.
     const grid = forwardedGridSchema({
       ...namedView,
-      table: { sort: 'created asc' } as any,
+      table: { sort: [{ field: 'created', order: 'asc' }] } as any,
     } as any);
     expect(grid.sort).toEqual([{ field: 'name', order: 'desc' }]);
     expect(grid.defaultSort).toBeUndefined();
@@ -398,11 +402,12 @@ describe('delegated renderListView: canonical first, alias still working', () =>
   });
 
   it('hands over a canonical table.sort and prefers it over table.defaultSort', () => {
-    expect(delegatedSchema({ table: { sort: 'name desc' } as any }).sort).toBe('name desc');
+    const SORT = [{ field: 'name', order: 'desc' }];
+    expect(delegatedSchema({ table: { sort: SORT } as any }).sort).toEqual(SORT);
     const s = delegatedSchema({
-      table: { sort: 'name desc', defaultSort: { field: 'created', order: 'asc' } } as any,
+      table: { sort: SORT, defaultSort: { field: 'created', order: 'asc' } } as any,
     });
-    expect(s.sort).toBe('name desc');
+    expect(s.sort).toEqual(SORT);
   });
 
   it('still hands over table.defaultSort alone — WRAPPED', () => {
