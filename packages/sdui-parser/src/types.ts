@@ -96,8 +96,51 @@ export interface ManifestInput {
   required?: boolean;
   /** allowed values for `enum` inputs */
   enum?: Array<string | { value: unknown; label?: string }>;
-  /** marks a data-binding input the server must resolve (ADR-0080 §6.3) */
-  binding?: 'object' | 'field';
+  /**
+   * Marks a data-binding input the server must resolve (ADR-0080 §6.3):
+   * `binding: 'object'` says the input NAMES an object, so the server-side
+   * binding check knows what to resolve it against. Unrelated to
+   * `type: 'object'`, the coarse control kind — a record-shaped value and an
+   * object-naming input are two different facts.
+   *
+   * ## The vocabulary is exactly `'object'` — `'field'` is retired on this face too
+   *
+   * `'field'` stood beside it from the first draft of ADR-0080 and was never
+   * written. It was retired on the serializer's INPUT boundary
+   * (`RegistryConfigLike` in `index.ts`) under ADR-0049 enforce-or-remove by
+   * the maintainer ruling of 2026-09-07 (decision batch #69), and on THIS
+   * face by objectui#8315 — the residue that ruling did not name, which left
+   * one published package narrow on one face and wide on the other.
+   *
+   * ⚠️ The argument for leaving this face wide was ANSWERED, not overlooked.
+   * It runs: producer → reader is a subset relation, so a reader accepting a
+   * value no producer emits is permissive rather than wrong. Three measured
+   * facts decided against it (objectui#8315):
+   *
+   *   1. **This is not a pure reader face.** `manifestFromConfigs` RETURNS a
+   *      `Manifest`, so `ManifestInput` is also this package's OUTPUT type,
+   *      and this key is fed straight from the already-narrowed boundary. A
+   *      union wider than the producer's is imprecision on the way out, not
+   *      permissiveness on the way in.
+   *   2. **Its sibling is a pure producer face.**
+   *      `ManifestValidationResult.bindings[].kind` is written by
+   *      `validateTree` by copying this key, so the subset relation runs the
+   *      other way there — see that declaration. The two are COUPLED by that
+   *      assignment: narrowing one alone needs a cast at the only conversion
+   *      site, which is the lenient fallback AGENTS.md #0.1 bans. So "both
+   *      narrow" and "both wide" were the only self-consistent states, and
+   *      only one of them can be justified on the producer face.
+   *   3. **The permissiveness protected nothing.** `binding: 'field'` has
+   *      zero writers here and zero in the objectstack copy of this package
+   *      (measured 2026-09-09 on both heads, each with a firing
+   *      `binding: 'object'` control), and the only manifest producer in
+   *      either tree is `manifestFromConfigs`, whose input face is narrow.
+   *
+   * The reopen route is the ruling's own: a MEASURED need for field bindings
+   * is filed as a widening with the vocabulary decided then — not
+   * pre-declared here for a producer that does not exist.
+   */
+  binding?: 'object';
   description?: string;
 }
 
@@ -134,6 +177,17 @@ export interface ManifestValidationResult {
   diagnostics: Diagnostic[];
   /** unique plugin namespaces referenced — the page's `requires` */
   requires: string[];
-  /** binding sites (object/field) the server must resolve against object schema */
-  bindings: Array<{ tag: string; input: string; kind: 'object' | 'field'; value: unknown }>;
+  /**
+   * Binding sites the server must resolve against object schema.
+   *
+   * `kind` is a PRODUCER face, not a reader face: `validateTree` writes it,
+   * copying {@link ManifestInput.binding} at the one site that builds this
+   * array. So the subset relation that licenses a permissive READER runs the
+   * other way here — a wider union accepts nothing extra, it obliges every
+   * consumer to handle an arm this package cannot emit. That is why the
+   * retired `'field'` arm (objectui#6950 on the input boundary, objectui#8315
+   * here) is gone from this end as well; the measurements are on
+   * {@link ManifestInput.binding}.
+   */
+  bindings: Array<{ tag: string; input: string; kind: 'object'; value: unknown }>;
 }
