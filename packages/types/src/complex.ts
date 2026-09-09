@@ -19,10 +19,13 @@ import type {
   DashboardWidget as SpecDashboardWidget,
   DateRangeDefaultRange as SpecDateRangeDefaultRange,
   GlobalFilter as SpecGlobalFilter,
-  GroupingConfig,
 } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
-import type { KanbanConditionalFormattingRule, ViewNavigationConfig } from './objectql.js';
+// `GroupingConfig`, `KanbanConditionalFormattingRule` and `ViewNavigationConfig`
+// were imported for `KanbanSchema`'s `grouping`, `conditionalFormatting` and
+// `navigation` members and had no other reader in this module; they left with
+// the retired `'kanban'` arm (objectui#8802). All three are still declared and
+// still exported from their own modules.
 
 /**
  * Kanban card — the shape the registered `'kanban'` renderer reads.
