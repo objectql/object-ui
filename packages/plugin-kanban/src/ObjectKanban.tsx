@@ -391,12 +391,23 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             // `QueryParams` field and that nothing in this repo reads. The number
             // is unchanged; it just reaches the wire now, and `limit` (authored,
             // or a bound view's `pagination.pageSize`) can set it.
-            const rowWindow = schema.limit ?? DEFAULT_KANBAN_LIMIT;
-            const results = await dataSource.find(schema.objectName, {
+            //
+            // The query is a NAMED OBJECT rather than an inline literal so that
+            // the saturation reading below (objectui#8307) compares the row
+            // count against `query.$top` — the very number this request
+            // carried. One spelling of the window, read back from the request
+            // itself: a second `schema.limit ?? DEFAULT_KANBAN_LIMIT` kept in a
+            // local for the comparison could drift from the one on the wire,
+            // and a marker computed against a window the server was never asked
+            // for is exactly the silent wrongness objectui#8307 is about.
+            // Keeping it inline here also keeps the spelling objectui#7322
+            // pins off disk (`object-kanban-group-by-limit-7322.test.ts`).
+            const query = {
                 $filter: schema.filter,
-                $top: rowWindow,
+                $top: schema.limit ?? DEFAULT_KANBAN_LIMIT,
                 ...(expand.length > 0 ? { $expand: expand } : {}),
-            });
+            };
+            const results = await dataSource.find(schema.objectName, query);
             
             // Handle { value: [] } OData shape or { data: [] } shape or direct array
             const data = extractRecords(results);
@@ -406,7 +417,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
                 // objectui#8307 — see `fetchWindowSaturated`. Recorded HERE,
                 // against the window THIS request carried, because that is the
                 // only point where the two numbers are both in hand.
-                setFetchWindowSaturated(data.length >= rowWindow);
+                setFetchWindowSaturated(data.length >= query.$top);
             }
         } catch (e) {
             console.error('[ObjectKanban] Fetch error:', e);
