@@ -680,11 +680,14 @@ export interface ObjectGridSchema extends BaseSchema {
   
   /**
    * Sort Configuration
-   * Can be either:
-   * - Legacy string format: "name desc"
-   * - Array of sort configs: [{ field: 'name', order: 'desc' }]
+   *
+   * `[{ field: 'name', order: 'desc' }]` — `order` is optional and means
+   * `'asc'`. The legacy string clause (`"name desc"`) is RETIRED
+   * (objectui#8221, decision batch #77): the array is the only spelling this
+   * key's declared input publishes (`type: 'array'`) and the only one
+   * `convertSortToQueryParams` lowers.
    */
-  sort?: string | SortConfig[];
+  sort?: SortConfig[];
   
   /**
    * Fields enabled for search
@@ -2335,8 +2338,8 @@ export interface ObjectMapSchema extends BaseSchema {
   staticData?: any[];
   /** Query filter, forwarded verbatim as `$filter` */
   filter?: any[];
-  /** Sort configuration, forwarded as `$orderby` */
-  sort?: string | SortConfig[];
+  /** Sort configuration, forwarded as `$orderby`. Array only — the legacy string clause is retired (objectui#8221). */
+  sort?: SortConfig[];
   /**
    * Map configuration — the author face. See `ObjectMapConfig`.
    *
@@ -2720,8 +2723,8 @@ export interface ObjectGanttSchema extends BaseSchema {
   staticData?: any[];
   /** Query filter (JSON Rules format), forwarded verbatim as `$filter`. */
   filter?: any[];
-  /** Sort configuration, forwarded as `$orderby` via `convertSortToQueryParams`. */
-  sort?: string | SortConfig[];
+  /** Sort configuration, forwarded as `$orderby` via `convertSortToQueryParams`. Array only — the legacy string clause is retired (objectui#8221). */
+  sort?: SortConfig[];
 }
 
 /**

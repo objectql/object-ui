@@ -116,10 +116,11 @@ export interface ObjectTimelineProps {
      */
     filter?: any[] | Record<string, any>;
     /**
-     * Query ordering — the legacy `"name desc"` clause or the spec's
-     * `SortConfig[]`, both lowered through `convertSortToQueryParams`.
+     * Query ordering — the spec's `SortConfig[]`, lowered through
+     * `convertSortToQueryParams`. The legacy `"name desc"` clause is RETIRED
+     * (objectui#8221) and that sink refuses it out loud.
      */
-    sort?: string | Array<{ field?: string; order?: 'asc' | 'desc' }>;
+    sort?: Array<{ field?: string; order?: 'asc' | 'desc' }>;
     /**
      * Row cap for the fetch. Defaults to {@link DEFAULT_TIMELINE_LIMIT}; a
      * timeline renders one rail with no pagination control, so this is the

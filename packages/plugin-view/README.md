@@ -217,7 +217,7 @@ just no longer the one to reach for:
 | `pagination: { pageSize, pageSizeOptions? }` | `pageSize: number` |
 | `selection: { type: 'single' \| 'multiple' \| 'none' }` | `selectable: boolean \| 'single' \| 'multiple'` |
 | `filter: [{ field, operator, value }, …]` (same shape as a named view's `filter`) | `defaultFilters: Record<field, value>` (equality-only) |
-| `sort: 'field direction'` or `SortConfig[]` | `defaultSort: { field, order }` (**no string form** — that arity only exists on `sort`) |
+| `sort: SortConfig[]` (`[{ field, order }]`) | `defaultSort: { field, order }` (a single entry, not an array) |
 
 **Precedence when a key is written both ways** — `table: { pagination: {
 pageSize: 10 }, pageSize: 50 }`, say — the canonical spelling wins. That is
@@ -335,7 +335,7 @@ const schema: ObjectViewSchema = {
   defaultViewType: 'grid',
   table: {
     columns: ['name', 'email', 'role', 'created_at'],
-    sort: 'created_at desc', // or [{ field: 'created_at', order: 'desc' }]
+    sort: [{ field: 'created_at', order: 'desc' }],
   },
 };
 ```

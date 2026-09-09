@@ -64,6 +64,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { MetadataCtx } from '@object-ui/react';
+import { resetRetiredSortSpellingReports } from '@object-ui/core';
 
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -251,13 +252,31 @@ describe('derived related list — inherited $orderby on the wire (objectui#5795
     expect(params.$orderby).toEqual([{ field: 'seq_no', order: 'desc' }]);
   });
 
-  it('DIALECT — the legacy space-separated string arm reaches the wire normalized', async () => {
-    const params = await childQueryParams({ sort: 'seq_no desc' });
-    expect(params.$orderby).toEqual([{ field: 'seq_no', order: 'desc' }]);
-    // The failure this leg exists for, stated so a regression reads plainly:
-    // an un-normalized inherit orders by a FIELD NAMED `seq_no desc`.
-    expect(params.$orderby[0].field).toBe('seq_no');
-    expect(JSON.stringify(params.$orderby)).not.toContain('seq_no desc');
+  it('RETIRED DIALECT — a legacy string arm sends NO $orderby, and never a field named for the clause (objectui#8221)', async () => {
+    resetRetiredSortSpellingReports();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const params = await childQueryParams({ sort: 'seq_no desc' });
+
+      // Refused end to end: the retirement reaches the wire, not just the
+      // helper's unit test.
+      expect('$orderby' in params).toBe(false);
+      // The failure this leg has always existed for, stated so a regression
+      // reads plainly: an un-normalized inherit orders by a FIELD NAMED
+      // `seq_no desc`. Refusal prevents it just as translation did; forwarding
+      // the string verbatim would not.
+      expect(JSON.stringify(params)).not.toContain('seq_no desc');
+      // LIVE CONTROL — the query really ran and really is the related list's
+      // own, so the absent `$orderby` means "refused", not "nothing fetched".
+      expect(params.$filter).toEqual({ [PARENT]: RECORD_ID });
+      expect(params.$top).toBeGreaterThan(0);
+
+      // And the operator is told why their order vanished.
+      expect(errorSpy).toHaveBeenCalled();
+      expect(String(errorSpy.mock.calls[0][0])).toContain("[{ field: 'name', order: 'desc' }]");
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it('COUNTER-PROBE — no declared sort sends NO $orderby, and the list still works', async () => {
