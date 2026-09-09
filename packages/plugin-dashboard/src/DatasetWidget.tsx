@@ -585,6 +585,47 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
 
+  // ── Declared measures this tile will never show (objectui#8894) ──────────
+  // `values` is `z.array(z.string()).min(1)` on `DashboardWidgetSchema`, so an
+  // author may legally declare three measures, and the query above runs ALL of
+  // them (`measures: values`). The metric/KPI branch below then renders
+  // `values[0]` and stops — no warning, no console message, no visual tell. A
+  // tile answering a NARROWER question than its metadata asked still reads as a
+  // finished product, and that silence is the defect (ADR-0049
+  // declared-but-unenforced), not the count of numbers on screen.
+  //
+  // This makes the drop AUDIBLE. It deliberately does NOT render the dropped
+  // measures: giving `values[1..]` rendering semantics they do not have today
+  // widens the authoring surface (objectui#8894 option (a), a separate card on
+  // the manual-floor route), so the markup below is byte-unchanged and the
+  // measures after the first are still dropped — objectui#8887 pins both of
+  // those facts and both stay green.
+  //
+  // ⚠️ "Queried … never displayed", NOT "ignored": the extra measures are not
+  // inert, and a message saying they were would itself be false. They are
+  // computed by the server, they join the refetch `signature` above, and
+  // `options.sortBy` accepts any of them (`values.includes(sortBy)`) — which,
+  // on a metric-TYPE widget that also declares dimensions, decides which row
+  // becomes `rows[0]` and therefore which number is shown. Only the DISPLAY
+  // drops them, and only that is what this claims.
+  //
+  // The message itself is the effect's dependency, so it speaks once per mount
+  // and again only when what it would say changes. A module-level one-shot Set
+  // (`warnSuppressedListNav`'s shape) was deliberately not used: it would need
+  // an exported reset and leak across tests, and the census for this card found
+  // the multi-measure metric tile in NO authored dashboard in this tree or in
+  // `objectstack` — there is no population here to flood a console with.
+  const unrenderedMeasureWarning =
+    isMetric && values.length > 1
+      ? `[DatasetWidget] Widget "${String(widget?.id ?? '')}" (type "${widgetType}", dataset "${datasetName}") `
+        + `declares ${values.length} measures, but a metric tile renders only the first ("${values[0]}"). `
+        + `Queried and then never displayed: ${values.slice(1).map((m) => `"${m}"`).join(', ')}. `
+        + `Declare one measure per metric tile, or use a widget that renders every measure (table, pivot or a chart).`
+      : '';
+  useEffect(() => {
+    if (unrenderedMeasureWarning) console.warn(unrenderedMeasureWarning);
+  }, [unrenderedMeasureWarning]);
+
   // ── The analytics label net's INPUT: resolved field metadata, locale-free ──
   // ONE object-schema read per dataset query, yielding `{ object, field,
   // options }` per dimension field path. Everything this widget DISPLAYS
