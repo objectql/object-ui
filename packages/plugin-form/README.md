@@ -379,20 +379,26 @@ field can never lose its asterisk while still refusing the submit.
 
 A form section declares its members exactly one way: it enumerates `fields`, or
 it points `group` at one of the object's declared `fieldGroups` and inherits that
-group's members **and** its presentation (`@objectstack/spec` 17.3.0,
-objectstack#13855, ADR-0085 §5). `ObjectForm` resolves the reference once, above
-its routing fork, so all six layouts inherit it.
+group's members **and** its presentation (objectstack#13855, ADR-0085 §5 — the
+spec range that carries it is the `@objectstack/spec` entry in this package's own
+`package.json`). `ObjectForm` resolves the reference once, above its routing
+fork, so all six layouts inherit it.
 
 A host with its **own** section builder resolves it with the same function
 instead of deriving sections itself (objectui#8641):
 
 ```typescript
-declare const objectDef: unknown;   // `{ fields, fieldGroups }`, or null while loading
-
 import {
   resolveSectionGroupReferences,
   type ResolveSectionGroupsOptions,
 } from '@object-ui/plugin-form';
+import type { ObjectFormSection } from '@object-ui/types';
+
+// What the host's own builder produced. A `{ group: 'x' }` section is still
+// unresolved here — `ObjectFormSection` declares `group` and leaves `fields`
+// optional, which is the whole shape this call takes in.
+declare const authoredSections: ObjectFormSection[];
+declare const objectDef: unknown;   // `{ fields, fieldGroups }`, or null while loading
 
 const sections = resolveSectionGroupReferences(authoredSections, {
   objectName: 'ticket',
