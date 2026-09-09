@@ -69,6 +69,16 @@ interface ServerFieldSchema {
    * (objectui#6041) — `referenceTo` is refused BY NAME by `FieldSchema`, so
    * emitting it made `PUT /api/v1/meta/object/:name` fail 422 and blocked
    * every later save of the object. See {@link RETIRED_FIELD_KEYS}.
+   *
+   * The retired spelling is deliberately NOT declared alongside it, even
+   * though {@link storedRelationshipTarget} now reads it. This interface is
+   * also the WRITE shape (`fromDesignerField` returns it), and a declared
+   * property is precisely what `scripts/check-designer-field-key-parity.mjs`
+   * reads to prove no designer payload can emit a key the spec refuses by
+   * name — declaring `referenceTo` here would put a retired key back inside
+   * that gate's reach for a reader that only ever needs it on the way IN. The
+   * read goes through the index signature below instead, and is narrowed
+   * there, on the same reasoning that keeps `expression` undeclared.
    */
   reference?: string;
   /*
@@ -156,6 +166,63 @@ function isDesignerAuthorableType(raw: unknown): raw is DesignerFieldType {
   return typeof raw === 'string' && KNOWN_FIELD_TYPES.has(raw as DesignerFieldType);
 }
 
+/**
+ * The relationship target a stored field definition holds, under EITHER
+ * spelling — objectui#8058.
+ *
+ * `reference` is the spec's key and is read first; the pre-objectui#6041
+ * `referenceTo` is consulted only when the spec key holds nothing, so a
+ * partly-migrated document carrying both is read from `reference` and the
+ * retired key is ignored.
+ *
+ * ## Why reading the retired spelling is a RENAME here and not a laundering
+ *
+ * `@objectstack/spec` treats the two as one key under two spellings and says
+ * so in the refusal itself. Measured on the installed 17.4.0:
+ *
+ *   FieldSchema.safeParse({ type: 'lookup', label: 'L', referenceTo: 'account' })
+ *     => success = false
+ *     => unrecognized_keys — "Did you mean `referenceTo` → `reference`?"
+ *   FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: 'account' })
+ *     => success = true
+ *
+ * `referenceTo` is one of five spellings `FieldSchema`'s alias map renames onto
+ * `reference` (`relatedTo`, `target`, `targetObject`, `lookupObject` are the
+ * rest). Both sides carry the same value — a single object machine name,
+ * `reference: z.string().optional()` upstream and
+ * `DesignerFieldDefinition.referenceTo?: string` here — and the value this page
+ * emits as `reference` today is read from the SAME designer-model property its
+ * pre-objectui#6041 build emitted as `referenceTo`. Same type, same id form,
+ * same cardinality; nothing about the value changes on the way through.
+ *
+ * ⭐ That is what separates this from objectui#6043, where the identical-looking
+ * `formula` → `expression` rename was REFUSED. The alias map lists that pair
+ * too, but its two sides do NOT carry the same value: `expression` is CEL while
+ * the retired textarea accepted arbitrary text, so adopting the old key would
+ * have laundered non-CEL text into a formula that parses green and evaluates to
+ * null. There is no value grammar to violate here — a target is an object name
+ * at either spelling. ⛔ Do not cite objectui#6043 against this read without
+ * answering that difference; it is a different situation, not a smaller one.
+ *
+ * ## Why a NON-STRING retired value is not adopted
+ *
+ * The narrowing is the designer model's (`referenceTo?: string`), and it is
+ * also the better reading. `carryOver` strips the retired key either way, so a
+ * stored `referenceTo: 42` leaves no target behind whatever we do; refusing it
+ * here means {@link describeUnusableTarget} says "this one has none" — pick a
+ * target — instead of reporting a number the author has no control left to see
+ * or clear. An EMPTY string IS adopted: it is a value the document holds and
+ * the guard has its own answer for it. Filtering values here would make this a
+ * semantic change instead of a spelling one, which is the line objectui#6043
+ * drew.
+ */
+function storedRelationshipTarget(raw: ServerFieldSchema): string | undefined {
+  // Read through the index signature — see the note on `reference` above for
+  // why the retired spelling is not a declared member of this interface.
+  const retired = raw.referenceTo;
+  return raw.reference ?? (typeof retired === 'string' ? retired : undefined);
+}
+
 function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDefinition {
   return {
     id: name,
@@ -177,7 +244,7 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
     isSystem: raw.system,
     externalId: raw.externalId,
     trackHistory: raw.trackHistory,
-    referenceTo: raw.reference,
+    referenceTo: storedRelationshipTarget(raw),
   };
 }
 
@@ -204,10 +271,36 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
  * such an object come out parseable; it is keyed to the tombstones, so every
  * other unknown key the designer does not render still survives.
  *
- * Two of the four cost nothing: `fromDesignerField` re-emits the lookup target
- * under the spec spelling `reference` on the very next line, and the system
- * flag is read back from the spec spelling `system` (never re-emitted — the
- * strip IS the whole write half of objectui#6044). `formula` is the one entry
+ * Two of the four cost nothing on the path through the DESIGNER, and the
+ * `referenceTo` half is true only because the read door was taught to find the
+ * target under BOTH spellings (objectui#8058). `toDesignerField` reads
+ * `reference` and falls back to the retired key — see
+ * {@link storedRelationshipTarget} — so whichever spelling the stored document
+ * used, the target reaches the designer model and `fromDesignerField` re-emits
+ * it under the spec spelling `reference` on the very next line: the strip then
+ * removes a KEY and not the relationship. The system flag is the other
+ * cost-free entry — it is read back from the spec spelling `system` and never
+ * re-emitted (the strip IS the whole write half of objectui#6044), and `system`
+ * is what the framework's system-field injection sends on every load, so no
+ * stored value is being relied on.
+ *
+ * ⛔ The `referenceTo` claim is conditional on that READ, not on the re-emit
+ * line alone. Before objectui#8058 this sentence asserted the same conclusion
+ * with no fallback behind it, and it was FALSE for exactly one shape: a field
+ * whose target survived ONLY as `referenceTo` read as target-less, so the strip
+ * took the stored value with it and the field reached the wire as a `lookup`
+ * with no target at all. Restating the conclusion without the read door is how
+ * it went wrong the first time.
+ *
+ * ⚠️ And it is cost-free on the DESIGNABLE half only — the half that has a read
+ * door. {@link toFieldsMap} re-emits the fields this designer cannot author
+ * through `carryOver(keep.raw)` directly (see {@link partitionStoredFields}),
+ * with no `toDesignerField` in the path, so a stored `master_detail` whose
+ * target lives only as `referenceTo` still has it stripped and still reaches
+ * {@link assertRelationshipTargetPresent} with nothing — measured, and worse
+ * there than here, because a preserved field is read-only on this page and the
+ * refusal names a control the author has no way to reach. Filed as
+ * objectui#8896; ⛔ not fixed here. `formula` is the one entry
  * whose strip DROPS a value, and that is objectui#6043's deliberate trade: the
  * server refuses to store it, a blind rename to `expression` would launder
  * non-CEL text into a formula that parses green and evaluates to null, and
