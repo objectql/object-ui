@@ -161,7 +161,7 @@ export interface RowPredicateOptions {
    * row-action `visible`/`disabled`; `false` (no style) for formatting. */
   fallback?: boolean;
   /** Extra top-level scope merged alongside the row — e.g. the global predicate
-   * scope (`features` / `user` / `app`) a host shell provides. The row wins on
+   * scope (`features` / `user`) a host shell provides. The row wins on
    * collision: a `record` key here never shadows the row. Every OTHER key —
    * a host's own `data` included — reaches the predicate as the host's own
    * (objectui#5741: `data` no longer names the row on a record surface). */

@@ -559,7 +559,7 @@ export const SchemaRenderer: ForwardRefExoticComponent<
 > = forwardRef<unknown, SchemaRendererProps>(({ schema, ...props }: SchemaRendererProps & ForwardedProps, _ref) => {
   const context = useContext(SchemaRendererContext);
   const dataSource = context?.dataSource || NO_DATA_SOURCE;
-  // Ambient host scope (user / app / features), fed by app-shell's
+  // Ambient host scope (user / features), fed by app-shell's
   // ExpressionProvider. Threaded into `visible`/expression evaluation so
   // component predicates can gate on the signed-in user & deployment flags.
   const predicateScope = usePredicateScope();

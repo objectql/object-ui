@@ -54,7 +54,7 @@ export interface ActionSchema extends BaseSchema {
    * neighbouring `ActionSchema` keys live read this one: in
    * `packages/core/src/actions/ActionRunner.ts` the spellings `action.level`
    * and `schema.level` have zero hits repo-wide, exit 1, with `action.method`
-   * as the firing control (`ActionRunner.ts:1787` and `:1793`). Until
+   * as the firing control (`ActionRunner.ts:1788` and `:1794`). Until
    * objectui#7735 the zod mirror's `.default('default')` substituted the value
    * into a parsed document; with that gone the tag described nothing that runs.
    * Whether the key should exist at all is the ADR-0049 liveness worklist's

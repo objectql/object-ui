@@ -99,11 +99,13 @@ export interface ExpressionScopeInput {
  *
  * The ruling is that the engine's `SCOPE_ROOTS` is the contract and this
  * consumer aligns to it, NOT that the engine grows a root to match this
- * consumer (option A, objectstack#16420, is explicitly not taken and stays
- * open as the record to reopen should a real need for a "current app" root
- * ever be measured). ⛔ The other refused route was suppressing the diagnostic
- * in `celAuthoring.ts`: that is the lenient-fallback shape AGENTS.md #0.1
- * bans.
+ * consumer. Option A — widen the engine vocabulary — was the producer-side
+ * card objectstack#16420, and the same ruling CLOSED it `not_planned`
+ * (2026-09-07T04:16:22Z). Should a real need for a "current app" root ever be
+ * measured, it is a fresh spec/engine vocabulary widening; there is no open
+ * record waiting for it. ⛔ The other refused route was suppressing the
+ * diagnostic in `celAuthoring.ts`: that is the lenient-fallback shape
+ * AGENTS.md #0.1 bans.
  *
  * Every root below is one the engine accepts, so the three surfaces — what
  * this binds, what the editor advertises, what the linter admits — now agree.
@@ -310,7 +312,9 @@ export function evaluateVisibility(
       // NODE tier's advice, telling an author whose nav predicate faulted to
       // check `record` and `page.<var>` — two roots the bag built in
       // `ExpressionProvider` above does not contain at all — while the identity
-      // aliases, `app` and `features` that it DOES contain went unnamed.
+      // aliases and `features` that it DOES contain went unnamed. (`app` was in
+      // that list until objectui#8155 removed the root; the advice no longer
+      // names it either.)
       'app-shell',
     );
 

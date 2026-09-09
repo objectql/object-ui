@@ -72,14 +72,24 @@ import {
   __resetVisibilityPredicateWarnings,
 } from '@object-ui/react';
 import { hasVisibleNavigationItems } from '@object-ui/layout';
-import { evaluateVisibility } from './ExpressionProvider';
+import { buildExpressionScope, evaluateVisibility } from './ExpressionProvider';
 
 /** The label this site puts in the reporter's `type` slot — the dedupe-key decision. */
 const SURFACE = 'app-shell:visible';
 
+/**
+ * The provider's bag, taken from the provider's own builder rather than
+ * transcribed. It was a hand-written copy carrying an `app` key, and a copy is
+ * how a fixture goes on asserting a root the builder has stopped binding
+ * (objectui#8155) — `buildExpressionScope` is the single declaration, so the
+ * cells below measure the shipped bag instead of a snapshot of it.
+ */
+function makeScope(user: Record<string, unknown> = { id: 'u1', positions: ['worker'] }) {
+  return buildExpressionScope({ user });
+}
+
 function makeEvaluator(user: Record<string, unknown> = { id: 'u1', positions: ['worker'] }) {
-  const context = { current_user: user, user, ctx: { user }, os: { user }, app: {}, data: {}, features: {} };
-  return new ExpressionEvaluator(context as any);
+  return new ExpressionEvaluator(makeScope(user) as any);
 }
 
 type WarnSpy = { mock: { calls: unknown[][] } };
@@ -321,8 +331,8 @@ describe('objectui#6443 — the rate limit, measured in both directions', () => 
  * The card #6443 made visible: once this site started printing, it printed the
  * NODE gate's closing paragraph, telling a nav author to check `record` and
  * `page.<var>`. The bag `ExpressionProvider` builds is
- * `{ current_user, user, ctx: { user }, os: { user }, app, data, features }` —
- * it contains neither.
+ * `{ current_user, user, ctx: { user }, os: { user }, data, features }` — it
+ * contains neither.
  *
  * These cells are the END-TO-END half of the pin: the unit matrix in
  * `@object-ui/react` proves the two paragraphs differ, and these prove the
@@ -347,16 +357,70 @@ describe('objectui#6487 — the line carries the APP-SHELL tier`s roots', () => 
   it('it names the roots this provider really binds — including `features`', () => {
     // `features` is the deployment-flag root this provider's own docblock
     // documents for exactly this kind of predicate, and it was unnamed.
-    // Asserted against the bag `makeEvaluator` builds, which is a copy of the
-    // provider's: every root named below is a key of it.
+    // Asserted against the bag `makeEvaluator` builds, which IS the provider's
+    // (`buildExpressionScope`): every root named below is a key of it.
     const warn = spyWarn();
     const evaluator = makeEvaluator();
 
     evaluateVisibility('nosuchroot6487shellroots.x > 1', evaluator);
     const [line] = reports(warn);
     expect(line).toBeDefined();
-    for (const root of ['`current_user`', '`user`', '`ctx.user`', '`os.user`', '`app`', '`features`']) {
+    for (const root of ['`current_user`', '`user`', '`ctx.user`', '`os.user`', '`features`']) {
       expect(line).toContain(root);
+    }
+  });
+
+  /* ------------------------------------------------------------------------ *
+   * objectui#8155 — the COUPLING pin. The advice copy lives in
+   * `@object-ui/react` and the bag lives here, so neither package can pin the
+   * pair alone; this is the only seat that reaches both. Modelled on the
+   * three-sided pin PR #8164 left on `ConditionalFormattingEditor.test.tsx`.
+   * ------------------------------------------------------------------------ */
+
+  it('objectui#8155 — the printed advice does not name `app`, and the bag does not bind it', () => {
+    // Face 1 (copy, `@object-ui/react`) and face 2 (bag, this package) asserted
+    // in one run against the REAL line this surface prints. Re-adding `app` to
+    // the diagnostic string reddens the first expect; re-adding it to
+    // `buildExpressionScope` reddens the second.
+    const warn = spyWarn();
+
+    evaluateVisibility('nosuchroot8155copy.x > 1', makeEvaluator());
+    const [line] = reports(warn);
+    expect(line).toBeDefined();
+    expect(line).not.toContain('`app`');
+    expect(Object.prototype.hasOwnProperty.call(makeScope(), 'app')).toBe(false);
+  });
+
+  it('objectui#8155 — every root the advice names is a root the bag really binds', () => {
+    // Face 3, and the one that makes the pair a fence rather than two lists.
+    // The defect this card cleans up was precisely an advertised root the bag
+    // did not bind, so the invariant — not the spelling — is what is pinned:
+    // re-adding `app` to the COPY alone (leaving the bag aligned to the
+    // engine) reddens here even though the census cell above is the one that
+    // names it. The reverse case, a root bound but not advertised, is legal
+    // and deliberate (`data`), so this direction is asserted and not the other.
+    const warn = spyWarn();
+    const scope = makeScope();
+
+    evaluateVisibility('nosuchroot8155coupling.x > 1', makeEvaluator());
+    const [line] = reports(warn);
+    expect(line).toBeDefined();
+
+    // Root names as the advice spells them, mapped to the key an author would
+    // have to be able to name for the advice to be true. `ctx.user` / `os.user`
+    // are member paths, so the root is the segment before the dot.
+    const advertised = ['current_user', 'user', 'ctx.user', 'os.user', 'app', 'features', 'record', 'data']
+      .filter((root) => (line as string).includes(`\`${root}\``))
+      .map((root) => root.split('.')[0]);
+    expect(advertised.length).toBeGreaterThan(0); // the line named SOMETHING
+    for (const root of advertised) {
+      // `record` is named only by the sentence declaring it ABSENT at this
+      // tier, which is the one advertised name that must NOT be a key.
+      if (root === 'record') {
+        expect(Object.prototype.hasOwnProperty.call(scope, root)).toBe(false);
+        continue;
+      }
+      expect(Object.prototype.hasOwnProperty.call(scope, root)).toBe(true);
     }
   });
 

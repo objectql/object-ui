@@ -117,11 +117,19 @@ function predicateSourceText(raw: unknown): string {
  * does not promise and this paragraph therefore does not advertise).
  *
  * `'app-shell'` — the chrome gate. `ExpressionProvider.tsx` builds
- * `{ current_user, user, ctx: { user }, os: { user }, app, data, features }`.
+ * `{ current_user, user, ctx: { user }, os: { user }, data, features }`.
  * There is no `record` and no `page` in it at all, which is the defect this
  * type exists to fix. The four identity spellings are the ADR-0068 aliases and
  * all four resolve; `features` is the deployment-flag root that provider's own
  * docblock documents for exactly this kind of predicate.
+ *
+ * ⛔ No `app`. It was in that bag and in the paragraph below until
+ * objectui#8155 (ruled 2026-09-07): neither ADR-0068 nor
+ * `@objectstack/formula`'s `SCOPE_ROOTS` declares such a root, so
+ * `buildExpressionScope` stopped binding it. Naming it here would be worse
+ * than stale — this paragraph is printed at the exact moment a saved `app.*`
+ * predicate faults, so it would answer "why did my predicate not resolve?"
+ * with the root that is the reason.
  *
  * `data` is bound at the app-shell tier but is deliberately NOT advertised
  * there: every mount of `ExpressionProvider` in this repo passes `data={{}}`
@@ -153,7 +161,7 @@ const SCOPE_TIER_ADVICE: Record<PredicateScopeTier, string> = {
     'CEL syntax.',
   'app-shell':
     'App-shell predicates bind `current_user` - also spelled `user`, `ctx.user`\n' +
-    'and `os.user` - plus `app` and `features` (the deployment flags).\n' +
+    'and `os.user` - plus `features` (the deployment flags).\n' +
     'Neither `record` nor `page.<var>` exists at this tier.\n' +
     'Check those roots and the CEL syntax.',
 };

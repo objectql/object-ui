@@ -259,9 +259,10 @@ export interface PredicateCtx {
  *   RECORD; metadata-admin edits source metadata and has no record. Leaving it
  *   unbound is what keeps `record.status` a loud diagnostic here instead of a
  *   silent false — `predicate.test.ts` pins that.
- * - ⛔ `app` / `features`. Renderer-tier, not ADR-0068 identity, and not named
- *   by the ruling. Binding them as empty objects would turn `app.x` from a loud
- *   unresolved-root warning into a silent `undefined`.
+ * - ⛔ `app` / `features`. `features` is renderer-tier, not ADR-0068 identity,
+ *   and not named by the ruling; `app` is not a root at ANY tier since
+ *   objectui#8155 unbound it. Binding either as an empty object would turn
+ *   `app.x` from a loud unresolved-root warning into a silent `undefined`.
  */
 export const IDENTITY_ROOTS = ['current_user', 'user', 'ctx', 'os'] as const;
 

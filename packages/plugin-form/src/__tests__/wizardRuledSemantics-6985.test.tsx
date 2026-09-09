@@ -56,7 +56,7 @@ const GATE = cel("'sales_manager' in current_user.positions");
  *  would REMOVE the step, i.e. where the drop is observable. */
 function deniedScope() {
   const user = { id: 'u1', name: 'Kim', positions: ['sales'] };
-  return { current_user: user, user, ctx: { user }, os: { user }, app: {}, data: {}, features: {} };
+  return { current_user: user, user, ctx: { user }, os: { user }, data: {}, features: {} };
 }
 
 const objectSchema = {

@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { ExpressionEvaluator } from '@object-ui/core';
-import { evaluateVisibility } from './ExpressionProvider';
+import { buildExpressionScope, evaluateVisibility } from './ExpressionProvider';
 
 /**
  * Regression: nav/area `visible` predicates arrive from the server as
@@ -20,9 +20,14 @@ import { evaluateVisibility } from './ExpressionProvider';
  * unimplementable from app metadata.
  */
 
+/**
+ * The provider's own bag, from the provider's own builder. It used to be a
+ * hand-written transcription carrying an `app` key; `buildExpressionScope` has
+ * not bound one since objectui#8155 (ruled 2026-09-07), and a copy is how a
+ * fixture keeps asserting a root the shipped builder no longer has.
+ */
 function makeEvaluator(user: Record<string, unknown>) {
-  const context = { current_user: user, user, ctx: { user }, os: { user }, app: {}, data: {}, features: {} };
-  return new ExpressionEvaluator(context as any);
+  return new ExpressionEvaluator(buildExpressionScope({ user }) as any);
 }
 
 describe('evaluateVisibility', () => {

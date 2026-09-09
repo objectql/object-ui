@@ -1677,7 +1677,8 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
   const isCreateForm = target.kind !== 'edit';
   /**
    * The host shell's global predicate scope — `current_user` plus the ADR-0068
-   * `user` / `ctx.user` / `os.user` aliases, `app`, `data`, `features` — read
+   * `user` / `ctx.user` / `os.user` aliases, `data`, `features` (⛔ no `app`:
+   * objectui#8155 unbound that root) — read
    * from the `PredicateScopeProvider` an `ExpressionProvider` mounts, and
    * threaded into all three evaluators below (objectui#6110). Same binding the
    * sibling renderer took in #6010, so one authored `visibleWhen` means one

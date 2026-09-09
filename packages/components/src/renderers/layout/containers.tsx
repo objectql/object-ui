@@ -1464,9 +1464,11 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     // renders the related record's NAME.
     const predicateRecord = toPredicateRecord(ctx?.data, headerPredicateFields);
     return {
-      // The ambient host scope (`features` / `app` / `current_user` / …) binds
+      // The ambient host scope (`features` / `current_user` / …) binds
       // top-level, the way it does for a row predicate — the header used to
-      // expose it only under `ctx.*`.
+      // expose it only under `ctx.*`. (⛔ No `app` among them since
+      // objectui#8155 unbound that root; the `ctx.app` mirror below therefore
+      // reads whatever a host still passes, which in this repo is nothing.)
       ...(predicateScope && typeof predicateScope === 'object' ? predicateScope : {}),
       user: scopeUser,
       // Server-CEL-parity identity alias (#2358 trap 1): the spec's canonical

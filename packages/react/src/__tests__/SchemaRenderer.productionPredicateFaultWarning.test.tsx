@@ -80,7 +80,6 @@ const Probe = () => <div data-testid="probe" />;
 const APP_SCOPE = {
   current_user: { id: 'u1' },
   user: { id: 'u1' },
-  app: {},
   data: {},
   features: {},
 };

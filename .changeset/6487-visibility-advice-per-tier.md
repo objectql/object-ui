@@ -29,11 +29,13 @@ prose that described it:
   byte-for-byte what it was.
 - **`'app-shell'`** — the chrome gate `ExpressionProvider.evaluateVisibility`
   runs, wired onto this reporter by objectui#6443. Its evaluator is built from
-  `{ current_user, user, ctx: { user }, os: { user }, app, data, features }`, so
-  the line now names `current_user` with its three ADR-0068 alias spellings,
-  `app`, and `features` — the deployment-flag root that provider documents for
-  exactly this kind of predicate — and states outright that `record` and
-  `page.<var>` do not exist there.
+  `{ current_user, user, ctx: { user }, os: { user }, data, features }`, so
+  the line now names `current_user` with its three ADR-0068 alias spellings and
+  `features` — the deployment-flag root that provider documents for exactly
+  this kind of predicate — and states outright that `record` and `page.<var>`
+  do not exist there. (That bag and that paragraph also carried an `app` root
+  when this entry was first written; objectui#8155 removed it from both before
+  either shipped, so the released message names five roots, not six.)
 
 **Why not generalise the copy instead.** Dropping the concrete root names would
 have made one paragraph true everywhere at the cost of making it useful nowhere:

@@ -16,11 +16,19 @@
  * `current_user`, `page.<var>`. Since objectui#6443 the same reporter also
  * prints for the app-shell chrome gate, whose evaluator
  * (`ExpressionProvider.tsx`) is built from
- * `{ current_user, user, ctx: { user }, os: { user }, app, data, features }`.
+ * `{ current_user, user, ctx: { user }, os: { user }, data, features }`.
  * There is no `record` and no `page` in that bag at all, so an author whose nav
  * or area `visible` faulted was sent to check two roots that cannot exist at
- * their tier, while the identity aliases, `app` and `features` — which do —
- * went unnamed.
+ * their tier, while the identity aliases and `features` — which do — went
+ * unnamed.
+ *
+ * ⛔ That bag quote carried an `app` root until objectui#8155 (ruled
+ * 2026-09-07) removed it from `buildExpressionScope`. This file's app-shell
+ * cells asserted `app` was NAMED in the advice, which is what held the false
+ * sentence in place after the root was gone; they now assert the opposite, and
+ * the sibling coupling pin in
+ * `packages/app-shell/src/providers/ExpressionProvider.visibleFaultDiagnostic.test.ts`
+ * reddens if the root returns to the BAG while the copy stays silent.
  *
  * ## Why the assertions sit where the tiers DISAGREE
  *
@@ -173,24 +181,67 @@ describe('#6487 group 2 — app-shell tier', () => {
 
   it('names every root the provider actually binds and the node tier left out', () => {
     // Derived from `ExpressionProvider.tsx`'s own bag:
-    // `{ current_user, user, ctx: { user }, os: { user }, app, data, features }`.
+    // `{ current_user, user, ctx: { user }, os: { user }, data, features }`.
     const msg = appShellTier();
     expect(msg).toContain('`current_user`');
     expect(msg).toContain('`user`');
     expect(msg).toContain('`ctx.user`');
     expect(msg).toContain('`os.user`');
-    expect(msg).toContain('`app`');
     expect(msg).toContain('`features`');
   });
 
   it('still names CONCRETE roots — it is not the generalisation the card refused', () => {
     // The fence the triage put on this card, pinned rather than trusted: the
     // fix is not allowed to buy correctness at every tier by naming roots at
-    // none. Six concrete roots is measurably not "check whatever this surface
+    // none. Five concrete roots is measurably not "check whatever this surface
     // binds".
     const msg = appShellTier();
-    const named = ['`current_user`', '`user`', '`ctx.user`', '`os.user`', '`app`', '`features`'];
+    const named = ['`current_user`', '`user`', '`ctx.user`', '`os.user`', '`features`'];
     expect(named.filter((root) => msg.includes(root))).toHaveLength(named.length);
+  });
+
+  /* ------------------------------------------------------------------------ *
+   * objectui#8155 — `app` is not a bound root, so this paragraph must not name
+   * it. Three cells, each red for a different way of putting the sentence back,
+   * modelled on the three-sided pin PR #8164 left on
+   * `ConditionalFormattingEditor.test.tsx`.
+   * ------------------------------------------------------------------------ */
+
+  it('objectui#8155 — `app` is named NOWHERE in this tier`s advice', () => {
+    // The face that was false on `main` after PR #8164: this paragraph is
+    // printed at exactly the moment a saved `app.*` predicate faults, so
+    // naming `app` answered "why did this not resolve?" with the reason.
+    // Asserted on the whole message, not on one line, so re-adding the root to
+    // ANY sentence of this tier`s copy reddens here.
+    expect(appShellTier()).not.toContain('`app`');
+  });
+
+  it('objectui#8155 — the paragraph is pinned by its TEXT, not by a root census', () => {
+    // A census (`not.toContain`) alone cannot tell "the root was removed" from
+    // "the paragraph was deleted", and the message is the deliverable here —
+    // it is published `@object-ui/react` output an author reads in production.
+    // Byte-exact, so a re-worded re-introduction ("plus the app metadata") that
+    // slips past the census above still reddens.
+    expect(appShellTier()).toContain(
+      'App-shell predicates bind `current_user` - also spelled `user`, `ctx.user`\n' +
+      'and `os.user` - plus `features` (the deployment flags).\n' +
+      'Neither `record` nor `page.<var>` exists at this tier.\n' +
+      'Check those roots and the CEL syntax.',
+    );
+  });
+
+  it('objectui#8155 CONTROL: the node tier`s paragraph never named `app` and is untouched', () => {
+    // The other half of the acceptance predicate — "nothing that was true
+    // before #8164 and unrelated to `app` was changed". This cell was green
+    // before the removal and stays green, so on its own it is evidence about
+    // nothing; it is here because a fix that reached the node tier's copy
+    // (which was already correct) would take it red.
+    expect(nodeTier()).not.toContain('`app`');
+    expect(nodeTier()).toContain(
+      'Page-component predicates bind `record` (the row on a record page),\n' +
+      '`current_user`, and page state as `page.<var>`. Check those roots and the\n' +
+      'CEL syntax.',
+    );
   });
 });
 

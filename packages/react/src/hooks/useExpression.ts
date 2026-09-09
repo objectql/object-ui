@@ -12,8 +12,10 @@ import { ExpressionEvaluator, evalRowPredicate } from '@object-ui/core';
 /**
  * Global predicate scope — populated by host shells (e.g. app-shell's
  * `ExpressionProvider`) so renderers like action buttons can resolve
- * deployment-level flags (`features`, `user`, `app`, …) without needing
- * to import the host shell directly.
+ * deployment-level flags (`features`, `user`, …) without needing
+ * to import the host shell directly. (⛔ Not `app`: objectui#8155 removed that
+ * root from `buildExpressionScope`, so no host shell in this repo publishes
+ * one.)
  *
  * `useCondition` / `useExpression` merge this scope under the
  * locally-passed `context`, so per-row `record` overrides still win.

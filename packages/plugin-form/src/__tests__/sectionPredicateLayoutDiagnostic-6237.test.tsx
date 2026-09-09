@@ -71,7 +71,7 @@ const GATE = cel("'sales_manager' in current_user.positions");
 
 function hostScope(positions: string[]) {
   const user = { id: 'u1', name: 'Kim', positions };
-  return { current_user: user, user, ctx: { user }, os: { user }, app: {}, data: {}, features: {} };
+  return { current_user: user, user, ctx: { user }, os: { user }, data: {}, features: {} };
 }
 /**
  * DENIED on purpose: the predicate resolves FALSE, which is the only state in

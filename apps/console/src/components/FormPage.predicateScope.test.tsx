@@ -111,7 +111,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
  */
 function hostScope(positions: string[]) {
   const user = { id: 'u1', name: 'Kim', role: 'user', isPlatformAdmin: false, positions };
-  return { current_user: user, user, ctx: { user }, os: { user }, app: {}, data: {}, features: {} };
+  return { current_user: user, user, ctx: { user }, os: { user }, data: {}, features: {} };
 }
 
 /** The SAME principal shape, one admitted by `GATE` and one refused by it. */

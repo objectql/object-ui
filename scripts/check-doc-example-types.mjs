@@ -925,7 +925,7 @@ export const UNGATED_EXAMPLES = {
     reason:
       'usage fragment: references `User`, `setUser`, `useEffect`, which the example never declares',
   },
-  'packages/react/src/hooks/useExpression.ts:163 useExpression': {
+  'packages/react/src/hooks/useExpression.ts:165 useExpression': {
     card: null,
     codes: [18004],
     reason:
