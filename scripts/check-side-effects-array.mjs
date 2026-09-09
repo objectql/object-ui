@@ -67,11 +67,13 @@
  * performs into exactly three buckets, and refuses anything it does not
  * recognise:
  *
- *   - `registration` -- a top-level CALL or `new`. Not "a call whose name looks
- *     like `register`": a name test is an under-reading, and an under-reading
- *     here is precisely the silent drop. `ComponentRegistry.register(...)`,
- *     `registerAppComponent(...)` and a hypothetical `Registry.add(...)` are
- *     indistinguishable to a bundler and are treated alike here.
+ *   - `registration` -- a top-level CALL or `new`, written as a STATEMENT or
+ *     performed while a top-level binding is INITIALISED (see the next
+ *     section). Not "a call whose name looks like `register`": a name test is
+ *     an under-reading, and an under-reading here is precisely the silent drop.
+ *     `ComponentRegistry.register(...)`, `registerAppComponent(...)` and a
+ *     hypothetical `Registry.add(...)` are indistinguishable to a bundler and
+ *     are treated alike here.
  *   - `local-binding-write` -- `X.displayName = 'X'` where `X` is declared in
  *     THIS module and the right-hand side calls nothing. It is provably
  *     module-local: a bundler that drops the module drops its target too, so
@@ -86,6 +88,50 @@
  * the whole design: a new spelling of a load-time effect must make this gate
  * LOUD, never make it quietly decide the module is pure. "I did not recognise
  * that" and "that is not a registration" must not be the same answer.
+ *
+ * ## A call inside a top-level `const` initializer (objectui#8578)
+ *
+ * `export const X = f(...)` declares a binding AND runs `f` at load time. To a
+ * bundler those are one statement: a module this array does not name is dropped
+ * whole, and `f`'s effect leaves with the binding. Reading that shape as
+ * "declares a constant, does nothing" was measured wrong on `@object-ui/types`'
+ * `AnyComponentSchema = defineNodeComponentUnion(...)`, whose initializer writes
+ * the node recursion point's option slot into a DIFFERENT module (`base.zod.ts`).
+ *
+ * The widening is NOT "any call in an initializer", and that is a measurement
+ * rather than a preference: over this workspace that reading takes
+ * `@object-ui/app-shell` from 14 registering modules to 122, because
+ * `new Set([...])`, `React.createContext(...)`, `new RegExp(...)` and
+ * `React.lazy(...)` are calls that produce the binding's VALUE and nothing else.
+ * Naming their modules would spend exactly the consumer bytes the array exists
+ * to save. So an initializer registers only when all three hold:
+ *
+ *   1. the call is EVALUATED NOW. The walk stops at every function boundary, so
+ *      a closure that is RETURNED is not a load-time effect -- app-shell's
+ *      `withSettleSignal` increments a module counter inside the wrapper it
+ *      returns, and reading that as load-time is how this widening would score
+ *      a pure wrapper as a registrar. A function handed as an ARGUMENT to a call
+ *      being made now IS walked, because that call may invoke it now.
+ *   2. the callee RESOLVES inside this package, through relative imports and
+ *      re-exports only.
+ *   3. that callee WRITES to a binding it did not itself declare -- the same
+ *      argument `local-binding-write` makes one level out, applied to the
+ *      callee's own scope: anything it did not declare outlives the call and is
+ *      observable by someone other than the dropped module.
+ *
+ * What this still does NOT see, stated here rather than left to silence, since
+ * a reader who mistakes silence for absence is the failure this gate is about:
+ *
+ *   - a call into ANOTHER package (`z.discriminatedUnion`, `React.createContext`,
+ *     `new Set`) is read as value-producing. That is the boundary
+ *     {@link walkEntryGraph} already draws, for the reason it gives: another
+ *     package's load-time behaviour is that package's manifest's problem.
+ *   - only the graph reachable from the SOURCE BARREL is walked, so a registrar
+ *     that only a SECONDARY entry form reaches is outside the enumeration
+ *     entirely -- `@object-ui/types`' `./zod` entry is the live example, and it
+ *     is why fixing this classifier does not by itself change that package's
+ *     count. Tracked separately; ⛔ do not read a zero here as "this package has
+ *     no load-time effects", only as "none this gate can derive".
  *
  * ## Reachability -- naming a module is not enough
  *
@@ -259,6 +305,270 @@ function containsCall(node) {
   return hit;
 }
 
+/**
+ * Every call EVALUATED when `node` is evaluated. The walk stops at every
+ * function boundary, because a call written inside a function body runs when
+ * that function is CALLED, not when the module is loaded — `withSettleSignal`
+ * in `@object-ui/app-shell` is the measured example: it returns a closure that
+ * increments a module counter, and reading that write as load-time is how a
+ * widening of this gate scores a pure wrapper as a registrar.
+ */
+function immediateCalls(node) {
+  const calls = [];
+  const walk = (n) => {
+    if (isFunctionLike(n)) return;
+    if (ts.isCallExpression(n) || ts.isNewExpression(n)) calls.push(n);
+    ts.forEachChild(n, walk);
+  };
+  walk(node);
+  return calls;
+}
+
+/** Anything whose body is deferred until it is called. */
+function isFunctionLike(n) {
+  return (
+    ts.isFunctionExpression(n) ||
+    ts.isArrowFunction(n) ||
+    ts.isFunctionDeclaration(n) ||
+    ts.isClassDeclaration(n) ||
+    ts.isClassExpression(n) ||
+    ts.isMethodDeclaration(n) ||
+    ts.isGetAccessorDeclaration(n) ||
+    ts.isSetAccessorDeclaration(n)
+  );
+}
+
+/** `a.b.c` / `a[0]` / `(a as T).b` -> `a`. The binding a write or call is rooted at. */
+function rootIdentifier(expr) {
+  let node = expr;
+  while (node) {
+    if (ts.isIdentifier(node)) return node.text;
+    if (
+      ts.isPropertyAccessExpression(node) ||
+      ts.isElementAccessExpression(node) ||
+      ts.isNonNullExpression(node) ||
+      ts.isParenthesizedExpression(node) ||
+      ts.isAsExpression(node)
+    ) {
+      node = node.expression;
+      continue;
+    }
+    return undefined;
+  }
+  return undefined;
+}
+
+const sourceCache = new Map();
+
+/** Parse-once, by absolute path. This gate is a one-shot process. */
+function parseSource(absFile) {
+  let source = sourceCache.get(absFile);
+  if (!source) {
+    if (!fs.existsSync(absFile) || !MODULE_FILE_RE.test(absFile)) return undefined;
+    source = ts.createSourceFile(absFile, fs.readFileSync(absFile, 'utf8'), ts.ScriptTarget.Latest, true);
+    sourceCache.set(absFile, source);
+  }
+  return source;
+}
+
+/**
+ * The function `name` refers to in `file`, followed through this package's own
+ * RELATIVE imports and re-exports.
+ *
+ * Returns `undefined` for everything the walk cannot reach: a bare package
+ * specifier (`z.discriminatedUnion`, `React.createContext`, `new Set`), a
+ * namespace or default import, a value that is not a function. That is the same
+ * boundary {@link walkEntryGraph} already draws and for the same reason —
+ * another package's load-time behaviour is that package's manifest's problem.
+ */
+function resolveLocalFunction(file, name, seen = new Set(), origin) {
+  const key = `${file}#${name}`;
+  if (seen.has(key)) return undefined;
+  seen.add(key);
+  // `origin` carries the ONE source that may not exist on disk: the module being
+  // classified, which a caller may have parsed from a string. Everything the walk
+  // reaches from there is a real file.
+  const source = origin && origin.file === file ? origin.source : parseSource(file);
+  if (!source) return undefined;
+
+  for (const stmt of source.statements) {
+    if (ts.isFunctionDeclaration(stmt) && stmt.name && stmt.name.text === name) return { file, fn: stmt };
+    if (ts.isVariableStatement(stmt)) {
+      for (const d of stmt.declarationList.declarations) {
+        if (!ts.isIdentifier(d.name) || d.name.text !== name) continue;
+        const init = d.initializer;
+        return init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) ? { file, fn: init } : undefined;
+      }
+    }
+    if (ts.isClassDeclaration(stmt) && stmt.name && stmt.name.text === name) return undefined;
+  }
+
+  for (const stmt of source.statements) {
+    const specifier = stmt.moduleSpecifier;
+    if (!specifier || !ts.isStringLiteral(specifier)) continue;
+
+    if (ts.isImportDeclaration(stmt) && stmt.importClause) {
+      const bindings = stmt.importClause.namedBindings;
+      if (!bindings || !ts.isNamedImports(bindings)) continue;
+      const element = bindings.elements.find((e) => e.name.text === name);
+      if (!element) continue;
+      if (!specifier.text.startsWith('.')) return undefined;
+      const abs = resolveRelative(file, specifier.text);
+      return abs ? resolveLocalFunction(abs, (element.propertyName ?? element.name).text, seen, origin) : undefined;
+    }
+
+    if (ts.isExportDeclaration(stmt) && stmt.exportClause && ts.isNamedExports(stmt.exportClause)) {
+      const element = stmt.exportClause.elements.find((e) => e.name.text === name);
+      if (!element) continue;
+      if (!specifier.text.startsWith('.')) return undefined;
+      const abs = resolveRelative(file, specifier.text);
+      return abs ? resolveLocalFunction(abs, (element.propertyName ?? element.name).text, seen, origin) : undefined;
+    }
+
+    if (ts.isExportDeclaration(stmt) && !stmt.exportClause && specifier.text.startsWith('.')) {
+      const abs = resolveRelative(file, specifier.text);
+      const found = abs ? resolveLocalFunction(abs, name, seen, origin) : undefined;
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+/** Every identifier `fn` declares itself: parameters, locals, nested declarations. */
+function functionScopeBindings(fn) {
+  const names = new Set();
+  const addBinding = (n) => {
+    if (!n) return;
+    if (ts.isIdentifier(n)) names.add(n.text);
+    else if (ts.isObjectBindingPattern(n) || ts.isArrayBindingPattern(n)) {
+      for (const el of n.elements) if (ts.isBindingElement(el)) addBinding(el.name);
+    }
+  };
+  for (const p of fn.parameters ?? []) addBinding(p.name);
+  const walk = (n) => {
+    if (ts.isVariableDeclaration(n) || ts.isParameter(n)) addBinding(n.name);
+    if ((ts.isFunctionDeclaration(n) || ts.isClassDeclaration(n)) && n.name) names.add(n.name.text);
+    if (ts.isCatchClause(n) && n.variableDeclaration) addBinding(n.variableDeclaration.name);
+    ts.forEachChild(n, walk);
+  };
+  if (fn.body) walk(fn.body);
+  return names;
+}
+
+/** Assignment operators. `x = v`, `x ||= v`, `x += v` are all writes. */
+const ASSIGNMENT_OPERATORS = new Set([
+  ts.SyntaxKind.EqualsToken,
+  ts.SyntaxKind.PlusEqualsToken,
+  ts.SyntaxKind.MinusEqualsToken,
+  ts.SyntaxKind.AsteriskEqualsToken,
+  ts.SyntaxKind.AsteriskAsteriskEqualsToken,
+  ts.SyntaxKind.SlashEqualsToken,
+  ts.SyntaxKind.PercentEqualsToken,
+  ts.SyntaxKind.AmpersandEqualsToken,
+  ts.SyntaxKind.BarEqualsToken,
+  ts.SyntaxKind.CaretEqualsToken,
+  ts.SyntaxKind.LessThanLessThanEqualsToken,
+  ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
+  ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
+  ts.SyntaxKind.BarBarEqualsToken,
+  ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+  ts.SyntaxKind.QuestionQuestionEqualsToken,
+]);
+
+/** How deep the callee walk follows in-package calls before giving up. */
+const CALLEE_DEPTH_LIMIT = 6;
+
+/**
+ * Whether calling `fn` writes, AS PART OF THE CALL, to a binding `fn` does not
+ * itself declare.
+ *
+ * "Escaping" is judged against the CALLEE's own scope, and that is the same
+ * argument the `local-binding-write` carve-out above makes one level out:
+ * anything the callee did not declare outlives the call and is observable by
+ * someone other than the module being dropped. `nodeUnionOptions[0] = installed`
+ * in `@object-ui/types`' `base.zod.ts` is exactly that shape.
+ *
+ * Deferred writes do not count: the walk stops at function boundaries, so a
+ * closure that is RETURNED rather than run is not a load-time effect. A function
+ * handed as an ARGUMENT to a call being made now is walked, because that call
+ * may invoke it now.
+ */
+function performsEscapingWrite(fn, file, depth = 0, seen = new Set(), origin) {
+  const key = `${file}@${fn.pos}`;
+  if (seen.has(key) || depth > CALLEE_DEPTH_LIMIT) return false;
+  seen.add(key);
+
+  const local = functionScopeBindings(fn);
+  let found = false;
+
+  const walk = (n) => {
+    if (found) return;
+    if (isFunctionLike(n)) return;
+
+    if (ts.isBinaryExpression(n) && ASSIGNMENT_OPERATORS.has(n.operatorToken.kind)) {
+      const root = rootIdentifier(n.left);
+      if (root && !local.has(root)) {
+        found = true;
+        return;
+      }
+    }
+    if (
+      (ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) &&
+      (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken)
+    ) {
+      const root = rootIdentifier(n.operand);
+      if (root && !local.has(root)) {
+        found = true;
+        return;
+      }
+    }
+    if (ts.isCallExpression(n)) {
+      const root = rootIdentifier(n.expression);
+      if (root && !local.has(root)) {
+        const callee = resolveLocalFunction(file, root, new Set(), origin);
+        if (callee && performsEscapingWrite(callee.fn, callee.file, depth + 1, seen, origin)) {
+          found = true;
+          return;
+        }
+      }
+      for (const arg of n.arguments) {
+        if (!isFunctionLike(arg) || !arg.body) continue;
+        for (const p of arg.parameters ?? []) if (ts.isIdentifier(p.name)) local.add(p.name.text);
+        ts.forEachChild(arg.body, walk);
+        if (found) return;
+      }
+    }
+    ts.forEachChild(n, walk);
+  };
+
+  if (fn.body) walk(fn.body);
+  return found;
+}
+
+/**
+ * Whether a top-level `const`/`let`/`var` statement performs a load-time
+ * REGISTRATION through one of its initializers.
+ *
+ * See the header's "a call in a top-level initializer" section: the call must be
+ * evaluated now, its callee must resolve inside this package, and that callee
+ * must write somewhere it did not declare.
+ */
+function initializerRegisters(stmt) {
+  const source = stmt.getSourceFile();
+  if (!source) return false;
+  const origin = { file: source.fileName, source };
+  for (const declaration of stmt.declarationList.declarations) {
+    if (!declaration.initializer) continue;
+    for (const call of immediateCalls(declaration.initializer)) {
+      const root = rootIdentifier(call.expression);
+      if (!root) continue;
+      const callee = resolveLocalFunction(origin.file, root, new Set(), origin);
+      if (callee && performsEscapingWrite(callee.fn, callee.file, 0, new Set(), origin)) return true;
+    }
+  }
+  return false;
+}
+
 /** Every identifier declared at the top level of this source file. */
 function moduleScopeBindings(source) {
   const names = new Set();
@@ -325,6 +635,10 @@ export function classifyEffect(stmt, localBindings) {
     if (containsCall(stmt)) return 'registration';
     return 'unknown';
   }
+
+  // A declaration that PERFORMS something while being declared. See the header:
+  // the binding is not the only thing a bundler drops with this statement.
+  if (ts.isVariableStatement(stmt) && initializerRegisters(stmt)) return 'registration';
 
   return null;
 }
