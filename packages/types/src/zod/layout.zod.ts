@@ -460,6 +460,111 @@ export const PageNodeSchema = BaseSchema.extend(SpecPageFields.shape).extend({
 });
 
 /**
+ * Semantic Element Schema — the seven HTML sectioning tags
+ * `packages/components/src/renderers/layout/semantic.tsx` registers
+ * (objectui#8499).
+ *
+ * ## The defect this closes
+ *
+ * These seven are REGISTERED, LIVE renderers with nine catalog fixtures of
+ * their own under `examples/schema-catalog/src/schemas/components-layout-semantic/`,
+ * and `AnyComponentSchema` had no arm for any of them. So a document that
+ * renders correctly in the browser was REFUSED by `objectui check` — the
+ * expensive direction, because the author's likely reaction is to stop trusting
+ * the validator rather than to fix the document (objectui#8499 triage).
+ *
+ * The two faces disagreed BY CONSTRUCTION: `check:doc-types` judges a `type`
+ * literal against the RENDERER registry (656 keys at the time of writing), not
+ * against this union (107 arms), and nothing compared them at a node slot.
+ * `../__tests__/node-slot-registered-arms-8499.test.ts` compares the literal set
+ * below against `semantic.tsx`'s own `tags` array, so a tag added there without
+ * an arm here goes red instead of diverging silently.
+ *
+ * ## Why one arm and not seven
+ *
+ * The factory in `semantic.tsx` builds ONE component over all seven tags: it
+ * renders `renderChildren(schema.children || schema.body)` inside the tag and
+ * declares exactly one authoring input, `className`. Seven arms would restate
+ * the same shape seven times with no key to tell them apart.
+ *
+ * ## What is NOT declared here, and why
+ *
+ * Nothing beyond `type` and the child slot. Every other key the factory touches
+ * — `data-obj-id`, `data-obj-type`, `style` — is a DESIGNER prop injected by the
+ * renderer host, never authored metadata, and `className` is already a
+ * {@link BaseSchema} member. Following the `BarChartSchema` discipline (`./data-display.zod.ts`):
+ * only keys the renderer demonstrably reads, nothing on the strength of what a
+ * sectioning tag "should" accept.
+ */
+export const SemanticElementSchema = BaseSchema.extend({
+  type: z.enum(['aside', 'main', 'header', 'nav', 'footer', 'section', 'article'])
+    .describe('HTML sectioning tag — the seven `renderers/layout/semantic.tsx` registers'),
+  children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
+    .describe('Child components — read as `schema.children || schema.body` by the factory'),
+});
+
+/**
+ * Html Element Schema — the safe flow/inline HTML passthrough set
+ * `packages/components/src/renderers/basic/html-elements.tsx` registers
+ * (objectui#8499).
+ *
+ * ## Why these must resolve
+ *
+ * That module's own docblock states the purpose: a `kind:'html'` page is PARSED
+ * (never executed) into the SDUI tree, so "the everyday HTML tags an author
+ * reaches for — headings, paragraphs, lists, links, images, emphasis — must each
+ * resolve to a renderer (otherwise the parser flags them `unknown-component`)".
+ * They resolved in the RENDERER registry and in no arm of `AnyComponentSchema`,
+ * which is objectui#8499: `content/docs/utilities/runner.mdx` teaches the reader
+ * to save a document carrying `h1`, and the document it teaches renders and is
+ * refused.
+ *
+ * ⚠️ One arm over the whole set, deliberately, and it is a real cost: `h1`
+ * becomes legal at EVERY node slot, including slots where it is absurd (a
+ * `data-table`'s `emptyAction`, a `header-bar`'s `logo`). That is not new laxity
+ * — every one of the 107 pre-existing arms is already legal at every one of the
+ * 249 declared node slots, because there is exactly ONE node-slot vocabulary in
+ * this face ({@link SchemaNodeSchema}) and a discriminated union selects its arm
+ * from the authored literal alone, with no way for a slot to narrow it. A
+ * per-slot vocabulary is a different programme, not a variant of this arm.
+ *
+ * ## The per-tag keys, and why they are typed wider than the registration
+ *
+ * `PER_TAG_INPUTS` in that module declares `img`'s `width`/`height` as
+ * `number`. The renderer FORWARDS them verbatim onto the DOM element, which
+ * accepts `"100"` as readily as `100`, so a number-only declaration here would
+ * refuse a document the renderer draws — this card's own defect, rebuilt one
+ * key down. The declaration follows the read site, not the authoring hint.
+ *
+ * ⚠️ The keys are declared on the whole set rather than per tag, so
+ * `{ type: 'p', href: '…' }` parses. {@link BaseSchema} passes unknown keys
+ * through, so it parsed before this arm existed too — declaring them narrows
+ * nothing and gains the author a typed surface.
+ */
+export const HtmlElementSchema = BaseSchema.extend({
+  type: z.enum([
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'p', 'a', 'blockquote', 'pre',
+    'strong', 'em', 'b', 'i', 'u', 'small', 'mark', 'sub', 'sup', 'del', 'ins', 'abbr',
+    'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+    'figure', 'figcaption', 'img', 'hr', 'br', 'time', 'address', 'cite', 'q',
+  ]).describe('Safe HTML tag — the set `renderers/basic/html-elements.tsx` registers'),
+  children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
+    .describe('Child components — read as `schema.children ?? schema.body`; ignored for the void tags `img` / `hr` / `br`'),
+  href: z.string().optional()
+    .describe('`a` link target; scheme-sanitised at html-elements.tsx:74 (`javascript:` / `data:` / `vbscript:` are dropped)'),
+  target: z.string().optional().describe('`a` browsing context — an internal link navigates through the SPA router unless this names another target'),
+  rel: z.string().optional().describe('`a` link relationship'),
+  title: z.string().optional().describe('Advisory title — declared for `a`, `img` and `abbr`'),
+  src: z.string().optional().describe('`img` source URL'),
+  alt: z.string().optional().describe('`img` alternative text'),
+  width: z.union([z.string(), z.number()]).optional().describe('`img` width — forwarded verbatim to the DOM attribute'),
+  height: z.union([z.string(), z.number()]).optional().describe('`img` height — forwarded verbatim to the DOM attribute'),
+  dateTime: z.string().optional().describe('`time` machine-readable datetime'),
+  cite: z.string().optional().describe('`q` / `blockquote` source URL'),
+});
+
+/**
  * Layout Schema Union - All layout component schemas
  */
 export const LayoutSchema = z.discriminatedUnion('type', [
@@ -480,4 +585,6 @@ export const LayoutSchema = z.discriminatedUnion('type', [
   ResizableSchema,
   AspectRatioSchema,
   PageNodeSchema,
+  SemanticElementSchema,
+  HtmlElementSchema,
 ]);

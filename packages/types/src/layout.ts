@@ -890,6 +890,82 @@ export interface PageSlotMap {
 }
 
 /**
+ * The seven HTML sectioning tags `packages/components/src/renderers/layout/semantic.tsx`
+ * registers (objectui#8499).
+ *
+ * They are registered, live renderers carrying nine catalog fixtures under
+ * `examples/schema-catalog/src/schemas/components-layout-semantic/`, and until
+ * objectui#8499 no arm of `AnyComponentSchema` named any of them — so a document
+ * that rendered correctly in the browser was refused by `objectui check`.
+ *
+ * The renderer is one factory over all seven tags: it renders
+ * `renderChildren(schema.children || schema.body)` inside the tag and declares
+ * exactly one authoring input, `className` (a {@link BaseSchema} member). The
+ * mirror is `zod/layout.zod.ts#SemanticElementSchema`, and
+ * `__tests__/node-slot-registered-arms-8499.test.ts` compares the tag list below
+ * against `semantic.tsx`'s own `tags` array.
+ */
+export interface SemanticElementSchema extends BaseSchema {
+  type: 'aside' | 'main' | 'header' | 'nav' | 'footer' | 'section' | 'article';
+  /**
+   * Child components — read as `schema.children || schema.body`.
+   */
+  children?: SchemaNode | SchemaNode[];
+}
+
+/**
+ * The safe flow/inline HTML passthrough set
+ * `packages/components/src/renderers/basic/html-elements.tsx` registers
+ * (objectui#8499).
+ *
+ * A `kind:'html'` page is PARSED (never executed) into the SDUI tree, so — in
+ * that module's own words — "the everyday HTML tags an author reaches for …
+ * must each resolve to a renderer". They resolved in the renderer registry and
+ * in no arm of `AnyComponentSchema`; `content/docs/utilities/runner.mdx` teaches
+ * a document carrying `h1`, and that document rendered and was refused.
+ *
+ * ⚠️ The per-tag keys below are declared on the WHOLE set, not per tag, so
+ * `{ type: 'p', href: '…' }` type-checks. {@link BaseSchema} carries an index
+ * signature, so it type-checked before this declaration existed too — this
+ * narrows nothing and gains the author a named surface. `width` / `height` are
+ * `string | number` rather than the registration's `number`, because the
+ * renderer forwards them verbatim to the DOM attribute, which takes both.
+ */
+export interface HtmlElementSchema extends BaseSchema {
+  type:
+    | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+    | 'p' | 'a' | 'blockquote' | 'pre'
+    | 'strong' | 'em' | 'b' | 'i' | 'u' | 'small' | 'mark' | 'sub' | 'sup' | 'del' | 'ins' | 'abbr'
+    | 'ul' | 'ol' | 'li' | 'dl' | 'dt' | 'dd'
+    | 'figure' | 'figcaption' | 'img' | 'hr' | 'br' | 'time' | 'address' | 'cite' | 'q';
+  /**
+   * Child components — read as `schema.children ?? schema.body`; ignored for the
+   * void tags `img` / `hr` / `br`.
+   */
+  children?: SchemaNode | SchemaNode[];
+  /** `a` link target; scheme-sanitised (`javascript:` / `data:` / `vbscript:` are dropped). */
+  href?: string;
+  /** `a` browsing context. */
+  target?: string;
+  /** `a` link relationship. */
+  rel?: string;
+  /** Advisory title — declared for `a`, `img` and `abbr`. */
+  title?: string;
+  /** `img` source URL. */
+  src?: string;
+  /** `img` alternative text. */
+  alt?: string;
+  /** `img` width — forwarded verbatim to the DOM attribute. */
+  width?: string | number;
+  /** `img` height — forwarded verbatim to the DOM attribute. */
+  height?: string | number;
+  /** `time` machine-readable datetime. */
+  dateTime?: string;
+  /** `q` / `blockquote` source URL. */
+  cite?: string;
+}
+
+/**
  * Union type of all layout schemas
  */
 export type LayoutSchema =
@@ -909,5 +985,7 @@ export type LayoutSchema =
   | ScrollAreaSchema
   | ResizableSchema
   | AspectRatioSchema
-  | PageNodeSchema;
+  | PageNodeSchema
+  | SemanticElementSchema
+  | HtmlElementSchema;
 

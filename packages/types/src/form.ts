@@ -1638,6 +1638,50 @@ export interface CodeEditorSchema extends BaseSchema {
 }
 
 /**
+ * The `email` / `password` input shorthands
+ * `packages/components/src/renderers/form/input.tsx` registers (objectui#8499).
+ *
+ * Both are the SAME renderer as `input`, wrapped so `inputType` is pinned:
+ * `<InputRenderer {...props} schema={{ ...props.schema, inputType: 'password' }} />`.
+ *
+ * ⛔ `inputType` is therefore absent here, and that absence is the whole
+ * difference from {@link InputSchema}. The wrapper spreads its own value LAST,
+ * so an authored `inputType` is silently overwritten; declaring it would publish
+ * a key the runtime discards. Write `{ type: 'input', inputType: 'email' }` when
+ * the input type is the choice.
+ *
+ * ⚠️ {@link BaseSchema} carries an index signature and its mirror passes unknown
+ * keys through, so omitting the key states the contract — it does not refuse the
+ * value. Refusing it by name is an accept-set narrowing left to its own ruling.
+ *
+ * Mirror: `zod/form.zod.ts#InputShorthandSchema`.
+ */
+export interface InputShorthandSchema extends Omit<InputSchema, 'type' | 'inputType'> {
+  type: 'email' | 'password';
+}
+
+/**
+ * The date-picker primitive `packages/components/src/renderers/form/calendar.tsx`
+ * registers, reachable at `ui:calendar` ONLY (objectui#8499).
+ *
+ * ⚠️ `ui:calendar` and `calendar` are DIFFERENT components. That registration
+ * carries `skipFallback: true` because "`calendar` collides with the
+ * plugin-calendar full CRUD calendar VIEW, which owns the bare `type: 'calendar'`
+ * schema keyword; this date-picker primitive is reached via `ui:calendar` only."
+ * So the namespaced spelling is not a stylistic variant of {@link CalendarSchema}
+ * — it is the only spelling that resolves to this renderer.
+ *
+ * Five catalog fixtures under
+ * `examples/schema-catalog/src/schemas/components-form-calendar/` author it; every
+ * one rendered and every one was refused by `AnyComponentSchema` until this arm.
+ *
+ * Mirror: `zod/form.zod.ts#UiCalendarSchema`.
+ */
+export interface UiCalendarSchema extends Omit<CalendarSchema, 'type'> {
+  type: 'ui:calendar';
+}
+
+/**
  * Union type of all form schemas
  */
 export type FormComponentSchema =
@@ -1658,5 +1702,7 @@ export type FormComponentSchema =
   | LabelSchema
   | ComboboxSchema
   | CommandSchema
-  | CodeEditorSchema;
+  | CodeEditorSchema
+  | InputShorthandSchema
+  | UiCalendarSchema;
 

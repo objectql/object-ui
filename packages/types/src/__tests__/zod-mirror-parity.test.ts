@@ -397,8 +397,8 @@ import { ActionSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js
 import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, DrillDownConfigSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeNodeSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
 import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchema, SpinnerSchema, ToasterSchema, ToastSchema } from '../zod/feedback.zod.js';
-import { ButtonSchema, CalendarSchema, CheckboxSchema, CodeEditorSchema, ComboboxOptionSchema, ComboboxSchema, CommandGroupSchema, CommandItemSchema, CommandSchema, DatePickerSchema, FieldConditionSchema, FieldConstraintsSchema, FileUploadSchema, FormFieldSchema, FormSchema, InputOTPSchema, InputSchema, LabelSchema, RadioGroupSchema, RadioOptionSchema, SelectOptionSchema, SelectSchema, SliderSchema, SwitchSchema, TextareaSchema, ToggleSchema } from '../zod/form.zod.js';
-import { AspectRatioSchema, BoxSchema, CardSchema, ContainerSchema, DivSchema, FlexSchema, GridSchema, IconSchema, ImageSchema, PageNodeRegionSchema, PageNodeSchema, ResizablePanelSchema, ResizableSchema, ScrollAreaSchema, SeparatorSchema, StackSchema, TabItemSchema, TabsSchema, TextSchema, TextSpanSchema } from '../zod/layout.zod.js';
+import { ButtonSchema, CalendarSchema, CheckboxSchema, CodeEditorSchema, ComboboxOptionSchema, ComboboxSchema, CommandGroupSchema, CommandItemSchema, CommandSchema, DatePickerSchema, FieldConditionSchema, FieldConstraintsSchema, FileUploadSchema, FormFieldSchema, FormSchema, InputOTPSchema, InputSchema, InputShorthandSchema, LabelSchema, RadioGroupSchema, RadioOptionSchema, SelectOptionSchema, SelectSchema, SliderSchema, SwitchSchema, TextareaSchema, ToggleSchema, UiCalendarSchema } from '../zod/form.zod.js';
+import { AspectRatioSchema, BoxSchema, CardSchema, ContainerSchema, DivSchema, FlexSchema, GridSchema, HtmlElementSchema, IconSchema, ImageSchema, PageNodeRegionSchema, SemanticElementSchema, PageNodeSchema, ResizablePanelSchema, ResizableSchema, ScrollAreaSchema, SeparatorSchema, StackSchema, TabItemSchema, TabsSchema, TextSchema, TextSpanSchema } from '../zod/layout.zod.js';
 import { BreadcrumbItemSchema, BreadcrumbSchema, ButtonGroupButtonSchema, ButtonGroupSchema, HeaderBarSchema, NavigationMenuItemSchema, NavigationMenuSchema, NavLinkSchema, PaginationSchema, SidebarSchema } from '../zod/navigation.zod.js';
 import { ObjectCalendarSchema, ObjectChartSchema, ObjectDataTableSchema, ObjectFormSchema, ObjectGallerySchema, ObjectGanttSchema, ObjectGridSchema, ObjectKanbanSchema, ObjectMapConfigSchema, ObjectMapSchema, ObjectTreeSchema, ObjectViewSchema, SortConfigSchema } from '../zod/objectql.zod.js';
 import { AlertDialogSchema, ContextMenuSchema, DialogSchema, DrawerSchema, DropdownMenuSchema, HoverCardSchema, MenubarMenuSchema, MenubarSchema, MenuItemSchema as OverlayMenuItemSchema, PopoverSchema, SheetSchema, TooltipSchema } from '../zod/overlay.zod.js';
@@ -413,8 +413,8 @@ import type { CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_Detail
 import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, BarChartSchema as Ts_BarChartSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, DrillDownConfig as Ts_DrillDownConfig, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
 import type { AccordionItem as Ts_AccordionItem, AccordionSchema as Ts_AccordionSchema, CollapsibleSchema as Ts_CollapsibleSchema, ToggleGroupItem as Ts_ToggleGroupItem, ToggleGroupSchema as Ts_ToggleGroupSchema } from '../disclosure';
 import type { EmptySchema as Ts_EmptySchema, LoadingSchema as Ts_LoadingSchema, ProgressSchema as Ts_ProgressSchema, SkeletonSchema as Ts_SkeletonSchema, SonnerSchema as Ts_SonnerSchema, SpinnerSchema as Ts_SpinnerSchema, ToasterSchema as Ts_ToasterSchema, ToastSchema as Ts_ToastSchema } from '../feedback';
-import type { ButtonSchema as Ts_ButtonSchema, CalendarSchema as Ts_CalendarSchema, CheckboxSchema as Ts_CheckboxSchema, CodeEditorSchema as Ts_CodeEditorSchema, ComboboxOption as Ts_ComboboxOption, ComboboxSchema as Ts_ComboboxSchema, CommandGroup as Ts_CommandGroup, CommandItem as Ts_CommandItem, CommandSchema as Ts_CommandSchema, DatePickerSchema as Ts_DatePickerSchema, FieldCondition as Ts_FieldCondition, FieldValidationRules as Ts_FieldValidationRules, FileUploadSchema as Ts_FileUploadSchema, FormField as Ts_FormField, FormSchema as Ts_FormSchema, InputOTPSchema as Ts_InputOTPSchema, InputSchema as Ts_InputSchema, LabelSchema as Ts_LabelSchema, RadioGroupSchema as Ts_RadioGroupSchema, RadioOption as Ts_RadioOption, SelectOption as Ts_SelectOption, SelectSchema as Ts_SelectSchema, SliderSchema as Ts_SliderSchema, SwitchSchema as Ts_SwitchSchema, TextareaSchema as Ts_TextareaSchema, ToggleSchema as Ts_ToggleSchema } from '../form';
-import type { AspectRatioSchema as Ts_AspectRatioSchema, BoxSchema as Ts_BoxSchema, CardSchema as Ts_CardSchema, ContainerSchema as Ts_ContainerSchema, DivSchema as Ts_DivSchema, FlexSchema as Ts_FlexSchema, GridSchema as Ts_GridSchema, IconSchema as Ts_IconSchema, ImageSchema as Ts_ImageSchema, PageNodeRegion as Ts_PageNodeRegion, PageNodeSchema as Ts_PageNodeSchema, ResizablePanel as Ts_ResizablePanel, ResizableSchema as Ts_ResizableSchema, ScrollAreaSchema as Ts_ScrollAreaSchema, SeparatorSchema as Ts_SeparatorSchema, StackSchema as Ts_StackSchema, TabItem as Ts_TabItem, TabsSchema as Ts_TabsSchema, TextSchema as Ts_TextSchema, TextSpanSchema as Ts_TextSpanSchema } from '../layout';
+import type { ButtonSchema as Ts_ButtonSchema, CalendarSchema as Ts_CalendarSchema, CheckboxSchema as Ts_CheckboxSchema, CodeEditorSchema as Ts_CodeEditorSchema, ComboboxOption as Ts_ComboboxOption, ComboboxSchema as Ts_ComboboxSchema, CommandGroup as Ts_CommandGroup, CommandItem as Ts_CommandItem, CommandSchema as Ts_CommandSchema, DatePickerSchema as Ts_DatePickerSchema, FieldCondition as Ts_FieldCondition, FieldValidationRules as Ts_FieldValidationRules, FileUploadSchema as Ts_FileUploadSchema, FormField as Ts_FormField, FormSchema as Ts_FormSchema, InputOTPSchema as Ts_InputOTPSchema, InputSchema as Ts_InputSchema, InputShorthandSchema as Ts_InputShorthandSchema, UiCalendarSchema as Ts_UiCalendarSchema, LabelSchema as Ts_LabelSchema, RadioGroupSchema as Ts_RadioGroupSchema, RadioOption as Ts_RadioOption, SelectOption as Ts_SelectOption, SelectSchema as Ts_SelectSchema, SliderSchema as Ts_SliderSchema, SwitchSchema as Ts_SwitchSchema, TextareaSchema as Ts_TextareaSchema, ToggleSchema as Ts_ToggleSchema } from '../form';
+import type { AspectRatioSchema as Ts_AspectRatioSchema, BoxSchema as Ts_BoxSchema, CardSchema as Ts_CardSchema, ContainerSchema as Ts_ContainerSchema, DivSchema as Ts_DivSchema, FlexSchema as Ts_FlexSchema, GridSchema as Ts_GridSchema, HtmlElementSchema as Ts_HtmlElementSchema, IconSchema as Ts_IconSchema, ImageSchema as Ts_ImageSchema, SemanticElementSchema as Ts_SemanticElementSchema, PageNodeRegion as Ts_PageNodeRegion, PageNodeSchema as Ts_PageNodeSchema, ResizablePanel as Ts_ResizablePanel, ResizableSchema as Ts_ResizableSchema, ScrollAreaSchema as Ts_ScrollAreaSchema, SeparatorSchema as Ts_SeparatorSchema, StackSchema as Ts_StackSchema, TabItem as Ts_TabItem, TabsSchema as Ts_TabsSchema, TextSchema as Ts_TextSchema, TextSpanSchema as Ts_TextSpanSchema } from '../layout';
 import type { ButtonGroupButton as Ts_ButtonGroupButton, ButtonGroupSchema as Ts_ButtonGroupSchema, HeaderBarSchema as Ts_HeaderBarSchema, NavigationMenuSchema as Ts_NavigationMenuSchema, PaginationSchema as Ts_PaginationSchema, SidebarSchema as Ts_SidebarSchema } from '../navigation';
 import type { ObjectCalendarSchema as Ts_ObjectCalendarSchema, ObjectChartSchema as Ts_ObjectChartSchema, ObjectDataTableSchema as Ts_ObjectDataTableSchema, ObjectFormSchema as Ts_ObjectFormSchema, ObjectGallerySchema as Ts_ObjectGallerySchema, ObjectGanttSchema as Ts_ObjectGanttSchema, ObjectGridSchema as Ts_ObjectGridSchema, ObjectKanbanSchema as Ts_ObjectKanbanSchema, ObjectMapConfig as Ts_ObjectMapConfig, ObjectMapSchema as Ts_ObjectMapSchema, ObjectTreeSchema as Ts_ObjectTreeSchema, ObjectViewSchema as Ts_ObjectViewSchema, SortConfig as Ts_SortConfig } from '../objectql';
 import type { AlertDialogSchema as Ts_AlertDialogSchema, ContextMenuSchema as Ts_ContextMenuSchema, DialogSchema as Ts_DialogSchema, DrawerSchema as Ts_DrawerSchema, DropdownMenuSchema as Ts_DropdownMenuSchema, HoverCardSchema as Ts_HoverCardSchema, MenubarMenu as Ts_MenubarMenu, MenubarSchema as Ts_MenubarSchema, PopoverSchema as Ts_PopoverSchema, SheetSchema as Ts_SheetSchema, TooltipSchema as Ts_TooltipSchema } from '../overlay';
@@ -1141,6 +1141,8 @@ const MIRRORS = {
   'form.zod.ts#FormSchema': FormSchema,
   'form.zod.ts#InputOTPSchema': InputOTPSchema,
   'form.zod.ts#InputSchema': InputSchema,
+  'form.zod.ts#InputShorthandSchema': InputShorthandSchema,
+  'form.zod.ts#UiCalendarSchema': UiCalendarSchema,
   'form.zod.ts#LabelSchema': LabelSchema,
   'form.zod.ts#RadioGroupSchema': RadioGroupSchema,
   'form.zod.ts#RadioOptionSchema': RadioOptionSchema,
@@ -1155,6 +1157,8 @@ const MIRRORS = {
   'layout.zod.ts#CardSchema': CardSchema,
   'layout.zod.ts#ContainerSchema': ContainerSchema,
   'layout.zod.ts#DivSchema': DivSchema,
+  'layout.zod.ts#HtmlElementSchema': HtmlElementSchema,
+  'layout.zod.ts#SemanticElementSchema': SemanticElementSchema,
   'layout.zod.ts#FlexSchema': FlexSchema,
   'layout.zod.ts#GridSchema': GridSchema,
   'layout.zod.ts#IconSchema': IconSchema,
@@ -1303,6 +1307,8 @@ interface Declared {
   'form.zod.ts#FormSchema': Ts_FormSchema;
   'form.zod.ts#InputOTPSchema': Ts_InputOTPSchema;
   'form.zod.ts#InputSchema': Ts_InputSchema;
+  'form.zod.ts#InputShorthandSchema': Ts_InputShorthandSchema;
+  'form.zod.ts#UiCalendarSchema': Ts_UiCalendarSchema;
   'form.zod.ts#LabelSchema': Ts_LabelSchema;
   'form.zod.ts#RadioGroupSchema': Ts_RadioGroupSchema;
   'form.zod.ts#RadioOptionSchema': Ts_RadioOption;
@@ -1317,6 +1323,8 @@ interface Declared {
   'layout.zod.ts#CardSchema': Ts_CardSchema;
   'layout.zod.ts#ContainerSchema': Ts_ContainerSchema;
   'layout.zod.ts#DivSchema': Ts_DivSchema;
+  'layout.zod.ts#HtmlElementSchema': Ts_HtmlElementSchema;
+  'layout.zod.ts#SemanticElementSchema': Ts_SemanticElementSchema;
   'layout.zod.ts#FlexSchema': Ts_FlexSchema;
   'layout.zod.ts#GridSchema': Ts_GridSchema;
   'layout.zod.ts#IconSchema': Ts_IconSchema;
@@ -3119,7 +3127,7 @@ const ZOD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'zod');
  * MINUEND under it had moved. Nothing failed on any of those days, because nothing
  * compared the registry to a number. objectui#7433 is that absence, not the digits.
  */
-const EXPECTED_MIRROR_PAIRS = 158;
+const EXPECTED_MIRROR_PAIRS = 162;
 
 /**
  * A ledger this file can size from its own AST. `WiderThanDeclared` joined at
