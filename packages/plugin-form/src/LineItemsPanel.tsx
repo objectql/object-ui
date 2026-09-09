@@ -65,10 +65,11 @@ export interface LineItemsPanelSchema {
    */
   filter?: any[] | Record<string, any>;
   /**
-   * Load order for the child rows — the legacy `"line_no desc"` clause or the
-   * spec's `SortConfig[]`. Without one the rows arrive in storage order.
+   * Load order for the child rows — the spec's `SortConfig[]`. Without one the
+   * rows arrive in storage order. The legacy `"line_no desc"` clause is RETIRED
+   * (objectui#8221): `convertSortToQueryParams` refuses it out loud.
    */
-  sort?: string | Array<{ field?: string; order?: 'asc' | 'desc' }>;
+  sort?: Array<{ field?: string; order?: 'asc' | 'desc' }>;
   /**
    * Row cap for the child fetch; defaults to {@link DEFAULT_LINE_ITEMS_LIMIT}.
    * A line-items grid has no pagination control — every loaded row is editable

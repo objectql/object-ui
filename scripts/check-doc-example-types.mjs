@@ -1013,7 +1013,7 @@ export const UNGATED_EXAMPLES = {
     reason:
       'usage fragment: references `save`, `storedPage`, which the example never declares',
   },
-  'packages/types/src/objectql.ts:1604 ObjectFormSchema': {
+  'packages/types/src/objectql.ts:1607 ObjectFormSchema': {
     card: null,
     codes: [1005, 1109],
     reason:

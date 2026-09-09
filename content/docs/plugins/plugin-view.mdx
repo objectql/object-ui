@@ -148,7 +148,7 @@ the canonical one:
 | `pagination: { pageSize, pageSizeOptions? }` | `pageSize: number` |
 | `selection: { type: 'single' \| 'multiple' \| 'none' }` | `selectable: boolean \| 'single' \| 'multiple'` |
 | `filter: [{ field, operator, value }, …]` (same shape as a named view's `filter`) | `defaultFilters: Record<field, value>` (equality-only) |
-| `sort: 'field direction'` or `SortConfig[]` | `defaultSort: { field, order }` (**no string form** — that arity only exists on `sort`) |
+| `sort: SortConfig[]` (`[{ field, order }]`) | `defaultSort: { field, order }` (a single entry, not an array) |
 
 Before objectui#5102, `pagination` / `selection` / `filter` / `sort` had **no
 read point at all** in this file: an author who wrote the canonical shape
@@ -269,7 +269,7 @@ const userDirectory: ObjectViewSchema = {
   defaultViewType: 'grid',
   table: {
     columns: ['name', 'email', 'role', 'created_at'],
-    sort: 'created_at desc', // or [{ field: 'created_at', order: 'desc' }]
+    sort: [{ field: 'created_at', order: 'desc' }],
   },
 };
 ```

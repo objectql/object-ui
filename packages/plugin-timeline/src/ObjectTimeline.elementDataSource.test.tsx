@@ -168,7 +168,7 @@ describe('object-timeline — the view actually narrows the rail (objectstack#71
         objectName: 'campaign',
         timeline: TIMELINE,
         filter: [['stage', '=', 'live']],
-        sort: 'end_date desc',
+        sort: [{ field: 'end_date', order: 'desc' }],
         limit: 12,
       },
       adapter,
@@ -177,8 +177,9 @@ describe('object-timeline — the view actually narrows the rail (objectstack#71
     const [object, params] = await firstQuery(adapter);
     expect(object).toBe('campaign');
     expect(params.$filter).toEqual([['stage', '=', 'live']]);
-    // The legacy string clause is lowered the same way the sibling object-bound
-    // blocks lower theirs (`convertSortToQueryParams`).
+    // The array arm — the ONE declared spelling since objectui#8221 — is lowered
+    // the same way the sibling object-bound blocks lower theirs
+    // (`convertSortToQueryParams`).
     expect(params.$orderby).toEqual({ end_date: 'desc' });
     expect(params.$top).toBe(12);
   });
