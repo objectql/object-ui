@@ -184,8 +184,13 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
   目录,根级 projects(`unit`/`dom`/`dom-heavy`)的 include(`packages/**`、`examples/**`、
   `scripts/**`)相对它匹配不到任何文件;只有以**绝对路径**引入的 `apps/console` project 仍解析
   成功。于是跑的是 `@object-ui/console` 的 22 个文件、报 `Test Files 22 passed (22)`,而本包
-  (app-shell 有 281 个)一个都没跑。**没有 "0 tests matched" 信号** —— 计数是 22 不是 0,
+  (app-shell 有 664 个)一个都没跑。**没有 "0 tests matched" 信号** —— 计数是 22 不是 0,
   `passWithNoTests` 根本不参与,按包级约定验证的 agent 会据此报「整包绿」。
+  - ⚠️ 那个 664 连**仪器**一起读、别照抄(objectui#8390:上一版写的 281 陈旧了 2.4 倍)。在
+    `4857776` 上,`find packages/app-shell/src -name '*.test.ts' -o -name '*.test.tsx'` 与 runner
+    自己的收集数 `pnpm exec vitest list --filesOnly packages/app-shell/` 同为 **664**,但**两者
+    不保证相等** —— find 只看 `src/`,而三个 project 的 include 走 `packages/**` 且各带 `exclude`;
+    今天相等,只因 app-shell 的测试文件恰好全在 `src/` 下。
 - **陷阱二:把路径挂在 `--` 后面(objectui#3288)。** `pnpm --filter <pkg> test -- --run <paths>`:
   pnpm 把 `--` **原样**转发进脚本,vitest 的 CLI 解析在 `--` 处停止,后面的一切(包括你的路径)
   在 vitest 看到之前就没了 —— 不是「被忽略并警告」,是压根不存在。于是退回默认集合(叠加陷阱一
