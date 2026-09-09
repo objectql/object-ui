@@ -47,7 +47,9 @@
  *       alone sees one pushed as a member and read under a bare alias (f2).
  *   M2  A recorder pushed bare and read through a host that holds the SAME
  *       array is missed by BOTH modes (f3) — a shared blind spot, not a `path`
- *       one.
+ *       one. ⛔ An earlier header called this a `path`-only miss. It is not:
+ *       the lookbehind forbids a dotted read in BOTH modes, so NO mode of the
+ *       regex instrument can see that shape.
  *   D1  The forward window ends at the next textual `await` IN THE FILE, not at
  *       the end of the enclosing test. A wait that is the last `await` of its
  *       test gets a window running on into the NEXT test (f4, cases a/b and
@@ -60,6 +62,26 @@
  * Of the 18 strict flags the `path` mode reported at da5e4f69e, SEVEN point at
  * something that is not a read at all — objectui#8703 read all seven and
  * repaired none.
+ *
+ * ⚠️ M1 is a claim about SHAPES, and it is FALSE as a measurement of this tree.
+ * Run `--matcher=regex` in both modes and diff the site lists: the strict
+ * buckets are NESTED, not disjoint.
+ *
+ *     at da5e4f69e            ident 15 ⊂ path 18   ident-only EMPTY, 3 path-only
+ *     with main @ a9bc02996   ident 12 ⊂ path 15   ident-only EMPTY, the SAME 3
+ *
+ * and in both readings the three path-only sites are the `server.saved` /
+ * `server.savedOpts` reads in `PermissionMatrixEditor.{scope,packageDoorFacets}
+ * .test.tsx`. The union of the two modes is just `path`'s bucket. ⛔ Never cite
+ * M1 as a reason the two modes must be run and unioned — on this tree that buys
+ * nothing.
+ *
+ * ⭐ Which is the short way to see that the mode choice was never the largest
+ * source of movement. At da5e4f69e the mode choice separates THREE sites; D1
+ * and D2 together separate SIXTEEN. `path` 18 → AST 20 is not +2: it is −7 (the
+ * seven non-reads above) and +9 (seven recorders no name matcher could follow
+ * through a host, a factory or a destructuring, plus two reads D1 had truncated
+ * away). The mode was the visible knob and the smallest one.
  *
  * ---------------------------------------------------------------------------
  * WHAT THE AST MATCHER DOES INSTEAD (objectui#8704)
@@ -92,6 +114,8 @@
  *      and treating it as an anchor is what made the regex matcher blind on f5.
  *      `await act(...)` is likewise not an anchor — it drains effects, it does
  *      not wait for a recorder to fill.
+ *      ⚠️ This repairs only ONE HALF of D1 — the runaway half. R2' below is
+ *      the half that survives, pointed the other way.
  *   3. READ / WRITE / DECLARATION. An occurrence is a DECLARATION when the node
  *      is a binding name (variable, binding element, parameter, function,
  *      class, import) or an object-literal key; a WRITE when it is the target
@@ -109,8 +133,9 @@
  * ⛔ THE CAVEAT STAYS. A COUNT PRINTED HERE IS STILL NOT A CORPUS FACT.
  * ---------------------------------------------------------------------------
  *
- * The three error sources objectui#8704 names are gone, and the six fixtures
- * prove it. Measured over the same tree the earlier numbers were read on
+ * Two of the three error sources objectui#8703 named are gone outright, and
+ * HALF of the third (R2' below is the surviving half); the six fixtures prove
+ * that much. Measured over the same tree the earlier numbers were read on
  * (da5e4f69e, 2776 tracked test files):
  *
  *     regex ident   159 flags, 15 strict, 10 files    (as objectui#8703 published)
@@ -122,6 +147,12 @@
  * the name matcher could not see through a host, a factory or a destructuring,
  * and two reads it had truncated away behind an ordinary `await`. Two of the
  * nine are hand-verified genuine reads the old matcher had LOST.
+ *
+ * And a count moves with the TREE alone, which this branch's own merge with
+ * main measured on a byte-identical matcher: merging a9bc02996 — where #8707,
+ * #8711 and #8713 had each anchored a wait — moves the population 2776 → 2786
+ * and every strict bucket down, AST 20 → 18, `path` 18 → 15, `ident` 15 → 12.
+ * Nothing about the instrument changed. The tree did.
  *
  * That makes the number better, and STILL NOT QUOTABLE. What is left, measured
  * rather than supposed:
@@ -141,6 +172,22 @@
  *       not a fact about the code. `await act(…)` is deliberately NOT an anchor;
  *       moving it into the set removes at least one flag measured here
  *       (`rowRecordCrudVerdict.test.tsx`), and neither choice is provably right.
+ *   R2' The window is scoped to the ENCLOSING FUNCTION BODY, and that repairs
+ *       only ONE half of D1. The runaway half is gone: a window can never
+ *       reach the next `it`. The truncation half SURVIVES, pointed the other
+ *       way — when the wait is hosted in a helper the test awaits, or in any
+ *       inner callback, the window is that inner body and the CALLER's
+ *       statements sit outside it. Forced on a probe: `await settleSaves();
+ *       expect(deletes).toEqual([])` draws ZERO, while the identical read with
+ *       the wait inlined into the test draws a flag. Not a corner — measured
+ *       on this tree, 503 of the 3945 `await waitFor(...)` sites have their
+ *       window owned by an inner function, 464 of them a named or arrow
+ *       helper. The regex matcher was blind here too, differently (its textual
+ *       window ran past the helper's closing brace rather than into the
+ *       caller), so this is a SURVIVING blind spot and not a regression — with
+ *       one measured exception: for a wait inside an `await act(...)` callback
+ *       the regex window did reach the read and this one does not (forced on a
+ *       constructed probe; zero such sites in this tree).
  *   R3  A flag is still not a defect, and this is the residual that matters
  *       most. objectui#8690 read its nine and found ONE worth repairing;
  *       objectui#8703 read seven more and repaired none. All 16 hand-verified
@@ -151,7 +198,7 @@
  *
  * ⇒ Quote a number from here as "sites this instrument points at", never as
  *   "sites of this shape", and never as "defects". ⛔ This file stays OUT of
- *   CI: R2 alone makes it matcher-dependent, and a gate on this list would
+ *   CI: R2 and R2' alone make it matcher-dependent, and a gate on this list would
  *   institutionalise the batch repair objectui#8690 exists to prevent. Its pin
  *   test runs the matcher over the six committed FIXTURES only — never over the
  *   corpus — so nothing in CI depends on what the corpus reads.
@@ -833,10 +880,11 @@ function main() {
   console.log(`  wait named no recorder (a DOM node, a hook result, a test id): ${flags.length - strict.length}`);
   console.log(
     matcher === 'ast'
-      ? '⚠️  READINGS, not corpus facts. objectui#8704 removed the three known\n'
-        + '    error sources (name-matching, runaway windows, declarations read as\n'
-        + '    reads); R1-R3 in this file\'s header are what is left, and a flag is\n'
-        + '    still a site to READ, never a defect. ⛔ Not a gate.'
+      ? '⚠️  READINGS, not corpus facts. objectui#8704 removed name-matching and\n'
+        + '    declarations-read-as-reads outright, and only the RUNAWAY half of the\n'
+        + '    window rule: a wait hosted in a helper still cannot see its caller.\n'
+        + '    R1-R3 in this file\'s header are what is left, and a flag is still a\n'
+        + '    site to READ, never a defect. ⛔ Not a gate.'
       : '⚠️  the ORIGINAL objectui#8690 matcher, kept only so its published numbers\n'
         + '    stay reproducible. About a third of its strict bucket is not a read at\n'
         + '    all (objectui#8703). ⛔ Never quote it — run the default AST matcher.',
