@@ -39,9 +39,9 @@ declare const recommendationsData: AIRecommendationItem[];
 
 const contactAssist: AIFormAssistSchema = {
   type: 'ai-form-assist',
-  formId: 'new-contact',
-  objectName: 'Contact',
-  fields: ['name', 'email', 'company'],
+  suggestions: [
+    { fieldName: 'company', value: 'ObjectStack Inc.', confidence: 0.92 },
+  ],
   showConfidence: true,
 };
 
@@ -55,8 +55,6 @@ function SmartForm() {
 
 const productPicks: AIRecommendationsSchema = {
   type: 'ai-recommendations',
-  objectName: 'Product',
-  maxResults: 5,
   layout: 'grid',
   recommendations: recommendationsData,
 };
@@ -67,7 +65,6 @@ function RecommendationsPanel() {
 
 const orderSearch: NLQuerySchema = {
   type: 'nl-query',
-  objectName: 'Order',
   placeholder: 'Ask a question about your orders...',
   suggestions: ['Show orders from last week', 'Top customers by revenue'],
 };
@@ -90,10 +87,9 @@ import type { AIFormAssistSchema } from '@object-ui/types';
 
 const leadAssist: AIFormAssistSchema = {
   type: 'ai-form-assist',
-  formId: 'new-lead',
-  objectName: 'Lead',
-  fields: ['name', 'email', 'phone'],
-  autoFill: false,
+  suggestions: [
+    { fieldName: 'phone', value: '+86 21 0000 0000', confidence: 0.71, reasoning: 'Matched the company record' },
+  ],
   showConfidence: true,
   showReasoning: false,
 };
@@ -119,9 +115,7 @@ declare const data: AIRecommendationItem[];
 
 const productPicks: AIRecommendationsSchema = {
   type: 'ai-recommendations',
-  objectName: 'Product',
-  recommendations: data,
-  maxResults: 10,
+  recommendations: data.slice(0, 10), // every item handed over is rendered
   layout: 'list', // 'list' | 'grid' | 'carousel'
   showScores: false,
   emptyMessage: 'No recommendations available',
@@ -143,7 +137,6 @@ import type { NLQuerySchema } from '@object-ui/types';
 
 const orderSearch: NLQuerySchema = {
   type: 'nl-query',
-  objectName: 'Order',
   placeholder: 'Ask anything...',
   suggestions: ['Recent orders', 'Revenue by month'],
   showHistory: false,
@@ -167,12 +160,30 @@ registers as `nl-query`:
 ```json
 {
   "type": "ai-form-assist",
-  "formId": "new-contact",
-  "objectName": "Contact",
-  "fields": ["name", "email"],
-  "showConfidence": true
+  "showConfidence": true,
+  "showReasoning": true
 }
 ```
+
+## What these components do not do
+
+They are **presentation only**: each one renders the data on its schema and
+reports the user's decisions through its callbacks. None of them fetches, none
+of them queries, and none of them caps a list.
+
+`formId`, `objectName`, `fields`, `autoFill` and `maxResults` were declared,
+offered in the designer and taught here — and read by nothing, at any depth.
+They are retired (objectui#8178, ADR-0049, director decision batch #78,
+2026-09-07) and are refused by the schema types now, so a node that carries one
+is a compile error rather than a silent no-op:
+
+| Key | Was on | Instead |
+|---|---|---|
+| `formId` | `AIFormAssistSchema` | the host owns the form; pass `suggestions` in and act on `onApply` |
+| `objectName` | all three schemas | scope the query in the host that answers it |
+| `fields` | `AIFormAssistSchema` | each suggestion names its own `fieldName` |
+| `autoFill` | `AIFormAssistSchema` | apply the suggestions you want from `onApply` |
+| `maxResults` | `AIRecommendationsSchema` | slice `recommendations` before handing it over — **every item is rendered** |
 
 ## Links
 

@@ -92,19 +92,55 @@ export interface AIFormAssistSchema extends BaseSchema {
   type: 'ai-form-assist';
 
   /**
-   * Target form identifier
+   * RETIRED (objectui#8178, ADR-0049, director decision batch #78, 2026-09-07) —
+   * `AIFormAssist` takes `({ schema, onApply, onRefresh })` and never reads
+   * `formId`: the key named a form nothing looked up. Measured on the retiring
+   * branch's own head, whole package: zero occurrences of the identifier in
+   * `AIFormAssist.tsx`, with the sibling `showConfidence` (2 occurrences: the
+   * destructure and its read) lit as the control, and zero `{...props}` /
+   * `{...rest}` spreads anywhere in `@object-ui/plugin-ai` — the
+   * `SchemaRenderer` prop channel objectui#8410 found (a renderer consuming a
+   * key it never names) does not exist in this package, with
+   * `components/src/renderers/disclosure/collapsible.tsx` lit as that
+   * instrument's control.
+   *
+   * A tombstone rather than a plain removal on PRONG 2 of the discriminator
+   * (objectui#5941, #7526, #7678): this package's README taught the key as
+   * working, in the Quick Start, in the `AIFormAssist` API example and in the
+   * schema-driven JSON example. {@link BaseSchema} carries `[key: string]: any`,
+   * so a DELETED member is absorbed silently at ANY value — deletion here is not
+   * a quieter refusal, it is no refusal — and the tombstone is what makes the
+   * compile-time refusal exist, by name.
+   *
+   * ⛔ Not enforced instead (the ruling's words): implementing reads nobody asked
+   * for is capability growth without pull. If an AI backend later needs the
+   * form's identity as context, that is a feature card with its own business
+   * case.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  formId?: string;
+  formId?: never;
 
   /**
-   * Object name for context
+   * RETIRED (objectui#8178, ADR-0049, director decision batch #78, 2026-09-07) — see
+   * {@link AIFormAssistSchema.formId} for the measurement and the tombstone's
+   * grounds. `AIFormAssist.tsx` has zero occurrences of `objectName`; the
+   * component reaches no data source at all (it imports nothing from
+   * `@object-ui/core`, so the shared record-source ladder that reads
+   * `schema.objectName` for the grid/tree/map/calendar/gantt blocks is not on
+   * any path a node of this type can take).
+   * @deprecated Not part of this contract — the value was inert.
    */
-  objectName?: string;
+  objectName?: never;
 
   /**
-   * Fields to provide suggestions for
+   * RETIRED (objectui#8178, ADR-0049, director decision batch #78, 2026-09-07) — see
+   * {@link AIFormAssistSchema.formId}. Zero occurrences in `AIFormAssist.tsx`:
+   * the suggestions the component renders come in already-formed on
+   * `suggestions`, each carrying its own `fieldName`, so this key never chose
+   * anything.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  fields?: string[];
+  fields?: never;
 
   /**
    * Additional context for generating suggestions
@@ -122,9 +158,15 @@ export interface AIFormAssistSchema extends BaseSchema {
   suggestions?: AIFieldSuggestion[];
 
   /**
-   * Automatically fill fields with suggestions
+   * RETIRED (objectui#8178, ADR-0049, director decision batch #78, 2026-09-07) — see
+   * {@link AIFormAssistSchema.formId}. This one was a DEAD DESTRUCTURE rather
+   * than an absent one: `AIFormAssist.tsx` destructured `autoFill = false` and
+   * never referenced the binding again — the single occurrence of the identifier
+   * in the file was that line, against `showConfidence` and `showReasoning` at
+   * two each (destructure plus read). Nothing was ever filled automatically.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  autoFill?: boolean;
+  autoFill?: never;
 
   /**
    * Show confidence scores for suggestions
@@ -204,9 +246,13 @@ export interface AIRecommendationsSchema extends BaseSchema {
   type: 'ai-recommendations';
 
   /**
-   * Object name for context
+   * RETIRED (objectui#8178, ADR-0049, director decision batch #78, 2026-09-07) — see
+   * {@link AIFormAssistSchema.formId} for the measurement and the tombstone's
+   * grounds. Zero occurrences in `AIRecommendations.tsx`, which renders the
+   * `recommendations` it is handed and fetches nothing.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  objectName?: string;
+  objectName?: never;
 
   /**
    * Additional context for generating recommendations
@@ -224,9 +270,21 @@ export interface AIRecommendationsSchema extends BaseSchema {
   recommendations?: AIRecommendationItem[];
 
   /**
-   * Maximum number of results to display
+   * RETIRED (objectui#8178, ADR-0049, director decision batch #78, 2026-09-07) — the
+   * sharpest member of the seven, and the reason the finding was filed. Its doc
+   * comment read *"Maximum number of results to display"*, and
+   * `AIRecommendations` renders EVERY item in `recommendations` — no slice, no
+   * cap, zero occurrences of the identifier in the component. An author who
+   * wrote `maxResults: 5` against a 50-item list got 50 rows and no diagnostic.
+   *
+   * ⛔ Not implemented as a slice instead: that is the Enforce direction the
+   * ruling declined — nothing in the repo pulls on it. The renderer's docblock
+   * now states that it renders every item, so the promise is withdrawn rather
+   * than left unhonoured, and `AIRecommendations.rendersEveryItem-8178.test.tsx`
+   * pins the behaviour. Cap the array before you hand it over.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  maxResults?: number;
+  maxResults?: never;
 
   /**
    * Show relevance scores
@@ -316,9 +374,14 @@ export interface NLQuerySchema extends BaseSchema {
   type: 'nl-query';
 
   /**
-   * Object name for context
+   * RETIRED (objectui#8178, ADR-0049, director decision batch #78, 2026-09-07) — see
+   * {@link AIFormAssistSchema.formId} for the measurement and the tombstone's
+   * grounds. Zero occurrences in `NLQueryInput.tsx`: the component collects a
+   * query string and hands it to `onSubmit`, and any object scoping belongs to
+   * the host that answers it.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  objectName?: string;
+  objectName?: never;
 
   /**
    * Input placeholder text
