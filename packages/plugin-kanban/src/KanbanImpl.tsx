@@ -79,7 +79,8 @@ const UNCATEGORIZED_LANE = 'Uncategorized'
  * Keeping the DOM as it is has a second payoff: the header row stays a direct
  * flex child of the swimlane region, so objectui#8449's ruled vertical arm
  * (region scrolls, header row sticks) remains reachable without undoing any of
- * this.
+ * this. That arm has since landed — the region is `overflow-y-auto` and this
+ * row is `sticky top-0` — and it needed no change here, as predicted.
  */
 const SWIMLANE_SCROLL_ROW_ATTR = 'data-swimlane-scroll-row'
 
@@ -823,8 +824,28 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
         </div>
       )}
       {swimlanes ? (
-        /* Swimlane (2D) layout */
-        <div className={cn("flex flex-col gap-2 px-4 sm:px-6 py-3 sm:py-4 min-w-0 overflow-hidden", className)} role="region" aria-label="Kanban board with swimlanes">
+        /* Swimlane (2D) layout — the region OWNS the vertical scroll (objectui#8449).
+           It was `overflow-hidden`, which made the lanes below the fold
+           UNREACHABLE rather than merely awkward: the region is a flex item of
+           a height-bounded (`h-full`) board, and a non-`visible` overflow
+           zeroes a flex item's automatic minimum size, so the region was
+           already being shrunk to the board's height while its content stayed
+           at full height — measured in Chromium at 1600x1000 with three lanes
+           as `scrollHeight` 2104 against `clientHeight` 1000, with
+           `document.documentElement` not scrollable either. Two of the three
+           lanes had no gesture that reached them.
+
+           `overflow-y-auto` puts the scroll where the overflow is and leaves
+           the board a self-contained pane — the ruling's option A. Option B
+           (drop the height bound, let the page scroll) was refused on blast
+           radius: it changes what the component promises every embedder, and
+           none were enumerated.
+
+           ⚠️ The Y axis only. `overflow-x` stays `hidden` here so this does not
+           become a second horizontal scroller competing with the ONE axis
+           objectui#8448 settled on the header row and the lane rows. Pinned by
+           `__tests__/swimlaneVerticalScroll-8449.test.tsx`. */
+        <div className={cn("flex flex-col gap-2 px-4 sm:px-6 pb-3 sm:pb-4 min-w-0 overflow-x-hidden overflow-y-auto", className)} role="region" aria-label="Kanban board with swimlanes">
           {/* Column headers.
               This is a SECOND header implementation, parallel to the per-column
               `<h3 id={`kanban-col-${column.id}`}>` that `KanbanColumnView`
@@ -858,9 +879,32 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
 
               The `pl-36 sm:pl-44` indent is shared with the lane content rows
               below and is what lines the titles up with their columns — it must
-              move on both rows or neither. */}
+              move on both rows or neither.
+
+              `pt-3 sm:pt-4` is the region's former TOP padding, moved onto this
+              row on purpose. A scroll container's padding is inside its
+              scrollport, so content scrolls THROUGH it: with the padding left
+              on the region, a 16px band of the previous lane's cards stayed
+              visible above the pinned header (measured in Chromium — the header
+              stuck at `top + 16`, not `top + 0`). Carried here it is painted
+              with the row's own opaque background instead. The region keeps
+              `pb-*`, which nothing scrolls past.
+
+              `sticky top-0` is the other half of objectui#8449's ruling. Now
+              that the region scrolls vertically, a header row that scrolled
+              away with the lanes would recreate objectui#7303's defect by a
+              different route — the titles gone, the cells still there. The row
+              is a direct flex child of the scrolling region, so it sticks to
+              that region's scrollport. `bg-background` is load-bearing with it:
+              without an opaque background the lanes paint THROUGH the pinned
+              row. `z-10` orders it above the lane cards, whose drag transforms
+              (dnd-kit) otherwise paint over it as later positioned siblings.
+
+              ⚠️ `sticky` does NOT take the row out of the flex shrink pool —
+              a sticky box is still in flow — so `shrink-0` above stays exactly
+              as load-bearing as objectui#7303's pin says it is. */}
           <div
-            className="flex shrink-0 gap-3 sm:gap-4 pl-36 sm:pl-44 overflow-x-auto"
+            className="flex shrink-0 gap-3 sm:gap-4 pl-36 sm:pl-44 pt-3 sm:pt-4 overflow-x-auto sticky top-0 z-10 bg-background"
             ref={adoptSwimlaneScroll}
             onScroll={syncSwimlaneScroll}
             data-swimlane-scroll-row=""
