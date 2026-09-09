@@ -48,11 +48,40 @@
  * handed `objectName: undefined` and nothing is fetched; without the
  * `specType` leg the page renders `object-grid` instead of `object-kanban`.
  * The `provider: 'value'` case is the control that stays green either way.
+ *
+ * ## Dating the two query-absence controls (objectui#8705)
+ *
+ * `invents NO binding …` and `leaves the value provider alone …` each assert
+ * that NO query is started. Read straight after their `waitFor`, that absence
+ * was dated to MOUNT rather than to a settled load: on both of those paths the
+ * view spy's props land on the FIRST commit, so `not.toHaveBeenCalled()` was
+ * being evaluated before a deferred query could have run. Both pins stayed
+ * GREEN against an implementation strictly worse than the bug — one line in
+ * `ListView.tsx` that fires `dataSource.find` 50ms after every mount — so they
+ * could not tell "starts no query" from "starts a query a tick later", which
+ * is exactly the regression shape that would reach them.
+ *
+ * There is no anchor to prefer here, and that was checked before reaching for
+ * a timer. An anchor needs a positive signal the implementation must emit
+ * AFTER any query would have started. On the `value` path nothing settles at
+ * all: `loading` is false from the first commit and never flips. On the
+ * `object`-provider-without-object path the one transition that exists —
+ * `loading` going false — is set from the very branch a query would start
+ * from, so it postdates a synchronous query and not a deferred one. The
+ * absence is therefore watched over a bounded window; see `ABSENCE_SETTLE_MS`.
+ *
+ * The other three absence reads in this file are NOT this shape, and that is
+ * measured, not assumed: at `expect(gridProps).toHaveLength(0)` and at both
+ * `expect(kanbanProps).toHaveLength(0)` sites, `dataSource.find` has ALREADY
+ * been called when the line runs. Those three cases bind an object, and
+ * `ListView` withholds the view spy behind its loading skeleton
+ * (`loading && data.length === 0`) until the query resolves — so they are
+ * already dated to a resolved query and are left exactly as they were.
  */
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor, cleanup } from '@testing-library/react';
+import { render, waitFor, cleanup, act } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer, SchemaRendererProvider, AdapterCtx } from '@object-ui/react';
 // Registers the page renderers (`type:'page'` / `'home'`), which dispatch
@@ -140,6 +169,29 @@ function renderListView(schema: Record<string, any>) {
   return dataSource;
 }
 
+/**
+ * How long a query-absence is watched before it is believed.
+ *
+ * REAL time, on purpose, and deliberately larger than any deferral the test
+ * environment drains for free: RTL's `asyncWrapper` already flushes one
+ * macrotask before `waitFor` returns, so a `setTimeout(…, 0)` regression sits
+ * INSIDE the pre-existing window and a 0ms settle would prove nothing at all.
+ * objectui#8705's forced leg defers its query by 50ms; this window is 5x that
+ * and still an order of magnitude inside vitest's 5s default test timeout.
+ */
+const ABSENCE_SETTLE_MS = 250;
+
+/**
+ * Advance past `ABSENCE_SETTLE_MS` of real time so a deferred query has run
+ * before an absence is read. Wrapped in `act` so that a regression which does
+ * land state during the window is flushed into React rather than warned about.
+ */
+async function settleAbsenceWindow(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ABSENCE_SETTLE_MS));
+  });
+}
+
 beforeEach(() => {
   kanbanProps = [];
   gridProps = [];
@@ -201,6 +253,11 @@ function Page() {
     const dataSource = renderListView({ data: { provider: 'object' }, specType: 'kanban' });
 
     await waitFor(() => expect(kanbanProps.length).toBeGreaterThan(0));
+    // Both reads below are ABSENCES, and the props above arrive on the first
+    // commit — so date them to the end of a settle window, not to mount
+    // (objectui#8705). A late `objectName` would push a fresh props entry and
+    // a deferred query would have called `find` by the time this returns.
+    await settleAbsenceWindow();
     expect(kanbanProps[kanbanProps.length - 1].schema.objectName).toBeUndefined();
     expect(dataSource.find).not.toHaveBeenCalled();
   });
@@ -214,6 +271,10 @@ function Page() {
     });
 
     await waitFor(() => expect(kanbanProps.length).toBeGreaterThan(0));
+    // Same dating as the control above, and this is the path with NO settle of
+    // its own: an inline-items provider leaves `loading` false from the first
+    // commit, so without this window the absence is dated to mount.
+    await settleAbsenceWindow();
     expect(kanbanProps[kanbanProps.length - 1].schema.objectName).toBeUndefined();
     expect(dataSource.find).not.toHaveBeenCalled();
   });
