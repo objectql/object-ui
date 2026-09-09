@@ -626,6 +626,23 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             const colorClass = hexBadge
               ? hexBadge.className
               : getBadgeColorClasses(opt?.color, raw);
+            // objectui#8489 — decline to draw a badge there is no label for.
+            // The loop's own `raw == null || raw === ''` guard lets an empty
+            // array through, and this branch never reaches `getCellRenderer`,
+            // so objectui#8481's rule for the shared renderers ("an empty
+            // array is not a cell value") cannot help it: with nothing to
+            // resolve, the label came out as the empty string and the card
+            // drew a fully styled, fully coloured pill with no children in it.
+            //
+            // Deliberately NOT an emptiness judgement about the VALUE — the
+            // kanban needs none. By this point the only question left is
+            // whether there is a label to draw, and asking exactly that also
+            // covers every non-array value resolving to nothing; the empty
+            // array is simply the shape that is easy to hit.
+            //
+            // Compared against the empty string, NOT for falsiness: `'0'` is a
+            // legitimately authored option label and has to keep rendering.
+            if (translatedLabel === '') continue;
             cardBadges.push({ label: translatedLabel, colorClass, colorStyle: hexBadge?.style });
           } else {
             // Route through the same registry that Grid/Gallery use so
@@ -684,6 +701,13 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             const colorClass = hexBadge
               ? hexBadge.className
               : getBadgeColorClasses(option?.color, v);
+            // objectui#8489, same reasoning as the explicit branch above and
+            // for the same reason: this heuristic resolves its label the same
+            // way, so `[]` (or any value stringifying to nothing) reached the
+            // push with an empty label and drew the same empty pill. Skipping
+            // the push rather than breaking keeps the remaining badge fields
+            // eligible — an unlabelled one must not consume a badge slot.
+            if (label === '') continue;
             cardBadges.push({ label, colorClass, colorStyle: hexBadge?.style });
             if (cardBadges.length >= 2) break;
           }
