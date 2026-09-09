@@ -269,7 +269,7 @@ export const JUSTIFIED = {
           "Consumed HERE, not owed to the runner. Every one of these renderers evaluates " +
           "`disabled` itself (through `hasDeclaredVisibilityGate` + `useCondition`) and greys " +
           "its own control, so the click the runner's own gate would refuse " +
-          "(ActionRunner.ts:773) cannot be made in the first place. Forwarding it would put " +
+          "(ActionRunner.ts:774) cannot be made in the first place. Forwarding it would put " +
           "the same predicate through a second evaluator on a path that is already closed " +
           "(objectui#3842 ruling on the declared-gate definition, applied by #3849).",
         issue: 4050,
