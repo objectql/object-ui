@@ -54,6 +54,14 @@ description and an author — is asked interactively with a default filled in. T
 `--description` and `--author` options **pre-fill those prompts rather than skip them**;
 run `npx @object-ui/create-plugin --help` for the options it accepts today.
 
+**A run that cannot ask still scaffolds.** With no TTY — a pipe, a CI step, stdin taken
+from `/dev/null` — nothing is asked and every prompt takes its default, and the same
+happens to the questions after a Ctrl-C. Either way the complete file set is written,
+licence text included. The plugin name is the sole exception, being the one answer with
+no default: without it such a run prints `Plugin name is required` and exits `1` having
+created nothing, which is why the name belongs on the command line whenever the run is
+not interactive. The package README states the rule in full.
+
 ## What It Generates
 
 This page deliberately does **not** reproduce the generated tree or the generated files.
