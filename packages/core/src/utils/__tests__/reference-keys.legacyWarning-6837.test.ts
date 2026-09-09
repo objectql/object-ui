@@ -65,8 +65,9 @@
  * ## ⛔ WHAT THIS WARNING DOES NOT COVER
  *
  * It fires only where `normalizeSchemaReferenceKeys` runs, which in production
- * is exactly the two ingestion choke points — both of which also STAMP the def,
- * so it fires where nothing is broken. A hand-written schema served through any
+ * is exactly the three ingestion choke points (objectui#7650 added the third,
+ * `MetadataProvider.getItem`) — all of which also STAMP the def, so it fires
+ * where nothing is broken. A hand-written schema served through any
  * other `DataSource` reaches a reader raw and warns nothing. The reader-side
  * diagnostic that would cover that is still open on objectui#6837.
  */
