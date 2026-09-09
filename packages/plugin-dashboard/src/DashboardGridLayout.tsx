@@ -11,6 +11,7 @@ import { isObjectProvider, deriveStaticTableColumns } from './utils';
 import { classifyWidgetType } from './widgetDispatch';
 import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
 import { DatasetWidget } from './DatasetWidget';
+import { useWidgetSubCaption } from './widgetSubCaption';
 
 /** Bridges editMode transitions to the ObjectUI DnD system when a DndProvider is present. */
 function DndEditModeBridge({ editMode }: { editMode: boolean }) {
@@ -133,6 +134,22 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
   // `useObjectTranslation` is provider-safe (react-i18next falls back to its
   // global instance and never throws), so a standalone grid still renders.
   const { language } = useObjectTranslation();
+  /**
+   * The metric tile's sub-caption resolver — objectui#8889.
+   *
+   * This surface routes a dataset-bound widget to `DatasetWidget` exactly as
+   * `DashboardRenderer` does (objectui#4614), so it owes that component the
+   * same resolved sub-caption. It is the SAME hook the sibling calls, not a
+   * second copy of the composition: the field's invariant is that its two
+   * channels "can never disagree", and two independent resolvers are precisely
+   * how they would.
+   *
+   * `schema.name` is the dashboard name every convention key on this surface is
+   * built from (`BaseSchema.name`, which `DashboardComponentSchema` extends).
+   * Absent it the hook degrades to the authored value alone — the same silent
+   * degradation the sibling's title/description lookups perform.
+   */
+  const tWidgetSubCaption = useWidgetSubCaption(schema.name);
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleRefresh = React.useCallback(() => {
@@ -583,7 +600,17 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
                           is mirrored here, not the stranded limb.
                         */}
                         {datasetBound
-                          ? <DatasetWidget widget={widget} dataSource={dataSource} />
+                          ? <DatasetWidget
+                              widget={widget}
+                              dataSource={dataSource}
+                              /* objectui#8889 — dispatch site 2 of 2, and the half that
+                                 objectui#4614 exists to stop anyone from forgetting: the
+                                 sibling passing this alone would fix one surface and leave
+                                 this one silently unchanged. `?? null` says "a surface
+                                 resolved it, to nothing", which is NOT the same as the
+                                 prop being absent — see the prop's docblock. */
+                              subCaption={tWidgetSubCaption(widget) ?? null}
+                            />
                           : <SchemaRenderer schema={componentSchema} />}
                       </div>
                     </CardContent>

@@ -43,6 +43,7 @@ import { isObjectProvider, deriveStaticTableColumns } from './utils';
 import { classifyWidgetType, METRIC_LIKE_TYPES } from './widgetDispatch';
 import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
 import { DatasetWidget } from './DatasetWidget';
+import { useWidgetSubCaption } from './widgetSubCaption';
 import { DashboardFilterBar } from './DashboardFilterBar';
 
 interface SortableWidgetWrapperProps {
@@ -287,7 +288,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
     // ── i18n: convention-based label resolution for dashboard / widget /
     // action text. The dashboard name (`schema.name`) keys all lookups; when
     // it's missing we silently degrade to the raw English fallbacks.
-    const { dashboardLabel, dashboardDescription, dashboardActionLabel, widgetTitle, widgetDescription, widgetSubCaption, fieldLabel } = useObjectLabel();
+    const { dashboardLabel, dashboardDescription, dashboardActionLabel, widgetTitle, widgetDescription, fieldLabel } = useObjectLabel();
     const { t, language } = useObjectTranslation();
 
     /**
@@ -408,16 +409,18 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
      * bundle carries a non-empty `subCaption`, whether or not the author wrote
      * one. Absent both, this answers `undefined` rather than `''` —
      * `MetricWidget` gates its whole caption row on the value's truthiness.
+     *
+     * ⚠️ The composition itself no longer lives here (objectui#8889). It moved
+     * to `useWidgetSubCaption` so that BOTH dashboard surfaces —
+     * `DashboardRenderer` and `DashboardGridLayout`, which route a
+     * dataset-bound widget to the same `DatasetWidget` (objectui#4614) — resolve
+     * it through ONE decision point. An invariant that says two channels can
+     * never disagree cannot be enforced by two independent resolvers; see that
+     * module's header. The limbs, their order and the `undefined`-never-`''`
+     * contract are unchanged, which is why the pins in
+     * `__tests__/DashboardRenderer.metricSubCaption.test.tsx` did not move.
      */
-    const tWidgetSubCaption = useCallback(
-      (widget: DashboardWidgetSchema): string | undefined => {
-        const authored = (widget.options as Record<string, unknown> | undefined)?.description;
-        const fallback = resolveLabel(authored);
-        if (!dashName || !widget.id) return fallback;
-        return widgetSubCaption(dashName, widget.id, fallback);
-      },
-      [dashName, widgetSubCaption, resolveLabel],
-    );
+    const tWidgetSubCaption = useWidgetSubCaption(dashName);
 
     // Install host-supplied modal/script handlers on the underlying ActionRunner.
     useEffect(() => {
@@ -937,7 +940,19 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 <CardContent className="p-0">
                     <div className={cn("h-full w-full", "p-3 sm:p-4 md:p-6", designMode && "pointer-events-none")}>
                         {datasetBound
-                          ? <DatasetWidget widget={effectiveWidget} dataSource={dataSource} />
+                          ? <DatasetWidget
+                              widget={effectiveWidget}
+                              dataSource={dataSource}
+                              /* objectui#8889 — dispatch site 1 of 2. Both must pass this;
+                                 passing it from one surface only is objectui#4614's lesson
+                                 repeated. `?? null` is the "resolved to nothing" signal:
+                                 `undefined` would mean "nobody resolved it" and send
+                                 `DatasetWidget` back to its own authored-only limb, which
+                                 is how a bundle entry that resolves to empty would lose to
+                                 the authored value on THIS surface while the inline arms of
+                                 `getComponentSchema()` above render nothing. */
+                              subCaption={tWidgetSubCaption(widget) ?? null}
+                            />
                           : <SchemaRenderer schema={componentSchema} dataSource={dataSource} />}
                     </div>
                 </CardContent>
