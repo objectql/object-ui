@@ -98,6 +98,7 @@ const renderChart = (compareTo: unknown, dataSource: unknown) =>
   render(
     <ObjectChart
       schema={{
+        type: 'object-chart',
         objectName: 'deal',
         chartType: 'bar',
         aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },

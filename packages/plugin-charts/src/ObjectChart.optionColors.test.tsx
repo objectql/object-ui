@@ -111,8 +111,8 @@ describe('ObjectChart — category option colors (objectui#4106)', () => {
     render(
       <ObjectChart
         schema={{
-          type: 'object-chart',
-          chartType: 'bar',
+          type: 'object-chart' as const,
+          chartType: 'bar' as const,
           objectName: 'opportunity',
           xAxisKey: 'stage',
           data: [
@@ -166,8 +166,8 @@ describe('ObjectChart — category option colors (objectui#4106)', () => {
     render(
       <ObjectChart
         schema={{
-          type: 'object-chart',
-          chartType: 'bar',
+          type: 'object-chart' as const,
+          chartType: 'bar' as const,
           dataset: 'showcase_task_metrics',
           dimensions: ['status'],
           values: ['task_count'],
@@ -209,8 +209,8 @@ describe('ObjectChart — category option colors (objectui#4106)', () => {
     render(
       <ObjectChart
         schema={{
-          type: 'object-chart',
-          chartType: 'bar',
+          type: 'object-chart' as const,
+          chartType: 'bar' as const,
           objectName: 'opportunity',
           xAxisKey: 'stage',
           data: [{ stage: 'won', amount: 42 }],
@@ -255,8 +255,8 @@ describe('ObjectChart — option-color probe routing (objectui#4114)', () => {
   };
 
   const OBJECT_CHART_SCHEMA = {
-    type: 'object-chart',
-    chartType: 'bar',
+    type: 'object-chart' as const,
+    chartType: 'bar' as const,
     objectName: 'opportunity',
     xAxisKey: 'stage',
     data: [{ stage: 'won', amount: 42 }],
@@ -326,8 +326,8 @@ describe('ObjectChart — option-color probe routing (objectui#4114)', () => {
       >
         <ObjectChart
           schema={{
-            type: 'object-chart',
-            chartType: 'bar',
+            type: 'object-chart' as const,
+            chartType: 'bar' as const,
             dataset: 'showcase_task_metrics',
             dimensions: ['status'],
             values: ['task_count'],

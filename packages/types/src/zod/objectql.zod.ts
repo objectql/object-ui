@@ -1249,6 +1249,53 @@ export const ObjectChartSchema = BaseSchema.extend({
   dataset: z.string().optional().describe('Semantic-layer dataset name (ADR-0021)'),
   dimensions: z.array(z.string()).optional().describe('Dataset dimension names'),
   values: z.array(z.string()).optional().describe('Dataset measure names'),
+  // ── objectui#7946: the four keys the producers write and the renderer reads ──
+  //
+  // Declared on BOTH published copies by the 2026-09-09 ruling (option A), with
+  // value types derived from `ChartRendererProps` / `ObjectChart.tsx`'s reads
+  // and NOT copied from any producer's literal. `../objectql.ts`'s docblock
+  // carries the per-key AUTHORABLE / INTERNAL verdict and its ground; the short
+  // form is repeated in each `.describe()` because that string is what an
+  // author-facing tool renders.
+  //
+  // Declaring an INTERNAL key here is not a promotion. `BaseSchema` is
+  // `.passthrough()`, so `xAxisKey` and `series` already rode through this
+  // mirror unexamined; what changes is that their VALUES are checked. Leaving
+  // them undeclared would instead have put them in `zod-mirror-parity`'s
+  // `UnmirroredDeclared` ledger — which that file calls a real defect in the
+  // pair, not a neutral state.
+  // BOTH arms are live and both are measured — see the twin docblock in
+  // `../objectql.ts`. The array arm is the spec's published `FilterArray` and
+  // the registry `inputs` spelling; the record arm is the ObjectQL `$filter`
+  // object the drill-down spread requires and the in-repo corpus authors.
+  filter: z.union([
+    z.array(z.any()),
+    z.record(z.string(), z.any()),
+  ]).optional().describe('AUTHORABLE — query filter, forwarded verbatim as $filter on both query legs, then spread into the drill-down filter. FilterArray (the spec/react-blocks and registry-inputs spelling) OR the ObjectQL $filter object'),
+  aggregate: z.object({
+    field: z.string().optional().describe('Field to aggregate — required for sum/avg/min/max, optional for count'),
+    function: z.enum(['count', 'sum', 'avg', 'min', 'max']).optional().describe('Aggregation function — the vocabulary ChartAggregateFunctionSchema declares'),
+    groupBy: z.union([
+      z.string(),
+      z.object({
+        field: z.string().optional().describe('Field to group by'),
+        dateGranularity: z.enum(['day', 'week', 'month', 'quarter', 'year']).optional().describe('Bucket date values into uniform periods'),
+        alias: z.string().optional().describe('Alias for the projected group value — this becomes the category column'),
+      }),
+    ]).optional().describe('Field the rows are grouped by — the chart category axis; bare name or the structured date-bucketing node'),
+  }).optional().describe('AUTHORABLE — inline aggregation for the legacy objectName path. Every member optional because every READ is guarded; the authoring door (@objectstack/spec ChartAggregateSchema, parsed by the react-page publish gate) keeps function and groupBy REQUIRED'),
+  xAxisKey: z.string().optional().describe('INTERNAL (relay-composed) — the category column the renderer binds the x axis to. Authors write xAxisField (or the spec xAxis: { field } one layer down); all five producers compute this key'),
+  series: z.array(z.object({
+    dataKey: z.string().describe('Result column this series plots'),
+    label: z.string().optional().describe('Series display label'),
+    variant: z.enum(['current', 'comparison']).optional().describe('Comparison overlays render muted'),
+    opacity: z.number().optional().describe('Series opacity override (0-1)'),
+    dashArray: z.string().optional().describe('SVG stroke-dasharray override'),
+    chartType: z.enum(['bar', 'line', 'area']).optional().describe('Per-series family override (combo charts)'),
+    stack: z.string().optional().describe('Stack identifier to group series'),
+    yAxis: z.enum(['left', 'right']).optional().describe('Bind to a specific Y axis'),
+    color: z.string().optional().describe('Series color (hex/rgb/token)'),
+  })).optional().describe("INTERNAL (relay-composed) — plotted series in the renderer's internal { dataKey } contract, the arm ChartRendererProps declares. The spec's author-facing ChartSeriesSchema is the { name } arm and refuses dataKey by name; normalizeChartSchema is the one translation"),
   // Colors are overloaded kanban-style: a string[] is the positional palette
   // (applied per category in order; fallback only), while a Record<value,color>
   // is an explicit value→color map. A select/lookup dimension's option colors —
