@@ -398,7 +398,14 @@ describe('the Date → ISO absorption is expressed once', () => {
   });
 
   it('routes the hook through the adapter instead of restating the coercion', () => {
-    expect(source).toMatch(/import \{ toRuntimeTimestamp \} from '\.\/chatMessageAdapter';/);
+    // Matched by MEMBERSHIP of the import list, not by its exact spelling. The
+    // hook imports a second fold from the same module since objectui#8443
+    // (`toRuntimeRole`), and a guard that pins the whole line fires on a
+    // COMPANION fold arriving — the opposite of what it exists to catch, which
+    // is this coercion being restated inline.
+    expect(source).toMatch(
+      /import \{[^}]*\btoRuntimeTimestamp\b[^}]*\} from '\.\/chatMessageAdapter';/,
+    );
     expect(source).toContain('timestamp: toRuntimeTimestamp(msg.timestamp)');
     expect(
       source.includes('toISOString()'),
