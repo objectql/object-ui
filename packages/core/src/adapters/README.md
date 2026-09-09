@@ -109,6 +109,37 @@ appeared in no filter answer at all. The stored value is never coerced to text �
 searching `String(50)` would answer a query nobody wrote, in a spelling the storage
 class chose. A `null` and an absent key take the same side of the same predicate.
 
+#### Grouped filters — `$and` and `$or`
+
+Both are **executed** in the object dialect (objectui#8513), matching the
+semantics the five platform backends already answer to. A group is one ENTRY of
+the condition object, so it ANDs with its sibling keys:
+`{ status: 'open', $or: [ … ] }` is "status AND the group". Groups nest.
+
+The empty-group answers are the **boolean identity elements** ruled by
+objectstack#5322 — and they are not a special case in the code, they are what
+`Array.prototype.every` and `Array.prototype.some` already answer for an empty
+array:
+
+| filter | rows | why |
+| --- | --- | --- |
+| `{ $and: [] }` | **every** row | the AND identity is TRUE |
+| `{ $or: [] }` | **no** row | the OR identity is FALSE |
+| `{ $or: [ … , {} ] }` | **every** row | a `{}` branch is a TRUE disjunct and absorbs its `$or` |
+| `{ $and: [ … , {} ] }` | the other branches | a `{}` branch drops out of an `$and` |
+
+The identities matter in practice because `convertFiltersToAST` hands them back
+**unlowered** — it returns the original object when a filter reduces to no
+conditions — so `{ $and: [] }` reaches this matcher as an object even from
+callers that lower everything else. Before objectui#8513 it answered zero rows
+for a filter whose ruled answer is every row.
+
+This is pinned against the spec's own cross-backend table
+(`FILTER_LOGIC_CASES`), not against a local fixture, in
+`ValueDataSource.filterLogicConformance-8513.test.ts`. A malformed group — a
+non-array `$and`, or a member that is not a condition object — is refused like
+anything else below.
+
 Anything else is **refused**: the row is excluded and the reason is logged once per
 distinct refusal per `find()` — never passed through as "no constraint", which is
 what an unrecognised operator used to mean here. Refused on purpose, each with a
@@ -119,7 +150,7 @@ prescription in the message:
 | `$like` / `$ilike` | declared, but staged out of `FILTER_OPERATORS`; no pattern engine in memory | `$contains` / `$icontains` |
 | `$regex` / `$options` | retired from the protocol | `$icontains` |
 | `$startswith`, `$notcontains`, `$notin`, `$ncontains` | non-canonical spellings | the camelCase spelling |
-| `$and` / `$or` / `$not` | combinators, not field operators | an AST array `$filter` |
+| `$not` | ruled upstream (objectstack#5146), but this repo's own `convertFiltersToAST` still refuses it: the AST has no negation keyword and rewriting the negation inward is silently partial | `$ne` / `$nin` / `$notContains` |
 | `{ relation: { field: … } }` | this matcher does not descend into relations | filter on the stored key |
 | an **array** comparand outside `$in` / `$nin` / `$between` | the spec leaves it unruled and the sibling in-memory matcher refuses it; a reference comparison excluded every row, and on `$ne` selected every row (objectui#8514) | `{ field: { $in: [ … ] } }` |
 | `{ $field }` in an `$in` / `$nin` member or a `$between` endpoint | removed from those positions because no backend resolved one (objectstack#7596) | a scalar comparison |
