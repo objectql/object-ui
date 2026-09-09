@@ -2693,11 +2693,30 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         // does not throw) — pinned in
         // `plugin-gantt/src/ObjectGantt.unconfiguredRefusal-7070.test.tsx`.
         //
-        // ⛔ `progressField` / `dependenciesField` keep their floors here: they
-        // are NOT date axes, their absent-value semantics differ, and #7070
-        // scoped them out deliberately. Leaving them cannot resurrect a config —
-        // `getGanttConfig` gates on the two date fields alone (pinned in the same
-        // file), so the refusal stays reachable with the pair still present.
+        // `progressField` / `dependenciesField` are NOT floored either, as of
+        // objectui#7499 — the flavour-3 card #7070 scoped out and left pinned
+        // here so that whoever retired them had a place to declare it. This is
+        // that declaration. The remedy is OMIT, not refuse, and the two differ:
+        //
+        //   - REFUSING would be wrong. Unlike a date axis, "no progress" and
+        //     "no dependencies" are legitimate and common states — most gantt
+        //     rows have neither — so an absent key must keep rendering exactly
+        //     as it does today. That is why the date-axis conclusion (refuse)
+        //     must NOT be imported here, and #7070's ruling forbids importing it.
+        //   - FABRICATING was also wrong. `|| 'progress'` / `|| 'dependencies'`
+        //     manufactured a binding the author never wrote. Its failure is a
+        //     per-row `undefined`, indistinguishable from the legitimate case
+        //     above — so an author who spelled the key differently got a silent
+        //     accidental hit on a same-named column, with no diagnostic.
+        //
+        // Omitting satisfies both: a declared value still reaches the renderer
+        // verbatim through the `options.gantt` / `gantt` spreads below (which
+        // always had the last word over these lines anyway — the floor was all
+        // they ever contributed), and an undeclared one arrives as an ABSENT
+        // key rather than a fabricated name. Deleting them cannot resurrect a
+        // config: `getGanttConfig` gates on the two date fields alone, so the
+        // refusal screen stays exactly as reachable as it was (pinned in
+        // `plugin-gantt/src/ObjectGantt.unconfiguredRefusal-7070.test.tsx`).
         const startDateField = schema.gantt?.startDateField || schema.options?.gantt?.startDateField;
         const endDateField = schema.gantt?.endDateField || schema.options?.gantt?.endDateField;
         return {
@@ -2709,8 +2728,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...(schema.data ? { data: schema.data } : {}),
           ...(startDateField ? { startDateField } : {}),
           ...(endDateField ? { endDateField } : {}),
-          progressField: schema.gantt?.progressField || schema.options?.gantt?.progressField || 'progress',
-          dependenciesField: schema.gantt?.dependenciesField || schema.options?.gantt?.dependenciesField || 'dependencies',
           ...(schema.gantt?.titleField ? { titleField: schema.gantt.titleField } : {}),
           ...(schema.options?.gantt || {}),
           ...(schema.gantt || {}),

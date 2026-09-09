@@ -31,6 +31,14 @@
  * restore `|| 'start_date'` / `|| 'end_date'` on the two lines this card
  * deletes and the "invents NO binding" case goes RED (the spy reads the
  * fabricated names) while every declared-config case here stays GREEN.
+ *
+ * objectui#7499 retires the second pair at this face. `progressField` /
+ * `dependenciesField` were floored at `'progress'` / `'dependencies'` and
+ * pinned HERE as scope, deliberately, so that whoever retired them had a place
+ * to declare it. The remedy is OMIT, not refuse — the reasoning lives on the
+ * cases below, and the same reverse verification applies: restore
+ * `|| 'progress'` / `|| 'dependencies'` and the two OMITS cases go RED while
+ * every CONTROL stays GREEN.
  */
 
 import React from 'react';
@@ -121,17 +129,67 @@ describe('ListView gantt branch — only ever restates a DECLARED binding (objec
     expect(props.endDateField).toBeUndefined();
   });
 
-  it('invents no date binding when only the OTHER gantt keys are declared', async () => {
-    // ⛔ Scoped out of #7070 on purpose: `progressField` / `dependenciesField`
-    // keep their floors — not date axes, different absent-value semantics. This
-    // case is the measurement that keeping them does not resurrect an axis:
-    // `getGanttConfig` gates on the two DATE fields alone, so the refusal stays
-    // reachable with the pair still being handed down.
+  it('OMITS `dependenciesField` rather than inventing it, when only the OTHER gantt keys are declared (objectui#7499)', async () => {
+    // ⭐ THE DECLARATION SLOT. #7070 left this case pinning the floors as
+    // SCOPE, "so that whoever retires them has a place to declare it".
+    // objectui#7499 retires them, and the remedy is OMIT rather than REFUSE.
+    //
+    // WHY NOT REFUSE, the way the date axis does: a fabricated date axis has no
+    // legitimate twin — every bar lands on a column nobody declared, a
+    // whole-chart error — whereas absent progress and absent dependencies are
+    // legitimate and COMMON. Most gantt rows have neither. Refusing here would
+    // break the common case, which is why #7070's ruling forbids importing the
+    // date-axis conclusion into this pair.
+    //
+    // WHY NOT KEEP FABRICATING: the failure of a fabricated non-axis name is a
+    // per-row `undefined`, INDISTINGUISHABLE from that legitimate absence — so
+    // an author who spelled the key differently silently hit a same-named
+    // column with no diagnostic, and one who did not got a binding they never
+    // wrote. Omission keeps the legitimate absence rendering exactly as before
+    // and stops manufacturing the binding.
+    //
+    // The DECLARED half of the class predicate is asserted in the same breath:
+    // `progressField` still arrives verbatim.
     const props = await ganttProps({ ...BASE, gantt: { progressField: 'pct' } });
     expect(props.startDateField).toBeUndefined();
     expect(props.endDateField).toBeUndefined();
     expect(props.progressField).toBe('pct');
-    expect(props.dependenciesField).toBe('dependencies');
+    expect(props.dependenciesField).toBeUndefined();
+    expect('dependenciesField' in props).toBe(false);
+  });
+
+  it('OMITS both non-axis keys for a gantt view that declares no config (objectui#7499)', async () => {
+    // The undeclared half of the class predicate, at the same face. `'progress'`
+    // / `'dependencies'` used to be handed down here unconditionally.
+    const props = await ganttProps({ ...BASE });
+    expect(props.progressField).toBeUndefined();
+    expect(props.dependenciesField).toBeUndefined();
+    // Absent, not present-and-undefined: `getGanttConfig`'s flat branch reads
+    // `schema.dependenciesField || schema.dependencyField`, so a PRESENT
+    // `dependenciesField` — even undefined — is a different fact about this
+    // config than an absent one.
+    expect(Object.keys(props)).not.toContain('progressField');
+    expect(Object.keys(props)).not.toContain('dependenciesField');
+  });
+
+  it('CONTROL: a DECLARED `dependenciesField` still passes verbatim (objectui#7499)', async () => {
+    // The control that gives the two assertions above their meaning: this
+    // harness CAN see a `dependenciesField` on the captured props, so reading
+    // `undefined` there is a measurement and not a spy that never receives one.
+    const props = await ganttProps({ ...BASE, gantt: { dependenciesField: 'preds', progressField: 'pct' } });
+    expect(props.dependenciesField).toBe('preds');
+    expect(props.progressField).toBe('pct');
+  });
+
+  it('CONTROL: the legacy `options.gantt` nesting carries the pair verbatim too (objectui#7499)', async () => {
+    // Both nestings are authoring faces here, and the floors used to read both
+    // legs. Deleting them must not cost the `options.gantt` leg its pass-through.
+    const props = await ganttProps({
+      ...BASE,
+      options: { gantt: { progressField: 'percent_done', dependenciesField: 'depends_on' } },
+    });
+    expect(props.progressField).toBe('percent_done');
+    expect(props.dependenciesField).toBe('depends_on');
   });
 
   it('CONTROL: forwards the spec-canonical `gantt` block unchanged', async () => {
