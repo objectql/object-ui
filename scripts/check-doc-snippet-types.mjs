@@ -917,6 +917,17 @@ const UNGATED_DOCS = {
   // gate already never reads — "a marker on a block the gate no longer collects is
   // debt nothing would ever fail to prompt the removal of", one level up. ⇒ Card 2
   // wrote no marker and edited no record.
+  //
+  // ⛔ TERMINAL STATE — these four rows are not a debt anybody may pay down.
+  // Maintainer ruling A on objectui#8363 (director seat, decision batch #88,
+  // 2026-09-08): a code block inside an ADR or a dated audit is a SPECIMEN of what
+  // was decided or measured, never an example to copy. ⇒ ⛔ No record below is
+  // edited to make it compile, and ⛔ no row is deleted to "clear" the ledger — a
+  // row leaves only with the record it names. New ADRs and audits state the
+  // convention instead (CONTRIBUTING.md): a specimen block is fenced `plaintext`,
+  // which this gate does not compile, so this list does not grow.
+  // ⚠️ Nothing else is relaxed: each of the four still owes its written reason and
+  // is still re-derived every run against a document that really holds a block.
   'docs/adr/0001-master-detail-subform.md':
     '2 `ts` blocks (fences 142, 211), 15 diagnostics, ALL syntax-phase: TS1005 x5, TS1109 x8, TS1011 x1 — ' +
     'the semantic half is unmeasured, not clean. Both blocks are schema SKETCHES written in prose ' +
