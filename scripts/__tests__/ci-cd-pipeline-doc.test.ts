@@ -2138,6 +2138,70 @@ describe('live-e2e.yml — the run conclusion may not contradict the job (#8084)
 });
 
 /**
+ * ── The alias rule, and the section reader both parity describes share ───────
+ *
+ * Settled by objectui#8420's first instance pair and documented in full in the
+ * header of the `vi-mock and shadcn` describe below — that comment is still where
+ * the DECISION lives and where the limits on it are argued. What moved here is
+ * only the CODE, when objectui#8420's second instance set needed the same rule
+ * for four more sections: two copies of a rule are two rules, and the next edit
+ * would have fixed one of them. Module scope so there is exactly one.
+ *
+ * ⛔ Moving it changes nothing about its blast radius. `ci.yml`'s job table and
+ * the `lint.yml` section still call `commandParity` directly and are still pinned
+ * by the unmodified module-scope rule; only a describe that calls `byGate` opts in.
+ */
+
+/** Root `package.json` script bodies, for resolving an alias to the gate it runs. */
+const rootScriptBodies = (
+  JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
+    scripts: Record<string, string>;
+  }
+).scripts;
+
+/** `scripts/<file>` -> the one root alias that is exactly `node scripts/<file>`. */
+function aliasByScript(): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const [name, body] of Object.entries(rootScriptBodies)) {
+    const wrapped = /^node\s+(scripts\/[\w./-]+)$/.exec(body.trim())?.[1];
+    if (!wrapped) continue;
+    map.set(wrapped, [...(map.get(wrapped) ?? []), name]);
+  }
+  return map;
+}
+
+/**
+ * One spelling per gate: the alias when the alias is a pure wrapper, otherwise the
+ * command as written. Applied to both sides of a unit, so the two are compared by
+ * one rule rather than by two spellings of it.
+ */
+function canonical(command: string, aliases: Map<string, string[]>): string {
+  const named = aliases.get(command);
+  if (named?.length === 1) return `pnpm ${named[0]}`;
+  return command;
+}
+
+/** A unit with both of its sides put through `canonical`. */
+function byGate(unit: CommandParity): CommandParity {
+  const aliases = aliasByScript();
+  return {
+    label: unit.label,
+    ran: new Set([...unit.ran].map((c) => canonical(c, aliases))),
+    named: new Set([...unit.named].map((c) => canonical(c, aliases))),
+  };
+}
+
+/** A `##`/`###` section of the page, up to the next heading at its level or above. */
+function section(heading: string): string {
+  const start = doc.indexOf(heading);
+  expect(start, `the page must still have a "${heading}" section`).toBeGreaterThan(-1);
+  const level = /^#+/.exec(heading)![0].length;
+  const rest = doc.slice(start + heading.length);
+  const next = rest.search(new RegExp(`^#{1,${level}} `, 'm'));
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+/**
  * objectui#8420: the same pairing again, on the two sections the card measured by
  * hand — and the alias question that had to be settled before either pin could be
  * pointed at them.
@@ -2197,55 +2261,6 @@ describe('live-e2e.yml — the run conclusion may not contradict the job (#8084)
  *     the two spellings are one gate.
  */
 describe('ci-cd-pipeline.md — the vi-mock and shadcn sections', () => {
-  /** Root `package.json` script bodies, for resolving an alias to the gate it runs. */
-  const rootScriptBodies = (
-    JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
-      scripts: Record<string, string>;
-    }
-  ).scripts;
-
-  /** `scripts/<file>` -> the one root alias that is exactly `node scripts/<file>`. */
-  function aliasByScript(): Map<string, string[]> {
-    const map = new Map<string, string[]>();
-    for (const [name, body] of Object.entries(rootScriptBodies)) {
-      const wrapped = /^node\s+(scripts\/[\w./-]+)$/.exec(body.trim())?.[1];
-      if (!wrapped) continue;
-      map.set(wrapped, [...(map.get(wrapped) ?? []), name]);
-    }
-    return map;
-  }
-
-  /**
-   * One spelling per gate: the alias when the alias is a pure wrapper, otherwise the
-   * command as written. Applied to both sides of a unit, so the two are compared by
-   * one rule rather than by two spellings of it.
-   */
-  function canonical(command: string, aliases: Map<string, string[]>): string {
-    const named = aliases.get(command);
-    if (named?.length === 1) return `pnpm ${named[0]}`;
-    return command;
-  }
-
-  /** A unit with both of its sides put through `canonical`. */
-  function byGate(unit: CommandParity): CommandParity {
-    const aliases = aliasByScript();
-    return {
-      label: unit.label,
-      ran: new Set([...unit.ran].map((c) => canonical(c, aliases))),
-      named: new Set([...unit.named].map((c) => canonical(c, aliases))),
-    };
-  }
-
-  /** A `##`/`###` section of the page, up to the next heading at its level or above. */
-  function section(heading: string): string {
-    const start = doc.indexOf(heading);
-    expect(start, `the page must still have a "${heading}" section`).toBeGreaterThan(-1);
-    const level = /^#+/.exec(heading)![0].length;
-    const rest = doc.slice(start + heading.length);
-    const next = rest.search(new RegExp(`^#{1,${level}} `, 'm'));
-    return next === -1 ? rest : rest.slice(0, next);
-  }
-
   const VI_MOCK_HEADING = '## Inert vi.mock Specifiers (`vi-mock-specifiers.yml`)';
   const SHADCN_HEADING = '### Shadcn Component Check (`shadcn-check.yml`)';
 
@@ -2352,5 +2367,342 @@ describe('ci-cd-pipeline.md — the vi-mock and shadcn sections', () => {
         `mistake. To cite a neighbouring gate for contrast, name it without its \`scripts/\` ` +
         `path and say why, as the Lint section does for \`check-entry-guard.mjs\`.`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * objectui#8420, second instance set: the four sections a full census of this page
+ * measured as real command-parity defects.
+ *
+ * ## Why four, and why not a loop over the page
+ *
+ * The card warned that the naive extension — pair every `## Heading (some.yml)`
+ * section against every job in that workflow — flags most of the page and that most
+ * of those flags are not defects. It does: 15 of the 36 workflow sections disagree
+ * with their workflow under the settled alias rule. The census that preceded these
+ * pins accounted for all 36 individually, and the disagreements split like this:
+ *
+ *   - **4 already pinned** — `ci.yml`, `lint.yml`, `vi-mock-specifiers.yml`,
+ *     `shadcn-check.yml`.
+ *   - **11 legitimate exceptions** — a section naming a neighbouring gate for
+ *     contrast and saying so, an illustrative `scripts/some-gate.mjs` placeholder,
+ *     a file named in an enumeration of the workflow's *trigger paths*, an alias
+ *     that carries an argument and therefore selects a MODE (`pnpm governed` is
+ *     `node scripts/check-governed-queue-guard.mjs --test`).
+ *   - **4 with no first-party command on either side** — the job's work is done by
+ *     a third-party action.
+ *   - **13 that agree today** and are held that way by nothing.
+ *   - **4 true defects** — the ones pinned below.
+ *
+ * So this is still four named sections, not a sweep. The other 32 are accounted for
+ * by that census, ⛔ not by silence, and joining any of them to this rule is still a
+ * decision about what that section's documentation surface IS.
+ *
+ * ## What each of the four was hiding
+ *
+ * `## Performance Budget` was the one that mattered, and it hid two gates rather
+ * than one:
+ *
+ *   - `pnpm check:sdui-registration-pins` runs in a step of its own with no
+ *     `continue-on-error`, and the section contained the strings `sdui`, `SDUI` and
+ *     `registration` **zero** times. `"sideEffects": false` is statically coherent
+ *     and still drops live SDUI widget registrations out of the build entirely
+ *     (objectui#6535) — a gate a contributor could be stopped by and could not find.
+ *   - `pnpm check:eager-closure` is the **second half of the budget step itself**,
+ *     and the section's rule read *"Exactly one bundle-size number in this
+ *     repository is enforced"*. Two are. See the enforcement test below for the exit
+ *     path that says so.
+ *
+ * The other three were each a build the section describes in prose and does not
+ * name: `turbo run build` in `skill-examples.yml` and `spec-range-floors.yml`,
+ * `pnpm build` in `changeset-release.yml`'s release job.
+ *
+ * ## ⚠️ The blind spot this set makes explicit
+ *
+ * `commandParity` reads `run:` steps and nothing else. A command a job really runs
+ * through an **action input** is invisible to it, and `changeset-release.yml` runs
+ * two that way through `changesets/action@v1`'s `publish:`. Reading those as
+ * phantoms and deleting them from the page would be the instrument editing the
+ * truth to match itself. They are declared below instead, with the reason, and the
+ * declaration is asserted in BOTH directions so it cannot rot into an allowlist.
+ */
+describe('ci-cd-pipeline.md — the four sections measured as parity defects', () => {
+  const PERF_HEADING = '## Performance Budget (`performance-budget.yml`)';
+  const SKILL_EXAMPLES_HEADING = '## Skill Examples (`skill-examples.yml`)';
+  const CHANGESET_RELEASE_HEADING = '### Changeset Release (`changeset-release.yml`)';
+  const SPEC_RANGE_FLOORS_HEADING = '### Spec Range Floors (`spec-range-floors.yml`)';
+
+  /**
+   * The one job per workflow that these sections document, and the label a failure
+   * names it by. `changeset-release.yml` has two jobs; only `release` runs anything
+   * first-party, and the test below holds `lane` to that.
+   */
+  const PINNED = [
+    ['performance-budget.yml', 'bundle-analysis', PERF_HEADING],
+    ['skill-examples.yml', 'skill-examples', SKILL_EXAMPLES_HEADING],
+    ['changeset-release.yml', 'release', CHANGESET_RELEASE_HEADING],
+    ['spec-range-floors.yml', 'spec-range-floors', SPEC_RANGE_FLOORS_HEADING],
+  ] as const;
+
+  function units(): CommandParity[] {
+    return PINNED.map(([file, job, heading]) =>
+      byGate(commandParity(file, job, section(heading), `${file} \`${job}\``)),
+    );
+  }
+
+  /**
+   * Commands these sections name that their job's `run:` steps do not contain — and
+   * which are RIGHT to be there. Each entry is a claim about why the instrument
+   * cannot see the command, ⛔ never "this one is inconvenient".
+   *
+   * Asserted as an exact set, so it works in both directions: a new phantom fails
+   * here, and a declared one whose prose disappears fails as **stale** rather than
+   * quietly widening the hole. That is the same shape as the shrink-only ratchets
+   * elsewhere in this repository, for the same reason — an allowlist nobody has to
+   * shrink stops being a record of debt and becomes permission.
+   */
+  const DECLARED_NON_RUN_COMMANDS = new Map<string, string>([
+    [
+      'performance-budget.yml `bundle-analysis`: pnpm test',
+      'A cross-reference to the suite you are reading right now, not a claim about this ' +
+        'workflow: the section says the 350 KB figure is pinned to the YAML and "fails `pnpm test` ' +
+        'if this page disagrees with it". That suite runs in `ci.yml`.',
+    ],
+    [
+      'changeset-release.yml `release`: pnpm changeset:publish',
+      "Really run by the release job, through `changesets/action@v1`'s `publish:` INPUT rather " +
+        'than a `run:` step — so this rule cannot see it on the workflow side. Deleting it from ' +
+        'the page would remove the only description of how a release actually reaches npm.',
+    ],
+    [
+      'changeset-release.yml `release`: pnpm check:published-dist',
+      'The blocking copy of the Published Dist Gate, reached the same way: it is the first leg of ' +
+        '`pnpm changeset:publish`, which runs through the action input. The section names it to ' +
+        'explain why the refresh lane deliberately does NOT run it.',
+    ],
+    [
+      'changeset-release.yml `release`: pnpm check:spec-floors',
+      'The second leg of `pnpm changeset:publish`, same action input, same invisibility. The ' +
+        'section quotes that script body verbatim and names this gate to explain why the nightly ' +
+        '`spec-range-floors.yml` is an alarm rather than the blocking copy.',
+    ],
+  ]);
+
+  it('documents every job these four workflows define', () => {
+    // One unit per job is the shape; a new job would run gates that no assertion here
+    // reads and no section here documents, so it comes through this test first.
+    for (const [file, keys] of [
+      ['performance-budget.yml', ['bundle-analysis']],
+      ['skill-examples.yml', ['skill-examples']],
+      ['changeset-release.yml', ['lane', 'release']],
+      ['spec-range-floors.yml', ['spec-range-floors']],
+    ] as const) {
+      expect(
+        jobKeys(fs.readFileSync(path.join(workflowDir, file), 'utf8'), file),
+        `${file} no longer defines exactly ${keys.join(', ')}. The section pinned below ` +
+          'documents the job(s) named here, so a new job needs its own documentation and its own ' +
+          'unit — otherwise its gates are unpinned and undocumented at once.',
+      ).toEqual([...keys]);
+    }
+
+    // `changeset-release.yml`'s `lane` job is pinned by exclusion: it answers the
+    // publish-vs-refresh question from a sparse checkout and runs no first-party
+    // command at all, which is the only reason one unit covers this workflow. If it
+    // grows one, that gate is undocumented and unpinned until someone notices here.
+    const laneYaml = fs.readFileSync(path.join(workflowDir, 'changeset-release.yml'), 'utf8');
+    expect(
+      [...firstPartyCommands(runSteps(jobBlock(laneYaml, 'lane', 'changeset-release.yml')).join('\n'))],
+      "changeset-release.yml's `lane` job now runs a first-party command. Only its `release` job " +
+        'is paired against the Changeset Release section, so this one is invisible to the parity ' +
+        'pins below — give `lane` its own unit, or document the command in that section and widen ' +
+        'the unit to cover both jobs.',
+    ).toEqual([]);
+  });
+
+  it('resolves the eager-closure alias to exactly one gate', () => {
+    // The positive control on the alias rule for THIS set. The budget step spells the
+    // closure gate `node scripts/check-eager-closure-budget.mjs` and the page names it
+    // both ways; the pins below only agree because those spellings resolve to one gate.
+    expect(
+      canonical('scripts/check-eager-closure-budget.mjs', aliasByScript()),
+      '`pnpm check:eager-closure` must still be exactly `node scripts/check-eager-closure-budget.mjs` ' +
+        'in the root package.json. Without that, the Performance Budget section reads as naming a ' +
+        'gate its workflow does not run — the cry-wolf failure this rule is built to avoid.',
+    ).toBe('pnpm check:eager-closure');
+  });
+
+  it('names every first-party command the four jobs actually run', () => {
+    const all = units();
+
+    // A parser that matched nothing would make both directions vacuously green.
+    const ran = all.reduce((n, u) => n + u.ran.size, 0);
+    expect(ran, 'the `run:` parse found implausibly few first-party commands').toBeGreaterThan(8);
+
+    const missing = undocumentedCommands(all);
+
+    expect(
+      missing,
+      `these jobs run commands that the section documenting them in ` +
+        `content/docs/guide/ci-cd-pipeline.md does not name:\n` +
+        missing.map((m) => `  - ${m}`).join('\n') +
+        `\n\nAdd each one to its section, in the order the workflow runs it. An alias and a ` +
+        `\`node scripts/…\` invocation of the same wrapper count as one gate, so either spelling ` +
+        `satisfies this — objectui#8420: \`check:sdui-registration-pins\` could fail a run from a ` +
+        `section that mentioned neither SDUI nor registrations.`,
+    ).toEqual([]);
+  });
+
+  it('names no command outside the declared non-`run:` set', () => {
+    const all = units();
+
+    const named = all.reduce((n, u) => n + u.named.size, 0);
+    expect(named, 'the four sections parsed to implausibly few commands').toBeGreaterThan(8);
+
+    expect(
+      phantomCommands(all).sort(),
+      `the set of commands these sections name but their job's \`run:\` steps do not contain has ` +
+        `changed. Each declared entry is a claim that the instrument, not the page, is the one ` +
+        `that cannot see the command — a \`changesets/action@v1\` \`publish:\` input, or a ` +
+        `cross-reference to a gate that runs in another workflow. A NEW entry is the objectui#3451 ` +
+        `shape unless it is one of those: a page advertising a guardrail that is not there. A ` +
+        `MISSING entry means the prose that justified it is gone, so delete the declaration with ` +
+        `it rather than leaving an allowlist nobody has to shrink.\n\nDeclared:\n` +
+        [...DECLARED_NON_RUN_COMMANDS].map(([k, why]) => `  - ${k}\n      ${why}`).join('\n'),
+    ).toEqual([...DECLARED_NON_RUN_COMMANDS.keys()].sort());
+  });
+
+  /**
+   * ⭐ objectui#8420's one reading that is not about naming a command.
+   *
+   * The section's "Enforced limit" rule used to be *"Exactly one bundle-size number
+   * in this repository is enforced"*, and it named the 350 KB entry-chunk line. The
+   * budget step opens `# TWO measurements, one verdict` — and a comment saying
+   * "verdict" proves nothing, so what this test reads is the **exit path**:
+   *
+   *     set +e
+   *     node scripts/check-eager-closure-budget.mjs
+   *     CLOSURE_CODE=$?
+   *     set -e
+   *     if [ "$CLOSURE_CODE" -eq 2 ]; then … exit 1; fi
+   *     if [ "$ENTRY_OVER" -eq 1 ] || [ "$CLOSURE_CODE" -ne 0 ]; then … exit 1; fi
+   *
+   * The closure's exit code is captured and both of its non-zero values fail the
+   * step, which declares no `continue-on-error`. It enforces. The page now says two
+   * numbers are enforced, and this test fails if either side stops being true.
+   *
+   * ⛔ The closure ceiling's VALUE is deliberately absent from the page and asserted
+   * absent below: objectui#8816 is an open decision on that exact ceiling and
+   * objectui#7848 measures its headroom, so a value copied here would be a number
+   * nothing fails when it moves — the shape the workflow's own comment refuses for
+   * the same constant.
+   */
+  describe('the eager-closure half of the budget step', () => {
+    /** The budget step body, from its `- name:` line to the next step at that indent. */
+    function budgetStep(): string {
+      const start = workflow.indexOf('      - name: Check console performance budget');
+      expect(start, 'the budget step must still be named "Check console performance budget"').toBeGreaterThan(-1);
+      const rest = workflow.slice(start + 1);
+      const next = rest.indexOf('\n      - name: ');
+      return next === -1 ? rest : rest.slice(0, next);
+    }
+
+    it('is a real gate: the step captures its exit code and exits non-zero on it', () => {
+      const step = budgetStep();
+
+      // Not the `# pnpm check:eager-closure` line in the step's own comment block —
+      // that spelling appears there too, and a rule that reads comments as commands
+      // would call this green on a step that ran nothing.
+      const invocations = step
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => !line.startsWith('#') && line.includes('check-eager-closure-budget.mjs'));
+      expect(
+        invocations,
+        'the budget step no longer INVOKES `scripts/check-eager-closure-budget.mjs` outside its ' +
+          'own comments. The Performance Budget section says two bundle-size numbers are enforced ' +
+          'by this step; if the second one moved or went away, rewrite that section with it.',
+      ).toHaveLength(1);
+
+      for (const [pattern, what] of [
+        [/CLOSURE_CODE=\$\?/, "capture the checker's exit code"],
+        [/"\$CLOSURE_CODE"\s+-eq\s+2/, 'treat exit 2 (a verdict about the gauge) as its own case'],
+        [/"\$CLOSURE_CODE"\s+-ne\s+0/, 'fail the step on any non-zero closure verdict'],
+      ] as const) {
+        expect(
+          step,
+          `the budget step no longer appears to ${what}. Without it the eager-closure half is a ` +
+            'reading printed into a log and nothing else, and the "Enforced limits" table in ' +
+            'content/docs/guide/ci-cd-pipeline.md is advertising a guardrail that is not there.',
+        ).toMatch(pattern);
+      }
+
+      // A step that reports and continues enforces nothing, whatever its `exit` lines say.
+      expect(
+        step.split('\n').filter((line) => /^\s{8}continue-on-error\s*:/.test(line)),
+        'the budget step has grown a `continue-on-error:`. That makes both of its measurements ' +
+          'advisory while the page calls them enforced.',
+      ).toEqual([]);
+    });
+
+    it('says so on the page, with both rows marked enforced', () => {
+      const sec = section(PERF_HEADING);
+
+      const rows = sec.split('\n').filter((line) => /^\|/.test(line) && /Yes —/.test(line));
+      expect(
+        rows.length,
+        'the "Enforced limits" table no longer carries two enforced rows. The budget step makes ' +
+          'two measurements and either one can fail it, so the page must not read as one enforced ' +
+          'number — that sentence ("Exactly one bundle-size number in this repository is ' +
+          'enforced") is what objectui#8420 measured as false.',
+      ).toBe(2);
+
+      expect(
+        rows.some((row) => /[Ee]ager closure/.test(row)),
+        'the enforced rows no longer include the eager closure. It is the second half of the same ' +
+          'step and it fails the run on its own, so it belongs beside the entry-chunk line.',
+      ).toBe(true);
+
+      // The retired sentence, with a positive control in the same test so a rename of
+      // the section cannot make this zero for the wrong reason.
+      expect(
+        sec,
+        'the "exactly one enforced number" claim is back on the page. Two are enforced by one step.',
+      ).not.toMatch(/[Ee]xactly one bundle-size number/);
+      expect(
+        sec,
+        'the Performance Budget section no longer names `MAX_ENTRY_GZIP_KB` — the control for the ' +
+          'assertion above just went vacuous, so re-point both at wherever this section moved.',
+      ).toContain('MAX_ENTRY_GZIP_KB');
+    });
+
+    it('restates the closure ceiling nowhere on the page', () => {
+      const gate = fs.readFileSync(path.join(repoRoot, 'scripts/check-eager-closure-budget.mjs'), 'utf8');
+      const literal = /^export const MAX_EAGER_CLOSURE_GZIP_BYTES = ([\d_]+);$/m.exec(gate)?.[1];
+
+      // Positive control: an unreadable constant would make every assertion below
+      // vacuously green, which is the failure this whole family exists to prevent.
+      expect(
+        literal,
+        '`MAX_EAGER_CLOSURE_GZIP_BYTES` is no longer a plain literal export of ' +
+          'scripts/check-eager-closure-budget.mjs, so this test can no longer tell whether the ' +
+          'page restates it. Re-point the extraction before trusting the green below.',
+      ).toBeDefined();
+
+      const digits = literal!.replace(/_/g, '');
+      expect(digits, 'the extracted ceiling does not look like a byte count').toMatch(/^\d{6,}$/);
+
+      for (const spelling of [literal!, digits, digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')]) {
+        expect(
+          doc,
+          `content/docs/guide/ci-cd-pipeline.md restates the eager-closure ceiling as ` +
+            `"${spelling}". ⛔ It must not: the constant lives beside the argument that produced ` +
+            `it, objectui#8816 is an open decision on that exact value and objectui#7848 measures ` +
+            `its headroom — a copy here is a number that nothing fails when it moves, which is ` +
+            `precisely how the superseded console figure survived on this page for months ` +
+            `(objectui#3197). Name the gate and say that it enforces; leave the value to ` +
+            `\`pnpm check:eager-closure\`, which prints payload, ceiling and headroom together.`,
+        ).not.toContain(spelling);
+      }
+    });
   });
 });
