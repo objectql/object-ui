@@ -34,7 +34,7 @@
  */
 
 import type { FormField } from '@object-ui/types';
-import { fromObjectSchema, type SectionFieldsContext } from './sectionFields';
+import { fromObjectSchema, warnUnresolvedTopLevelField, type SectionFieldsContext } from './sectionFields';
 
 export interface FlatFieldsContext extends SectionFieldsContext {
   /**
@@ -60,7 +60,12 @@ export function buildFlatFields(ctx: FlatFieldsContext): FormField[] {
 
   for (const entry of fieldsToShow) {
     const name = typeof entry === 'string' ? entry : (entry as any)?.name;
-    if (!name) continue;
+    if (!name) {
+      // objectui#8738 route 1: same read-site shape as `SimpleObjectForm`'s
+      // `fieldsToShow` loop in `ObjectForm.tsx` — warn, don't accept.
+      warnUnresolvedTopLevelField(entry, ctx.objectName);
+      continue;
+    }
     const field = ctx.objectSchema?.fields?.[name];
     if (!field) continue;
 

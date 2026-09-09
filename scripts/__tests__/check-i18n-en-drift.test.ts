@@ -19,7 +19,12 @@ import {
   readLedger,
   readPacks,
   resolveBaseRef,
+  analyzeDesigner,
+  DESIGNER_FOLLOWERS,
+  designerPopulation,
+  readDesignerTables,
 } from '../check-i18n-en-drift.mjs';
+import { DESIGNER_TABLE } from '../check-i18n-designer-table-parity.mjs';
 
 /**
  * objectui#3650 — the behaviour test for `scripts/check-i18n-en-drift.mjs`.
@@ -98,9 +103,45 @@ function packSource(lang: string, tree: Nested): string {
   return `const ${lang} = {\n${render(tree, '  ')}\n} as const;\n\nexport default ${lang};\n`;
 }
 
-/** Ten packs from one `lang -> tree` map. Every locale must be present. */
-function packFiles(trees: Record<string, Nested>): Record<string, string> {
-  return Object.fromEntries(LOCALES.map((lang) => [packPath(lang), packSource(lang, trees[lang])]));
+/**
+ * The designer table's source, from one `key -> value` map per side.
+ *
+ * All six constants the pair list names are emitted: the head side of the
+ * designer population reads them with `require: true`, so a table missing one
+ * is a stale extractor and must throw rather than sweep an empty corpus.
+ */
+function designerSource(en: Record<string, string>, zh: Record<string, string>): string {
+  const rows = (table: Record<string, string>) =>
+    Object.entries(table)
+      .map(([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)},`)
+      .join('\n');
+  return (
+    `const ENGINE_STRINGS_EN: Record<string, string> = {\n${rows(en)}\n};\n\n` +
+    `const ENGINE_STRINGS_ZH: Record<string, string> = {\n${rows(zh)}\n};\n\n` +
+    "const TYPE_LABELS_EN: Record<string, string> = { object: 'Object' };\n" +
+    "const TYPE_LABELS_ZH: Record<string, string> = { object: '\u5bf9\u8c61' };\n" +
+    "const DOMAIN_LABELS_EN: Record<string, string> = { data: 'Data' };\n" +
+    "const DOMAIN_LABELS_ZH: Record<string, string> = { data: '\u6570\u636e' };\n"
+  );
+}
+
+/** The designer table every fixture repo carries unless a test varies it. */
+const DESIGNER_DEFAULT = designerSource({ 'engine.fx.a': 'A' }, { 'engine.fx.a': '\u7532' });
+
+/**
+ * Ten packs from one `lang -> tree` map, PLUS the designer table (objectui#8834).
+ *
+ * The designer table is not optional in a fixture repo. Since that second
+ * population landed, the gate reads `i18n.ts` on both sides of every run, so a
+ * fixture repo without one would fail every CLI test on a missing file instead
+ * of on the thing the test is about. `designer` varies it for the tests that
+ * are ABOUT the designer population.
+ */
+function packFiles(trees: Record<string, Nested>, designer: string = DESIGNER_DEFAULT): Record<string, string> {
+  return {
+    ...Object.fromEntries(LOCALES.map((lang) => [packPath(lang), packSource(lang, trees[lang])])),
+    [DESIGNER_TABLE]: designer,
+  };
 }
 
 /** `lang -> tree` for all ten locales, built per locale. */
@@ -114,7 +155,7 @@ function treesFor(make: (lang: string) => Nested): Record<string, Nested> {
  * the number that guards the real packs, and one test below drives the CLI
  * WITHOUT this flag precisely to prove the floor still fires.
  */
-const FIXTURE_FLOOR = ['--min-keys', '1'];
+const FIXTURE_FLOOR = ['--min-keys', '1', '--min-designer-keys', '1'];
 
 /** A throwaway git repo. `commits` are applied in order, each one committed. */
 function repoWithCommits(commits: Array<Record<string, string>>): { root: string; shas: string[] } {
@@ -547,7 +588,198 @@ describe('the shipped ledger', () => {
   it('is real JSON with the shape the gate reads', () => {
     const raw = JSON.parse(fs.readFileSync(path.join(repoRoot, LEDGER_PATH), 'utf8'));
     expect(raw.waivers).toBeTypeOf('object');
+    expect(raw.designerWaivers).toBeTypeOf('object');
     expect(Array.isArray(raw.note)).toBe(true);
+  });
+
+  /** The designer section's own ratchet (objectui#8834). It ships EMPTY and its
+   *  population had 0 findings on arrival, so this ceiling starts at 0 — raising
+   *  it is a reviewed test edit in the same PR, exactly like WAIVER_CEILING. */
+  it('holds at most 0 designer waiver(s) — a ratchet, and this number only goes down', () => {
+    expect(Object.keys(ledger.designerWaivers)).toHaveLength(0);
+  });
+});
+
+// -- the designer table, a second population (objectui#8834) ------------------
+
+/**
+ * The defect this population exists for is the one objectui#8834 opens with:
+ * an `en` string in the metadata-admin designer's own table changes, the `zh`
+ * row does not, and every gate in this repo is green — the table is not a
+ * locale pack, so it was out of this gate's population entirely.
+ *
+ * These run over REAL throwaway git repos, base commit against head commit, so
+ * the git-blob read on both sides is exercised rather than simulated.
+ */
+describe('the designer table as a second population', () => {
+  const withDesigner = (en: Record<string, string>, zh: Record<string, string>) =>
+    packFiles(treesFor(() => ({ a: 'x' })), designerSource(en, zh));
+
+  it('names an en value that changed while its zh row did not', () => {
+    const { root, shas } = repoWithCommits([
+      withDesigner({ 'engine.fx.help': 'Up to 5 items' }, { 'engine.fx.help': '最多 5 项' }),
+      withDesigner({ 'engine.fx.help': 'Up to 20 items' }, { 'engine.fx.help': '最多 5 项' }),
+    ]);
+    const result = analyzeDesigner(root, { base: shas[0], head: shas[1] });
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]).toMatchObject({
+      key: 'ENGINE_STRINGS.engine.fx.help',
+      enBefore: 'Up to 5 items',
+      enAfter: 'Up to 20 items',
+      unfollowed: ['zh'],
+    });
+  });
+
+  it('is green when the zh row followed', () => {
+    const { root, shas } = repoWithCommits([
+      withDesigner({ 'engine.fx.help': 'Up to 5 items' }, { 'engine.fx.help': '最多 5 项' }),
+      withDesigner({ 'engine.fx.help': 'Up to 20 items' }, { 'engine.fx.help': '最多 20 项' }),
+    ]);
+    expect(analyzeDesigner(root, { base: shas[0], head: shas[1] }).findings).toEqual([]);
+  });
+
+  it('skips a key the zh table does not define — the 55 one-sided keys, with no ledger', () => {
+    // The whole reason this leg needs no exemption ledger: the per-key skip rule
+    // this gate already states for the packs ("a pack that does not define the
+    // key is skipped for that key") handles every deliberately zh-only family.
+    // Mirrored here: an en key with no zh row changes, and nothing is reported.
+    const { root, shas } = repoWithCommits([
+      withDesigner({ 'engine.fx.solo': 'Before' }, {}),
+      withDesigner({ 'engine.fx.solo': 'After' }, {}),
+    ]);
+    const result = analyzeDesigner(root, { base: shas[0], head: shas[1] });
+    expect(result.findings).toEqual([]);
+    expect(result.counters.absentInPack).toBe(1);
+  });
+
+  it('leaves added and removed keys to check:i18n-designer-parity', () => {
+    const { root, shas } = repoWithCommits([
+      withDesigner({ 'engine.fx.a': 'A' }, { 'engine.fx.a': '甲' }),
+      withDesigner({ 'engine.fx.b': 'B' }, { 'engine.fx.b': '乙' }),
+    ]);
+    const result = analyzeDesigner(root, { base: shas[0], head: shas[1] });
+    expect(result.findings).toEqual([]);
+    expect(result.counters).toMatchObject({ addedEnKeys: 1, removedEnKeys: 1, changedEnKeys: 0 });
+  });
+
+  it('judges every pair in the list, prefixing each key with its table', () => {
+    const base = withDesigner({ 'engine.fx.a': 'A' }, { 'engine.fx.a': '甲' });
+    const head = { ...base };
+    head[DESIGNER_TABLE] = base[DESIGNER_TABLE].replace("object: 'Object'", "object: 'Object type'");
+    const { root, shas } = repoWithCommits([base, head]);
+    const result = analyzeDesigner(root, { base: shas[0], head: shas[1] });
+    expect(result.findings.map((finding) => finding.key)).toEqual(['TYPE_LABELS.object']);
+  });
+
+  it('has exactly one follower, and it is zh', () => {
+    expect(DESIGNER_FOLLOWERS).toEqual(['zh']);
+  });
+
+  it('reads the working tree as the after side when no head is named', () => {
+    const { root, shas } = repoWithCommits([
+      withDesigner({ 'engine.fx.help': 'Before' }, { 'engine.fx.help': '前' }),
+    ]);
+    fs.writeFileSync(
+      path.join(root, DESIGNER_TABLE),
+      designerSource({ 'engine.fx.help': 'After' }, { 'engine.fx.help': '前' }),
+    );
+    expect(analyzeDesigner(root, { base: shas[0] }).findings.map((f) => f.key)).toEqual([
+      'ENGINE_STRINGS.engine.fx.help',
+    ]);
+  });
+
+  it('says so, loudly, when a pair did not exist at the base commit', () => {
+    // A table that is NEW is a fact about history, not a stale extractor — but
+    // "nothing was compared" must be printed, never inferred from a green.
+    const base = packFiles(treesFor(() => ({ a: 'x' })));
+    base[DESIGNER_TABLE] = base[DESIGNER_TABLE].replace('const TYPE_LABELS_EN', 'const LATER_LABELS_EN');
+    const { root, shas } = repoWithCommits([base, packFiles(treesFor(() => ({ a: 'x' })))]);
+    const result = analyzeDesigner(root, { base: shas[0], head: shas[1] });
+    expect(result.skippedAtBase).toEqual(['TYPE_LABELS']);
+    const run = runGate(root, ['--base', shas[0], '--head', shas[1], ...FIXTURE_FLOOR]);
+    expect(run.output).toContain('TYPE_LABELS did not exist at the base commit');
+  });
+
+  it('throws rather than comparing nothing when a table is gone at HEAD', () => {
+    const head = packFiles(treesFor(() => ({ a: 'x' })));
+    head[DESIGNER_TABLE] = head[DESIGNER_TABLE].replace('const ENGINE_STRINGS_ZH', 'const RENAMED_ZH');
+    const { root, shas } = repoWithCommits([packFiles(treesFor(() => ({ a: 'x' }))), head]);
+    expect(() => analyzeDesigner(root, { base: shas[0], head: shas[1] })).toThrow(/the extractor is stale/);
+  });
+
+  it('folds the pair list into one lang -> (key -> value) map, namespaced by table', () => {
+    const { values } = readDesignerTables(
+      repoWithCommits([withDesigner({ 'engine.fx.a': 'A' }, { 'engine.fx.a': '甲' })]).root,
+      null,
+    );
+    const { population, skipped } = designerPopulation(values);
+    expect(skipped).toEqual([]);
+    expect([...population.get('en')!.keys()].sort()).toEqual([
+      'DOMAIN_LABELS.data',
+      'ENGINE_STRINGS.engine.fx.a',
+      'TYPE_LABELS.object',
+    ]);
+  });
+});
+
+describe('the designer population, end to end through the CLI', () => {
+  // `scratch.txt` differs per commit so the second commit is never empty — git
+  // refuses one, and the two "nothing changed" cases below write identical
+  // tables on purpose.
+  const designerCommits = (before: string, after: string) => [
+    {
+      ...packFiles(treesFor(() => ({ a: 'x' })), designerSource({ 'engine.fx.help': before }, { 'engine.fx.help': '最多 5 项' })),
+      'scratch.txt': 'first',
+    },
+    {
+      ...packFiles(treesFor(() => ({ a: 'x' })), designerSource({ 'engine.fx.help': after }, { 'engine.fx.help': '最多 5 项' })),
+      'scratch.txt': 'second',
+    },
+  ];
+
+  it('exits 1 and names the designer key whose zh row did not follow', () => {
+    const { root, shas } = repoWithCommits(designerCommits('Up to 5 items', 'Up to 20 items'));
+    const run = runGateExpectingFailure(root, ['--base', shas[0], '--head', shas[1], ...FIXTURE_FLOOR]);
+    expect(run.code).toBe(1);
+    expect(run.output).toContain('designer-table en string(s) changed without their zh row');
+    expect(run.output).toContain('ENGINE_STRINGS.engine.fx.help');
+  });
+
+  it('exits 0 and says so when no designer value changed', () => {
+    const { root, shas } = repoWithCommits(designerCommits('Up to 5 items', 'Up to 5 items'));
+    const run = runGate(root, ['--base', shas[0], '--head', shas[1], ...FIXTURE_FLOOR]);
+    expect(run.output).toContain('No designer-table en value changed in this range.');
+  });
+
+  it('fails loudly rather than passing when the designer scan collapses', () => {
+    const { root, shas } = repoWithCommits(designerCommits('Up to 5 items', 'Up to 5 items'));
+    const run = runGateExpectingFailure(root, ['--base', shas[0], '--head', shas[1], '--min-keys', '1']);
+    expect(run.code).toBe(1);
+    expect(run.output).toContain('The designer scan collapsed');
+  });
+
+  it('waives a designer finding through the ledger, and expires the waiver with the text', () => {
+    const { root, shas } = repoWithCommits(designerCommits('Up to 5 items', 'Up to 20 items'));
+    const ledger = (en: string) => ({
+      [LEDGER_PATH]: JSON.stringify({
+        note: [],
+        waivers: {},
+        designerWaivers: {
+          'ENGINE_STRINGS.engine.fx.help': { en, reason: 'fixture', issue: 'objectui#8834' },
+        },
+      }),
+    });
+    // Transcribing the NEW text waives that one sentence...
+    fs.mkdirSync(path.join(root, path.dirname(LEDGER_PATH)), { recursive: true });
+    fs.writeFileSync(path.join(root, LEDGER_PATH), ledger('Up to 20 items')[LEDGER_PATH]);
+    expect(
+      runGate(root, ['--base', shas[0], '--head', shas[1], ...FIXTURE_FLOOR]).output,
+    ).toContain('1 finding(s) waived by the ledger');
+    // ...and a waiver whose text has moved on waives nothing and is itself a problem.
+    fs.writeFileSync(path.join(root, LEDGER_PATH), ledger('Up to 9 items')[LEDGER_PATH]);
+    const stale = runGateExpectingFailure(root, ['--base', shas[0], '--head', shas[1], ...FIXTURE_FLOOR]);
+    expect(stale.output).toContain('designerWaivers');
+    expect(stale.output).toContain('stale-waiver');
   });
 });
 

@@ -145,6 +145,11 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  DESIGNER_TABLE,
+  DESIGNER_TABLE_PAIRS,
+  readDesignerPairs,
+} from './check-i18n-designer-table-parity.mjs';
 import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -419,11 +424,17 @@ export function resolveBaseRef(root, { explicit = null, env = process.env } = {}
 /**
  * Findings for every `en` value that changed without its translations.
  *
+ * `followers` is a parameter rather than the module constant so a SECOND
+ * population can reuse this comparison unchanged — the designer table below
+ * has exactly one follower. It defaults to `FOLLOWERS`, so the ten-pack call
+ * site is byte-identical to what it was.
+ *
  * @param {Map<string, Map<string, string>>} before
  * @param {Map<string, Map<string, string>>} after
+ * @param {string[]} [followers]
  * @returns {{ findings: Finding[], counters: Record<string, number> }}
  */
-export function findDrift(before, after) {
+export function findDrift(before, after, followers = FOLLOWERS) {
   const enBefore = before.get('en');
   const enAfter = after.get('en');
   /** @type {Finding[]} */
@@ -441,7 +452,7 @@ export function findDrift(before, after) {
 
     /** @type {string[]} */
     const unfollowed = [];
-    for (const lang of FOLLOWERS) {
+    for (const lang of followers) {
       const packBefore = before.get(lang);
       const packAfter = after.get(lang);
       // Absent on either side: a key-set fact, owned by all-locales-key-parity.
@@ -464,12 +475,23 @@ export function findDrift(before, after) {
 
 // -- the waiver ledger --------------------------------------------------------
 
-/** @returns {{ waivers: Record<string, { en: string, reason: string, issue: string }> }} */
+/**
+ * The ledger, in two independent sections.
+ *
+ * `waivers` covers the ten locale packs; `designerWaivers` covers the designer
+ * table population added by objectui#8834. They are separate maps rather than
+ * one because `checkLedger` validates every entry against the `en` values of
+ * ITS population — a designer key is not a pack key, and one shared map would
+ * make every entry look stale to the other half. Both sections ship EMPTY.
+ *
+ * @returns {{ waivers: Record<string, { en: string, reason: string, issue: string }>,
+ *             designerWaivers: Record<string, { en: string, reason: string, issue: string }> }}
+ */
 export function readLedger(root) {
   const file = join(root, LEDGER_PATH);
-  if (!existsSync(file)) return { waivers: {} };
+  if (!existsSync(file)) return { waivers: {}, designerWaivers: {} };
   const parsed = JSON.parse(readFileSync(file, 'utf8'));
-  return { waivers: parsed.waivers ?? {} };
+  return { waivers: parsed.waivers ?? {}, designerWaivers: parsed.designerWaivers ?? {} };
 }
 
 /**
@@ -551,6 +573,118 @@ export function analyze(root, { base, head = null }) {
   return { before, after, findings, counters };
 }
 
+// -- the designer table, a SECOND population (objectui#8834) ------------------
+
+/**
+ * `packages/app-shell/src/views/metadata-admin/i18n.ts` carries the Studio
+ * designer's own module-local string tables, and until objectui#8834 they were
+ * out of every i18n gate's population — including this one, whose header says
+ * so above: "This table is not one of them".
+ *
+ * That blind spot is this gate's exact shape of defect. objectui#8413 changed
+ * an English help string that said something untrue; the Chinese row said the
+ * same untrue thing, and nothing would have failed had the author fixed only
+ * the English one. The dispatch that ordered that fix asserted this gate would
+ * name the changed value. It could not — the table is not a locale pack.
+ *
+ * ## Why a SEPARATE population and not an eleventh pack
+ *
+ * The table is module-local by deliberate design (see the header of
+ * `check-i18n-dead-keys.mjs` for why), and folding it into `LOCALES` would put
+ * it in front of `all-locales-key-parity`, `check-i18n-call-site-keys` and the
+ * `--min-keys` floor, none of which can read it. It gets its own `before`/
+ * `after` pair, its own single follower, and its own ledger section instead;
+ * `findDrift` is reused unchanged.
+ *
+ * ## Why the 55 one-sided keys need no ledger here
+ *
+ * `ENGINE_STRINGS_ZH` carries 55 keys `ENGINE_STRINGS_EN` deliberately lacks.
+ * This gate never sees them: it iterates the `en` side, and its per-key rule —
+ * "a pack that does not define the key is skipped for that key" — already
+ * handles the reverse direction. Key-set asymmetry is not this gate's business,
+ * exactly as stated for the packs; `check-i18n-designer-table-parity.mjs` owns
+ * that state invariant.
+ */
+
+/** The designer table's one follower. `en` leads, `zh` follows. */
+export const DESIGNER_FOLLOWERS = ['zh'];
+
+/**
+ * The designer tables at `ref`, or from the working tree when `ref` is null.
+ *
+ * `require` is false only on the BASE side: a pair that does not exist yet at
+ * the base commit is a fact about history, not a stale extractor, and the CLI
+ * PRINTS every pair it had to skip for that reason rather than silently
+ * comparing nothing. On the head side a missing table is loud, as it must be.
+ *
+ * @returns {{ values: Map<string, Map<string, string>>, fileMissing: boolean }}
+ */
+export function readDesignerTables(root, ref, { require = true } = {}) {
+  const label = ref === null ? DESIGNER_TABLE : `${ref}:${DESIGNER_TABLE}`;
+  let text;
+  if (ref === null) {
+    const full = join(root, DESIGNER_TABLE);
+    if (!existsSync(full)) throw new Error(`${DESIGNER_TABLE} does not exist in the working tree`);
+    text = readFileSync(full, 'utf8');
+  } else {
+    text = gitQuiet(root, ['show', `${ref}:${DESIGNER_TABLE}`]);
+    if (text === null) {
+      if (require) throw new Error(`cannot read ${label} — is ${ref} in this clone?`);
+      return { values: new Map(), fileMissing: true };
+    }
+  }
+  return { values: readDesignerPairs(root, { source: text, label, require }), fileMissing: false };
+}
+
+/**
+ * Folds the pair list into the `lang -> (key -> value)` shape `findDrift` reads.
+ *
+ * Keys are namespaced with the pair label (`TYPE_LABELS.object`), so two pairs
+ * that both declare `object` stay distinct and every line this gate prints —
+ * and every ledger entry anyone writes — names which table it is about.
+ *
+ * @returns {{ population: Map<string, Map<string, string>>, skipped: string[] }}
+ */
+export function designerPopulation(values) {
+  const en = new Map();
+  const zh = new Map();
+  const skipped = [];
+  for (const pair of DESIGNER_TABLE_PAIRS) {
+    const enTable = values.get(pair.en);
+    const zhTable = values.get(pair.zh);
+    if (!enTable || !zhTable) {
+      skipped.push(pair.label);
+      continue;
+    }
+    for (const [key, value] of enTable) en.set(`${pair.label}.${key}`, value);
+    for (const [key, value] of zhTable) zh.set(`${pair.label}.${key}`, value);
+  }
+  return { population: new Map([['en', en], ['zh', zh]]), skipped };
+}
+
+/**
+ * The designer analysis for a repo root, given the two refs. `null` head = the
+ * working tree, the same default the packs use and for the same reason.
+ *
+ * @param {string} root
+ * @param {{ base: string, head?: string | null }} options
+ */
+export function analyzeDesigner(root, { base, head = null }) {
+  const beforeRead = readDesignerTables(root, base, { require: false });
+  const afterRead = readDesignerTables(root, head);
+  const before = designerPopulation(beforeRead.values);
+  const after = designerPopulation(afterRead.values);
+  const { findings, counters } = findDrift(before.population, after.population, DESIGNER_FOLLOWERS);
+  return {
+    after: after.population,
+    findings,
+    counters,
+    skippedAtBase: before.skipped,
+    baseFileMissing: beforeRead.fileMissing,
+  };
+}
+
+
 const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
@@ -608,6 +742,28 @@ if (invokedDirectly) {
   const ledgerProblems = checkLedger(ledger, enAfter);
   const { unwaived, waived } = applyLedger(findings, ledger, enAfter);
 
+  // The second population (objectui#8834). Same comparison, same ledger
+  // mechanism, its own section of the ledger file — see `analyzeDesigner`.
+  const designer = analyzeDesigner(root, { base: base.ref, head });
+  const designerEnAfter = designer.after.get('en');
+  const designerLedger = { waivers: ledger.designerWaivers };
+  const designerLedgerProblems = checkLedger(designerLedger, designerEnAfter);
+  const designerSplit = applyLedger(designer.findings, designerLedger, designerEnAfter);
+
+  // The same collapse guard as above, for the same reason: an empty designer
+  // population would satisfy every assertion about it trivially. The floor sits
+  // well under today's 1702 en rows and is not a pin — adding strings is
+  // routine and must not need this file edited.
+  const minDesignerKeys = Number(argOf('--min-designer-keys') ?? 1500);
+  if (designerEnAfter.size < minDesignerKeys) {
+    console.error(
+      `The designer scan collapsed: ${DESIGNER_TABLE} parsed to ${designerEnAfter.size} en key(s), ` +
+        `expected at least ${minDesignerKeys}. The extractor is broken, and an empty comparison would ` +
+        'pass while asserting nothing.',
+    );
+    process.exit(1);
+  }
+
   console.log(
     `Compared the ten locale packs at ${base.ref.slice(0, 9)} (${base.how}) with ` +
       `${head ?? 'the working tree'}: ${counters.changedEnKeys} en value(s) changed ` +
@@ -617,7 +773,27 @@ if (invokedDirectly) {
       `${waived.length} finding(s) waived by the ledger.`,
   );
 
-  if (unwaived.length === 0 && ledgerProblems.length === 0) {
+  console.log(
+    `Compared ${DESIGNER_TABLE} over the same range: ${designer.counters.changedEnKeys} en value(s) ` +
+      `changed (${designer.counters.addedEnKeys} key(s) added, ${designer.counters.removedEnKeys} removed ` +
+      `— those are check:i18n-designer-parity's), ${designer.counters.followedPacks} zh value(s) followed, ` +
+      `${designer.counters.absentInPack} key(s) skipped because the zh table does not define them, ` +
+      `${designerSplit.waived.length} finding(s) waived by the ledger` +
+      (designer.baseFileMissing
+        ? ' — the file does not exist at the base commit, so it is entirely new here'
+        : designer.skippedAtBase.length > 0
+          ? ` — ${designer.skippedAtBase.join(', ')} did not exist at the base commit, so ` +
+            'nothing was compared for those pair(s)'
+          : '') +
+      '.',
+  );
+
+  if (
+    unwaived.length === 0 &&
+    ledgerProblems.length === 0 &&
+    designerSplit.unwaived.length === 0 &&
+    designerLedgerProblems.length === 0
+  ) {
     console.log(
       counters.changedEnKeys === 0
         ? 'No en value changed in this range.'
@@ -625,6 +801,11 @@ if (invokedDirectly) {
           ? 'Every changed en value was followed by all nine translation packs.'
           : `Every changed en value was followed by all nine translation packs, except ${waived.length} ` +
             `covered by a waiver in ${LEDGER_PATH}: ${waived.map((f) => f.key).join(', ')}.`,
+    );
+    console.log(
+      designer.counters.changedEnKeys === 0
+        ? 'No designer-table en value changed in this range.'
+        : 'Every changed designer-table en value was followed by its zh row.',
     );
     process.exit(0);
   }
@@ -648,6 +829,34 @@ if (invokedDirectly) {
         '  { "<key>": { "en": "<the new en text, verbatim>", "reason": "…", "issue": "objectui#1234" } }\n' +
         'A waiver covers that one sentence and expires the next time the key changes.',
     );
+  }
+
+  if (designerSplit.unwaived.length > 0) {
+    console.error(
+      `\n${designerSplit.unwaived.length} designer-table en string(s) changed without their zh row:\n`,
+    );
+    for (const finding of designerSplit.unwaived) {
+      console.error(`  ${finding.key}`);
+      console.error(`      en was:  ${JSON.stringify(finding.enBefore)}`);
+      console.error(`      en now:  ${JSON.stringify(finding.enAfter)}`);
+      console.error(`      unchanged in: ${finding.unfollowed.join(', ')}`);
+    }
+    console.error(
+      `\nTranslate the new text in ${DESIGNER_TABLE}, IN THIS PR. objectui#8413 is the case study:\n` +
+        'an English help string said something untrue and the Chinese row said the same untrue thing,\n' +
+        'so fixing only the English half would have left the Chinese designer telling the old lie with\n' +
+        'every gate in this repo green. The key is prefixed with its table.\n' +
+        `If the zh row genuinely does not need to change, say so in ${LEDGER_PATH}:\n` +
+        '  { "designerWaivers": { "<TABLE.key>": { "en": "<the new en text, verbatim>", "reason": "…", "issue": "objectui#1234" } } }\n' +
+        'A waiver covers that one sentence and expires the next time the key changes.',
+    );
+  }
+
+  if (designerLedgerProblems.length > 0) {
+    console.error(`\n${designerLedgerProblems.length} problem(s) in ${LEDGER_PATH} designerWaivers:`);
+    for (const problem of designerLedgerProblems) {
+      console.error(`  [${problem.reason}] ${problem.key}: ${problem.detail}`);
+    }
   }
 
   if (ledgerProblems.length > 0) {

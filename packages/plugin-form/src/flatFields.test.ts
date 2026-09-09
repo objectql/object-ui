@@ -23,7 +23,7 @@
  * no-sections drawer) lives in `flatFieldRules.test.tsx`.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { buildFlatFields } from './flatFields';
 import { normalizeSectionField } from './sectionFields';
 
@@ -79,6 +79,46 @@ describe('buildFlatFields — ADR-0036 rules reach the runtime FormField (#4755)
   it('skips a whitelisted field the object schema does not declare', () => {
     const built = buildFlatFields({ ...ctx, fields: ['status', 'not_a_field'] });
     expect(built.map((f) => f.name)).toEqual(['status']);
+  });
+});
+
+/**
+ * objectui#8738 route 1 — same shared read-site defect as `ObjectForm.tsx`'s
+ * `SimpleObjectForm` (pinned in `__tests__/objectFormFieldsMembers-8071.test.tsx`),
+ * measured directly here since `buildFlatFields` is the drawer/modal path with
+ * the identical shape: a member resolving to no name used to be dropped in
+ * total silence. `warnUnresolvedTopLevelField` (`sectionFields.ts`) now names
+ * the skipped shape and the vocabulary difference — same voice/dedupe
+ * discipline as `warnOnMixedVocabulary`. Both legs pinned: fires for the
+ * unresolvable case, and (the firing control) does NOT fire for a legal bare
+ * name — without the second leg the first would still pass on a warning that
+ * fires unconditionally.
+ */
+describe('buildFlatFields WARNS on an unresolvable top-level member (route 1, objectui#8738)', () => {
+  it('fires once for a member that resolves to no name — the spec FormFieldSchema object', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const built = buildFlatFields({ ...ctx, fields: [{ field: 'note' } as any] });
+      expect(built).toEqual([]); // still dropped from render — route 1 warns, it does not resolve
+      expect(warn).toHaveBeenCalledTimes(1);
+      const [message] = warn.mock.calls[0];
+      expect(String(message)).toContain("{ field: 'note' }");
+      expect(String(message)).toContain('sections[].fields');
+      expect(String(message)).toContain('FormFieldSchema');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does NOT fire for a legal bare field name — the firing control', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const built = buildFlatFields({ ...ctx, fields: ['status'] });
+      expect(built.map((f) => f.name)).toEqual(['status']);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

@@ -225,12 +225,22 @@ export function InspectorNumberField({
   );
 }
 
+/**
+ * Default wording for the row {@link InspectorSelectField} synthesises when the
+ * stored value is not in the roster. Raw English, like `placeholder`'s `'—'`
+ * default: this module takes raw strings and has no locale in scope (see the
+ * file header). Call sites with a better word for their own domain pass
+ * `unknownValueLabel` — that is the prop's whole reason to exist.
+ */
+const defaultUnknownValueLabel = (v: string) => `${v} (not found)`;
+
 export function InspectorSelectField({
   label,
   value,
   options,
   onCommit,
   placeholder = '—',
+  unknownValueLabel = defaultUnknownValueLabel,
   disabled,
 }: {
   label: string;
@@ -238,6 +248,12 @@ export function InspectorSelectField({
   options: Array<{ value: string; label: string }>;
   onCommit: (v: string) => void;
   placeholder?: string;
+  /**
+   * Wording for the synthesised row that carries a stored value the roster does
+   * not offer. Receives the raw stored value; defaults to `VALUE (not found)`.
+   * Override it, never the RULE — the rule is the one this primitive owns.
+   */
+  unknownValueLabel?: (value: string) => string;
   disabled?: boolean;
 }) {
   // Radix `<Select.Item>` forbids an empty-string value (it reserves ""
@@ -273,11 +289,50 @@ export function InspectorSelectField({
   // "No selection" is the narrow state: no value AND no option standing for
   // none. When the caller DOES offer a `''` row (a "— None —" choice), `''` is
   // a selection like any other and that row's label wins — the case pinned in
-  // `_shared.select.test.tsx`. A non-empty value matching no option keeps
-  // rendering blank, unchanged: that is a stale/unknown value, not an empty
-  // one, and the call sites that care already synthesise a visible row for it.
+  // `_shared.select.test.tsx`.
+  const current = value ?? '';
   const hasNoneOption = options.some((o) => o.value === '');
-  const showPlaceholder = (value ?? '') === '' && !hasNoneOption;
+  const showPlaceholder = current === '' && !hasNoneOption;
+
+  // objectui#8488 — the OTHER half, and it is not the same state. A non-empty
+  // value the roster does not offer is a STALE value, not an absent one, and
+  // Radix renders a controlled value matching no `SelectItem` as nothing at
+  // all: the trigger goes blank, pixel-identical to "unset". The author then
+  // sees an empty control, picks something to "fill it in", and overwrites a
+  // key they were never shown.
+  //
+  // ⛔ The placeholder is NOT the repair. Drawing `'—'` here would assert
+  // "nothing is stored" about a field that IS storing something — worse than
+  // the blank, because it is confidently wrong rather than merely empty. So
+  // the two states must stay distinguishable on screen, and they are: empty
+  // draws `placeholder`, unknown draws the value itself under a flag.
+  //
+  // EIGHT call sites had hand-rolled this, and re-deriving them is what moved
+  // the rule here. Three flagged the row — `ActionTargetField`
+  // ("(not found)"), `ViewColumnInspector`'s field picker ("(not in object)")
+  // and `FlowNodeConfigField`'s select branch ("(deprecated)", framework#4278 /
+  // ADR-0090 D3). FIVE only made it visible — `ReportDefaultInspector`'s type,
+  // dataset and both chart axes, and `ViewVariantInspector`'s type — appending
+  // the raw value with no marker at all, which is the same screen a real option
+  // draws. Every one of them is deleted now; only the WORDING stays with the
+  // call site, through `unknownValueLabel`.
+  //
+  // The row is selectable — all three flagged copies made it so, and re-picking
+  // your own stored value must not be a dead end. It goes FIRST, where two of
+  // those three put it: Radix scrolls the selected item into view on open, so
+  // the real roster then sits directly under it, which is where a replacement
+  // gets picked.
+  //
+  // ⚠️ Measured boundary, deliberately not repaired here: this cannot tell "the
+  // roster is empty" from "the roster has not loaded yet", so a valid value
+  // wears the flag for as long as an async picker is still fetching. That blind
+  // spot is inherited, not introduced — `ViewColumnInspector`'s hand-rolled
+  // copy had it too — and closing it needs a loading contract this primitive
+  // does not have. Filed separately.
+  const isUnknownValue = current !== '' && !options.some((o) => o.value === current);
+  const shownOptions = isUnknownValue
+    ? [{ value: current, label: unknownValueLabel(current) }, ...options]
+    : options;
   return (
     <div className="space-y-1">
       <Label htmlFor={id} className="text-xs text-muted-foreground">{label}</Label>
@@ -299,7 +354,7 @@ export function InspectorSelectField({
           {showPlaceholder ? <span>{placeholder}</span> : <SelectValue />}
         </SelectTrigger>
         <SelectContent>
-          {options.map((o) => (
+          {shownOptions.map((o) => (
             <SelectItem key={o.value} value={toInner(o.value)}>{o.label}</SelectItem>
           ))}
         </SelectContent>

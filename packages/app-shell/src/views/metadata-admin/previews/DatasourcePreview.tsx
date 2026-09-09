@@ -223,7 +223,13 @@ function SideBlock({
       </div>
       <div className="px-2.5 py-1.5 text-[11px]">
         {!present ? (
-          <span className="text-muted-foreground italic">not configured</span>
+          // An empty-COLLECTION statement (`Object.keys(value).length`), whose
+          // populated arm is the block-level <dl> below — so it takes the
+          // family's block-level text slot, exactly like "No config keys set."
+          // 66 lines up. `text-[11px]`, not that site's `text-xs`: this body
+          // renders at 11px and the shared base ships `text-sm/relaxed`, so
+          // without a size the word would grow 11px → 14px (measured).
+          <EmptyDescription className="text-[11px] italic">not configured</EmptyDescription>
         ) : (
           <dl className="space-y-0.5">
             {Object.entries(value).slice(0, 6).map(([k, v]) => (

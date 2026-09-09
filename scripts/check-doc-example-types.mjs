@@ -767,7 +767,9 @@ export const UNGATED_EXAMPLES = {
     reason:
       'usage fragment: references `FormField`, which the example never declares',
   },
-  'packages/plugin-form/src/ObjectForm.tsx:123 ObjectForm': {
+  // Line moved 123 -> 124 (objectui#8738 route 1: one new import line added
+  // above this JSDoc block, in ObjectForm.tsx, for `warnUnresolvedTopLevelField`).
+  'packages/plugin-form/src/ObjectForm.tsx:124 ObjectForm': {
     card: null,
     codes: [2304],
     reason:

@@ -21,7 +21,7 @@ import type { AnalyticsResult } from '@objectstack/spec/contracts';
 import type { PercentScale } from '@objectstack/spec/data';
 
 import { formatDisplayNumber, type DisplayNumberFormatOptions } from './number-display.js';
-import { formatDate, formatDateTime } from './date-display.js';
+import { formatDate, formatDateTime, formatRelativeDate } from './date-display.js';
 import { resolveMeasureLabel, type BuiltinAggregateLabels } from './chart-series.js';
 
 /**
@@ -175,12 +175,48 @@ const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
  * `DateCellRenderer`'s `|| 'relative'` default, which is keyed on knowing the
  * value is a `date` FIELD in a row.
  *
- * `format` is threaded into `formatDate`'s STYLE parameter, which is the same
- * mapping `DateCellRenderer` makes from `field.format` and the same one
- * `plugin-dashboard`'s `recordFields` already makes for a date-shaped format.
- * That vocabulary is `'short'` and `'relative'`; a date PATTERN such as
- * `'YYYY-MM-DD'` is not part of it and renders as the locale default. See the
- * `format` note on {@link formatMeasure}.
+ * ── `format` is honoured on BOTH arms, by different means (objectui#8352) ──
+ * The accepted vocabulary is `'short'` and `'relative'` on EITHER arm, and
+ * every other string — including `'compact'`, including a date PATTERN such as
+ * `'YYYY-MM-DD'` — falls to that arm's default face. The two arms reach that
+ * one vocabulary differently, and the difference is the whole of #8352:
+ *
+ *   - The DATE arm threads `format` onward, into `formatDate`'s positional
+ *     STYLE parameter. That is the same mapping `DateCellRenderer` makes from
+ *     `field.format` and the same one `plugin-dashboard`'s `recordFields`
+ *     makes for a date-shaped format.
+ *   - The DATETIME arm SELECTS a formatter above, because it has nothing to
+ *     thread into: `formatDateTime(value, options?)` has no style parameter,
+ *     so before #8352 this arm could not honour `format` even in principle —
+ *     it dropped it, and `format: 'relative'` on a `Field.datetime` measure
+ *     rendered the absolute face with no diagnostic.
+ *
+ * ⚠️ Threading `format` into `formatDateTime`'s `options.style` is NOT the fix
+ * and was measured before this one was written: that key's vocabulary is
+ * `'compact'` alone, so the pass-through would honour the one word the date
+ * arm does NOT honour while still ignoring both words it does — the defect
+ * inverted, not closed. Widening the signature was refused separately: it is a
+ * published one (see {@link formatDateTime}'s note on why the positional shape
+ * was refused there), and the parity #8352 asks for is reachable from the call
+ * site without touching it.
+ *
+ * Which FACE each honoured word selects is per-arm, because the two arms
+ * render different types and a datetime's own resolution is part of its datum:
+ *
+ *   - `'relative'` → `formatRelativeDate` on both arms, the same function, so
+ *     an in-window value reads `In 2 days` in either column. Its ±7-day
+ *     fallback is inherited rather than re-decided here — an out-of-window
+ *     value renders the absolute DATE face on both arms. Re-deciding that
+ *     window at this call site would put a second copy of the convention in
+ *     this file, which is objectui#4576 exactly.
+ *   - `'short'` → the dense narrow-card face of the arm's own type:
+ *     `formatDate`'s `'short'` (`Sep 11, '26`) for a date, `formatDateTime`'s
+ *     `'compact'` (`9/11/2026 9:30 am`) for a datetime. The datetime face
+ *     keeps the time, and it is byte-identical to what every `datetime` CELL
+ *     paints, so a measure tile and a grid cell showing the same instant
+ *     agree — objectui#4576's rule again, in the other direction.
+ *
+ * See the `format` note on {@link formatMeasure}.
  */
 function formatMeasureDate(v: unknown, format: string | undefined, locale: string | undefined): string | undefined {
   if (typeof v !== 'string') return undefined;
@@ -192,7 +228,15 @@ function formatMeasureDate(v: unknown, format: string | undefined, locale: strin
     return Number.isNaN(Date.parse(v)) ? undefined : formatDate(v, format, { locale });
   }
   if (ISO_DATETIME_RE.test(v)) {
-    return Number.isNaN(Date.parse(v)) ? undefined : formatDateTime(v, { locale });
+    if (Number.isNaN(Date.parse(v))) return undefined;
+    // The datetime arm honours the SAME two words the date arm does, by
+    // choosing a formatter here (objectui#8352). It cannot thread `format`
+    // onward the way the date arm does, because `formatDateTime(value,
+    // options?)` takes no style parameter — see this function's docblock for
+    // why that is answered HERE and not by widening a published signature.
+    if (format === 'relative') return formatRelativeDate(v, { locale });
+    if (format === 'short') return formatDateTime(v, { locale, style: 'compact' });
+    return formatDateTime(v, { locale });
   }
   return undefined;
 }
@@ -246,18 +290,42 @@ function formatMeasureDate(v: unknown, format: string | undefined, locale: strin
  * the display path list cells use; nothing about the numeric path moved.
  *
  * ⚠️ What `format` can and cannot say for those values, measured rather than
- * assumed. The shared date path takes a named STYLE, not a date pattern:
- * `formatDate`'s vocabulary is `'short'` and `'relative'`, and every other
- * string falls to its default locale-medium branch. So `format: 'short'` and
- * `format: 'relative'` are honoured — the same words `DateCellRenderer`
- * honours from `field.format` for the same field — while a PATTERN like
+ * assumed, and stated PER ARM — a date-shaped measure takes one of two arms in
+ * {@link formatMeasureDate}, and this paragraph used to describe only one of
+ * them while reading as though it described both. That cost a card: an
+ * objectui triage pass read the undifferentiated claim, concluded the defect
+ * was already fixed, and downgraded objectui#8352, which a driven browser run
+ * then refuted. The two arms agree TODAY, but only because #8352 made them; a
+ * universal sentence here is what hid the disagreement before, so it is not
+ * coming back even now that it would be true.
+ *
+ * The shared date path takes a named STYLE, not a date pattern. On BOTH arms
+ * the honoured vocabulary is `'short'` and `'relative'`:
+ *
+ *   - `Field.date` (`2026-09-08`) — honoured by threading `format` into
+ *     `formatDate`'s style parameter. The same words `DateCellRenderer`
+ *     honours from `field.format` for the same field.
+ *   - `Field.datetime` (`2026-09-01T00:00:00.000Z`) — honoured by SELECTING a
+ *     formatter, because `formatDateTime` has no style parameter to thread
+ *     into (objectui#8352). Before that card this arm honoured NOTHING: it
+ *     dropped `format` entirely, so `'relative'` rendered the absolute face.
+ *
+ * Every other string falls to that arm's default face — a PATTERN like
  * `format: 'YYYY-MM-DD'` is accepted by the schema, reaches this function, and
- * renders the locale default. That last part is not new behaviour introduced
- * here: `plugin-dashboard`'s `recordFields` already routes a date-shaped
- * `format` into the same style slot and gets the same locale default. Closing
- * it would mean teaching the shared path a pattern grammar, which is a change
- * to the path itself and to every list cell that reads it — not a measure
- * concern, and not this card.
+ * renders the locale default, and so does `'compact'`, which is
+ * `formatDateTime`'s own vocabulary but not this path's. The pattern part is
+ * not new behaviour introduced here: `plugin-dashboard`'s `recordFields`
+ * already routes a date-shaped `format` into the same style slot and gets the
+ * same locale default. Closing it would mean teaching the shared path a
+ * pattern grammar, which is a change to the path itself and to every list cell
+ * that reads it — not a measure concern, and not either card.
+ *
+ * ⚠️ `'relative'` renders the ABSOLUTE face for a value more than ±7 days from
+ * today, on both arms, by `formatRelativeDate`'s own design. That is correct
+ * output, not a regression — but it also means an out-of-window value is
+ * useless for testing this path, because it renders identically whether
+ * `format` is honoured or dropped. Both readings that missed #8352 were taken
+ * on 40–60-day-old data.
  */
 export function formatMeasure(
   v: unknown,

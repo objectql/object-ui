@@ -32,6 +32,7 @@ import type { KanbanConditionalFormattingRule } from "@object-ui/types"
 import type { KanbanCard, KanbanColumn } from './types'
 import { createSafeTranslation } from "@object-ui/i18n"
 import { Plus } from "lucide-react"
+import { useKanbanRecordsSettled } from './KanbanRecordsSettled'
 
 // Utility function to merge class names (inline to avoid external dependency)
 const cn = (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
@@ -537,6 +538,20 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
 
   /**
+   * objectui#8827 — have the records this board is drawing SETTLED?
+   *
+   * Read from a package-private context (`ObjectKanban` provides it, the
+   * schema-only `kanban-ui` entry has no provider and gets the settled
+   * default). It gates the two places below that say "No cards", because both
+   * of them are assertions ABOUT THE DATA and this component is reachable —
+   * through `KanbanRenderer`'s `React.lazy` boundary — before the data exists.
+   * ⛔ It gates nothing else: lanes, headers, counts and drop targets all keep
+   * rendering while the rows are in flight. The full argument, the measured
+   * reproduction and the settle contract live on the context.
+   */
+  const recordsSettled = useKanbanRecordsSettled()
+
+  /**
    * Container-aware column sizing — replaces hard-coded `w-[85vw] sm:w-80`
    * (viewport-relative) with a width derived from the board's own slot.
    * That way an embedded Kanban (in a panel, drawer, or pop-out window)
@@ -862,10 +877,20 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
 
       {(() => {
         const totalCardCount = boardColumns.reduce((sum, c) => sum + (c.cards?.length || 0), 0);
+        // "This board holds no cards" — a fact about what was HANDED to this
+        // component, true the instant it renders.
         const isBoardEmpty = totalCardCount === 0 && boardColumns.length > 1;
+        // "This board HAS no cards" — a fact about the DATA, which is only
+        // knowable once the records have settled (objectui#8827). Before
+        // #8827 the two were the same expression, so a board whose lazy chunk
+        // won the race against its own fetch announced an empty result it had
+        // not yet received. ⚠️ `recordsSettled` defaults to `true`, so a
+        // genuinely empty board still paints this the moment it settles —
+        // withholding it forever is the regression this must not trade for.
+        const showEmptyState = isBoardEmpty && recordsSettled;
         return (
       <>
-      {isBoardEmpty && (
+      {showEmptyState && (
         <div className="px-4 sm:px-6 pt-3">
           <DataEmptyState
             role="status"
@@ -1046,7 +1071,15 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               conditionalFormatting={conditionalFormatting}
               objectFields={objectFields}
               columnStyle={columnInlineStyle}
-              suppressEmptyPlaceholder={isBoardEmpty}
+              // Two reasons to withhold a column's "No cards" placeholder,
+              // and they are different reasons (objectui#8827). `isBoardEmpty`
+              // means the BOARD-level empty state above is already saying it,
+              // so a per-column copy would be a duplicate. `!recordsSettled`
+              // means nobody may say it yet: the placeholder renders the same
+              // `kanban.noCards` string, so leaving it ungated would have kept
+              // the false claim alive on any board with a single lane — where
+              // `isBoardEmpty` is false and the board-level gate never runs.
+              suppressEmptyPlaceholder={isBoardEmpty || !recordsSettled}
               countsAreWindowed={countsAreWindowed}
             />
           ))}

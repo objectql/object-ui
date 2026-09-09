@@ -265,21 +265,6 @@ function documentedMemberKeys(line: string): string[] {
   return inner ? inner.split(',').map((k) => k.trim()).filter(Boolean) : [];
 }
 
-/**
- * The read set MINUS the documented set, as of objectui#8071's measurement.
- *
- * ⚠️ NOT a tolerance. `streaming` decides whether an export streams from the
- * server or is assembled in the browser (`exportConfig?.streaming !== false`),
- * and the registration does not mention it — so an author reading the only
- * member enumeration this block publishes cannot know the key exists. That is
- * objectstack#8010's defect exactly, one layer out: honoured by the renderer,
- * invisible on the authoring surface. Filed as objectui#8731; this entry is
- * what makes it a measurement instead of a memory, and it is asserted as an
- * EXACT set so a second undocumented key cannot join it quietly and so landing
- * the fix reds this row and deletes it.
- */
-const UNDOCUMENTED_BUT_READ = ['streaming'];
-
 describe('object-grid `exportOptions` — members the BLOCK declares vs members the renderer reads (objectui#8071)', () => {
   const line = objectGridInputLine('exportOptions');
 
@@ -303,11 +288,17 @@ describe('object-grid `exportOptions` — members the BLOCK declares vs members 
     expect(advertisedButUnread).toEqual([]);
   });
 
-  it('reads exactly one member key it does not advertise, and it is named', () => {
+  it('reads no member key it does not advertise (objectui#8731)', () => {
+    // Until objectui#8731, this asserted an EXACT non-empty gap
+    // (`UNDOCUMENTED_BUT_READ = ['streaming']`): the registration's prose
+    // enumeration was missing a key the renderer honours, and the assertion
+    // named it so the fix would have to touch this file. The description now
+    // enumerates `streaming` too, so the gap this pin measures is empty — the
+    // regression this guards against is a FUTURE undocumented-but-read key,
+    // caught the same way objectstack#8010 was: named, not just counted.
     const read = readKeys(gridSource);
     const documented = new Set(documentedMemberKeys(line!));
-    expect([...read].filter((k) => !documented.has(k)).sort()).toEqual(
-      [...UNDOCUMENTED_BUT_READ].sort(),
-    );
+    const undocumentedButRead = [...read].filter((k) => !documented.has(k)).sort();
+    expect(undocumentedButRead).toEqual([]);
   });
 });

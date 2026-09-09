@@ -152,13 +152,19 @@ function createObjectStackAdapter<T = unknown>(config: {
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
 const dataSource = createObjectStackAdapter({
-  baseUrl: 'https://api.objectstack.dev',
+  baseUrl: 'https://api.example.com',
   token: 'your-api-token',
   cache: { maxSize: 100, ttl: 5 * 60 * 1000 },
   autoReconnect: true,
   maxReconnectAttempts: 5,
 });
 ```
+
+`api.example.com` is a placeholder — here and in every other example on this
+page. RFC 2606 reserves `example.com` precisely so documentation can name a host
+that can never resolve to somebody's real service, so a snippet copied with it
+left in fails loudly instead of reaching a stranger's server. Replace it with
+your own ObjectStack server's URL.
 
 Pass a record type to get typed results — the default is `unknown`:
 
@@ -361,7 +367,7 @@ Pass your own `fetch` to route requests through a proxy or attach extra headers:
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
 const dataSource = createObjectStackAdapter({
-  baseUrl: 'https://api.objectstack.dev',
+  baseUrl: 'https://api.example.com',
   fetch: (input, init) =>
     fetch(input, { ...init, headers: { ...init?.headers, 'X-Tenant': 'acme' } }),
 });

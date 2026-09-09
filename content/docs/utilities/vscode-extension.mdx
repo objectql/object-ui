@@ -374,11 +374,20 @@ command by its name, and assign a chord. To write the binding by hand instead, o
 
 ```json
 {
-  "key": "ctrl+shift+p",
+  "key": "ctrl+alt+shift+f19",
   "command": "objectui.preview",
   "when": "editorLangId == json"
 }
 ```
+
+The `key` above is a stand-in, not a proposal — a deliberately far-fetched chord
+that nothing binds, there to show the shape of an entry. Pick your own, and pick one
+you are not already using: an entry in your `keybindings.json` overrides VS Code's
+default for that chord, and the `when` clause only narrows *where* your entry
+applies (here, JSON editors) — it does not decide whether your entry wins. Binding
+`ctrl+shift+p`, for instance, would take the Command Palette away from you in JSON
+files, which is where your schemas are open and where this page keeps sending you
+for these commands.
 
 Every command the extension contributes, with the id to bind:
 

@@ -37,12 +37,6 @@ interface ToastSchema {
   description?: string;           // Toast message
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
   
-  // Action button
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
-  
   // Timing
   duration?: number;              // Auto-dismiss time in ms
 }

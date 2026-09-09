@@ -36,6 +36,7 @@ import {
   type RequiredWhenPromptField,
 } from './requiredWhenPrompt';
 import { RequiredFieldsDialog } from './RequiredFieldsDialog';
+import { KanbanRecordsSettledContext } from './KanbanRecordsSettled';
 
 /**
  * English fallbacks for the record-detail drawer heading this board opens on
@@ -291,6 +292,70 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
   // PR #7428 recorded for `ListView`'s memo and `ObjectCalendar`'s effect).
   const perms = usePermissions();
 
+  /**
+   * Have the RECORDS this board is about to draw SETTLED? (objectui#8827)
+   *
+   * The full argument — the measured false "No cards", why a `loading` boolean
+   * cannot express this, why the channel is a package-private context, and why
+   * the default is `true` — lives on `KanbanRecordsSettledContext`. What lives
+   * here is the half that is component-private, exactly as objectui#6482 split
+   * `useSettledSchema`: the RESOLUTION shape is shared, deciding WHAT THIS
+   * BOARD IS WAITING FOR is not.
+   *
+   * Shape copied from `useSettledSchema`, deliberately: ONE piece of state
+   * carrying the key it settled for, with "settled" DERIVED at render by
+   * comparing that key against the one this render is asking about. The
+   * alternative — a `settled` boolean latched by the fetch effect — is
+   * objectui#6481's defect verbatim: a one-way latch reads as settled for the
+   * NEXT object while its query is still in flight. With one keyed value that
+   * is unrepresentable, because the comparison flips in the very commit the key
+   * changes, before any effect runs.
+   *
+   * The key is `schemaKey` — the SAME key the definition read is settled
+   * against — so "settled for the wrong object" cannot be spelled on either
+   * signal. It is deliberately NOT a digest of the whole query (filter, window,
+   * `refreshKey`): those re-ASK the same question rather than asking a
+   * different one, and a key recomputed from an object that a parent rebuilds
+   * each render could churn, which would starve the settle and leave the board
+   * empty forever — the one failure mode this must not have. A re-issue of the
+   * same question keeps the previous answer on screen, which is the safe
+   * direction.
+   */
+  const [recordsResolution, setRecordsResolution] = useState<{ key: string } | null>(null);
+
+  /**
+   * Is this board's OWN query what the records are waiting on?
+   *
+   * `false` means the records are settled BY CONSTRUCTION and no effect has to
+   * remember to say so — which is how exits 3 and 4 of the settle contract are
+   * held open structurally rather than by hand:
+   *
+   *   - external/bound/inline data (`rawData`'s first three sources below)
+   *     arrive whole with the render, so they are settled from the first frame;
+   *   - no `objectName`, no `dataSource`, or an adapter with no `find` is a
+   *     board with NO READABLE SOURCE — settled with nothing, exactly as
+   *     `useSettledSchema` settles when there is nothing to read from. Waiting
+   *     on a query that will never be issued is the "empty forever" regression.
+   *
+   * The conditions are the same ones the fetch effect below branches on (its
+   * `hasExternalData` guard, its `schema.objectName && !boundData &&
+   * !schema.data` test, and `fetchData`'s own source guard). The effect ALSO
+   * settles at each of its exits, so the two mechanisms are redundant on
+   * purpose and redundant in the safe direction: it takes both of them failing
+   * to strand a board.
+   */
+  const recordsComeFromFetch =
+    !hasExternalData &&
+    !boundData &&
+    !schema.data &&
+    !!schema.objectName &&
+    !!dataSource &&
+    typeof dataSource.find === 'function';
+
+  const recordsSettled =
+    !recordsComeFromFetch ||
+    (recordsResolution !== null && recordsResolution.key === schemaKey);
+
   // P2: Auto-subscribe to DataSource mutation events (standalone mode only).
   // When rendered as a child of ListView, data is managed externally and this is skipped.
   useEffect(() => {
@@ -336,8 +401,26 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
     if (!objectDefReady) return;
 
     let isMounted = true;
+    /**
+     * objectui#8827 — record the fact that a read for THIS object has SETTLED,
+     * whatever it settled to. Idempotent, so the redundant call at the exit
+     * below cannot cost a render once the key is already recorded.
+     */
+    const settleRecords = () => {
+        if (!isMounted) return;
+        setRecordsResolution((prev) =>
+            prev !== null && prev.key === schemaKey ? prev : { key: schemaKey },
+        );
+    };
     const fetchData = async () => {
-        if (!dataSource || typeof dataSource.find !== 'function' || !schema.objectName) return;
+        if (!dataSource || typeof dataSource.find !== 'function' || !schema.objectName) {
+            // Exit 3 — NO READABLE SOURCE. Already settled structurally by
+            // `recordsComeFromFetch` above; settled here too so that a future
+            // edit which tightens this guard without touching that predicate
+            // cannot silently strand the board (objectui#8827).
+            settleRecords();
+            return;
+        }
         if (isMounted) setLoading(true);
         try {
             // Auto-inject $expand for lookup/master_detail fields. Reached only
@@ -424,6 +507,12 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             if (isMounted) setError(e as Error);
         } finally {
             if (isMounted) setLoading(false);
+            // Exits 1 and 2 — the fetch SUCCEEDING and the fetch THROWING, in
+            // one place so neither can be added to without the other
+            // (objectui#8827). A read that resolved to nothing is a settled
+            // answer; a read that threw is a settled answer too. Only a board
+            // still waiting for one is allowed to withhold its empty state.
+            settleRecords();
         }
     };
 
@@ -436,7 +525,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
     // `objectDef` stays listed because the body reads it, and with the gate in
     // place the two flip together in one commit — the pre-resolution run now
     // returns above without querying instead of issuing an unexpanded one.
-  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, schema.limit, hasExternalData, objectDefReady, objectDef, refreshKey, perms]);
+  }, [schema.objectName, schemaKey, dataSource, boundData, schema.data, schema.filter, schema.limit, hasExternalData, objectDefReady, objectDef, refreshKey, perms]);
 
   // Determine which data to use: external -> bound -> inline -> fetched
   const rawData = (hasExternalData ? externalData : undefined) || boundData || schema.data || fetchedData;
@@ -1146,6 +1235,13 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
 
   return (
     <>
+      {/* objectui#8827 — the settle signal reaches `KanbanImpl` through a
+          package-private context rather than a `KanbanRendererProps` member,
+          because `KanbanRendererProps` is published and no caller outside this
+          package may set this. Context crosses `KanbanRenderer`'s
+          `Suspense`/`React.lazy` boundary normally, which is what makes the
+          private channel possible at all. Full argument on the context. */}
+      <KanbanRecordsSettledContext.Provider value={recordsSettled}>
       <KanbanRenderer
         // Card conditional formatting evaluates against the card record, and
         // this fetch expands relations (`buildExpandFields` above) exactly as
@@ -1170,6 +1266,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
           onCardMove: handleCardMove,
         }}
       />
+      </KanbanRecordsSettledContext.Provider>
       {pendingMove && (
         <RequiredFieldsDialog
           open

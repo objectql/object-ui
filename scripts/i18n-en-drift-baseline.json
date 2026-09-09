@@ -26,7 +26,13 @@
     "U+2026, so there is nothing for them to follow. That is the inverse of the usual drift -- here",
     "en was the outlier, not the packs -- and the transcribed sentences below are the evidence, since",
     "the gate re-checks each one against en on every run. Four of the five had all nine packs already",
-    "correct; search.placeholder had zh already correct and the other eight followed in that same PR."
+    "correct; search.placeholder had zh already correct and the other eight followed in that same PR.",
+    "",
+    "designerWaivers is the SECOND section, for the metadata-admin designer table population added by",
+    "objectui#8834 (packages/app-shell/src/views/metadata-admin/i18n.ts). Same shape, same expiry rule,",
+    "same ceiling discipline -- separate map because each section is validated against the en values of",
+    "its own population, and a designer key is not a pack key. Keys are prefixed with their table, e.g.",
+    "\"ENGINE_STRINGS.engine.directory.title\". It ships EMPTY and holds no backlog either."
   ],
 
   "waivers": {
@@ -55,5 +61,7 @@
       "reason": "Ellipsis convergence on U+2026 (objectstack#6015 consistency pass). All nine packs already ended this value with U+2026; en was the sole ASCII outlier, so no translation changes.",
       "issue": "objectui#3878"
     }
-  }
+  },
+
+  "designerWaivers": {}
 }

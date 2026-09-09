@@ -665,6 +665,91 @@ describe('collectDesignerKeys()', () => {
   });
 });
 
+/**
+ * The optional second argument (objectui#8834). Every option defaults to what
+ * the dead-keys sweep already did, which is what lets this file stay the ONE
+ * reader of these tables — `check-i18n-designer-table-parity.mjs` and the
+ * designer population of `check-i18n-en-drift.mjs` both call in here rather
+ * than growing a second copy of the parse. `changeset-guard.yml:63-72` records
+ * what the second copy of a reader costs in this repo.
+ */
+describe('collectDesignerKeys() — the optional second argument', () => {
+  it('defaults to exactly the dead-keys corpus when no options are given', () => {
+    const bare = collectDesignerKeys(designerRoot());
+    const explicit = collectDesignerKeys(designerRoot(), {});
+    expect([...bare.corpus].sort()).toEqual([...explicit.corpus].sort());
+    expect(bare.values).toBeNull();
+  });
+
+  it('reads a DIFFERENT population when `consts` names one', () => {
+    // The new gate carries its own pair list rather than widening
+    // DESIGNER_TABLE_CONSTS: that constant is THIS sweep's corpus, and
+    // TYPE_LABELS_* keys do not sit under DESIGNER_KEY_ROOTS.
+    const root = repoWith({
+      [DESIGNER_TABLE]:
+        "const OTHER_EN: Record<string, string> = { object: 'Object' };\n" +
+        "const OTHER_ZH: Record<string, string> = { object: '对象' };\n",
+    });
+    const { tables } = collectDesignerKeys(root, { consts: ['OTHER_EN', 'OTHER_ZH'] });
+    expect([...tables.keys()].sort()).toEqual(['OTHER_EN', 'OTHER_ZH']);
+    expect(tables.get('OTHER_EN')!.has('object')).toBe(true);
+  });
+
+  it('parses supplied SOURCE TEXT, and names the caller’s label when it throws', () => {
+    // The drift gate's base side is a git blob, not a file. git stays in the
+    // gate that already owns it; this reader only learns to take text.
+    const text = "const ENGINE_STRINGS_EN: Record<string, string> = { 'engine.fx.a': 'A' };\n";
+    expect(() =>
+      collectDesignerKeys('/nonexistent', { source: text, label: 'abc1234:i18n.ts' }),
+    ).toThrow(/^abc1234:i18n\.ts: `const ENGINE_STRINGS_ZH/);
+  });
+
+  it('collects values when asked, and only when asked', () => {
+    const { values } = collectDesignerKeys(designerRoot(), { withValues: true });
+    expect(values!.get('ENGINE_STRINGS_EN')!.get('engine.fx.spelled')).toBe('Spelled at a call site');
+    expect(values!.get('ENGINE_STRINGS_ZH')!.get('engine.fx.zhOnly')).toBe('只有中文表里有');
+  });
+
+  it('throws on a value form it cannot read — but ONLY for a caller that asked for values', () => {
+    // Opt-in rather than always-on: a future non-literal value must not newly
+    // break the dead-keys sweep, which never asks about values.
+    const root = repoWith({
+      [DESIGNER_TABLE]:
+        "const ENGINE_STRINGS_EN: Record<string, string> = { 'engine.fx.a': COMPUTED };\n" +
+        "const ENGINE_STRINGS_ZH: Record<string, string> = { 'engine.fx.a': '甲' };\n",
+    });
+    expect(() => collectDesignerKeys(root, { withValues: true })).toThrow(/the extractor is stale/);
+    expect(() => collectDesignerKeys(root)).not.toThrow();
+  });
+
+  it('lets a caller tolerate an ABSENT constant, and never by default', () => {
+    // `require: false` is used in exactly one place — the drift gate's BASE
+    // side, where a table that does not exist yet is a fact about history. The
+    // gate PRINTS every pair it skipped for that reason.
+    const root = repoWith({
+      [DESIGNER_TABLE]: "const ENGINE_STRINGS_EN: Record<string, string> = { 'engine.fx.a': 'A' };\n",
+    });
+    expect(() => collectDesignerKeys(root)).toThrow(/ENGINE_STRINGS_ZH/);
+    const { tables } = collectDesignerKeys(root, { require: false });
+    expect(tables.has('ENGINE_STRINGS_ZH')).toBe(false);
+    expect(tables.get('ENGINE_STRINGS_EN')!.size).toBe(1);
+  });
+
+  it('still throws on a property or key form it does not understand, in every mode', () => {
+    // The stale-extractor throws are what this instrument uses to know it has
+    // gone out of date. None of the new options may reach them.
+    const spread = repoWith({
+      [DESIGNER_TABLE]:
+        "const ENGINE_STRINGS_EN: Record<string, string> = { ...OTHER };\n" +
+        "const ENGINE_STRINGS_ZH: Record<string, string> = { 'engine.fx.a': '甲' };\n",
+    });
+    expect(() => collectDesignerKeys(spread)).toThrow(/unsupported property form/);
+    expect(() => collectDesignerKeys(spread, { withValues: true, require: false })).toThrow(
+      /unsupported property form/,
+    );
+  });
+});
+
 describe('sweepDesignerTable()', () => {
   it('excludes a key spelled as a literal at a call site', () => {
     const result = sweepDesignerTable(designerRoot());

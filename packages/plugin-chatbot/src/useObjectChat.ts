@@ -12,7 +12,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { generateUniqueId } from './utils';
 import { uiMessagesToChatMessages } from './mapMessages';
-import { toRuntimeTimestamp } from './chatMessageAdapter';
+import { toRuntimeRole, toRuntimeTimestamp } from './chatMessageAdapter';
 import type { SeamChatMessage } from './chatMessageAdapter';
 
 /**
@@ -541,14 +541,37 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
   const modeRef = useRef<'api' | 'local'>(api ? 'api' : 'local');
   const isApiMode = modeRef.current === 'api';
 
-  // Convert OUI messages to vercel/ai v3 UIMessage format for initialMessages
+  // Convert OUI messages to vercel/ai v3 UIMessage format for initialMessages.
+  //
+  // The `role` is FOLDED, not asserted (objectui#8443). Both lines below used to
+  // read `as 'user' | 'assistant' | 'system'`, which was wrong twice over:
+  //
+  //   - at runtime, an authored `role: 'tool'` (legal on the authoring contract,
+  //     and deliberately not narrowed by `normalizeMessages`) reached the SDK
+  //     store verbatim while DECLARING one of three roles it is not. Measured on
+  //     the real `@ai-sdk/react`: the store holds it unchanged, and the SDK's own
+  //     downstream entry points then reject it — `convertToModelMessages` throws
+  //     `AI_MessageConversionError: Unsupported role: tool` and
+  //     `validateUIMessages` throws `AI_TypeValidationError` naming exactly
+  //     `["system","user","assistant"]`. Nothing anywhere recognises `'tool'`.
+  //   - at compile time, the assertion switched OFF the tripwire the seam exists
+  //     to provide: `chatMessageAdapter.ts` records that "a new authored `role`
+  //     makes {@link toRuntimeRole} unassignable", so adding a role to the
+  //     authoring type is supposed to break here and force someone to handle it.
+  //     An `as` let that future role through silently.
+  //
+  // `toRuntimeRole` is the package's ONE expression of this fold — the named
+  // decision of objectui#4399 ("`'tool'` renders as an assistant bubble"), which
+  // the render seam already applies. This builder now performs it instead of
+  // asserting it, same as objectui#4424 and objectui#8342 each did for one other
+  // instance of this class.
   const aiInitialMessages = useMemo(
     () =>
       (initialMessages ?? []).map((msg, idx) => {
         if (Array.isArray(msg.parts) && msg.parts.length > 0) {
           return {
             id: msg.id || `msg-${idx}`,
-            role: (msg.role || 'user') as 'user' | 'assistant' | 'system',
+            role: toRuntimeRole(msg.role || 'user'),
             parts: msg.parts,
           };
         }
@@ -573,7 +596,7 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
         }
         return {
           id: normalized.id || `msg-${idx}`,
-          role: normalized.role as 'user' | 'assistant' | 'system',
+          role: toRuntimeRole(normalized.role),
           parts: parts.length > 0 ? parts : [{ type: 'text', text: '' }],
         };
       }),

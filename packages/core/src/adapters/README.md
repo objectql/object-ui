@@ -94,7 +94,9 @@ $contains  $icontains  $notContains  $startsWith  $endsWith  $null  $exists
 That is **all sixteen** — nothing the spec declares is refused by name.
 
 `$contains`, `$notContains`, `$startsWith` and `$endsWith` are **case-sensitive**;
-`$icontains` is the one case-insensitive member and its fold is **ASCII-only**.
+`$icontains` is the one case-insensitive member, its fold is **ASCII-only**, and its
+comparand must be a **non-empty string** — any other comparand shape is refused in the
+table below rather than folded (objectui#8748).
 `$null` takes its direction from the value: `$null: true` is IS NULL, `$null: false`
 is IS NOT NULL. `$exists` is its exact inverse — `$exists: true` is IS NOT NULL — which
 is the lowering `convertFiltersToAST` already performs, not a reading invented here.
@@ -153,6 +155,7 @@ prescription in the message:
 | `$not` | ruled upstream (objectstack#5146), but this repo's own `convertFiltersToAST` still refuses it: the AST has no negation keyword and rewriting the negation inward is silently partial | `$ne` / `$nin` / `$notContains` |
 | `{ relation: { field: … } }` | this matcher does not descend into relations | filter on the stored key |
 | an **array** comparand outside `$in` / `$nin` / `$between` | the spec leaves it unruled and the sibling in-memory matcher refuses it; a reference comparison excluded every row, and on `$ne` selected every row (objectui#8514) | `{ field: { $in: [ … ] } }` |
+| an **empty** or **non-string** `$icontains` / `icontains` comparand | `FILTER_TEXT_CASES` carries both as REJECTION rows — an empty comparand constrains nothing, a coerced one answers a query nobody wrote (objectui#8748) | a non-empty string comparand, or drop the condition |
 | `{ $field }` in an `$in` / `$nin` member or a `$between` endpoint | removed from those positions because no backend resolved one (objectstack#7596) | a scalar comparison |
 | `{ $field, addDays }` | the offset is defined against the column's temporal class, which this schema-less matcher cannot read (objectstack#14104) | shift the value at the producer |
 | `{ $field: 'a.b' }` (dotted) | this matcher addresses a flat record, so a dotted reference would not mean what a dotted field name means | a same-record column |

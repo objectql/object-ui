@@ -27,6 +27,7 @@ import {
 } from './submitRedirectNavigation';
 import { usePermissions } from '@object-ui/permissions';
 import { sectionPredicateUnsupportedWarning } from './sectionPredicateDiagnostic';
+import { warnUnresolvedTopLevelField } from './sectionFields';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm, NAVIGATE_ON_SUCCESS_REFUSED_NOTE } from './WizardForm';
 import { SplitForm } from './SplitForm';
@@ -772,7 +773,14 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       // If fieldsToShow is an array of strings, fieldName is the string
       // If fieldsToShow is array of objects (unlikely but possible in some formats), we need to extract name
       const name = typeof fieldName === 'string' ? fieldName : (fieldName as any).name;
-      if (!name) return;
+      if (!name) {
+        // objectui#8738 route 1: a member that resolves to no name (most
+        // commonly the spec `FormFieldSchema` object, identity key `field`,
+        // that IS legal in `sections[].fields`) used to vanish here without a
+        // word. Warn, don't accept — see `warnUnresolvedTopLevelField`.
+        warnUnresolvedTopLevelField(fieldName, schema.objectName);
+        return;
+      }
 
       const field = objectSchema.fields?.[name];
       if (!field && !hasInlineFields) return; // Skip if not found in object definition unless inline
