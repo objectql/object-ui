@@ -90,6 +90,49 @@ describe('localizeMetadataForm — the spec form, in the author’s language', (
     expect(fieldByName(zh, 'header')?.label).toBe('页眉');
   });
 
+  /**
+   * objectui#8820 — the overlay is addressed by the SPEC's field name, and the
+   * spec renamed this one: `dashboard.refreshInterval` became
+   * `refreshIntervalSeconds` in `@objectstack/spec` 17.4.0.
+   *
+   * objectui still resolves 17.3.0, so `dashboardForm` emits the OLD name and
+   * the case above is the live one. This case asserts the OTHER half — that the
+   * bundle is already carrying the new name, so the label does not silently
+   * fall back to English on the day the floor moves.
+   *
+   * It is driven through a SYNTHETIC form rather than `dashboardForm`, and that
+   * is the point: a test reading the real form could not assert this until the
+   * bump, which is exactly the ordering that leaves such rows forgotten. The
+   * synthetic form is the same shape `resolveMetadataFormLabels` walks, so what
+   * is proven is the overlay's own lookup, not a mock of it.
+   */
+  it('already carries the renamed `refreshIntervalSeconds` field — ready for the spec bump', () => {
+    const renamedForm = {
+      sections: [
+        { label: 'Layout', fields: [{ field: 'refreshIntervalSeconds', type: 'number' }] },
+      ],
+    } as unknown as Record<string, unknown>;
+
+    const zh = localizeMetadataForm(renamedForm, 'dashboard', 'zh-CN');
+    const renamed = fieldByName(zh, 'refreshIntervalSeconds');
+    expect(renamed?.label).toBe('自动刷新');
+    // The unit stays in the help text. The new key name spells it out to a
+    // DEVELOPER; this panel shows the author the label (自动刷新) and never the
+    // key, so dropping 「（秒）」 would take the unit off the only surface the
+    // author reads — and `0 表示不自动刷新` is behaviour no key name carries.
+    expect(renamed?.helpText).toBe('自动刷新间隔（秒），0 表示不自动刷新');
+
+    // The control: a field the bundle has no row for is handed through
+    // untouched, so the assertion above is about this row and not about the
+    // overlay translating everything it is shown.
+    const untouched = localizeMetadataForm(
+      { sections: [{ label: 'Layout', fields: [{ field: 'objectui8820NotAField', type: 'number' }] }] } as unknown as Record<string, unknown>,
+      'dashboard',
+      'zh-CN',
+    );
+    expect(fieldByName(untouched, 'objectui8820NotAField')?.label).toBeUndefined();
+  });
+
   it('drops the "Tailwind units" developer vocabulary rather than transliterating it', () => {
     const zh = localizeMetadataForm(
       dashboardForm as unknown as Record<string, unknown>,

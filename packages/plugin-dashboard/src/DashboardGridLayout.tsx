@@ -11,6 +11,7 @@ import { isObjectProvider, deriveStaticTableColumns } from './utils';
 import { classifyWidgetType } from './widgetDispatch';
 import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
 import { DatasetWidget } from './DatasetWidget';
+import { useDashboardAutoRefresh } from './useDashboardAutoRefresh';
 
 /** Bridges editMode transitions to the ObjectUI DnD system when a DndProvider is present. */
 function DndEditModeBridge({ editMode }: { editMode: boolean }) {
@@ -127,29 +128,18 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
 }) => {
   const { width, containerRef, mounted } = useContainerWidth();
   const [editMode, setEditMode] = React.useState(false);
-  const [refreshing, setRefreshing] = React.useState(false);
   const hasDndProvider = useHasDndProvider();
   // Active UI language, for resolving inline per-locale widget titles below.
   // `useObjectTranslation` is provider-safe (react-i18next falls back to its
   // global instance and never throws), so a standalone grid still renders.
   const { language } = useObjectTranslation();
-  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleRefresh = React.useCallback(() => {
-    if (!onRefresh) return;
-    setRefreshing(true);
-    onRefresh();
-    setTimeout(() => setRefreshing(false), 600);
-  }, [onRefresh]);
-
-  // Auto-refresh interval
-  React.useEffect(() => {
-    if (!schema.refreshInterval || schema.refreshInterval <= 0 || !onRefresh) return;
-    intervalRef.current = setInterval(handleRefresh, schema.refreshInterval * 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [schema.refreshInterval, onRefresh, handleRefresh]);
+  // The refresh indicator, the manual handler and the auto-refresh timer, from
+  // the one implementation this component shares with `DashboardRenderer`
+  // (objectui#8820). It is also the single place the authored period is read,
+  // so the `refreshIntervalSeconds` / `refreshInterval` transition is decided
+  // once for both surfaces rather than twice.
+  const { refreshing, handleRefresh } = useDashboardAutoRefresh(schema, onRefresh);
   const [layouts, setLayouts] = React.useState<{ lg: RGLLayout[] }>(
     () => buildDefaultLayouts(schema),
   );

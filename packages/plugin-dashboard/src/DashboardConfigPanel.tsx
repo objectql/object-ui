@@ -105,6 +105,15 @@ export function buildDashboardSchema(t: ConfigPanelTranslate): ConfigPanelSchema
         collapsible: true,
         fields: [
           {
+            // ⛔ STILL `refreshInterval` (objectui#8820) — this panel EMITS the
+            // key, it does not read it. `@objectstack/spec` 17.4.0 renamed it to
+            // `refreshIntervalSeconds`, but objectui resolves 17.3.0, where the
+            // new spelling is refused by name; a designer that writes a key the
+            // installed spec refuses is objectui#5761's failure class (the save
+            // returns a hard 422 and blocks every later save of the document,
+            // with nothing in the UI naming the key). The RENDERER accepts both
+            // spellings so a document authored elsewhere on 17.4.0 refreshes
+            // correctly; the writer follows the spec floor, and moves with it.
             key: 'refreshInterval',
             label: t('dashboard.config.field.autoRefresh'),
             type: 'select',

@@ -88,6 +88,30 @@ const METADATA_FORM_BUNDLE: TranslationBundle = {
           // only a developer can act on. Reported upstream rather than
           // "translated" literally; this says what the author can decide.
           gap: { label: '间距', helpText: '组件之间的间距，数值越大越松' },
+          // BOTH spellings, because the key this row addresses is the SPEC's
+          // form field name and the spec renamed it: `dashboard.refreshInterval`
+          // became `refreshIntervalSeconds` in `@objectstack/spec` 17.4.0
+          // (objectstack#14478 / #15680; the value is unchanged, still seconds).
+          // objectui resolves 17.3.0 today, so `dashboardForm` still emits the
+          // OLD field name — dropping it now would un-translate a live row —
+          // while the NEW one is inert until the floor moves and live the
+          // moment it does. `resolveMetadataFormLabels` walks the FORM's fields
+          // and looks each one up here, so a row addressing a field the form
+          // does not carry costs nothing and raises nothing; that is what makes
+          // carrying both order-independent rather than merely tolerable.
+          // ⛔ Delete the `refreshInterval` row in the change that raises the
+          // `@objectstack/spec` floor to `^17.4.0` — from then on no form emits
+          // that field name, and the row is addressing nothing.
+          //
+          // The helpText KEEPS 「（秒）」 even though the new key name spells the
+          // unit out. The key name is developer-facing; this string is what a
+          // Chinese-speaking author reads in the Studio panel, and that panel
+          // shows the LABEL (自动刷新), never the key — so the name makes the
+          // unit explicit to exactly the reader who was never going to see this
+          // text. Dropping it would remove the unit from the only surface the
+          // author actually reads. The second clause (0 表示不自动刷新) states
+          // behaviour no key name has ever carried.
+          refreshIntervalSeconds: { label: '自动刷新', helpText: '自动刷新间隔（秒），0 表示不自动刷新' },
           refreshInterval: { label: '自动刷新', helpText: '自动刷新间隔（秒），0 表示不自动刷新' },
           header: { label: '页眉', helpText: '页眉设置：标题、描述与操作按钮' },
           // All three children of the `header` composite — see the ⛔ note above.

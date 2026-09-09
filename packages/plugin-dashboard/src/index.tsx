@@ -91,6 +91,31 @@ ComponentRegistry.register(
       { name: 'header', type: 'object', description: 'Header block: { showTitle?, showDescription?, actions? }. Strict — the contract rejects any other key. Renders nothing (zero pixels) when everything it would show is suppressed.' },
       { name: 'globalFilters', type: 'array', description: 'Dashboard-level filter bar — the spec’s GlobalFilter[]. Filter values live as dashboard variables (readable in widget expressions as page.<name>) and are AND-merged into each bound widget’s query per its filterBindings.' },
       { name: 'dateRange', type: 'object', description: 'Built-in date-range filter: { field?, defaultRange?, allowCustomRange? }. `defaultRange` takes the spec’s date presets plus "custom"; the bound field defaults to created_at.' },
+      // ⛔ STILL `refreshInterval`, and deliberately so (objectui#8820).
+      //
+      // `@objectstack/spec` 17.4.0 renamed this key to `refreshIntervalSeconds`
+      // and the RENDERER now reads both spellings (`useDashboardAutoRefresh`).
+      // This row is not a reader, though — it is a PUBLICATION. `inputs` is
+      // serialized into `sdui.manifest.json` (the save gate and the parser
+      // whitelist) and into `sdui-intrinsics.d.ts`, and the per-key line this
+      // block was built on (objectui#5742) is: a key is declared only when the
+      // renderer reads it AND the INSTALLED `@objectstack/spec`'s strict
+      // `DashboardSchema` accepts it — so the manifest never offers a key the
+      // save gate refuses.
+      //
+      // objectui resolves `@objectstack/spec@17.3.0`, where
+      // `refreshIntervalSeconds` is refused by name (`unrecognized_keys`,
+      // measured). Publishing it here today would offer authors a key their own
+      // stack rejects — the objectui#5761 / #6223 / #6595 defect class this repo
+      // has a dedicated gate for (`scripts/check-designer-field-key-parity.mjs`:
+      // "every key a statically declared payload shape can emit must be a key
+      // the installed spec schema accepts by name").
+      //
+      // ⇒ This row moves to `refreshIntervalSeconds` in the change that raises
+      // the spec floor to `^17.4.0`, together with the config-panel field key,
+      // the `refreshInterval` arm in `useDashboardAutoRefresh`, and the legacy
+      // row in `metadata-form-i18n.ts`. Not before: the reader is
+      // order-independent, the publication cannot be.
       { name: 'refreshInterval', type: 'number', description: 'Auto-refresh period in seconds. Zero or a negative value disables the timer, and it only runs when the host wires an onRefresh handler.' },
       { name: 'columns', type: 'number' },
       { name: 'gap', type: 'number' },

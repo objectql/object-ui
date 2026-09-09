@@ -20,7 +20,7 @@ import {
   chartMeasureKey,
 } from '@object-ui/core';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button, getLazyIcon } from '@object-ui/components';
-import { forwardRef, useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
+import { forwardRef, useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import type { HTMLAttributes } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {
@@ -43,6 +43,7 @@ import { isObjectProvider, deriveStaticTableColumns } from './utils';
 import { classifyWidgetType, METRIC_LIKE_TYPES } from './widgetDispatch';
 import { LEGACY_RETIRED_WIDGET_SCHEMA, isLegacyRetiredWidget } from './legacyRetiredWidget';
 import { DatasetWidget } from './DatasetWidget';
+import { useDashboardAutoRefresh } from './useDashboardAutoRefresh';
 import { DashboardFilterBar } from './DashboardFilterBar';
 
 interface SortableWidgetWrapperProps {
@@ -255,9 +256,15 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
     // Defined here (not just above desktopBody) so renderWidget can give
     // layout-less widgets a sensible default span in the positioned grid.
     const hasExplicitColumns = schema.columns != null || inferredColumns !== 4;
-    const [refreshing, setRefreshing] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // The refresh indicator, the manual handler and the auto-refresh timer,
+    // from the one implementation this component shares with
+    // `DashboardGridLayout` (objectui#8820). It is also the single place the
+    // authored period is read, so the `refreshIntervalSeconds` /
+    // `refreshInterval` transition is decided once for both surfaces rather
+    // than twice.
+    const { refreshing, handleRefresh } = useDashboardAutoRefresh(schema, onRefresh);
 
     // Dashboard-level filters (framework#2501). Filter values live as
     // dashboard variables — the outer DashboardRenderer mounts a
@@ -436,23 +443,6 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
       window.addEventListener('resize', checkMobile);
       return () => window.removeEventListener('resize', checkMobile);
     }, []);
-
-    const handleRefresh = useCallback(() => {
-      if (!onRefresh) return;
-      setRefreshing(true);
-      onRefresh();
-      // Reset refreshing indicator after a short delay
-      setTimeout(() => setRefreshing(false), 600);
-    }, [onRefresh]);
-
-    // Auto-refresh interval
-    useEffect(() => {
-      if (!schema.refreshInterval || schema.refreshInterval <= 0 || !onRefresh) return;
-      intervalRef.current = setInterval(handleRefresh, schema.refreshInterval * 1000);
-      return () => {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-      };
-    }, [schema.refreshInterval, onRefresh, handleRefresh]);
 
     const handleWidgetClick = useCallback((e: React.MouseEvent, widgetId: string | undefined) => {
       if (!designMode || !onWidgetClick || !widgetId) return;
