@@ -733,14 +733,24 @@ describe('objectui#7559 — a declared absence keeps its evidence', () => {
     }
   });
 
-  it('the control: a correct declared absence does not redden the census', () => {
-    // ⭐ The other half of the ablation. `fieldOrder` is a genuine, documented,
-    // card-owned absence (objectui#7516) and `tabs` is a genuine unread member;
-    // a census that failed on THESE would be noise, not a check, and the first
-    // person to see it red would delete it.
+  it('CONTROL: a correctly declared absence is not a finding', () => {
+    // ⭐ The other half of the ablation, and deliberately NOT a restatement of
+    // the property above: this case asserts only that a DECLARED absence stays
+    // out of the finding set, so it survives an ablation elsewhere in the
+    // literal. A control that reddens whenever anything else reddens says
+    // nothing — and the first person to see it red would delete it.
+    //
+    // `fieldOrder` is a real, card-owned, reader-having absence (objectui#7516)
+    // and `quickFilters` is the deliberate suppression the card itself named.
+    // Neither is a failure, and neither may become one.
+    const findings = MEMBERS.filter((m) => !RELAYED.includes(m) && !(m in ABSENCES));
     expect(MEMBERS).toContain('fieldOrder');
     expect(RELAYED).not.toContain('fieldOrder');
-    expect(MEMBERS.filter((m) => !RELAYED.includes(m) && !(m in ABSENCES))).toEqual([]);
+    expect(findings).not.toContain('fieldOrder');
+
+    expect(MEMBERS).not.toContain('quickFilters');
+    expect(WRITTEN_TOP).toContain('quickFilters');
+    expect(Object.keys(WRITE_EXCEPTIONS)).toContain('quickFilters');
   });
 });
 
