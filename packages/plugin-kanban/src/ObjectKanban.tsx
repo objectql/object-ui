@@ -626,7 +626,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             const colorClass = hexBadge
               ? hexBadge.className
               : getBadgeColorClasses(opt?.color, raw);
-            // objectui#8489 — decline to draw a badge there is no label for.
+            // objectui#8489 — decline to draw a badge with no label in it.
             // The loop's own `raw == null || raw === ''` guard lets an empty
             // array through, and this branch never reaches `getCellRenderer`,
             // so objectui#8481's rule for the shared renderers ("an empty
@@ -701,12 +701,12 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             const colorClass = hexBadge
               ? hexBadge.className
               : getBadgeColorClasses(option?.color, v);
-            // objectui#8489, same reasoning as the explicit branch above and
-            // for the same reason: this heuristic resolves its label the same
-            // way, so `[]` (or any value stringifying to nothing) reached the
+            // objectui#8489, on the reasoning spelled out at the explicit
+            // branch above: this heuristic resolves its label exactly the same
+            // way, so `[]` — or any value stringifying to nothing — reached the
             // push with an empty label and drew the same empty pill. Skipping
             // the push rather than breaking keeps the remaining badge fields
-            // eligible — an unlabelled one must not consume a badge slot.
+            // eligible: an unlabelled one must not consume a badge slot.
             if (label === '') continue;
             cardBadges.push({ label, colorClass, colorStyle: hexBadge?.style });
             if (cardBadges.length >= 2) break;
