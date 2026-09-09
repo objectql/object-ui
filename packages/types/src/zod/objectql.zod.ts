@@ -1272,7 +1272,11 @@ export const ObjectChartSchema = BaseSchema.extend({
     .describe('Segment drill config — @objectstack/spec ChartDrillDownSchema ({ enabled?, filter?, title?, target?: drawer | dialog | navigate, columns?, maxRows? }). Present = on; {} is enough. NOT the wider DrillDownConfig: a chart reads neither `mode` nor `report`.'),
   title: stripImportedDefaults(SpecI18nLabelSchema).optional()
     .describe('Chart heading, and the drill drawer heading fallback. @objectstack/spec I18nLabel — a plain string or an inline locale map, the union `normalizeChartSchema`’s `label()` resolves. Not a BaseSchema member.'),
-  compareTo: stripImportedDefaults(SpecDashboardWidgetSchema.shape.compareTo)
+  // Strip-then-slot, the objectui#7779 idiom `ObjectViewSchema` above uses:
+  // the boundary is applied to the whole imported schema and the slot is taken
+  // off the RESULT, so the crossing is visible to the objectui#8317 census in
+  // the position it reads (`stripImportedDefaults(<binding>)`).
+  compareTo: stripImportedDefaults(SpecDashboardWidgetSchema).shape.compareTo
     .describe('Period-over-period comparison directive, forwarded verbatim from the dashboard widget key of the same name — bound BY REFERENCE to `DashboardWidgetSchema.shape.compareTo` so the producer and this consumer cannot drift into two dialects.'),
 });
 
