@@ -82,6 +82,25 @@
  * ⛔ Do not fold these back into one wait, and ⛔ do not "fix" a future red here
  * with a longer timeout: the failure was never slowness, it was reading a
  * signal that does not carry the answer.
+ *
+ * ## ⚠️ The race described above was FIXED in the component (objectui#8666)
+ *
+ * Everything above stands as the record of why these waits are shaped the way
+ * they are, but one of its statements is no longer true of `ObjectTree`:
+ * expansion is no longer a `useState` mirror re-seeded from a `useEffect`, so
+ * the `loading → table:1rows → table:2rows` sequence it measures is now
+ * `loading → table:2rows` and the intermediate one-row commit does not happen.
+ * The new shape and both halves of its contract are pinned in
+ * `ObjectTree.expandedDerived-8666.test.tsx`.
+ *
+ * ⭐ NOTHING IN THIS FILE CHANGED FOR THAT, and the note exists to say why the
+ * absence of a change is deliberate. No assertion here was standing on the
+ * two-commit sequence: the positive arms wait FOR the descendant row, which is
+ * a condition on the settled forest and not on how many commits produced it, so
+ * they were green before objectui#8666 and are green after it. The reason to
+ * keep them as they are is the one the section above gives — the table's
+ * `data-testid` is a MOUNT signal and the rows are what this file counts, which
+ * stays true no matter how many commits the component takes to get there.
  */
 
 import React from 'react';
