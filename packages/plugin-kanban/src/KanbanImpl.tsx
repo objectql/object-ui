@@ -84,6 +84,40 @@ const UNCATEGORIZED_LANE = 'Uncategorized'
  */
 const SWIMLANE_SCROLL_ROW_ATTR = 'data-swimlane-scroll-row'
 
+/**
+ * The horizontal padding carried by EVERY row on the swimlane board's shared
+ * horizontal axis — the column-header row and each lane content row alike.
+ *
+ * It is one constant, used twice, because equal `scrollLeft` is only equal
+ * ALIGNMENT while the two kinds of row have the same scrollable RANGE, and the
+ * range is `scrollWidth - clientWidth` — which horizontal padding moves
+ * (objectui#8797). The rows carried different padding before this: the lane
+ * rows had `px-2`, the header row had none, so the lane rows' `scrollWidth` was
+ * 8px larger. objectui#8448's sync copies one `scrollLeft` onto every row, so
+ * driving a lane to its own maximum asked the header row for a position past
+ * ITS maximum, the header row CLAMPED, and every column title stopped tracking
+ * its column — permanently, until the user scrolled back.
+ *
+ * ⚠️ `pl-36 sm:pl-44` must stay AFTER `px-2`, and both must stay in this one
+ * string. Tailwind emits `pl-*` after `px-*`, so the indent wins the left side
+ * and `px-2`'s only live effect is the 8px on the RIGHT — measured, both rows
+ * read `padding-left: 176px` at `sm`. Splitting them across two class lists is
+ * what let them drift apart in the first place.
+ *
+ * Measured in Chromium 1194 at 1600x1000, five columns and six swimlanes, the
+ * axis driven through the real input pipeline with `mouse.wheel`:
+ *
+ *   before  header max scrollLeft 288, lane max 298 -> worst title/cell dx 9px
+ *   after   header max scrollLeft 296, lane max 298 -> worst title/cell dx 1px
+ *
+ * ⚠️ The residual 2px of range is NOT padding and cannot be closed from here:
+ * each lane row sits inside the lane's `border rounded-lg` wrapper, so its
+ * `clientWidth` is 1550 against the header row's 1552. That same 1px border is
+ * the 1px title/cell baseline objectui#7303 and objectui#8448 already record.
+ * Reported on objectui#8797 rather than compensated for with a magic offset.
+ */
+const SWIMLANE_AXIS_X_PADDING = 'px-2 pl-36 sm:pl-44'
+
 // `KanbanCard` / `KanbanColumn` have ONE authority in this package: `./types`
 // (objectui#6172 / #6155). This file used to redeclare both, and the copies had
 // drifted — the local `KanbanCard` carried `cardSubtitle` / `cardFieldCells` /
@@ -877,9 +911,13 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               a title's own centre returning the lane-collapse `<button>` behind
               it. Pinned by `__tests__/swimlaneColumnHeaderRow-7303.test.tsx`.
 
-              The `pl-36 sm:pl-44` indent is shared with the lane content rows
-              below and is what lines the titles up with their columns — it must
-              move on both rows or neither.
+              The horizontal padding is shared with the lane content rows
+              below, as the single `SWIMLANE_AXIS_X_PADDING` constant both class
+              lists interpolate — the `pl-36 sm:pl-44` half is what lines the
+              titles up with their columns, and the `px-2` half is what keeps
+              the two rows' scroll RANGES equal (objectui#8797). It must move on
+              both rows or neither, which is now a property of the source rather
+              than of two class lists agreeing by hand.
 
               `pt-3 sm:pt-4` is the region's former TOP padding, moved onto this
               row on purpose. A scroll container's padding is inside its
@@ -904,7 +942,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               a sticky box is still in flow — so `shrink-0` above stays exactly
               as load-bearing as objectui#7303's pin says it is. */}
           <div
-            className="flex shrink-0 gap-3 sm:gap-4 pl-36 sm:pl-44 pt-3 sm:pt-4 overflow-x-auto sticky top-0 z-10 bg-background"
+            className={`flex shrink-0 gap-3 sm:gap-4 ${SWIMLANE_AXIS_X_PADDING} pt-3 sm:pt-4 overflow-x-auto sticky top-0 z-10 bg-background`}
             ref={adoptSwimlaneScroll}
             onScroll={syncSwimlaneScroll}
             data-swimlane-scroll-row=""
@@ -943,7 +981,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
                 {/* Lane content */}
                 {!isCollapsed && (
                   <div
-                    className="flex gap-3 sm:gap-4 overflow-x-auto px-2 pb-3 pl-36 sm:pl-44"
+                    className={`flex gap-3 sm:gap-4 overflow-x-auto ${SWIMLANE_AXIS_X_PADDING} pb-3`}
                     ref={adoptSwimlaneScroll}
                     onScroll={syncSwimlaneScroll}
                     data-swimlane-scroll-row=""
