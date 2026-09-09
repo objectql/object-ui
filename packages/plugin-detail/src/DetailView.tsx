@@ -51,7 +51,10 @@ import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import type { DetailViewSchema, DataSource, ActionSchema, SchemaNode } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
 import { useRecordEditable } from './useRecordEditable';
+import { getCellRenderer, resolveCellRendererType, coerceToSafeValue } from '@object-ui/fields';
 import { hasCellValue } from './emptiness';
+import { enrichDetailField } from './fieldEnrichment';
+import { chipTakesCellRenderer } from './summaryChipRenderers';
 
 /** Default page size for related lists in the detail view */
 const DEFAULT_RELATED_PAGE_SIZE = 5;
@@ -1108,6 +1111,77 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   } catch {
                     /* fall back to String(val) */
                   }
+
+                  // ── The chip's STRING path cannot express an object ───────
+                  //
+                  // `String({…})` is the literal `[object Object]`, and it
+                  // reached the reader twice: as the chip's text beside the H1
+                  // and, because the accessible name is built from the same
+                  // string, as the chip's accessible name (objectui#8464).
+                  // Every branch above lands here too — `Number({})` is `NaN`,
+                  // `new Date({})` is Invalid, and the option lookup falls back
+                  // to `String(val)` — so the four formatted families are
+                  // caught by this one test rather than by four of their own.
+                  //
+                  // The test is the DEFECT'S OWN SIGNATURE, not a type guess:
+                  // it fires exactly where the placeholder was produced, so a
+                  // value the string path already renders (`['a','b']` →
+                  // `a,b`, every scalar) is byte-for-byte untouched.
+                  //
+                  // ⭐ Which side this chip is on was MEASURED, not argued.
+                  // objectui#8395 established on this page that "render what
+                  // the user sees" and "render the underlying value" give
+                  // different answers per kind. This chip already answers the
+                  // FIRST question for every family it formats — it prints
+                  // `$1,235` for a stored `1234.5`, `Mar 4, 2026` for
+                  // `'2026-03-04'`, `Closed Won` for `'won'` — so the display
+                  // authority is the field's own cell renderer, exactly as
+                  // `HeaderHighlight` reads it one band below.
+                  //
+                  // ⚠️ …but only where a pill can host it. A Badge is a much
+                  // smaller surface than a cell: 15 of the 53 registered types
+                  // draw a nested pill, an avatar composite, a bare `<img>`
+                  // with no text, or a "No value" face for a value
+                  // `hasCellValue` just called FILLED. Those kinds are named,
+                  // with the measurement, in `./summaryChipRenderers`, and they
+                  // take `coerceToSafeValue` — this package's single answer to
+                  // the same question, and byte-equal to what seven of them
+                  // print in their own cell (objectui#8596).
+                  const chipField = enrichDetailField(
+                    { name: fieldName, label: sectionField?.label, type: ftype || 'text' },
+                    objField,
+                  );
+                  const chipRendererType =
+                    resolveCellRendererType(chipField as any) || ftype || 'text';
+                  const ChipCellRenderer =
+                    display.includes('[object Object]') && chipTakesCellRenderer(chipRendererType)
+                      ? getCellRenderer(chipRendererType)
+                      : null;
+                  if (!ChipCellRenderer && display.includes('[object Object]')) {
+                    display = String(coerceToSafeValue(val) ?? '');
+                  }
+
+                  if (ChipCellRenderer) {
+                    return (
+                      <Badge
+                        key={fieldName}
+                        variant="secondary"
+                        className="text-xs bg-primary/10 text-primary border-transparent hover:bg-primary/15"
+                        data-summary-chip={fieldName}
+                      >
+                        {/* The chip carries no visible label, so the field name
+                            reached the reader only through the `aria-label`
+                            that the string branches below still set. A renderer
+                            draws an ELEMENT, and an `aria-label` would override
+                            it — hiding the very value this branch exists to
+                            show. Same accessible name, `field: value`, composed
+                            from content instead. */}
+                        <span className="sr-only">{`${fieldName}: `}</span>
+                        <ChipCellRenderer value={val} field={chipField as any} />
+                      </Badge>
+                    );
+                  }
+
                   if (percentValue !== null) {
                     return (
                       <Badge
@@ -1115,6 +1189,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                         variant="secondary"
                         className="text-xs bg-primary/10 text-primary border-transparent hover:bg-primary/15 gap-1.5 pl-2 pr-2"
                         aria-label={`${fieldName}: ${display}`}
+                        data-summary-chip={fieldName}
                       >
                         <span
                           className="relative inline-block h-1.5 w-12 rounded-full bg-primary/20 overflow-hidden"
@@ -1135,6 +1210,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                       variant="secondary"
                       className="text-xs bg-primary/10 text-primary border-transparent hover:bg-primary/15"
                       aria-label={`${fieldName}: ${display}`}
+                      data-summary-chip={fieldName}
                     >
                       {display}
                     </Badge>
