@@ -677,7 +677,7 @@ export const UNGATED_EXAMPLES = {
     reason:
       'usage fragment: references `MetadataCache`, `fetchSchemaFromServer`, which the example never declares',
   },
-  'packages/data-objectstack/src/index.ts:6323 createObjectStackAdapter': {
+  'packages/data-objectstack/src/index.ts:6562 createObjectStackAdapter': {
     card: null,
     codes: [2591],
     reason:
