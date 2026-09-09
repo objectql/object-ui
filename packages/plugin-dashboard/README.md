@@ -271,17 +271,19 @@ it has no row in the spec's expression carriage map, so a `${…}` written in
 read live data is one of the `object-*` types above — they resolve the spec's
 per-element `dataSource` binding and query the object themselves.
 
+**The adapter is not a schema key.** A schema is a serialisable document; a live
+adapter is an object with methods, so it cannot travel in one. An `object-*`
+widget reads its adapter from React context — `useContext(SchemaRendererContext)`
+at `src/ObjectMetricWidget.tsx:159`, with an explicit `dataSource` prop taking
+precedence when the host renders the widget directly.
+
+So the document stays plain data — every value in it survives `JSON.stringify`:
+
 ```typescript
-import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import type { DashboardComponentSchema } from '@object-ui/types';
 
-const dataSource = createObjectStackAdapter({
-  baseUrl: 'https://api.example.com',
-  token: 'your-auth-token'
-});
-
-const schema = {
+const schema: DashboardComponentSchema = {
   type: 'dashboard',
-  dataSource,
   widgets: [
     {
       type: 'metric-card',
@@ -292,6 +294,38 @@ const schema = {
   ]
 };
 ```
+
+The adapter is installed once, above the whole tree, and every `object-*` widget
+underneath reads it from context:
+
+```tsx
+import { SchemaRendererProvider, SchemaRenderer } from '@object-ui/react';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import '@object-ui/plugin-dashboard';
+import type { DashboardComponentSchema } from '@object-ui/types';
+
+// The document from the block above.
+declare const schema: DashboardComponentSchema;
+
+const dataSource = createObjectStackAdapter({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+export const App = () => (
+  <SchemaRendererProvider dataSource={dataSource}>
+    <SchemaRenderer schema={schema} />
+  </SchemaRendererProvider>
+);
+```
+
+> A `dataSource` key **does** mean something on a schema node, but it is not this:
+> it is the spec's element **binding** (`PageComponentSchema.dataSource`) — a
+> declarative descriptor such as `{ object: 'orders', view: 'my_view' }`, resolved
+> against the host and mapped onto the widget's own keys by the `object-*`
+> registry shells in `src/index.tsx`. It belongs on the widget that reads it, not
+> on the dashboard node, and a live adapter written into that slot wires nothing
+> up — it is a different kind of thing wearing the same name.
 
 ## Dashboard-level filters
 
