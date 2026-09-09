@@ -19,9 +19,22 @@ The datetime arm now selects a formatter instead of threading one, so both arms
 honour the same two words and nothing else:
 
 - `'relative'` resolves through `formatRelativeDate`, the same function the date arm
-  reaches, so the same calendar day reads the same phrase for either field type. Its
-  ±7-day fallback is inherited rather than re-decided at the call site: beyond that
-  window both arms render the absolute face, which is unchanged behaviour.
+  reaches, so the same calendar day reads the same phrase for either field type. The
+  ±7-day window and its fallback belong to that function and are inherited here, not
+  re-decided at the call site. ⚠️ **Beyond ±7 days both arms render an absolute face,
+  and on the datetime arm that face changed:** it is now the DATE face (`Oct 19`)
+  where before this fix it was the DATETIME face (`Oct 19, 2026, 09:30 AM`) — the
+  time of day is gone. `formatRelativeDate`'s out-of-window branch calls
+  `formatDate(date, undefined, …)`, which renders through `toLocaleDateString` and
+  has no time component to add. That is the intended shape rather than a rough edge:
+  `'relative'` is day-granular by construction — it shows no time inside the window
+  either — so its degraded form is a day face on both arms, and any other fallback
+  would make the two arms unequal again, which is the defect this release fixes. Note
+  what the delta is and is not: before this fix the datetime arm ignored `format`
+  outright, so nothing was taken away from a working feature — the arm started
+  honouring a request whose granularity is days. It reaches only a measure whose
+  author actually wrote `format: 'relative'`; an unstyled datetime measure, or one
+  asking for any other style, renders exactly as it did.
 - `'short'` resolves to the dense narrow-card face of the value's own type —
   `formatDateTime`'s `'compact'` for a datetime, which keeps the time of day and is
   byte-identical to what every `datetime` grid cell already paints.
