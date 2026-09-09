@@ -83,6 +83,7 @@ import { CalendarConfigSchema, ComponentPropsMap } from '@objectstack/spec/ui';
 
 import { ObjectCalendarSchema, safeValidateSchema } from '../zod/index.zod';
 import type { ObjectCalendarSchema as TsObjectCalendarSchema } from '../objectql';
+import type { CalendarViewSchema as TsCalendarViewSchema } from '../complex';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '..', '..', '..', '..');
@@ -137,6 +138,21 @@ export type _AllDayFieldIsOptional = Expect<IsOptional<TsObjectCalendarSchema, '
 export type _ControlKeyFallsThrough = Expect<IsAny<TsObjectCalendarSchema['swatchField']>>;
 // objectui#7927's ceiling, pinned rather than claimed away.
 export type _MisspellingStillAdmitted = Expect<IsAny<TsObjectCalendarSchema['colourField']>>;
+
+// The SIBLING element, drawn by the same renderer, already declares all five.
+// A member that fell back to the index signature reads as `any` and fails these,
+// so these five lines are what would catch the two interfaces forking again.
+type Declared<T, K extends keyof T> = Equal<IsAny<T[K]>, false>;
+const siblingPins: [
+  Expect<Declared<TsCalendarViewSchema, 'titleField'>>,
+  Expect<Declared<TsCalendarViewSchema, 'startDateField'>>,
+  Expect<Declared<TsCalendarViewSchema, 'endDateField'>>,
+  Expect<Declared<TsCalendarViewSchema, 'allDayField'>>,
+  Expect<Declared<TsCalendarViewSchema, 'colorField'>>,
+] = [true, true, true, true, true];
+// Control: the same instrument returns the OPPOSITE verdict for a key the
+// sibling does not declare either, so the five above are readings.
+export type _SiblingControlFallsThrough = Expect<IsAny<TsCalendarViewSchema['swatchField']>>;
 
 // The TS face ACCEPTS the documented shape…
 const calendarLiteral: TsObjectCalendarSchema = {
@@ -257,6 +273,35 @@ describe('objectui#8466 — the spec refuses ALL FIVE flat keys, which is why de
     }
     // Firing control: the same parse with a declared member is green.
     expect(CalendarConfigSchema.safeParse({ startDateField: 's', colorField: 'c' }).success).toBe(true);
+  });
+});
+
+/* ── The sibling element: one renderer, two interfaces, one flat vocabulary ── */
+
+describe('objectui#8466 — `calendar-view` already declared all five, and the two must not fork', () => {
+  it('ONE renderer serves both `object-calendar` and `calendar`', () => {
+    // `ObjectCalendarRenderer` is registered twice. That is what makes a fork
+    // between the two interfaces a real defect rather than a tidiness point:
+    // the same `getCalendarConfig` reads the same five keys off both.
+    const src = readRepo(CALENDAR_REGISTRATION);
+    expect(src).toContain("ComponentRegistry.register('object-calendar', ObjectCalendarRenderer");
+    expect(src).toContain("ComponentRegistry.register('calendar', ObjectCalendarRenderer");
+  });
+
+  it('the sibling `CalendarViewSchema` declares all five — including the two this card adds', () => {
+    // Measured, and the reason declaring `allDayField` is not a new precedent:
+    // this package has ALREADY shipped it declared on a published interface, on
+    // the element the same renderer draws. `ObjectCalendarSchema` was the odd
+    // one out, not the pioneer.
+    const declaredOnSibling: Record<(typeof FLAT_KEYS)[number], true> = {
+      titleField: true,
+      startDateField: true,
+      endDateField: true,
+      allDayField: true,
+      colorField: true,
+    };
+    expect(Object.keys(declaredOnSibling).sort()).toEqual([...FLAT_KEYS].sort());
+    expect(siblingPins).toHaveLength(5);
   });
 });
 

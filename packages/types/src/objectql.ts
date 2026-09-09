@@ -2810,6 +2810,12 @@ export interface ObjectCalendarSchema extends BaseSchema {
    * DECLARED for releases. The flat face is objectui's own lane, taken whole;
    * this key is its fifth member, not a new dialect. And under `BaseSchema`'s
    * index signature the value was already `any`, so declaring only NARROWS.
+   *
+   * ⭐ Nor is it a new precedent: {@link CalendarViewSchema} — the sibling
+   * `calendar-view` element, drawn by the SAME renderer (`plugin-calendar`
+   * registers `ObjectCalendarRenderer` under both type names) — has shipped all
+   * five of these keys declared, `allDayField` included. This interface was the
+   * odd one out, not the pioneer, and the pin keeps the two from forking.
    */
   allDayField?: string;
   /**
