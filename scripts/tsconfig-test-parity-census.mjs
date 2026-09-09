@@ -75,6 +75,7 @@ import { join, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { globSync } from 'node:fs';
 import ts from 'typescript';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_ROOT = join(HERE, '..');
@@ -258,6 +259,6 @@ export function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }
