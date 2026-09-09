@@ -1153,11 +1153,12 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   );
                   const chipRendererType =
                     resolveCellRendererType(chipField as any) || ftype || 'text';
+                  const stringPathFailed = display.includes('[object Object]');
                   const ChipCellRenderer =
-                    display.includes('[object Object]') && chipTakesCellRenderer(chipRendererType)
+                    stringPathFailed && chipTakesCellRenderer(chipRendererType)
                       ? getCellRenderer(chipRendererType)
                       : null;
-                  if (!ChipCellRenderer && display.includes('[object Object]')) {
+                  if (stringPathFailed && !ChipCellRenderer) {
                     display = String(coerceToSafeValue(val) ?? '');
                   }
 
