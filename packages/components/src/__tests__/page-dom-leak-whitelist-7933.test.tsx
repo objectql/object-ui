@@ -25,13 +25,19 @@
  *     data-obj-type="page"
  *     actions="[object Object],[object Object]"      <- the defect
  *
- * `actions` is declared nowhere on `PageNodeSchema` (it survives parse only
- * through `BaseSchema`'s `.passthrough()`) and `PageRenderer` has zero read
- * points for it, so it was neither read nor dropped. Whether `page` should
- * ever GROW an `actions` read point is a separate, open capability question
- * (objectui#7926); this pin is orthogonal to it, because an authored key must
- * end up either read or dropped under EITHER answer, and never as an illegal
- * HTML attribute.
+ * When this pin was written, `actions` was declared nowhere on `PageNodeSchema`
+ * (it survived parse only through `BaseSchema`'s `.passthrough()`) and
+ * `PageRenderer` had zero read points for it, so it was neither read nor
+ * dropped. That capability question has since been ANSWERED: objectui#7926 was
+ * ruled 2026-09-09 (decision batch #107 item 2, option A) — `page` grows NO
+ * `actions` reader, and `PageNodeSchema` now REFUSES the key by name
+ * (`packages/types/src/__tests__/page-actions-refusal-7926.test.ts`).
+ *
+ * ⭐ This pin is unchanged by that, and deliberately so: it renders rather than
+ * parses, so it still measures the DOM outcome for a document the validator now
+ * rejects — which is the case that matters, because a host can hand
+ * `SchemaRenderer` a node that never went through `safeParse`. An authored key
+ * must end up either read or dropped, and never as an illegal HTML attribute.
  *
  * ## Why this is a whitelist and not a longer list
  *

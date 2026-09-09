@@ -439,12 +439,71 @@ const SpecPageFields = specFieldsExcept(stripImportedDefaults(SpecPageSchema).sh
 ] as const);
 
 /**
+ * The `actions` REFUSAL on the `page` node (objectui#7926, maintainer ruling
+ * 2026-09-09, decision batch #107 item 2 — option A).
+ *
+ * ## What was measured
+ *
+ * `PageNodeSchema` never declared `actions`, and `PageRenderer` never read it:
+ * `git grep -ni action packages/components/src/renderers/layout/page.tsx`
+ * returns only the `PageVariableActionBridge` import and its render, with
+ * `schema.title` / `schema.pageType` (3 hits in the same file) as the lit
+ * control. Rendered through the real `SchemaRenderer`, a `page` node carrying
+ * `actions: [{type:'button',label:'Add Product'}, …]` drew **0** buttons and
+ * the label appeared nowhere in the DOM; the SAME two buttons moved into
+ * `body` drew **2**.
+ *
+ * `BaseSchema` is `.passthrough()`, so the array was not refused — it was KEPT,
+ * and until objectui#7933 it was spread onto the wrapper element as
+ * `actions="[object Object],[object Object]"`. That half is closed (`toDomProps`,
+ * `page.tsx:521`), which leaves the silent half: an author writes a key, the
+ * validator says yes, and nothing draws.
+ *
+ * ## Why a REFUSAL rather than a reader
+ *
+ * This was the THIRD surface carrying an `actions` array no reader consumes
+ * (objectui#7469 — the app node; objectui#7693 — the alert-dialog fixtures),
+ * and the authorable action FORM was already ruled on 2026-08-25 for
+ * objectui#6497 / #6182 (option A: the declarative action object). Growing a
+ * reader here would have minted a FOURTH `actions` shape, so the ruling pulls
+ * the node back to its declared contract instead.
+ *
+ * ⛔ NOT `.strict()` on the node, and that is the census talking rather than
+ * taste. Measured over this tree before the refusal was written: 91 authored
+ * `page`-tagged objects, 8 sites the census could not read (7 elided doc fences
+ * plus one literal carrying a spread), and the undeclared keys that survive
+ * passthrough on a real `page` NODE are exactly `actions` (3 sites, all of them
+ * the `content/docs/guide/layout.md` passages this card rewrites) and
+ * `breadcrumbs` (1 site, its own question — objectui#7926 does not rule on it).
+ * Every other undeclared key the grep found sits on a DIFFERENT declaration
+ * that merely spells `type: 'page'` — nav items (`pageName`, `href`, `badge`,
+ * `labelKey`, `requiredPermissions`), `registerMetadataResource` rows
+ * (`domain`, `listColumns`, `anchors`, `create*`) and spec `page` LIST VIEWS
+ * (`pageName` + empty `columns`) — none of which this schema parses. And
+ * `page-app-dashboard-spec-parity.test.ts` PINS the node staying open
+ * ("the component envelope still passes unknown renderer props through"), so a
+ * strict node would have taken a living pin with it. One key, by name.
+ *
+ * Same helper and the same reasoning as `MenuItemSchema.type`
+ * (`./overlay.zod.ts`, objectui#6523): a spelling the type never declared,
+ * turned into a named refusal that carries the remedy.
+ */
+const PAGE_ACTIONS_REFUSAL =
+  '`actions` is not a key of the `page` node and never was (objectui#7926): no renderer ' +
+  'reads it, so an authored array drew nothing and rode `.passthrough()` onto the wrapper ' +
+  'element. Author the buttons as NODES in `body` (a `button` node, or an `action:button` ' +
+  'node with a declared `actionType`); on a record page declare them on a `page:header` ' +
+  'block instead, whose own `actions` are ACTION IDS resolved from the object metadata ' +
+  '(objectui#7182), not nodes.';
+
+/**
  * Page Schema — top-level page layout, derived from `@objectstack/spec/ui`
  * `PageSchema` (see {@link SpecPageFields}). The drift guard is
  * `__tests__/page-app-dashboard-spec-parity.test.ts`.
  */
 export const PageNodeSchema = BaseSchema.extend(SpecPageFields.shape).extend({
   type: z.literal('page'),
+  actions: retirementTombstone(PAGE_ACTIONS_REFUSAL),
   title: z.string().optional().describe('Page title'),
   icon: z.string().optional().describe('Page icon (Lucide icon name)'),
   description: z.string().optional().describe('Page description'),

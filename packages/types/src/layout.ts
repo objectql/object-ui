@@ -747,6 +747,28 @@ export interface PageNodeRegion {
 export interface PageNodeSchema extends BaseSchema {
   type: 'page';
   /**
+   * ⛔ REFUSED BY NAME — `actions` is not a member of this node and never was
+   * (objectui#7926, maintainer ruling 2026-09-09, decision batch #107 item 2).
+   *
+   * `PageRenderer` has no read point for it: a `page` node carrying
+   * `actions: [{type:'button',label:'Add Product'}, …]` drew 0 buttons through
+   * the real `SchemaRenderer`, while the SAME two buttons in {@link body} drew
+   * 2. `BaseSchema` is `.passthrough()`, so the array was not dropped — it was
+   * kept, and before objectui#7933 it reached the DOM as
+   * `actions="[object Object],[object Object]"`.
+   *
+   * The remedy is a NODE, not a key: put a `button` (or an `action:button` with
+   * a declared `actionType`) in {@link body}; on a record page declare them on a
+   * `page:header` block, whose own `actions` are ACTION IDS resolved from the
+   * object's metadata (objectui#7182) rather than nodes.
+   *
+   * `?: never` is the twin of `layout.zod.ts`'s `retirementTombstone` arm — the
+   * pair is what `__tests__/zod-mirror-parity.test.ts` compares, and it is what
+   * makes `tsc` refuse the key at the authoring site before anything runs.
+   * ⛔ Do not "restore" it as a reader: that is option B, and it was refused.
+   */
+  actions?: never;
+  /**
    * Page title
    */
   title?: string;
