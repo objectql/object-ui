@@ -113,7 +113,7 @@ import {
   resolveFieldRuleState,
   type FieldRulePredicate,
 } from '@object-ui/core';
-import { omitServerResolvedDefaults } from '@object-ui/plugin-form';
+import { omitServerResolvedDefaults, resolveSectionGroupReferences } from '@object-ui/plugin-form';
 import { usePredicateScope } from '@object-ui/react';
 import type { FormFieldSpec, FormSectionSpec, FormViewSpec } from '@object-ui/app-shell';
 import { resolveSubmitRedirect } from './submitRedirect';
@@ -133,11 +133,32 @@ interface ObjectSchemaPayload {
   name: string;
   label?: string;
   fields: Record<string, ObjectFieldDef>;
+  /**
+   * The object's declared field groups (ADR-0085 §5), carried so a form
+   * section may REFERENCE one instead of enumerating members (objectui#8641).
+   *
+   * Untyped on purpose: this key is never read HERE. It travels straight to
+   * `resolveSectionGroupReferences`, whose derivation
+   * (`deriveFieldGroupLayout`) owns what a `fieldGroups` entry may say — and
+   * `@objectstack/spec` owns THAT. Restating the entry shape in this app would
+   * put a second description of one contract in the place least likely to be
+   * updated when the contract moves.
+   */
+  fieldGroups?: unknown;
 }
 
 interface ObjectFieldDef {
   type: string;
   label?: string;
+  /**
+   * Which declared `fieldGroups` entry this field belongs to (ADR-0085 §5).
+   *
+   * Membership is the ONLY input the group derivation needs per field, and
+   * this app never reads the key itself — see {@link ObjectSchemaPayload.fieldGroups}.
+   * Declared so the group half of the object schema is describable rather than
+   * smuggled through as an untyped bag (objectui#8641).
+   */
+  group?: string;
   required?: boolean;
   defaultValue?: unknown;
   maxLength?: number;
@@ -502,8 +523,49 @@ export function buildSections(
   form: FormViewSpec,
   objectSchema: ObjectSchemaPayload | null,
 ): RenderableSection[] {
-  const sections = form.sections ?? form.groups ?? [];
   const objFields = objectSchema?.fields ?? {};
+  /**
+   * A section may declare its members EITHER way (objectui#8641): enumerate
+   * `fields`, or point `group` at one of the object's declared `fieldGroups`
+   * (`@objectstack/spec` 17.3.0, objectstack#13855, ADR-0085 §5). The loop
+   * below reads `sec.fields ?? []` and `sec.label`, and a `{ group }` section
+   * carries neither — measured in the DOM on both routes before this call
+   * existed: an empty bordered card, no heading, zero inputs, no diagnostic.
+   *
+   * ⛔ Nothing about the assembly is decided here. Declared order, the
+   * empty-group drop, the ungrouped trailing bucket and the collapse /
+   * `visibleWhen` passthrough all come from `deriveFieldGroupLayout` through
+   * `@object-ui/plugin-form`'s ONE adapter onto the section shape — the same
+   * code path `ObjectForm` resolves through, published for this call site
+   * (objectui#7051's standing constraint, and the reason this is an import
+   * rather than a second reader of the derivation). A group authored by
+   * reference renders the same section in this app and in the plugin because
+   * one of them IS the other's code path.
+   *
+   * `formType` is forwarded so a shape `@objectstack/spec` REFUSES gets the
+   * same answer here as there: `group` on a `formType: 'wizard'` section
+   * renders nothing and says why, rather than this renderer honouring what the
+   * spec door declines to accept.
+   *
+   * `resolvable` is left at its default. This builder only ever runs after the
+   * load settled, so a null `objectSchema` means the object metadata is
+   * genuinely absent — a failure the load path owns — and reporting a dangling
+   * group reference for it would be a second, wrong diagnosis of one failure.
+   */
+  const authored = form.sections ?? form.groups ?? [];
+  const sections = (resolveSectionGroupReferences(
+    // Two packages describing ONE authored document: `FormSectionSpec` is the
+    // app-shell authoring type this app reads, `ObjectFormSection` the plugin's
+    // name for the same section. The parameter type is taken FROM the published
+    // signature rather than restated, so a change to it lands here as a compile
+    // error instead of a silent mismatch.
+    authored as unknown as NonNullable<Parameters<typeof resolveSectionGroupReferences>[0]>,
+    {
+      objectName: objectSchema?.name ?? '',
+      formType: form.type,
+      objectDef: objectSchema,
+    },
+  ) ?? []) as unknown as FormSectionSpec[];
   return sections.map((sec) => {
     const cols = normalizeColumns(sec.columns);
     const fields: RenderableField[] = [];
@@ -1244,6 +1306,13 @@ async function loadInternalForm(
           name: objSpec.name ?? objectName,
           label: objSpec.label,
           fields: objSpec.fields,
+          // Copied because this rebuild is key by key: a key it does not copy
+          // is gone before `buildSections` can see it, which is exactly how a
+          // `{ group }` section reached the builder with nothing to resolve
+          // against (objectui#8641). The public `/f/:slug` payload needs no
+          // such line — `loadPublicForm` forwards the server's `objectSchema`
+          // object whole.
+          fieldGroups: objSpec.fieldGroups,
         };
       }
     }
