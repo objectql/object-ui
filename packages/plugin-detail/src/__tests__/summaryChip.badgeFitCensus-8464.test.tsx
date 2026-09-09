@@ -273,6 +273,15 @@ describe('objectui#8464 — the Badge-fit census: A is not free, and here is whi
       await settle();
       const chip = container.firstElementChild as HTMLElement;
       expect((chip.textContent ?? '').trim().length, `${type}: draws text`).toBeGreaterThan(0);
+      // ⭐ The discriminating half. "Every kind draws the shared No-value glyph"
+      // satisfies every other assertion in this case — it has text (`—`), no
+      // pill, no image, no control — and it is exactly the mutation that makes
+      // the renderer answer the same thing for everything. Observed red under
+      // it; the two assertions around it are not.
+      expect(
+        chip.querySelectorAll('[data-slot="empty-value"]').length,
+        `${type}: a FITTING kind draws its value, never the "No value" affordance`,
+      ).toBe(0);
       expect(nestedPills(chip).length, `${type}: no nested pill`).toBe(0);
       expect(chip.querySelectorAll('img').length, `${type}: no image`).toBe(0);
       expect(
