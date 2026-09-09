@@ -148,6 +148,15 @@ export function mergeIdentityBatchResults(
   };
 }
 
+/**
+ * The one capability identity import forwards off the base adapter's PROTOTYPE.
+ * Shaped to match the wizard's own probe (`plugin-grid/src/ImportWizard.tsx`),
+ * so what is forwarded here is exactly what the feature detection reads.
+ */
+type ImportMappingsCapableBase = {
+  listImportMappings?: (objectName: string) => Promise<unknown[]>;
+};
+
 export interface IdentityImportDataSourceOptions {
   /** The regular dataSource — reads (and everything else) pass through. */
   base: unknown;
@@ -166,6 +175,9 @@ export interface IdentityImportDataSourceOptions {
  * synchronous-only server-side (batching happens here instead) and undo would
  * mean bulk-deleting users — the wizard feature-detects these methods, so
  * clearing them cleanly hides the corresponding UI.
+ *
+ * Saved import mappings are the one capability that goes the OTHER way: they
+ * are offered here, and are forwarded explicitly for that reason (objectui#7740).
  */
 export function createIdentityImportDataSource(opts: IdentityImportDataSourceOptions): unknown {
   const { base, authFetch, baseUrl, getPasswordPolicy } = opts;
@@ -218,6 +230,12 @@ export function createIdentityImportDataSource(opts: IdentityImportDataSourceOpt
 
   // Spread first, then null the surfaces identity import must not offer —
   // a plain spread would copy the generic job/undo methods along.
+  //
+  // The spread copies OWN enumerable properties only. When `base` is a class
+  // instance — `ObjectStackAdapter` is — everything declared in its class body
+  // lives on the PROTOTYPE and does not come across, so a capability the wizard
+  // feature-detects can go missing here without anyone having expressed that.
+  // Anything this wrapper means to offer off such a base has to say so.
   return {
     ...(base as Record<string, unknown>),
     importRecords,
@@ -227,6 +245,19 @@ export function createIdentityImportDataSource(opts: IdentityImportDataSourceOpt
     listImportJobs: undefined,
     cancelImportJob: undefined,
     undoImportJob: undefined,
+    // Saved mappings ARE offered for identity import — director-seat ruling,
+    // decision batch #68 (objectui#7740, comment 5565349507; ledger on
+    // objectstack#12708). Importing users benefits from saved field mappings
+    // exactly as any other object does, and `importRecords` above already
+    // forwards `mappingName` to a server that honours it — before this line
+    // that forward was unreachable, because the selector that sets it could
+    // never render.
+    //
+    // Forwarded as this one method rather than by widening the spread: widening
+    // it would drag in every prototype method of the base adapter without a
+    // census. `?.` keeps a base that lacks the method from gaining one, so the
+    // six lines above and this one all say exactly what they mean.
+    listImportMappings: (base as ImportMappingsCapableBase).listImportMappings?.bind(base),
   };
 }
 
