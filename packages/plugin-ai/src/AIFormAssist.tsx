@@ -21,14 +21,23 @@ export interface AIFormAssistProps {
 
 /**
  * AIFormAssist - AI-powered form filling assistant
- * Provides intelligent field suggestions based on context and historical data.
+ *
+ * Renders the `suggestions` it is handed and reports the author's decisions
+ * through `onApply`; it generates nothing and fetches nothing. The whole read
+ * surface is the destructure below — `suggestions`, `showConfidence`,
+ * `showReasoning`.
+ *
+ * `autoFill` used to be destructured here with a default and never referenced
+ * again, so nothing was ever filled automatically. It is retired along with
+ * `formId`, `objectName` and `fields` (objectui#8178, ADR-0049, director
+ * decision batch #78) and is a `?: never` tombstone on `AIFormAssistSchema`.
+ * Applying a suggestion is the author's act, through `onApply`.
  */
 export const AIFormAssist: React.FC<AIFormAssistProps> = ({ schema, onApply, onRefresh }) => {
   const {
     suggestions: initialSuggestions = [],
     showConfidence = true,
     showReasoning = false,
-    autoFill = false,
   } = schema;
 
   const [suggestions, setSuggestions] = useState<AIFieldSuggestion[]>(initialSuggestions);
