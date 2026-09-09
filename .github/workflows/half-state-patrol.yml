@@ -129,14 +129,39 @@ name: Half-State Patrol
 # that at length (a half-state is a fact about a live shared board, not about
 # whichever PR happens to run CI next).
 #
-# The job DOES fail when the sweep could not run, or when its report could not be
-# delivered. That is not a gate on the board; it is the patrol reporting its own
-# death. A workflow that quietly does nothing because a credential lapsed is the
-# exact shape this repo keeps having to fix (#4449, #9575), and it is doubly
-# unacceptable here: silent non-delivery would leave a stale anchor body that
-# reads exactly like a clean board — the #4690 failure ("could not read the input"
-# must never look like "input is clean") with a timestamp on it. Failing costs
-# nobody a PR: this workflow gates no branch and blocks no queue.
+# The job DOES fail when the sweep could not run, or when a CONFIGURED anchor
+# could not be written. That is not a gate on the board; it is the patrol
+# reporting its own death. A workflow that quietly does nothing because a
+# credential lapsed is the exact shape this repo keeps having to fix (#4449,
+# #9575), and it is doubly unacceptable here: silent non-delivery would leave a
+# stale anchor body that reads exactly like a clean board — the #4690 failure
+# ("could not read the input" must never look like "input is clean") with a
+# timestamp on it. Failing costs nobody a PR: this workflow gates no branch and
+# blocks no queue.
+#
+# ## NO anchor configured is a SUPPORTED configuration (objectui#8740)
+#
+# The one case deliberately carved out of the paragraph above: an install where
+# the anchor variable is UNSET delivers to the run summary, emits a `::notice::`
+# naming the variable, and exits 0. It is not a failure because there is nothing
+# to fix — this is a settled configuration here, not a lapse. objectui's
+# maintainer closed objectui#7852 and #5986 (「7852 太麻烦，直接关闭」), so the
+# anchor setup will not happen in this install, and the previous behaviour left
+# a scheduled job red four times a day forever. objectui#6596 ruled on exactly
+# that shape: A CHECK RED ON THE HEALTHY CASE TRAINS EVERYONE TO IGNORE RED —
+# permanent red is the larger defect, and it costs the sibling install its alarm
+# too, because a lane where every run is red carries no signal when a real one
+# goes red.
+#
+# ⛔ The carve-out is EMPTY-ONLY and does not widen. A configured anchor that is
+# malformed, missing, or refuses the write still fails loudly (see the "Resolve
+# the anchor" step and the guarded write below): "nobody asked for delivery" and
+# "delivery was asked for and failed" are opposite facts and must not share an
+# exit code. The ACCEPTED COST of the empty branch is written down rather than
+# discovered later: findings then live only in run summaries, which notify
+# nobody — objectui#5791 measured what that costs on this board (7 blocks whose
+# blocker had already closed, 58% of the machine-readable blocks false, one for
+# a week).
 #
 # ## Adopting this in a sibling repo (#11217)
 #
@@ -151,9 +176,12 @@ name: Half-State Patrol
 # To adopt, in the sibling repo:
 #
 #   1. copy `scripts/pm/check-half-states.mjs` and this file, unchanged;
-#   2. open one `tracking`-labeled anchor issue there and set the repository
-#      VARIABLE `HALF_STATE_ANCHOR_ISSUE` to its number
-#      (Settings → Secrets and variables → Actions → Variables).
+#   2. OPTIONAL since objectui#8740 — open one `tracking`-labeled anchor issue
+#      there and set the repository VARIABLE `HALF_STATE_ANCHOR_ISSUE` to its
+#      number (Settings → Secrets and variables → Actions → Variables). Skip it
+#      and the install still sweeps and still reports, into each run's summary
+#      only; the trade is stated under "NO anchor configured" above and it is a
+#      real one — a summary notifies nobody.
 #
 # That is the whole install. The swept repo needs no configuration at all: it is
 # `github.repository`, so the copy reads the board it lives in — a hardcoded
@@ -217,9 +245,11 @@ env:
   # input this file takes (#11217).
   #
   # Resolution: the repository variable `HALF_STATE_ANCHOR_ISSUE` if set, else
-  # this repo's own pinned number, else EMPTY — and empty makes the job refuse
-  # to write rather than guess (see the "Resolve the anchor" step). The literal
-  # is guarded by the repository name on purpose: an unguarded fallback is what
+  # this repo's own pinned number, else EMPTY — and empty makes the job report
+  # to the run summary instead of guessing a number, without failing (see the
+  # "Resolve the anchor" step). ⛔ Empty is the ONLY branch that does not fail;
+  # a number that is present and unusable still does. The literal is guarded by
+  # the repository name on purpose: an unguarded fallback is what
   # would let a verbatim copy in objectui rewrite ITS #9857 — some unrelated
   # card — with this board's findings, silently and four times a day. A number
   # is only ever meaningful in the repo it was minted in.
@@ -227,7 +257,8 @@ env:
   # TO ROTATE (here): open a new `tracking`-labeled issue, put its number below,
   # and note the handover in the OLD issue's body before closing it (its edit
   # history is the archive and does not travel).
-  # TO ADOPT (a sibling repo): change NOTHING here — set the repository variable.
+  # TO ADOPT (a sibling repo): change NOTHING here — set the repository variable,
+  # or set nothing and read the run summaries (objectui#8740).
   #
   # The anchor deliberately carries `tracking` and NO `domain:*` label: `tracking`
   # is in the sweeper's own H13_EXEMPT_LABELS, so the anchor can never appear as a
@@ -298,31 +329,57 @@ jobs:
           cat "$RUNNER_TEMP/report.err" >&2 || true
 
       - name: Resolve the anchor issue
-        # An install with no anchor configured has nowhere to land its report,
-        # and the ONLY safe behaviour is to say so loudly (#11217). The two
-        # alternatives are both the failure this file exists to prevent:
-        # guessing a number would rewrite an unrelated card in this repo, and
-        # skipping the write quietly would leave a patrol that runs, finds, and
-        # tells nobody — indistinguishable from a clean board.
+        # This step decides, ONCE, whether this install delivers to an anchor,
+        # and publishes that decision as `configured` for the steps below. ⛔ Do
+        # not re-derive emptiness anywhere else in this file: two spellings of
+        # "no anchor" drift, and the pair that matters here would drift into a
+        # run that reports "not configured" and then PATCHes issue 0.
+        #
+        # Three outcomes, and the distinction between the first two is the whole
+        # of objectui#8740:
+        #
+        #   EMPTY  — nobody asked for anchor delivery. `::notice::`, `exit 0`,
+        #            and the rendered body reaches the run summary below. Not a
+        #            failure: the maintainer declined the anchor setup here
+        #            (objectui#7852 closed 「太麻烦」), so a red run every six
+        #            hours would report a settled configuration as a defect, and
+        #            objectui#6596 already ruled that a check red on the healthy
+        #            case trains everyone to ignore red.
+        #   BAD    — an anchor WAS configured and cannot be used (non-numeric).
+        #            `::error::` and `exit 1`, unchanged. Delivery was asked for
+        #            and did not happen; that is the patrol reporting its own
+        #            death and it must never share an exit code with the branch
+        #            above. ⛔ objectui#8740 does not widen into "the anchor step
+        #            never fails".
+        #   NUMBER — deliver, and let the write's own failure fail the run.
         #
         # Placed AFTER the sweep so the run summary still carries the rendered
         # findings (the same "land the truth, then raise the alarm" order the
         # final step keeps), and skipped on a pull_request run, which never
         # writes an anchor at all.
+        id: anchor
         if: github.event_name != 'pull_request'
         run: |
           if [ -z "${ANCHOR_ISSUE//[[:space:]]/}" ]; then
-            echo "::error::No anchor issue configured for ${{ github.repository }}. The sweep RAN (see the run summary) but has nowhere to land. Open a \`tracking\`-labeled anchor issue in this repo and set the repository variable HALF_STATE_ANCHOR_ISSUE to its number (Settings -> Secrets and variables -> Actions -> Variables)."
-            exit 1
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No anchor issue configured for ${{ github.repository }}, which is a supported configuration here (objectui#8740). The sweep RAN and its rendered body is in this run's summary; nothing was written to any issue and this run is NOT a failure. To deliver findings to a pinned issue instead, open a \`tracking\`-labeled anchor issue in this repo and set the repository variable HALF_STATE_ANCHOR_ISSUE to its number (Settings -> Secrets and variables -> Actions -> Variables)."
+            exit 0
           fi
           case "$ANCHOR_ISSUE" in
             *[!0-9]*|'') echo "::error::HALF_STATE_ANCHOR_ISSUE is '$ANCHOR_ISSUE', which is not an issue number."; exit 1 ;;
           esac
+          echo "configured=true" >> "$GITHUB_OUTPUT"
           echo "anchor: #$ANCHOR_ISSUE in ${{ github.repository }}"
 
       - name: Update the pinned anchor issue
-        # A pull_request run proves the sweep; it must not touch the board.
-        if: github.event_name != 'pull_request'
+        # A pull_request run proves the sweep; it must not touch the board. And
+        # an install with no anchor has no board write to attempt at all: the
+        # guard reads the resolve step's OUTPUT rather than testing
+        # `env.ANCHOR_ISSUE` again, so this step runs exactly when that step
+        # decided delivery was asked for. Tested against `env.ANCHOR_ISSUE != ''`
+        # this would disagree with the resolve step on a whitespace-only value
+        # and PATCH `Number(' ')` = issue 0 (objectui#8740).
+        if: github.event_name != 'pull_request' && steps.anchor.outputs.configured == 'true'
         uses: actions/github-script@v9
         env:
           SWEEP_EXIT: ${{ steps.sweep.outputs.exit_code }}
@@ -397,6 +454,12 @@ jobs:
             echo
             if [ "${{ github.event_name }}" = "pull_request" ]; then
               echo "_Anchor write skipped: a pull_request run proves the sweep without touching the board._"
+              echo
+            elif [ "${{ steps.anchor.outputs.configured }}" = "false" ]; then
+              # ⛔ Only on the EXPLICIT not-configured reading. A malformed
+              # anchor sets no output and fails the run, and must not be
+              # described here as "nothing was asked for" (objectui#8740).
+              echo "_No anchor issue configured (\`HALF_STATE_ANCHOR_ISSUE\` is unset): this summary is the ONLY delivery of the findings below — it notifies nobody, by accepted trade. Set that repository variable to a \`tracking\` issue's number to have them land on a pinned card instead._"
               echo
             fi
             echo '<details><summary>Rendered anchor body</summary>'

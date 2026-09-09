@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 
 // Plain-JS CI helper; types are INFERRED from the .mjs by `tsconfig.scripts.json`
 // (`allowJs`), so no `@ts-expect-error` here. See objectui#3494.
@@ -315,5 +317,148 @@ describe('half-state-patrol.yml — report-only, as ruled on objectui#5791', () 
 
   it('exercises the ported helper through its paths filter', () => {
     expect(workflow).toContain("- 'scripts/invoked-as.mjs'");
+  });
+});
+
+describe('half-state-patrol.yml — an UNCONFIGURED anchor is a supported configuration (objectui#8740)', () => {
+  /**
+   * The maintainer closed objectui#7852 and #5986 verbatim with 「7852 太麻烦，
+   * 直接关闭」, so the anchor setup this install was waiting for will not happen.
+   * Until this card the empty-anchor branch emitted `::error::` and `exit 1`,
+   * which made a four-times-a-day scheduled job permanently red for a SETTLED
+   * configuration — the shape objectui#6596 already ruled on: a check red on
+   * the healthy case trains everyone to ignore red.
+   *
+   * ## Why this file executes the step instead of grepping it
+   *
+   * The acceptance criterion is about a scheduled run, and no test can start
+   * one. What it can do is take the step's own `run:` body out of the YAML and
+   * drive it, which is the same posture `ci-setup-pnpm-wiring.test.ts` takes for
+   * its shell. A pin written as `expect(workflow).toContain('::notice::')` would
+   * be satisfied by a file that emits the notice and then exits 1 anyway — it
+   * pins the spelling of the fix, not the fix.
+   *
+   * ## Both directions, because only one of them is the bug
+   *
+   * ⛔ The carve-out is EMPTY-ONLY. "Nobody asked for delivery" (exit 0) and
+   * "delivery was asked for and failed" (exit 1) are opposite facts, and a test
+   * that pinned only the first would pass on the widened change that makes the
+   * anchor step never fail — which is precisely what this card forbids. So the
+   * malformed direction is asserted here in the same shape, and a green run of
+   * this block means the empty branch was carved out of a guard that still
+   * guards.
+   *
+   * The THIRD property is the one neither direction shows on its own: exiting 0
+   * with no anchor means the job carries on into the write step, so that step
+   * must be guarded by the SAME decision this step took. Guarded instead by a
+   * second `env.ANCHOR_ISSUE != ''` test it would disagree with this step on a
+   * whitespace-only value and PATCH `Number(' ')` — issue 0.
+   */
+  const workflowSteps: { name?: string; id?: string; if?: string; run?: string }[] =
+    parseYaml(workflow).jobs.patrol.steps;
+
+  const step = (name: string) => {
+    const found = workflowSteps.find((s) => s.name === name);
+    // Anti-vacuity: a renamed step must fail this file rather than silently
+    // stop asserting anything, which is the whole failure mode of a wiring pin.
+    expect(found, `no step named "${name}" — this block would assert nothing`).toBeTruthy();
+    return found!;
+  };
+
+  const resolveStep = step('Resolve the anchor issue');
+  const writeStep = step('Update the pinned anchor issue');
+  const summaryStep = step('Publish the rendered body to the run summary');
+
+  /** The resolve step's shell, with the one Actions expression it carries bound. */
+  const resolveScript = (resolveStep.run ?? '').replace(
+    /\$\{\{\s*github\.repository\s*\}\}/g,
+    'objectstack-ai/objectui',
+  );
+
+  it('carries no unbound Actions expression into the shell this file executes', () => {
+    // `${{ … }}` is a bad substitution to bash, so an expression this helper
+    // does not bind would make every run below fail for the wrong reason.
+    expect(resolveScript).not.toContain('${{');
+    expect(resolveScript).toContain('ANCHOR_ISSUE');
+  });
+
+  /** Drive the real step body with a given anchor value. */
+  const resolve = (anchor: string) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'half-state-anchor-'));
+    const outputs = path.join(dir, 'github_output');
+    fs.writeFileSync(outputs, '');
+    const run = spawnSync('bash', ['-c', resolveScript], {
+      encoding: 'utf8',
+      env: { ...process.env, ANCHOR_ISSUE: anchor, GITHUB_OUTPUT: outputs },
+    });
+    const written = fs.readFileSync(outputs, 'utf8');
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { status: run.status, out: `${run.stdout}${run.stderr}`, outputs: written };
+  };
+
+  it('EMPTY anchor: notices the variable and exits 0 — the job goes on to publish the sweep', () => {
+    for (const empty of ['', ' ', '\t', '\n  ']) {
+      const run = resolve(empty);
+      expect(run.status, `an unset anchor must not fail the run (input ${JSON.stringify(empty)})`).toBe(0);
+      expect(run.out).toContain('::notice::');
+      expect(run.out, 'the notice must name the variable that would enable delivery').toContain(
+        'HALF_STATE_ANCHOR_ISSUE',
+      );
+      // ⛔ The regression this card is: the same sentence emitted as an error.
+      expect(run.out).not.toContain('::error::');
+      expect(run.outputs.trim()).toBe('configured=false');
+    }
+  });
+
+  it('MALFORMED anchor: still `::error::` + exit 1, because delivery WAS asked for', () => {
+    for (const bad of ['abc', '#9857', '98 57', '9857x', '-1']) {
+      const run = resolve(bad);
+      expect(run.status, `a bad anchor number must still fail the run (input ${JSON.stringify(bad)})`).toBe(1);
+      expect(run.out).toContain('::error::');
+      expect(run.out).not.toContain('::notice::');
+      expect(run.outputs, 'a failed resolve must not declare a delivery target').not.toContain('configured=');
+    }
+  });
+
+  it('NUMERIC anchor: resolves to a delivery, quietly', () => {
+    const run = resolve('9857');
+    expect(run.status).toBe(0);
+    expect(run.outputs.trim()).toBe('configured=true');
+    expect(run.out).toContain('anchor: #9857');
+    expect(run.out).not.toContain('::notice::');
+    expect(run.out).not.toContain('::error::');
+  });
+
+  it('the board write is guarded by THIS step\'s decision, not by a second reading of the variable', () => {
+    // Exiting 0 with no anchor means the write step is now reachable with an
+    // empty `ANCHOR_ISSUE`; `Number('')` is 0, so an unguarded write would PATCH
+    // issue 0 on every scheduled run of an unconfigured install.
+    expect(resolveStep.id, 'the write guard names this step by id').toBe('anchor');
+    expect(writeStep.if).toContain("steps.anchor.outputs.configured == 'true'");
+    // The pull_request guard is unchanged and still first — a PR run must not
+    // touch the board whatever the anchor says.
+    expect(writeStep.if).toContain("github.event_name != 'pull_request'");
+    // ⛔ Not `env.ANCHOR_ISSUE != ''`: that is the second spelling of emptiness
+    // this step exists to prevent (the resolve step strips whitespace, the
+    // expression would not).
+    expect(writeStep.if).not.toContain('env.ANCHOR_ISSUE');
+  });
+
+  it('the run summary is the delivery when there is no anchor, and says which delivery happened', () => {
+    // `always()` is what makes the summary the fallback channel at all, and the
+    // rendered body is read from the same file the anchor write would have used.
+    expect(summaryStep.if).toBe('always()');
+    expect(summaryStep.run).toContain('$RUNNER_TEMP/report.md');
+    // ⛔ #4690 in the shape this card newly opens: a delivered run and an
+    // undelivered one must not read alike in the only place a reader looks.
+    expect(summaryStep.run).toContain("steps.anchor.outputs.configured }}\" = \"false\"");
+    expect(summaryStep.run).toContain('HALF_STATE_ANCHOR_ISSUE');
+  });
+
+  it('the sibling install keeps its literal anchor, and keeps failing loudly on it', () => {
+    // ⛔ Untouched by this card: objectstack resolves 9857 from the repository
+    // guard, so it takes the NUMERIC branch above and every anchor failure
+    // there is still a red run.
+    expect(workflow).toContain("(github.repository == 'objectstack-ai/objectstack' && '9857')");
   });
 });
