@@ -187,8 +187,71 @@ describe('`titleField` stays DECLARED — the measurement the ruling asked for',
   // a maintainer's call, not a rider on this card. Declaring the key is what
   // makes declared = enforced at all four sites at once.
 
+  /**
+   * The console's tree rung, located by NAME so the failure message is the one
+   * line at issue rather than a dump of the whole file.
+   *
+   * `labelField:` is the only seam of its kind in that file — the other five
+   * (objectui#6557 counts six) all spell `titleField:` — and objectui#6557
+   * separately requires every seam to name `viewDef` itself, so a rung hoisted
+   * into a local is already forbidden there and shows up here as an absent
+   * rung rather than as a silently passing one.
+   */
+  const consoleTreeRung = () =>
+    read(CONSOLE_COMPOSITION)
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l.startsWith('labelField:') && l.includes('viewDef') && /\btree\b/.test(l));
+
+  /**
+   * Reads `titleField` off a `tree` expression — tolerant of an interposed TYPE
+   * ANNOTATION, intolerant of the read being gone.
+   *
+   * ⚠️ Why it is not `toContain('tree?.titleField')` any more. That was the
+   * first spelling, and objectui#7559 turned it RED on a tree where the read
+   * was untouched: typing the block as `TreeViewConfig` put a cast BETWEEN the
+   * two halves of the substring —
+   * `(viewDef.tree as TreeViewConfig | undefined)?.titleField`. A pin on a READ
+   * must not double as a pin on the annotation standing in front of it; the
+   * claim this file makes is "the console composition reads it", and that claim
+   * was still true when the substring stopped being there.
+   *
+   * ⛔ It is still a pin on the read, not a formality. The gap it tolerates is
+   * an `as` clause and nothing else: `||` may not appear in it, so `titleField`
+   * has to be taken off THIS `tree`, not off some other term further along the
+   * same line. Deleting the read reddens it — measured by ablation on
+   * objectui#7559, by test-case name.
+   */
+  const READS_TITLE_FIELD = /\btree\b(?:\s+as\s+(?:[^|\n]|\|(?!\|))*?)?\s*\)?\s*\?\.titleField\b/;
+
   it('the console composition reads it', () => {
-    expect(read(CONSOLE_COMPOSITION)).toContain('tree?.titleField');
+    const rung = consoleTreeRung();
+    // Locating the rung is half of the assertion: if the console stops
+    // composing a `tree` label from `viewDef` at all, that is where it surfaces.
+    expect(rung, 'the console composition has no `viewDef` tree `labelField` rung').toBeDefined();
+    expect(rung).toMatch(READS_TITLE_FIELD);
+  });
+
+  it('CONTROL: the instrument tells a present read from a deleted one', () => {
+    // A regex loosened until it cannot fail reads exactly like one that still
+    // works, so both spellings this rung has actually worn are pinned as
+    // matching, and the shape that means "the read was deleted" as not.
+    const BEFORE_7559 =
+      "labelField: (viewDef as any).tree?.labelField || (viewDef as any).tree?.titleField || 'name',";
+    const AFTER_7559 =
+      "labelField: (viewDef.tree as TreeViewConfig | undefined)?.labelField" +
+      " || (viewDef.tree as TreeViewConfig | undefined)?.titleField || 'name',";
+    const READ_DELETED =
+      "labelField: (viewDef.tree as TreeViewConfig | undefined)?.labelField || 'name',";
+
+    expect(BEFORE_7559).toMatch(READS_TITLE_FIELD);
+    expect(AFTER_7559).toMatch(READS_TITLE_FIELD);
+    expect(READ_DELETED).not.toMatch(READS_TITLE_FIELD);
+
+    // And the tolerance is bounded: a `titleField` taken off a DIFFERENT term
+    // on the same line is not this rung's read.
+    expect("labelField: (viewDef.tree as TreeViewConfig | undefined)?.labelField || other?.titleField || 'name',")
+      .not.toMatch(READS_TITLE_FIELD);
   });
 
   it('the plugin-view tree branch reads it', () => {
