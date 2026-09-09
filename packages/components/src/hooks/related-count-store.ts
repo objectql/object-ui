@@ -156,6 +156,17 @@ async function fetchCount(
     // implementations agreeing by luck: the badge cannot count a set the list
     // does not show, because both sides send the same `$filter`.
     //
+    // ⚠️ ONE known exception, and it is a gap rather than a design: the parent
+    // condition `RelatedList` sends is compiled to match the relationship
+    // field's ARITY since objectui#7299 (`{ [relField]: { $contains: parentId } }`
+    // when the child object declares it `multiple: true`), and this probe still
+    // sends bare equality. It has no field metadata in hand to decide with —
+    // four scalars and a filter is the whole input — so closing it is a design
+    // change in this package, tracked as objectui#8882. Until then a related
+    // list on a multi-value relationship renders its ROWS and gets no badge:
+    // the `catch` below swallows the driver's refusal without a `setCount`, so
+    // the store holds no entry and the tab renders no count at all.
+    //
     // The parent condition is never negotiable — a declared filter may only
     // NARROW this parent's children — and `mergeFilterNodes` guarantees that
     // by wrapping both sources under one `and` rather than letting either
