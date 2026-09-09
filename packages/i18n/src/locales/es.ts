@@ -1072,6 +1072,7 @@ const es = {
     sortBy: "Ordenar por",
     filterPlaceholder: "Filtrar…",
     highlightFields: "Campos clave",
+    highlightsLabel: "Campos clave del registro",
     createdBy: "Creado por",
     updatedBy: "Actualizado por",
     created: "Creado",

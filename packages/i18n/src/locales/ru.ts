@@ -940,6 +940,7 @@ const ru = {
     sortBy: "Сортировать по",
     filterPlaceholder: "Фильтр…",
     highlightFields: "Ключевые поля",
+    highlightsLabel: "Ключевые поля записи",
     comments: "Комментарии",
     searchComments: "Поиск комментариев…",
     addCommentPlaceholder: "Добавить комментарий… (Ctrl+Enter для отправки)",

@@ -888,6 +888,33 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
   // `''`, whose own em-dash is a bare punctuation mark with no accessible
   // name (objectui#8490). The shared affordance says "No value" instead.
   if (isBlankCellText(safe)) return <EmptyValue />;
+
+  // An UNPARSABLE value reaches the same affordance (objectui#8581), and the
+  // guard is spelled EXACTLY as `DateTimeCellRenderer`'s one function down —
+  // the nearest sibling, answering the identical input, which has returned
+  // `<EmptyValue />` for it all along. Before this, `not-a-date` fell through
+  // to `formatDate`, whose own hand-rolled em-dash is a bare punctuation mark
+  // to a screen reader: no `data-slot` of `empty-value`, no accessible name.
+  // That is the objectui#8475 / objectui#8491 class of defect, and #8490
+  // already routed this renderer's coerced-EMPTY input (the line above) to
+  // the shared affordance while deliberately leaving this input for a card.
+  //
+  // Two renderers for the same data family disagreeing about the same input
+  // is the shape this repo keeps paying for, so the closer neighbour is
+  // authoritative. The cost is declared: the raw string was reachable on
+  // hover through the `title` below, and the invalid branch no longer draws
+  // that span. Measured before the change (objectui#8581): nothing in this
+  // repo reads that `title` — no test, no selector, no export path; the only
+  // occurrences of `isoString` are its assignment and its one use. A
+  // PARSEABLE value keeps its `title` unchanged.
+  //
+  // `new Date(safe)` reproduces `formatDate`'s own parse exactly (it receives
+  // `safe`, and `coerceToSafeValue` never returns a `Date`), so this branch
+  // is co-extensive with the dash it replaces — never wider. In particular a
+  // numeric timestamp stays a number through the coercion and still renders.
+  const date = safe != null ? new Date(safe as string | number) : null;
+  if (date === null || isNaN(date.getTime())) return <EmptyValue />;
+
   const dateField = field as any;
   const style = dateField.format || 'relative';
 
@@ -900,17 +927,14 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
     /(^|_)(due|deadline|expires?|expiry|expiration|expected_close|target_close|sla|return_by|renewal|next_action)(_|$)/.test(fieldName);
   const formatted = formatDate(safe as string | Date, style, { dueLike, locale, t });
 
-  const date = safe != null ? new Date(safe as string | number) : null;
-  const isValidDate = date !== null && !isNaN(date.getTime());
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
-  const isOverdue = dueLike && isValidDate && date! < startOfToday;
-  const isoString = isValidDate ? date!.toISOString() : String(safe);
+  const isOverdue = dueLike && date < startOfToday;
 
   return (
     <span
       className={`tabular-nums${isOverdue ? ' text-red-600' : ''}`}
-      title={isoString}
+      title={date.toISOString()}
     >
       {formatted}
     </span>

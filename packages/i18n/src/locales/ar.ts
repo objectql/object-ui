@@ -1074,6 +1074,7 @@ const ar = {
     sortBy: "ترتيب حسب",
     filterPlaceholder: "تصفية…",
     highlightFields: "الحقول الرئيسية",
+    highlightsLabel: "الحقول الرئيسية للسجل",
     createdBy: "أنشأه",
     updatedBy: "حدّثه",
     // objectui#3863 — base key, and in ar this is the slot users actually hit: `zero`,
