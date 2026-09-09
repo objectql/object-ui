@@ -76,7 +76,7 @@ import {
   type DatasetDrillRange,
 } from '@object-ui/core';
 import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
-import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
+import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate, useDisplayLocale, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 // objectui#7063 — the default empty state is stated ONCE for the dashboard
 // surface (see that component's header for why it is dashboard-local).
@@ -492,6 +492,12 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // dependency array to add it to; the sites below are all in the render body
   // and re-run whenever the provider changes.
   const displayLocale = useDisplayLocale();
+  // The UI LANGUAGE, deliberately distinct from `displayLocale` above: that one
+  // is the NUMBER locale (objectui#4566 / #4033 — the tenant regional default
+  // outranks the UI language), this one is what authored TEXT follows. Swapping
+  // either for the other silently changes the other surface's behaviour, which
+  // is why `MetricWidget` keeps the same two channels apart by name.
+  const { language } = useObjectTranslation();
 
   // ADR-0021 dual-form: the widget's presentation-scope `filter` must flow into
   // the dataset query as `runtimeFilter`, or a dataset-bound widget renders the
@@ -835,6 +841,33 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // `undefined`, which `cn` drops: the markup of every widget that never
     // declared the key stays byte-identical.
     const accentClass = metricAccentTextClass(widget?.colorVariant);
+    // ── The declared sub-caption (objectui#7293) ───────────────────────────
+    // `options.description` is the metric tile's SUB-CAPTION slot. It is
+    // declared end to end and reached nothing: it has its own translation key
+    // (`{ns}.dashboards.{dash}.widgets.{id}.subCaption`, objectui#4032 item 4 /
+    // objectstack#8056), the server's `translateDashboard` OVERLAYS that
+    // translation onto this very key, and `DashboardRenderer.tWidgetSubCaption`
+    // resolves it — but only onto the two INLINE arms of `getComponentSchema`.
+    // `dataset` is REQUIRED on `DashboardWidgetSchema` (verified against the
+    // published @objectstack/spec@17.4.0: required keys are id/dataset/values),
+    // so every spec-legal widget renders HERE instead, and every author who
+    // wrote a sub-caption got silence — the ADR-0049 declared-but-unenforced
+    // shape, same as `colorVariant` above.
+    //
+    // Read at the caption row rather than plumbed in as a prop, deliberately:
+    // BOTH dashboard surfaces route a dataset-bound widget to this component
+    // (`DashboardRenderer` and `DashboardGridLayout`, objectui#4614), so the
+    // key read here fixes both, while a prop from one dispatch site would fix
+    // one and leave the other silently unchanged.
+    //
+    // `pickLocalized` (the objectui#4208 seam), not a `typeof === 'string'`
+    // test: an authored inline per-locale map is the vocabulary this field
+    // admits, and re-implementing a narrower resolver here is exactly the
+    // fourth dialect objectstack#4115 exists to prevent (objectui#4032 is what
+    // a private resolver that could not read the map already cost). A miss
+    // answers `''`, which collapses to `undefined` and renders NO node at all —
+    // a tile that declares no sub-caption keeps byte-identical markup.
+    const subCaption = pickLocalized(options.description, language) || undefined;
     return (
       <div className="flex h-full w-full flex-col items-start justify-center gap-1 p-2">
         <span className={cn('text-2xl font-semibold tabular-nums', accentClass)}>{formatMeasure(value, f?.format, f?.currency, f?.percentScale, displayLocale)}</span>
@@ -855,6 +888,9 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
           </div>
         )}
         <span className="text-xs text-muted-foreground">{headerLabel(values[0])}</span>
+        {subCaption && (
+          <span className="text-xs text-muted-foreground" data-testid="dataset-metric-subcaption">{subCaption}</span>
+        )}
       </div>
     );
   }

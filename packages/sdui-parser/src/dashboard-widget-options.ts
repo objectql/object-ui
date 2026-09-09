@@ -13,7 +13,9 @@
  *
  * ## The census (measured on origin/main @ 8689166f6, spec 17.1.0)
  *
- * The spec REQUIRES `dataset` on every widget (`DashboardWidgetSchema`), and
+ * The spec REQUIRES `dataset` on every widget (`DashboardWidgetSchema` —
+ * re-read for objectui#7293 against the PUBLISHED `@objectstack/spec@17.4.0`,
+ * whose required keys are exactly `id` / `dataset` / `values`), and
  * both dashboard surfaces route a dataset-bound widget to `DatasetWidget`
  * (`DashboardRenderer.tsx` renders `<DatasetWidget>` when `widget.dataset` is
  * set; `DashboardGridLayout.tsx` mirrors the fork, objectui#4614). On that —
@@ -28,12 +30,16 @@
  *
  *   description — the metric-card sub-caption channel. Read at
  *   `DashboardRenderer.tsx` (`(widget.options as …)?.description`,
- *   objectui#4032 item 4); the server's `translateDashboard` OVERLAYS the
- *   `widgets.{id}.subCaption` translation onto this key (objectstack#8056,
- *   objectstack#5428 item-4: 「两个作者字段两个 key」). Warning on a key the
- *   platform's own translation pipeline writes would be a false positive on
- *   legal metadata, so it is in the accepted set even though the dataset-bound
- *   render path does not currently display it.
+ *   objectui#4032 item 4) and, since objectui#7293, at `DatasetWidget.tsx`'s
+ *   metric branch, which renders it in the caption row; the server's
+ *   `translateDashboard` OVERLAYS the `widgets.{id}.subCaption` translation
+ *   onto this key (objectstack#8056, objectstack#5428 item-4: 「两个作者字段两个
+ *   key」). It entered the accepted set on the translation-pipeline evidence
+ *   alone — warning on a key the platform's own pipeline writes would be a
+ *   false positive on legal metadata — while the dataset-bound render path
+ *   displayed it nowhere. #7293 closed that gap, so `description` is now
+ *   accepted for the same reason as the declared five and the accepted set no
+ *   longer outruns the measured read set.
  *
  * Notably NOT consumed on the path a widget really renders through:
  * `thresholds` and `format`. Both were widely believed to work; both draw this
@@ -61,8 +67,10 @@
  *     legitimate code gets deleted by the next person who hits it, which puts
  *     the claim back where it started. Leg 2 of
  *     `__tests__/dashboard-widget-options-census.test.ts` derives exactly this
- *     bound: the DatasetWidget read set equals the declared set, and neither
- *     key is in it.
+ *     bound: the DatasetWidget read set is the declared set plus the
+ *     sub-caption key, and neither `format` nor `thresholds` is in it. Since
+ *     objectui#7293 that absence is asserted in its OWN right rather than
+ *     riding on an equality whose right-hand side can grow.
  *
  * ## Scope — where the warning deliberately does NOT fire
  *
