@@ -147,6 +147,99 @@ function refuseArrayComparand(
 }
 
 /**
+ * An `icontains` / `$icontains` comparand that is not a NON-EMPTY STRING —
+ * `{ name: { $icontains: '' } }`, `['name', 'icontains', 42]` (objectui#8748).
+ *
+ * ## Not this file's ruling — the published table already refuses both
+ *
+ * `FILTER_TEXT_CASES` (`@objectstack/spec/data`) carries the two shapes as
+ * REJECTION rows rather than as row-set expectations, each with
+ * `code: 'INVALID_FILTER'` and `mustMention: ['$icontains']`:
+ *
+ * > *an empty `$icontains` comparand is REFUSED* — "Every row contains the
+ * > empty substring, so evaluating it is a predicate that constrains nothing —
+ * > the widening #5240 refused `{ field: {} }` over, one level in."
+ *
+ * > *a non-string `$icontains` comparand is REFUSED* — "Coercing 42 to `"42"`
+ * > would answer a query nobody wrote; the declared comparand type is string."
+ *
+ * Measured on `origin/main` before this guard, over `FILTER_TEXT_ROWS`: the
+ * empty comparand answered ALL NINE ROWS in both dialects with not one console
+ * line — objectui#7349's fail-open signature, and the same widening class
+ * objectui#8447 fixed one level up. The non-string comparand was quieter and
+ * worse to debug: `String(42)` was evaluated and answered `[]`, which is
+ * indistinguishable on screen from "evaluated, matched nothing" — which is why
+ * pinning it as "42 and '42' agree" would pin nothing (they agree before this
+ * guard too). What moves is the REFUSAL: the row is excluded and the operator
+ * is named.
+ *
+ * ## Why only `icontains`, and why the row is excluded rather than thrown
+ *
+ * Only `$icontains` because only `$icontains` is what the table declares; the
+ * sibling positive operators (`$contains` / `$startsWith` / `$endsWith`) have
+ * no such row and are deliberately left alone rather than widened by analogy.
+ * Excluded-and-logged because that is this face's declared refusal shape
+ * (objectui#7349): the wire-side sibling `@object-ui/data-objectstack` throws
+ * `MalformedFilterError` because it is deciding whether to send a query at all,
+ * while this matcher is deciding about one row. Whether this face should carry
+ * the throwing envelope instead is objectui#8600 Q1, and it stays closed.
+ *
+ * ⚠️ The PRODUCER half ships in the same change and is what makes this safe.
+ * `FilterConditionField` emitted `{ [field]: { $icontains: value } }` verbatim,
+ * so a builder row with the operator chosen and the value box still empty
+ * produced exactly this shape — refusing it here alone would flip that list
+ * from "every row" to "no rows", which this file's own `$exists` arm names as
+ * the one outcome worse than the bug.
+ */
+/**
+ * A comparand as it appears INSIDE a refusal message.
+ *
+ * `JSON.stringify` alone is not safe here even though it is what the message
+ * wants: it THROWS on a BigInt and on a cyclic object, and this is an
+ * exclude-and-log face — a refusal that throws while explaining itself would
+ * turn the one path that stays quiet about a bad filter into the one path that
+ * takes the caller down. No JSON-sourced filter can carry either shape, so this
+ * is about the in-memory callers who hand `find()` a literal.
+ *
+ * `?? String(target)` keeps `undefined` and a symbol readable — `JSON.stringify`
+ * returns `undefined` for both — which is the idiom this file already used.
+ */
+function describeComparand(target: unknown): string {
+  try {
+    return JSON.stringify(target) ?? String(target);
+  } catch {
+    return String(target);
+  }
+}
+
+function refuseTextComparand(
+  refusals: Set<string>,
+  field: string,
+  operator: string,
+  target: unknown,
+): false {
+  const declared =
+    `@objectstack/spec's FILTER_TEXT_CASES declares this shape refused `
+    + `(INVALID_FILTER); the declared comparand for '${operator}' is a NON-EMPTY STRING`;
+  if (target === '') {
+    return refuseFilterNode(
+      refusals,
+      `filter comparand for field '${field}' on operator '${operator}' is the EMPTY `
+      + `STRING. Every value contains the empty substring, so evaluating it is a `
+      + `predicate that constrains nothing. ${declared}. Drop the condition instead `
+      + `of sending an empty comparand`,
+    );
+  }
+  return refuseFilterNode(
+    refusals,
+    `filter comparand for field '${field}' on operator '${operator}' is `
+    + `${target === null ? 'null' : typeof target} (${describeComparand(target)}), `
+    + `not a string. Coercing it would answer a query nobody wrote. ${declared}. `
+    + `Write the comparand as a string`,
+  );
+}
+
+/**
  * The operators a `{ $field }` reference is a legal comparand ON, in both
  * dialects — the SIX scalar comparisons and nothing else.
  *
@@ -234,7 +327,7 @@ function resolveFieldReference(
     refuseFilterNode(
       refusals,
       `filter comparand for field '${field}' carries a non-string $field `
-      + `(${JSON.stringify(path) ?? String(path)}); a field reference declares `
+      + `(${describeComparand(path)}); a field reference declares `
       + `$field as a string, so this is not one on any path`,
     );
     return REFUSED_COMPARAND;
@@ -414,8 +507,16 @@ function matchesComparisonNode(
     // to reach for — is the FULL Unicode fold, so it matched `CAFÉ` against
     // `café`; three of the five backends are SQLite underneath, whose `lower()`
     // folds ASCII only, so a Unicode promise here is one the wire cannot keep.
+    // objectui#8748 — the comparand door, checked BEFORE the fold. An empty
+    // comparand made this arm a predicate that constrained nothing (all nine
+    // `FILTER_TEXT_ROWS` came back, in silence); a non-string one was evaluated
+    // after a `String()` coercion nobody wrote. Both are refusals in
+    // `FILTER_TEXT_CASES`; see {@link refuseTextComparand}.
     case 'icontains':
-      return typeof value === 'string' && asciiCaseInsensitiveContains(value, String(target));
+      if (typeof target !== 'string' || target === '') {
+        return refuseTextComparand(refusals, field, String(rawOperator), target);
+      }
+      return typeof value === 'string' && asciiCaseInsensitiveContains(value, target);
     // objectui#8452 — this arm answers the PREDICATE, not a TYPE TEST. It used
     // to read `typeof value === 'string' && !value.includes(...)`, so a row
     // whose value is the number 5 failed `contains '5'` (right: a number cannot
@@ -625,8 +726,16 @@ function matchesDollarOperator(
     // case-insensitive member, folding ASCII only on both sides.
     case '$contains':
       return typeof value === 'string' && value.includes(String(target));
+    // objectui#8748 — the `$` twin of the comparand door in the AST arm. Both
+    // dialects have to refuse the same two shapes: `find()` picks between the
+    // matchers on nothing more than whether `$filter` arrived as an array or an
+    // object, so a door on one side only is a result that changes with the
+    // SHAPE of the filter rather than with its meaning (objectui#8447).
     case '$icontains':
-      return typeof value === 'string' && asciiCaseInsensitiveContains(value, String(target));
+      if (typeof target !== 'string' || target === '') {
+        return refuseTextComparand(refusals, field, operator, target);
+      }
+      return typeof value === 'string' && asciiCaseInsensitiveContains(value, target);
     // objectui#8452 — the `$` spelling of the same cell, and the same fix: the
     // complement of the `$contains` arm above rather than a `typeof` test
     // standing in for the predicate. objectstack#14079 option A: a stored value

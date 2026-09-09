@@ -104,6 +104,23 @@ async function selectedIds(filter: unknown): Promise<string[]> {
   return result.data.map((r) => r.id as string);
 }
 
+/**
+ * The same selection, plus the console refusals `find()` drained while making
+ * it (objectui#8748). A refused row set and one that merely came back empty are
+ * the same `[]` on screen; for the comparand rows below that difference is the
+ * whole card. `refuseFilterNode` drains through `console.warn`, once per
+ * distinct refusal per `find()`.
+ */
+async function selectionAndRefusals(
+  filter: unknown,
+): Promise<{ ids: string[]; refusals: string[] }> {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const ids = await selectedIds(filter);
+  const refusals = warn.mock.calls.map((call) => String(call[0]));
+  warn.mockRestore();
+  return { ids, refusals };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -261,5 +278,101 @@ describe('objectui#8452 — a row with no value is on the negation side', () => 
     const positive = await selectedIds(['score', 'contains', '5']);
     expect(positive).not.toContain('nul');
     expect(positive).not.toContain('gone');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The other side of the same cell: a non-string COMPARAND (objectui#8748)
+// ---------------------------------------------------------------------------
+
+/**
+ * objectui#8748 — this file pins what a text operator does with a non-string
+ * stored VALUE; this section pins what it does with a non-string COMPARAND.
+ * Same operator family, opposite operand, and the two answers are NOT the
+ * same rule: the stored value is data, judged by objectstack#14079's type
+ * gate, while the comparand is part of the FILTER the author wrote, and
+ * `FILTER_TEXT_CASES` (`@objectstack/spec/data`) carries it as a REJECTION row
+ * — "Coercing 42 to `"42"` would answer a query nobody wrote; the declared
+ * comparand type is string" (`code: 'INVALID_FILTER'`,
+ * `mustMention: ['$icontains']`).
+ *
+ * ## Why this fixture, and why the pin is not "42 and '42' agree"
+ *
+ * On `FILTER_TEXT_ROWS` — the card's own fixture — `{ name: { $icontains: 42 } }`
+ * and `{ name: { $icontains: '42' } }` both answered `[]`, which is exactly why
+ * the coercion was invisible: an assertion that the two AGREE passes before the
+ * fix and after it, and pins nothing.
+ *
+ * THIS fixture discriminates, because it holds the string `'5'` beside the
+ * number `5`. Before the door, `{ score: { $icontains: 5 } }` ran
+ * `String(5)` and returned `['s5']` — a query the author never wrote,
+ * answered with a row. After it the row is excluded and the operator is named,
+ * while the string comparand `'5'` still returns `['s5']`. So what moves here
+ * is a ROW SET as well as a console line, and the string twin below is the
+ * control proving the operator itself was not disabled.
+ */
+describe('objectui#8748 — a non-string `icontains` comparand is refused in both dialects', () => {
+  it('the `$` dialect refuses the number and stops coercing it to text', async () => {
+    const { ids, refusals } = await selectionAndRefusals({ score: { $icontains: 5 } });
+    expect(ids, "String(5) used to match the STRING row '5' — a query nobody wrote").toEqual([]);
+    expect(refusals, 'exactly one drained refusal').toHaveLength(1);
+    expect(refusals[0], 'the refusal must NAME the operator (FILTER_TEXT_CASES mustMention)').toContain('$icontains');
+    expect(refusals[0], 'and the field').toContain('score');
+  });
+
+  it('the AST dialect answers the same way and names `icontains`', async () => {
+    const { ids, refusals } = await selectionAndRefusals(['score', 'icontains', 5]);
+    expect(ids).toEqual([]);
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]).toContain('icontains');
+    expect(refusals[0]).toContain('score');
+  });
+
+  it('the STRING comparand still selects, in silence — the live control', async () => {
+    // The half that makes the two cases above a pin rather than a disabled
+    // operator: `'5'` is a declared comparand and must keep answering the row
+    // it always answered. A guard that refused every comparand would pass the
+    // exclusions above and fail here.
+    const { ids, refusals } = await selectionAndRefusals({ score: { $icontains: '5' } });
+    expect(ids, 'the declared comparand type still works').toEqual(['s5']);
+    expect(refusals).toEqual([]);
+    expect(await selectedIds(['score', 'icontains', '5'])).toEqual(['s5']);
+  });
+
+  it('`null` is a non-string comparand too — one rule, not a second arm', async () => {
+    // `null` is an ACCEPTED_FILTER_COMPARAND_TYPES member in general, which is
+    // why this is worth stating: for a text operator it is still not a string,
+    // so the same predicate covers it and there is no separate arm to drift.
+    const { ids, refusals } = await selectionAndRefusals({ score: { $icontains: null } });
+    expect(ids).toEqual([]);
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]).toContain('$icontains');
+  });
+
+  it('a comparand JSON cannot serialise is refused, not thrown on', async () => {
+    // The refusal message quotes the comparand, and `JSON.stringify` THROWS on
+    // a BigInt (`TypeError: Do not know how to serialize a BigInt`) and on a
+    // cyclic object. This face's whole contract is exclude-and-log, so a
+    // refusal that threw while explaining itself would turn the quiet path into
+    // the loud one — for the in-memory callers who hand `find()` a literal,
+    // which is the only way either shape gets here (a JSON-sourced filter
+    // carries neither).
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    for (const comparand of [BigInt(10), cyclic]) {
+      const { ids, refusals } = await selectionAndRefusals({ score: { $icontains: comparand } });
+      expect(ids, 'refused like any other non-string comparand').toEqual([]);
+      expect(refusals).toHaveLength(1);
+      expect(refusals[0]).toContain('$icontains');
+    }
+  });
+
+  it('the type gate on the stored VALUE is unchanged — the class guard', async () => {
+    // objectstack#14079's rule is about the operand on the DATA side and this
+    // card does not touch it. Re-pinned beside the comparand door so a future
+    // reader cannot collapse the two into one "text operators are strict"
+    // rule and lose either half.
+    expect(await selectedIds({ score: { $icontains: 'x' } })).toEqual(['sx']);
+    expect(await selectedIds({ score: { $notContains: '5' } })).toEqual(ALL_BUT_S5);
   });
 });

@@ -269,3 +269,72 @@ describe('kvToCondition round-trips what condToMongo writes', () => {
     expect(kvToCondition('name', { $nope: 'x' }, 0)).toBeNull();
   });
 });
+
+/**
+ * objectui#8748 — the producer half of the empty-comparand fix.
+ *
+ * `condToMongo` emitted `{ [field]: { $icontains: value } }` verbatim, and the
+ * only drop on this path was the missing-FIELD guard (`filterGroupToMongo`
+ * discards null fragments and nothing else). So a builder row with the operator
+ * chosen and the value box still empty authored `{ name: { $icontains: '' } }`
+ * — the exact shape `@objectstack/spec`'s `FILTER_TEXT_CASES` carries as a
+ * REJECTION row, and the shape `ValueDataSource` now refuses in the same
+ * change.
+ *
+ * ⚠️ This half is what makes that refusal safe, and it is why the two land
+ * together. Refusing in the matcher alone would flip a half-built builder row
+ * from "every row" to "no rows" — the outcome `ValueDataSource`'s own `$exists`
+ * arm names as the one worse than the bug.
+ */
+describe('objectui#8748 — an unfinished text row is dropped, not emitted', () => {
+  const emptyValues: Array<[string, unknown]> = [
+    ['never typed in', undefined],
+    ['cleared back out', ''],
+    ['null', null],
+  ];
+  const textOperators = ['contains', 'containsCaseInsensitive', 'notContains', 'startsWith', 'endsWith'];
+
+  for (const operator of textOperators) {
+    it.each(emptyValues)(`${operator} with an empty comparand (%s) emits nothing`, (_label, value) => {
+      expect(
+        condToMongo({ id: 'c1', field: 'name', operator, value } as any, noTypes),
+        `${operator} still authors the shape FILTER_TEXT_CASES refuses`,
+      ).toBeNull();
+    });
+  }
+
+  it('a NON-empty comparand still emits — the live control for the drop', () => {
+    // Green before this card and after it. Without it a `return null` for every
+    // text row would satisfy every case above and silently delete the operators.
+    expect(
+      condToMongo({ id: 'c1', field: 'name', operator: 'containsCaseInsensitive', value: 'acme' } as any, noTypes),
+    ).toEqual({ name: { $icontains: 'acme' } });
+    expect(
+      condToMongo({ id: 'c2', field: 'name', operator: 'contains', value: 'a' } as any, noTypes),
+    ).toEqual({ name: { $contains: 'a' } });
+  });
+
+  it('the value-less operators keep emitting on an empty box — they read no comparand', () => {
+    // `isNull` / `exists` / `isEmpty` and their negations resolve from the
+    // operator NAME; an empty value box is their resting state, not an
+    // unfinished row, so the drop must not reach them.
+    expect(condToMongo({ id: 'c1', field: 'name', operator: 'isNull', value: '' } as any, noTypes))
+      .toEqual({ name: { $null: true } });
+    expect(condToMongo({ id: 'c2', field: 'name', operator: 'exists', value: '' } as any, noTypes))
+      .toEqual({ name: { $exists: true } });
+    expect(condToMongo({ id: 'c3', field: 'name', operator: 'notExists', value: '' } as any, noTypes))
+      .toEqual({ name: { $exists: false } });
+    expect(condToMongo({ id: 'c4', field: 'name', operator: 'isEmpty', value: '' } as any, noTypes))
+      .toEqual({ name: { $in: [null, ''] } });
+    expect(condToMongo({ id: 'c5', field: 'name', operator: 'isNotEmpty', value: '' } as any, noTypes))
+      .toEqual({ name: { $nin: [null, ''] } });
+  });
+
+  it('equals with an empty comparand still emits — it is a real predicate', () => {
+    // `name == ""` selects the rows whose value IS the empty string. Only the
+    // TEXT operators have an "operator chosen, box empty" state that means
+    // nothing; equality does not, so the drop is scoped away from it.
+    expect(condToMongo({ id: 'c1', field: 'name', operator: 'equals', value: '' } as any, noTypes))
+      .toEqual({ name: '' });
+  });
+});
