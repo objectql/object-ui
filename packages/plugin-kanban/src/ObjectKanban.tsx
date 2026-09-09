@@ -228,6 +228,37 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
   const hasExternalData = Array.isArray(externalData);
 
   const [fetchedData, setFetchedData] = useState<any[]>([]);
+  /**
+   * Did the last fetch come back SATURATED — as many rows as the window
+   * allowed (objectui#8307)?
+   *
+   * The fetch below is windowed at a real `$top` (objectui#4025). The board
+   * then groups WHAT CAME BACK into lanes client-side, so every lane header
+   * counts fetched rows that fell into that lane, not the size of the group.
+   * Over any object with more rows than the window every one of those numbers
+   * is wrong, they sum to the window, and nothing on screen says so — the
+   * measured case on this card displayed 77 / 19 / 2 against a true
+   * 88 / 46 / 28 / 14 / 9 / 15.
+   *
+   * This flag is what lets the header say `77+` instead of `77`. It is the
+   * only truthful statement available without a second query: a per-lane
+   * total needs a server-side group-count aggregate over the whole filtered
+   * set (the card's option 1), which this board does not issue.
+   *
+   * SATURATION, not equality. The card suggests `rows.length === limit`;
+   * `>=` is the predicate that cannot be talked into a false claim, because a
+   * source that ignores `$top` and over-returns still yields a count that is
+   * merely a LOWER BOUND as far as this component can tell. `<` the window is
+   * the one case where the client knows the result set was exhausted, and
+   * that is the case where the bare number is the truth.
+   *
+   * Held as STATE captured at fetch time rather than derived from
+   * `fetchedData.length` at render: the optimistic move/create/delete paths
+   * below rewrite `fetchedData`, and a delete would otherwise drop the array
+   * to `window - 1` and silently retract the marker from a board that is
+   * still showing a window.
+   */
+  const [fetchWindowSaturated, setFetchWindowSaturated] = useState(false);
   // The object-definition read and the fact that it has SETTLED are one piece
   // of state, keyed by the object it belongs to (objectui#6271) — now the
   // SHARED hook rather than this component's hand copy of it (objectui#7225,
@@ -360,9 +391,10 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             // `QueryParams` field and that nothing in this repo reads. The number
             // is unchanged; it just reaches the wire now, and `limit` (authored,
             // or a bound view's `pagination.pageSize`) can set it.
+            const rowWindow = schema.limit ?? DEFAULT_KANBAN_LIMIT;
             const results = await dataSource.find(schema.objectName, {
                 $filter: schema.filter,
-                $top: schema.limit ?? DEFAULT_KANBAN_LIMIT,
+                $top: rowWindow,
                 ...(expand.length > 0 ? { $expand: expand } : {}),
             });
             
@@ -371,6 +403,10 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
 
             if (isMounted) {
                 setFetchedData(data);
+                // objectui#8307 — see `fetchWindowSaturated`. Recorded HERE,
+                // against the window THIS request carried, because that is the
+                // only point where the two numbers are both in hand.
+                setFetchWindowSaturated(data.length >= rowWindow);
             }
         } catch (e) {
             console.error('[ObjectKanban] Fetch error:', e);
@@ -393,6 +429,18 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
 
   // Determine which data to use: external -> bound -> inline -> fetched
   const rawData = (hasExternalData ? externalData : undefined) || boundData || schema.data || fetchedData;
+
+  /**
+   * Are the lane counts about to be drawn counts of a WINDOW (objectui#8307)?
+   *
+   * Only when the rows on screen are the ones this component fetched. External,
+   * bound and inline data arrive whole from whoever owns them; this board
+   * applied no window to them and has nothing truthful to say about whether
+   * someone else did, so those boards keep the bare number. The identity
+   * comparison is deliberate — it asks the exact question `rawData`'s own
+   * precedence chain just answered, so the two can never disagree.
+   */
+  const countsAreWindowed = fetchWindowSaturated && rawData === fetchedData;
 
   // Enhance data with title mapping and ensure IDs
   const effectiveData = useMemo(() => {
@@ -1092,6 +1140,9 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
         // what lets a rule comparing a relation see the stored foreign key
         // instead of the expanded record (objectui#3501).
         objectFields: objectDef?.fields,
+        // objectui#8307 — the lane headers count rows that came back, so when
+        // the fetch saturated its window they must say `77+`, not `77`.
+        countsAreWindowed,
         onCardClick: (card: any, event?: any) => {
           navigation.handleClick(card, event);
           onCardClick?.(card);
