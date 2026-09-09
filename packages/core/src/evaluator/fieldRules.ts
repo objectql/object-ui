@@ -138,6 +138,40 @@ function warnPredicateFailure(
 /**
  * Evaluate a field-rule CEL predicate against a record.
  *
+ * ## `fallback` is a per-CALL-SITE policy, not a default this helper owns
+ *
+ * The parameter is required and carries no default value, so every call site
+ * states a direction of its own — and the directions in this repo do not
+ * agree. Five distinct fault policies share this one helper today, which is
+ * readable nowhere but here (objectui#8069):
+ *
+ * 1. **Fixed permissive, paired with an equal "no rule" literal.**
+ *    {@link resolveFieldRuleState} (`true` / `false` / `false`) and
+ *    `resolveVisibleOptions` (`evaluator/optionRules.ts`, `true`). A fault
+ *    produces the permissive verdict, indistinguishable from the verdict for
+ *    "the author wrote no rule" — see the `…_FAULTED` / `…_ABSENT` note below.
+ * 2. **Fixed permissive, unguarded — ONE literal answers absent *and*
+ *    faulted.** Every visibility call site outside core: the form renderer
+ *    (`components/renderers/form/form.tsx`), console's `FormPage`, app-shell's
+ *    `ScreenView`, `plugin-form`'s `WizardForm`. All of them pass `true`, and
+ *    none has a separate absent branch at all.
+ * 3. **Caller-parameterised.** `evalRowPredicate`'s single-eval fast route
+ *    (`evaluator/listConditional.ts`) forwards `opts.fallback`, so the
+ *    direction is the mounting surface's to state.
+ * 4. **Divergence probe → fault FLAG.** `evalCel`
+ *    (`evaluator/listConditional.ts`) calls this helper once per direction with
+ *    `warn: false` + `onFault`: a verdict that tracks the fallback in BOTH runs
+ *    is a fault, and the caller emits its own labelled warning and returns its
+ *    own fallback.
+ * 5. **Divergence probe → THROW.** `ExpressionEvaluator.evaluateCelCondition`
+ *    under `throwOnError` runs the same two-call trick and converts the
+ *    disagreement into `throw new Error('CEL predicate failed to evaluate: …')`.
+ *
+ * ⚠️ The last two policies exist **because** `fallback` is free to specify: they
+ * detect a fault by disagreeing with themselves. Any proposal to fix a
+ * direction *inside* this helper — objectui#8069's open question — removes the
+ * mechanism they are built on, so read them before writing one.
+ *
  * @param pred      The `visibleWhen` / `readonlyWhen` / `requiredWhen` predicate.
  * @param record    The live form values (overlays prior persisted record).
  * @param fallback  Value to return when the predicate is absent or fails to
@@ -196,6 +230,60 @@ export function evalFieldPredicate(
 }
 
 /**
+ * The verdict {@link resolveFieldRuleState} applies when a rule's predicate
+ * CANNOT BE EVALUATED — parse error, unbound identifier, engine fault, or a
+ * predicate the author left blank.
+ *
+ * ⚠️ These answer **"what should the form do when this rule is BROKEN?"** —
+ * *not* "what should the form do when the author declared NO rule?" That
+ * second question is answered separately, by the `…_ABSENT` set below. The two
+ * sets hold pairwise EQUAL values today, and that equality is a copy, not an
+ * implication: each `rules.<key> != null` ternary answers the absent case with
+ * its own literal and hands `evalFieldPredicate` the same literal as the fault
+ * fallback beside it, so every permissive value is written twice and the "it
+ * broke" answer was chosen by aligning it with the "it is absent" answer next
+ * to it. Nothing was *inherited* from a shared default — `evalFieldPredicate`'s
+ * `fallback` parameter is required and has none (objectui#8069 measured both
+ * halves).
+ *
+ * All three directions are the PERMISSIVE one, so a single mistyped column in
+ * one authored predicate yields a form that shows more, locks less and demands
+ * less — three faults from one typo, composing rather than cancelling. That is
+ * objectui#8069's open question and it is deliberately NOT decided here.
+ *
+ * **What the history records** (read on full, unshallowed history — a shallow
+ * clone answers this with one commit and no warning): the direction *was*
+ * reasoned about, once, when the helper landed (objectui#1578). This module's
+ * head and ADR-0036 both record the same rationale — the fallbacks are "chosen
+ * so a fault is *safe*: `true` for visibility (don't hide content on error),
+ * `false` for required/readonly (don't block submit or lock a field on
+ * error)". What no commit records is the COMPOSITION: every recorded argument
+ * is per-key, and the case where all three faults arrive from one typo was
+ * never put. objectstack#5149 then removed the SILENCE and left the direction
+ * explicitly undecided ("appeal 1").
+ *
+ * ⛔ These values are shipped behaviour. Changing one is not a refactor, it is
+ * objectui#8069's decision — and objectui#6958 leans on the `visibleWhen` half
+ * staying fail-open (a broken predicate must never silently null a stored
+ * column).
+ */
+const VISIBLE_WHEN_FAULTED = true;
+const READONLY_WHEN_FAULTED = false;
+const REQUIRED_WHEN_FAULTED = false;
+
+/**
+ * The verdict {@link resolveFieldRuleState} applies when the author declared NO
+ * rule for that key at all — the `: <literal>` arm of each `!= null` ternary.
+ *
+ * Spelled apart from the `…_FAULTED` set above because they answer a different
+ * question, not because they differ: changing one of THESE changes what an
+ * unconditional field does, which is a louder and quite separate decision.
+ */
+const VISIBLE_WHEN_ABSENT = true;
+const READONLY_WHEN_ABSENT = false;
+const REQUIRED_WHEN_ABSENT = false;
+
+/**
  * Resolve the effective `{ visible, readonly, required }` state for a field
  * given its conditional rules and the live record. Each `*When` rule, when
  * present, *overrides* the static flag. A static `true` is never weakened by a
@@ -243,14 +331,28 @@ export function resolveFieldRuleState(
 
   const visible =
     rules.visibleWhen != null
-      ? evalFieldPredicate(rules.visibleWhen, record, true, previous, scope, diag('visibleWhen'))
-      : true;
+      ? evalFieldPredicate(
+          rules.visibleWhen,
+          record,
+          VISIBLE_WHEN_FAULTED,
+          previous,
+          scope,
+          diag('visibleWhen'),
+        )
+      : VISIBLE_WHEN_ABSENT;
 
   const readonly =
     statics.readonly === true ||
     (rules.readonlyWhen != null
-      ? evalFieldPredicate(rules.readonlyWhen, record, false, previous, scope, diag('readonlyWhen'))
-      : false);
+      ? evalFieldPredicate(
+          rules.readonlyWhen,
+          record,
+          READONLY_WHEN_FAULTED,
+          previous,
+          scope,
+          diag('readonlyWhen'),
+        )
+      : READONLY_WHEN_ABSENT);
 
   // Short-circuited, not evaluated-and-discarded: the verdict cannot depend on
   // the predicate, so running it would only spend an engine call per field per
@@ -262,8 +364,15 @@ export function resolveFieldRuleState(
       ? false
       : statics.required === true ||
         (rules.requiredWhen != null
-          ? evalFieldPredicate(rules.requiredWhen, record, false, previous, scope, diag('requiredWhen'))
-          : false);
+          ? evalFieldPredicate(
+              rules.requiredWhen,
+              record,
+              REQUIRED_WHEN_FAULTED,
+              previous,
+              scope,
+              diag('requiredWhen'),
+            )
+          : REQUIRED_WHEN_ABSENT);
 
   return { visible, readonly, required };
 }
