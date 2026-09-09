@@ -49,6 +49,40 @@ const useKanbanT = createSafeTranslation(
 
 const UNCATEGORIZED_LANE = 'Uncategorized'
 
+/**
+ * Marks a swimlane row as a participant in the board's ONE horizontal axis
+ * (objectui#8448).
+ *
+ * The swimlane layout paints its column titles once, above every lane, and then
+ * paints each lane's cells in its own row. Both rows are `overflow-x-auto`, so
+ * before this attribute existed they were INDEPENDENT scroll containers: driving
+ * a lane to `scrollLeft: 298` left the header at `0`, and every column title
+ * then sat over the wrong column. Measured in Chromium 1194 at 1600x1000 with
+ * five columns — `'Open'` title at x=200, the Open lane cell at x=-97 — and the
+ * row already overflows at ordinary widths there (`scrollWidth` 1840 vs
+ * `clientWidth` 1552). Nothing errored; the board simply lied about which lane
+ * was which status, which is worse than the height-0 row objectui#7303 fixed
+ * because that one failed loudly.
+ *
+ * ⚠️ The sync is a scroll handler rather than one shared scrolling ANCESTOR,
+ * and that is a measurement, not a preference. Folding the header row and the
+ * lane rows into a single `overflow-x-auto` wrapper is refused by objectui#7303's
+ * own pin, which reads the header row as `region.firstElementChild` and asserts
+ * that its `pl-*` indent EQUALS the lane content row's. A wrapper becomes that
+ * first child, and hoisting the shared indent onto it is exactly what makes the
+ * two indents differ — so the restructuring cannot be done without editing a pin
+ * that must stay unweakened. It also drags the lane chrome (border box and
+ * collapse button) inside the scroller, where the lane's own name scrolls out of
+ * view: a second "the board no longer says which lane this is" defect, of the
+ * family this fix exists to remove.
+ *
+ * Keeping the DOM as it is has a second payoff: the header row stays a direct
+ * flex child of the swimlane region, so objectui#8449's ruled vertical arm
+ * (region scrolls, header row sticks) remains reachable without undoing any of
+ * this.
+ */
+const SWIMLANE_SCROLL_ROW_ATTR = 'data-swimlane-scroll-row'
+
 // `KanbanCard` / `KanbanColumn` have ONE authority in this package: `./types`
 // (objectui#6172 / #6155). This file used to redeclare both, and the copies had
 // drifted — the local `KanbanCard` carried `cardSubtitle` / `cardFieldCells` /
@@ -688,6 +722,63 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
     return () => el.removeEventListener('scroll', handle)
   }, [boardColumns.length])
 
+  /**
+   * The swimlane board's single horizontal scroll position (objectui#8448).
+   *
+   * A ref, not state: this value must be readable from a `scroll` handler and
+   * from a mount-time `ref` callback without re-rendering the board on every
+   * scroll frame. Nothing renders from it.
+   */
+  const swimlaneScrollLeftRef = React.useRef(0)
+
+  /**
+   * Propagate one row's new position to every other row of the same board.
+   *
+   * Rows are found by attribute rather than collected into a ref, because a
+   * plain `ref` callback is handed `null` on unmount and cannot say WHICH
+   * element left; a DOM query is always the live set. `boardRef` scopes it to
+   * this board, and the attribute is carried only by swimlane rows, so the flat
+   * layout's own scroller can never be pulled along.
+   *
+   * The equality guards are what make this terminate. Assigning a `scrollLeft`
+   * that a row already holds fires no `scroll` event, so the echo from the rows
+   * this handler moves dies on its first hop; the shared-position guard on top
+   * makes a second row reporting the same value a no-op rather than a second
+   * pass. The one place a row can disagree is the extreme right edge: a lane row
+   * carries ~10px more scrollable width than the header row (its `pr` plus the
+   * lane's border), so a lane driven to its own maximum clamps the header to the
+   * header's, whose echo then pulls the lanes back to it. That converges in one
+   * hop and settles on the most restrictive row, which is the honest reading of
+   * "one axis for the whole board".
+   */
+  const syncSwimlaneScroll = React.useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const source = event.currentTarget
+    const next = source.scrollLeft
+    if (next === swimlaneScrollLeftRef.current) return
+    swimlaneScrollLeftRef.current = next
+    const board = boardRef.current
+    if (!board) return
+    for (const row of board.querySelectorAll<HTMLElement>(`[${SWIMLANE_SCROLL_ROW_ATTR}]`)) {
+      if (row !== source && row.scrollLeft !== next) row.scrollLeft = next
+    }
+  }, [])
+
+  /**
+   * Give a row that mounts LATE the board's current position.
+   *
+   * Expanding a collapsed lane mounts a fresh row at `scrollLeft: 0`; without
+   * this it would render one lane's cells offset from every other lane's and
+   * from the titles above them — the same defect, arriving by a different door.
+   * The callback identity is stable, so React runs it once per mount and once
+   * with `null` per unmount rather than on every render (which would reset the
+   * position mid-scroll).
+   */
+  const adoptSwimlaneScroll = React.useCallback((el: HTMLDivElement | null) => {
+    if (el && el.scrollLeft !== swimlaneScrollLeftRef.current) {
+      el.scrollLeft = swimlaneScrollLeftRef.current
+    }
+  }, [])
+
   return (
     <DndContext
       sensors={sensors}
@@ -768,7 +859,12 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               The `pl-36 sm:pl-44` indent is shared with the lane content rows
               below and is what lines the titles up with their columns — it must
               move on both rows or neither. */}
-          <div className="flex shrink-0 gap-3 sm:gap-4 pl-36 sm:pl-44 overflow-x-auto">
+          <div
+            className="flex shrink-0 gap-3 sm:gap-4 pl-36 sm:pl-44 overflow-x-auto"
+            ref={adoptSwimlaneScroll}
+            onScroll={syncSwimlaneScroll}
+            data-swimlane-scroll-row=""
+          >
             {boardColumns.map(col => (
               <div
                 key={col.id}
@@ -802,7 +898,12 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
 
                 {/* Lane content */}
                 {!isCollapsed && (
-                  <div className="flex gap-3 sm:gap-4 overflow-x-auto px-2 pb-3 pl-36 sm:pl-44">
+                  <div
+                    className="flex gap-3 sm:gap-4 overflow-x-auto px-2 pb-3 pl-36 sm:pl-44"
+                    ref={adoptSwimlaneScroll}
+                    onScroll={syncSwimlaneScroll}
+                    data-swimlane-scroll-row=""
+                  >
                     {boardColumns.map(col => {
                       const laneCards = col.cards.filter(c =>
                         (c[swimlaneField!] != null ? String(c[swimlaneField!]) : UNCATEGORIZED_LANE) === lane
