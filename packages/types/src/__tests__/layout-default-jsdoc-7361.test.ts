@@ -828,7 +828,7 @@ describe('objectui#8318 ruling — nine `@default`s corrected against a measured
   });
 
   describe('row 16 — DetailSchema.loading (tag corrected: `true` → what the bare disjunct applies)', () => {
-    it('publishes what the reader applies when the key is absent', () => {
+    it('row 16 — `DetailSchema.loading` publishes what the reader applies when the key is absent', () => {
       const applied = bareDisjunctDefault(read(DETAIL_VIEW), 'loading', DETAIL_VIEW);
       expect(soleDefaultTag(interfaceBody(crud, 'DetailSchema'), 'loading')).toBe(applied);
     });
@@ -854,7 +854,7 @@ describe('objectui#8318 ruling — nine `@default`s corrected against a measured
   });
 
   describe('row 17 — DetailViewSchema.loading (the same reader, a second registration)', () => {
-    it('publishes the same value as its twin', () => {
+    it('row 17 — `DetailViewSchema.loading` publishes the same value as its twin', () => {
       const applied = bareDisjunctDefault(read(DETAIL_VIEW), 'loading', DETAIL_VIEW);
       expect(soleDefaultTag(interfaceBody(views, 'DetailViewSchema'), 'loading')).toBe(applied);
     });
@@ -872,7 +872,7 @@ describe('objectui#8318 ruling — nine `@default`s corrected against a measured
   });
 
   describe('row 18 — CardSchema.variant (registered twice, read by neither)', () => {
-    it('publishes NO `@default` block tag, and says why', () => {
+    it('row 18 — `CardSchema.variant` publishes NO `@default` block tag, and says why', () => {
       expectAbsentTagWithEvidence(interfaceBody(types, 'CardSchema'), 'variant', [
         'ui/card.tsx',
         'ui/alert.tsx',
@@ -901,7 +901,7 @@ describe('objectui#8318 ruling — nine `@default`s corrected against a measured
   });
 
   describe('row 19 — PageNodeSchema.isDefault (registered, not read, not on the allow-list)', () => {
-    it('publishes NO `@default` block tag, and says why', () => {
+    it('row 19 — `PageNodeSchema.isDefault` publishes NO `@default` block tag, and says why', () => {
       expectAbsentTagWithEvidence(interfaceBody(types, 'PageNodeSchema'), 'isDefault', [
         'toDomProps',
         'SDUI_DOM_PASS_THROUGH_KEYS',
@@ -925,7 +925,7 @@ describe('objectui#8318 ruling — nine `@default`s corrected against a measured
   });
 
   describe('row 20 — ActionSchema.level (no `action` node type; the runner reads its siblings, not it)', () => {
-    it('publishes NO `@default` block tag, and says why', () => {
+    it('row 20 — `ActionSchema.level` publishes NO `@default` block tag, and says why', () => {
       expectAbsentTagWithEvidence(interfaceBody(crud, 'ActionSchema'), 'level', [
         "register('action'",
         'ActionRunner.ts',
