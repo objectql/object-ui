@@ -7,7 +7,7 @@
  */
 
 /**
- * `objectFields` is an INTERNAL CHANNEL, not an authoring surface
+ * `objectFields` is a PROP, no longer a key read off the `schema` bag
  * (objectui#7742, ADR-0049, maintainer decision batch #70, 2026-09-07).
  *
  * ## What moved, and why it was a defect
@@ -26,6 +26,22 @@
  * nothing judged it either: an author could hand the predicate layer a
  * fabricated field catalogue and change which cards a rule matched. Batch #70
  * ruled it an internal channel; it is now a React PROP, a sibling of `schema`.
+ *
+ * ## ⚠️ Scope — what the move closes, and what it does NOT
+ *
+ * It closes the SCHEMA READ PATH, which is exactly what the assertions below
+ * pin: `KanbanRenderer` no longer reads `schema.objectFields`. On the `'kanban'`
+ * arm that closes the key outright — `ObjectKanbanRenderer` serves that type key
+ * and discards its rest-spread (`void _props;`), so an authored `objectFields`
+ * on a `type: 'kanban'` node reaches nothing.
+ *
+ * ⛔ It does NOT make `objectFields` author-unreachable in general, and this
+ * file must not be read as claiming that. `objectFields` is absent from
+ * `SchemaRenderer`'s stripped-metadata list, so on the schema-only `'kanban-ui'`
+ * entry an authored `objectFields` survives that renderer's generic prop spread
+ * and arrives on the very prop asserted below. The tests here render
+ * `KanbanRenderer` DIRECTLY and so never exercise `SchemaRenderer`: that entry
+ * is measured but NOT pinned here, and closing it is a separate change.
  *
  * ## How this file discriminates, and why the fixture is shaped this way
  *

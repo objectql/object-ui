@@ -52,15 +52,24 @@ failure objectui#7664's own first cut shipped at `onCardClick`.
   The member list is `@objectstack/spec`'s `NavigationConfig` by reference, not
   restated, so the vocabulary cannot fork.
 
-## `@object-ui/plugin-kanban` — one internal channel leaves the schema bag
+## `@object-ui/plugin-kanban` — `objectFields` moves from the schema bag to a React prop
 
 `objectFields` (the fetched object's field definitions, which card conditional
 formatting needs so a rule comparing a relation sees the stored foreign key) is
 now a **React prop on `KanbanRendererProps`**, a sibling of `schema`, rather than
-a member of the `schema` bag. It is an internal channel from the one caller that
-fetched the object definition, never an authoring surface. Inside `schema` it was
-reachable by an *author*: on the schema-only `kanban-ui` entry, which has no
-object schema of its own to substitute, an authored `objectFields` reached
-`resolveConditionalFormatting` verbatim while no schema face declared or judged
-it. Callers that render `KanbanRenderer` directly and passed `objectFields`
-inside `schema` must move it to the prop.
+a member of the `schema` bag. `ObjectKanban` — the one caller that fetches the
+object definition — injects it there. Callers that render `KanbanRenderer`
+directly and passed `objectFields` inside `schema` must move it to the prop.
+
+⚠️ **What this closes, stated at the arm level** — measured through the real
+`SchemaRenderer`, not assumed. It closes the *schema read path*, and on the
+`'kanban'` arm that closes the key outright: `ObjectKanbanRenderer` serves that
+type key and discards its rest-spread (`void _props;`), so an authored
+`objectFields` on a `type: "kanban"` node reaches nothing. It does **not** make
+`objectFields` unreachable to an author in general. On the schema-only
+`'kanban-ui'` entry, which `KanbanRenderer` serves directly, the key is absent
+from `SchemaRenderer`'s stripped-metadata list, so it survives that renderer's
+generic prop spread and arrives on the very prop this change adds — an authored
+`objectFields` still reaches `resolveConditionalFormatting` there, as it did
+before, and no schema face declares or judges it. Closing that entry is a
+separate change and is not made here.
