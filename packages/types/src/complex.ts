@@ -727,24 +727,31 @@ export interface FilterField {
    */
   label: string;
   /**
-   * Field type — the value FAMILY the column is edited in.
+   * Field type — the value FAMILY the column is edited in. OPTIONAL: absent
+   * means `text`, which is what `valueFamilyForFieldType` and
+   * `operatorsForFieldType` both read (`fieldType || "text"`,
+   * `custom/filter-builder.tsx:408` and `:964`).
    *
-   * The six ruled members are `FilterValueFamily`
-   * (`custom/filter-builder.tsx:406`) and each draws a distinct control:
-   * `<input type>` `text` / `number` / `date` / `datetime-local` / `time`, and
-   * for `boolean` a two-item Select and no input at all. `string` left this
-   * union as a phantom — it reached the text control by the unrecognised-word
-   * fallthrough, indistinguishable from a nonsense spelling, while `text` is
-   * what the registration's `defaultProps` and every catalog entry author.
+   * The fourteen members are the published doc's
+   * (`content/docs/components/complex/filter-builder.mdx`), which objectui#7562
+   * ruled the authority for this authoring surface, in the doc's own order.
+   * Every one of them was measured to have a renderer branch before this union
+   * widened — the ruling's precondition — and none had to be withdrawn from the
+   * doc. The mirror's docblock (`zod/complex.zod.ts`, `FilterFieldSchema`)
+   * carries the branch-by-branch table with the file:line for each bucket.
    *
-   * `select` is RETAINED against a literal reading of the ruling's six:
-   * `selectLikeTypes` gives it its own operator bucket and the option-driven
-   * Select, so dropping it would refuse a live spelling. `status`, `currency`,
-   * `percent`, `rating`, `lookup`, `master_detail` and `user` are live too and
-   * are still absent — a pre-existing gap reported on objectui#6939, not a
-   * regression introduced here.
+   * `string` is still absent and is the contrast that makes the rest read: it
+   * is named nowhere in the renderer and reaches the text control only by the
+   * unrecognised-word fallthrough, so it is a phantom (objectui#6939). `text`
+   * shares that fallthrough but IS named — line 408 is where an absent `type`
+   * acquires it — which is why one is declared and the other is not.
    */
-  type: 'text' | 'number' | 'boolean' | 'date' | 'datetime' | 'time' | 'select';
+  type?:
+    | 'text' | 'number' | 'currency' | 'percent' | 'rating'
+    | 'date' | 'datetime' | 'time'
+    | 'boolean'
+    | 'select' | 'status'
+    | 'lookup' | 'master_detail' | 'user';
   /**
    * Available operators for this field
    */
