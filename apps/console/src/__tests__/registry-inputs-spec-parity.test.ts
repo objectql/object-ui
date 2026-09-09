@@ -2025,15 +2025,32 @@ const MULTI_KIND_MEMBER_CONTRACTS: Record<string, string> = {
 // member shape, and fixing it is an ADR-0049 enforce-or-remove decision the spec
 // owns. See `NO_READ_SITE_TO_PIN`.
 //
+// ⭐ THIRD SLICE, AND THE FIRST BLOCK LEFT WITH NO EXEMPTIONS AT ALL.
+// objectui#8071's third slice converted the four remaining keys of
+// `element:record_picker` — `dataSource`, `label`, `placeholder` and `sort` —
+// the batch this card's own dispatch names as the example of "one block
+// family". Unlike `record:related_list`, nothing here needed a
+// `NO_READ_SITE_TO_PIN`: every declared key on this block has a real read site,
+// so the block drops out of `MEMBER_PIN_EXEMPTIONS` entirely rather than
+// leaving one entry behind. Measured over this file's own ledger, before and
+// after: 90 array/object-armed inputs, 36 pinned, 54 exempt -> 90, 40 pinned,
+// 50 exempt, and `MEMBER_PIN_EXEMPTION_CEILING` follows 54 -> 50 in the same
+// commit. Two of the four pins PROMOTE pre-existing files (`dataSource`, and
+// one file covering both `label` and `placeholder`), read end to end first;
+// `sort` — the standalone `properties.sort` key, as opposed to the
+// `dataSource.sort` sub-member the promoted `dataSource` file already
+// exercised — had no existing candidate anywhere in the repo, so it is a new
+// file. See `MEMBER_PIN_EXEMPTION_CEILING`'s own docblock for the accounting.
+//
 // A list this size is the transition case, and this file already owns the
 // pattern for it —
 // `OFF_SPEC_EXEMPTIONS` / `UNPUBLISHED_EXEMPTIONS` / `OFF_SPEC_ARM_EXEMPTIONS`
 // are explicit, reasoned, issue-backed, and go RED once stale. This is the same
-// mechanism, not a second one: `MEMBER_PIN_EXEMPTIONS` below lists all 54
+// mechanism, not a second one: `MEMBER_PIN_EXEMPTIONS` below lists all 50
 // remaining keys BY NAME, every entry cites an issue, and an
 // entry whose key acquires a pin is reported STALE and must be deleted in the
 // same change. The list has a CEILING as well as a stale check, because the
-// cheap way to green a new array key is to add a 55th entry rather than a pin.
+// cheap way to green a new array key is to add a 51st entry rather than a pin.
 //
 // ## WHAT IS DELIBERATELY NOT IN THE POPULATION, stated rather than dropped
 //
@@ -2118,6 +2135,10 @@ const MEMBER_PINS: Record<string, MemberPin> = {
     file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
     pins: 'The `object` arm is the inline translation map `{ en, "zh-CN" }` and nothing else — driven through the real `manifestFromConfigs` + `validateTree` pair the JSX-page compiler and the save gate use, each positive paired with a value matching NEITHER arm that must still be reported (objectui#4970).',
   },
+  'element:record_picker.dataSource': {
+    file: 'packages/components/src/__tests__/record-picker-element-data-source.test.tsx',
+    pins: 'The per-element binding\'s own members, read through the REAL renderer and asserted at the query it fires: `view` resolves a saved view whose `filter`/`sort`/row cap become the picker\'s baseline, an authored binding key WINS over the same key from the view, the binding\'s own `filter` arrives AND-combined with the view\'s rather than replacing it, and an unresolvable `view` reports instead of falling back to every record of the object — the quieter failure mode objectstack#6953 fixed, one class below the throw objectstack#5576 fixed on `list-view`. A `view`-less binding leaves every one of the four flat keys (`object`/`filter`/`sort`/`limit`) behaving exactly as it did before a `dataSource` was authored at all, which is the control that keeps the override rows from reading as a coincidence. `columns` is deliberately absent from this pin: unlike `record:related_list.dataSource` (objectui#8071 slice 2), this renderer never reads `composed.columns` at all — a select dropdown has no column list to narrow. Pre-existing file, promoted to a pin here after being read end to end (objectui#8071).',
+  },
   'element:record_picker.emptyText': {
     file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
     pins: 'The `object` arm is the inline translation map, asserted at the render site that actually resolves one, with the non-matching controls (`42`, `["No records"]`) still reported (objectui#3832).',
@@ -2125,6 +2146,18 @@ const MEMBER_PINS: Record<string, MemberPin> = {
   'element:record_picker.filter': {
     file: 'packages/components/src/__tests__/record-picker-inputs-spec-parity.test.ts',
     pins: 'The `object` arm is `FilterConditionSchema` — field keys plus `$and`/`$or`/`$not` — with the rule-ARRAY spelling every sibling `filter` uses rejected outright, and the description pinned to the renderer\'s own precedence read (`composed?.filter ?? props.filter`), objectui#3830.',
+  },
+  'element:record_picker.label': {
+    file: 'packages/components/src/renderers/basic/__tests__/record-picker-label-placeholder-i18n.test.tsx',
+    pins: 'The I18nLabel object arm, resolved at ITS OWN read site rather than through the row-value helper `toText` it used to share: the map resolves to the active language rather than always to its `en` entry (the pre-fix harm rendered ENGLISH to a zh-CN viewer), a region tag falls back to the base language an author actually wrote, and — the quiet failure — a legal map that simply omits `en` used to delete the `<label>` element with nothing thrown and nothing logged; this pin asserts the element\'s PRESENCE first, then its text, so a fix that resolved the string but left the element gone still fails here. A plain-string control and the "absent key renders no label at all" control both stay green in every case, which is what keeps the object-arm rows from being satisfied by an always-render fix (objectui#5637).',
+  },
+  'element:record_picker.placeholder': {
+    file: 'packages/components/src/renderers/basic/__tests__/record-picker-label-placeholder-i18n.test.tsx',
+    pins: 'The I18nLabel trio\'s other object arm, on the sharper of the two pre-fix failures: an authored map THREW `Objects are not valid as a React child` at `SelectValue`, taking the whole control down rather than merely mis-rendering. Same resolver, same fallback chain and the same base-language control as `label` above; see that entry (objectui#5637).',
+  },
+  'element:record_picker.sort': {
+    file: 'packages/components/src/__tests__/record-picker-sort-members.test.tsx',
+    pins: 'An IDENTITY pin, unlike the sibling block\'s: `record-picker.tsx` assigns `query.$orderby = sort` with no `normalizeSortSpec` in between, so a member missing `field` is NOT dropped the way `record:related_list.sort` (objectui#8071 slice 2) drops one — pinned as the current, undocumented divergence between two blocks whose registrations both say only "array of objects". Order is preserved for a multi-member array, no `$orderby` is sent when the key is absent, and PRECEDENCE against `dataSource` is pinned in both directions: a binding that declares its own `sort` replaces the flat key outright, and the flat key still applies when the binding carries none — `composed?.sort ?? props.sort`, identical to `filter`\'s read (objectui#8071).',
   },
   'element:text.content': {
     file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
@@ -2357,7 +2390,7 @@ const NO_READ_SITE_TO_PIN =
  *
  * The ceiling below is the other half, and it is what makes this a transition
  * rather than an allowlist: a NEW array-typed key cannot be absorbed by adding a
- * 55th entry, because the count may only go down.
+ * 51st entry, because the count may only go down.
  */
 const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
   // element:button
@@ -2366,11 +2399,10 @@ const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
   // element:number
   'element:number.filter': AWAITING_A_PIN,
 
-  // element:record_picker
-  'element:record_picker.dataSource': AWAITING_A_PIN,
-  'element:record_picker.label': AWAITING_A_PIN,
-  'element:record_picker.placeholder': AWAITING_A_PIN,
-  'element:record_picker.sort': AWAITING_A_PIN,
+  // element:record_picker — objectui#8071 slice 3 pinned all four remaining
+  // keys (`dataSource`, `label`, `placeholder`, `sort`); the block is now
+  // fully pinned and this header stays only as a note for the next reader who
+  // greps for it.
 
   // object-form
   'object-form.customFields': AWAITING_A_PIN,
@@ -2531,11 +2563,31 @@ const NEWLY_JUDGED_UNPINNED_MEMBERS = [
  * ceiling of 54 counts it like any other entry — a key that cannot be pinned
  * still occupies a slot, because the ratchet counts EXEMPTIONS, not excuses.
  *
+ * ## 54 -> 50, the third slice, and the first WHOLE BLOCK closed
+ *
+ * objectui#8071's third slice converted all four remaining keys of ONE block —
+ * `element:record_picker`'s `dataSource`, `label`, `placeholder` and `sort` —
+ * and deleted their four entries, so the ceiling follows to 50 in the same
+ * commit. Unlike `record:related_list` (slice 2), this block has no
+ * `NO_READ_SITE_TO_PIN` leftover: every key it declares now carries a real
+ * member pin, and the `element:record_picker` header comment above stays only
+ * as a landmark for a future grep, not because anything under it is exempt.
+ *
+ * Two of the four were PROMOTED pre-existing files, read end to end before
+ * being credited rather than trusted on their strings — the same discipline
+ * slices 1 and 2 applied: `record-picker-element-data-source.test.tsx` (for
+ * `dataSource`) and `record-picker-label-placeholder-i18n.test.tsx` (for BOTH
+ * `label` and `placeholder`, which is why those two rows in `MEMBER_PINS` point
+ * at the same file — it was written to cover the pair). `sort` had no
+ * candidate at all — nothing in the repo exercised the flat, standalone
+ * `properties.sort` key before this slice — so it is the one genuinely new
+ * file.
+ *
  * ⇒ The rule for every future slice of objectui#8071: delete the entry, register
  * the pin, and set this constant to the new count. Not to the new count plus
  * room.
  */
-const MEMBER_PIN_EXEMPTION_CEILING = 54;
+const MEMBER_PIN_EXEMPTION_CEILING = 50;
 
 /**
  * Every test file a member pin can live in, as LAZY `?raw` loaders.
@@ -2552,7 +2604,7 @@ const MEMBER_PIN_EXEMPTION_CEILING = 54;
  * LAZY on purpose. `eager: true` would inline the raw text of every test file in
  * the repo — 2,000+ files, ~3 MB — into this module on every run of a gate that
  * already loads the whole registration graph. Lazy hands back loaders, so the
- * cost is the glob itself plus one read per REGISTERED pin (36 today).
+ * cost is the glob itself plus one read per REGISTERED pin (40 today).
  */
 const PIN_SOURCES = import.meta.glob(
   [
@@ -3888,7 +3940,7 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
   it('the member-pin exemption list only ratchets DOWN', () => {
     // The other half. A new array-typed key must be answered with a pin, not
-    // with a 55th entry carrying the same reason as its neighbours — that move
+    // with a 51st entry carrying the same reason as its neighbours — that move
     // is what made the discipline voluntary in the first place, one layer in.
     expect(Object.keys(MEMBER_PIN_EXEMPTIONS).length).toBeLessThanOrEqual(
       MEMBER_PIN_EXEMPTION_CEILING,
