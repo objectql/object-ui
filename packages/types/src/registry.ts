@@ -92,7 +92,6 @@ import type {
 } from './navigation.js';
 
 import type {
-  KanbanSchema,
   CalendarViewSchema,
   FilterBuilderSchema,
   CarouselSchema,
@@ -184,21 +183,25 @@ export interface SchemaRegistry {
   'breadcrumb': BreadcrumbSchema;
   'pagination': PaginationSchema;
 
-  // Complex
-  // `'kanban'` names the face the registered renderer honours — the plugin
-  // dialect, declared in THIS package since objectui#7664 (maintainer ruling
-  // (a), 2026-09-05): `@object-ui/plugin-kanban` imports `KanbanSchema` from here
-  // and conforms to it, so the map's value and the renderer's prop type are one
-  // declaration. Between objectui#7645 (PR #7662) and that ruling this entry
-  // read `BaseSchema & { type: 'kanban' }` — the weakest true claim — because
-  // this layer could not name the plugin's type (a phantom dependency, and a
-  // cycle). Moving the dialect down here is the route that comment named, not
-  // the one it forbade. Pinned in
-  // `src/__tests__/kanban-plugin-dialect-authoritative-7664.test.ts` (the key
-  // survives in `keyof`; the value IS the declared arm) and the same file name
-  // under `plugin-kanban/src/__tests__/` (the renderer's own prop type IS this
-  // declaration).
-  'kanban': KanbanSchema;
+  // ⛔ `'kanban'` RETIRED (objectui#8802, maintainer ruling 2026-09-09). The
+  // bare node type key published two faces with opposite verdicts — the plugin's
+  // registry `inputs` accepted `titleField`, the Zod arm refused it by name — and
+  // the maintainer dissolved the divergence by retiring the key rather than
+  // patching either face. `KanbanSchema` retired with it (`complex.ts`).
+  //
+  // ⇒ `ComponentType` (`keyof SchemaRegistry`) no longer offers `'kanban'`, which
+  // is the compile-time half of the refusal; the Zod half is
+  // `RetiredKanbanNodeSchema` in `zod/complex.zod.ts`, which names `object-kanban`
+  // as the remedy. The surviving spelling `'object-kanban'` is declared by
+  // `ObjectKanbanSchema` (`objectql.ts`) and reached through
+  // `ObjectQLComponentSchema`, and the STORED `NamedListView.type` value of the
+  // same spelling is a different layer and untouched.
+  //
+  // ⚠️ Measured, and reported rather than fixed here: this map has NEVER had an
+  // `'object-kanban'` entry, so with `'kanban'` gone the kanban family has no
+  // entry in it at all. That is the objectui#7665 sweep's territory (this map's
+  // coverage), not this retirement's — adding one would be a widening of
+  // `ComponentType`, which is a ruling.
   'calendar-view': CalendarViewSchema;
   'filter-builder': FilterBuilderSchema;
   'carousel': CarouselSchema;

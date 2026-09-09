@@ -9,7 +9,7 @@ This guide covers the most common issues you may encounter when working with Obj
 
 ## 1. "Component type X not found"
 
-**Symptom:** The `SchemaRenderer` renders nothing or shows a fallback, and the console logs `component type "kanban-ui" not found in registry`.
+**Symptom:** The `SchemaRenderer` renders nothing or shows a fallback, and the console logs `component type "object-kanban" not found in registry`.
 
 **Cause:** The plugin that provides the component type has not been imported, so it never registered itself with the `ComponentRegistry`.
 

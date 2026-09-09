@@ -483,6 +483,15 @@ const OPEN_REGISTRATION_SITES = {
  */
 const DOC_TYPE_EXEMPTIONS = {
   'content/docs/api/schema-reference.md': {
+    kanban:
+      'ViewSwitcher `views[].type` — the VIEW-TYPE vocabulary (`ViewType`, ' +
+      'packages/types/src/views.ts), which is what a switcher tab names, not a node type; the ' +
+      'nested `schema` in the same snippet carries `object-kanban`, the node type. Needed from ' +
+      'objectui#8802, which retired the bare `kanban` NODE type key — until then the value ' +
+      'passed by coincidence, the two vocabularies sharing one spelling. ⛔ The stored/view-type ' +
+      'spelling is deliberately NOT retired (`ObjectView` maps a stored `kanban` view onto the ' +
+      '`object-kanban` node type). Same vocabulary as the `components/complex/view-switcher.mdx` ' +
+      'entry below.',
     action:
       'ActionSchema discriminant under an ACTION LIST, never a rendered child — an action\'s own ' +
       '`dialog.actions[]` and `chain[]`, a detail page\'s `actions[]` and a CRUD dialog\'s ' +
@@ -530,6 +539,15 @@ const DOC_TYPE_EXEMPTIONS = {
       'filter enum, alongside `date-picker` / `number-range`.',
   },
   'content/docs/components/complex/view-switcher.mdx': {
+    kanban:
+      'ViewSwitcher `views[].type` — the VIEW-TYPE vocabulary (`ViewType`, ' +
+      'packages/types/src/views.ts), which is what a switcher tab names, not a node type. ' +
+      'The nested `schema` in the very same snippet carries the node type. Needed from ' +
+      'objectui#8802, which retired the bare `kanban` NODE type key — until then the value ' +
+      'passed by coincidence, the two vocabularies sharing one spelling. ⛔ The stored/view-type ' +
+      'spelling is deliberately NOT retired: `ObjectView` maps a stored `kanban` view onto the ' +
+      '`object-kanban` node type, and renaming it would break every stored kanban view in every ' +
+      'deployment.',
     share:
       'First member of a TypeScript union of view-action ids (`\'share\' | \'settings\' | ' +
       '\'duplicate\' | \'delete\'`) in a Schema API declaration, not a node type.',

@@ -132,9 +132,9 @@ Plugins are self-contained packages that register heavy or complex views (grids,
   PluginScope.registerComponent(type, Component, meta)
        │  └─ Auto-prefixes with plugin namespace
        ▼
-  ComponentRegistry.register('kanban-ui', KanbanRenderer, {
+  ComponentRegistry.register('object-kanban', ObjectKanbanRenderer, {
     namespace: 'plugin-kanban',
-    category: 'plugin'
+    category: 'view'
   })
 ```
 
@@ -164,10 +164,10 @@ const KanbanRenderer: React.FC<Props> = ({ schema }) => (
 );
 
 // 3. Register in the global registry
-ComponentRegistry.register('kanban-ui', KanbanRenderer, {
+ComponentRegistry.register('object-kanban', KanbanRenderer, {
   namespace: 'plugin-kanban',
-  label: 'Kanban Board',
-  category: 'plugin',
+  label: 'Object Kanban',
+  category: 'view',
   inputs: [/* schema config */]
 });
 ```

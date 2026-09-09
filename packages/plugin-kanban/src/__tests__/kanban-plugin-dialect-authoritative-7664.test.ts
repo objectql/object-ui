@@ -7,22 +7,26 @@
  */
 
 /**
- * The renderer's face IS the declared `'kanban'` arm (objectui#7664, maintainer
- * ruling (a), 2026-09-05).
+ * The surviving renderer's face IS a declared arm (objectui#7664, maintainer
+ * ruling (a), 2026-09-05 — re-based on the 2026-09-09 family retirement).
  *
- * ## Why this pin lives here
+ * ## What objectui#8802 / objectui#8257 did to this file, and why it is a
+ * rewrite rather than a deletion
  *
- * `@object-ui/types` now declares the plugin dialect and this package imports
- * it back (`../types` re-exports `KanbanSchema` and its four companions), so
- * the ruling's "the four registered renderers' props still type-check against
- * the declared schema" is a claim about THIS package's prop types — and this is
- * the only package that can see both sides: the declaration through the
- * workspace dependency, the renderers through `../index`.
+ * objectui#7664's ruling was about FOUR registered kanban keys and one shared
+ * declaration: `'kanban'`, `'kanban-ui'`, `'kanban-enhanced'`, `'object-kanban'`.
+ * Three of the four RETIRED on 2026-09-09 (objectui#8802 for the bare `kanban`
+ * node key, objectui#8257 for the other two), and `KanbanSchema` — the dialect
+ * this file was written to pin — retired with the first of them.
  *
- * The retired objectui#7645 pin that sat here asserted two dialects still
- * existed (`Equal<KanbanSchema, DeclarativeKanbanSchema>` was `false`). With the
- * declarative trio retired that pin has no second operand; what replaces it is
- * the stronger claim the ruling makes — ONE declaration.
+ * ⛔ The claim objectui#7664 established did NOT retire with them: "the
+ * registered renderer's props type-check against the declared schema, and the
+ * declaration lives in `@object-ui/types` rather than being re-declared here."
+ * That claim is now about ONE key, and this file asserts it about that key. The
+ * legs that named a retired key moved to
+ * `kanban-family-registry-keys-retired-8257.test.ts`, which owns the retirement
+ * itself — including the anti-vacuity control that the surviving key is still
+ * registered.
  *
  * ## The instrument
  *
@@ -32,17 +36,22 @@
  * package's `type-check` script. That project sets `"paths": {}`, so
  * `@object-ui/types` resolves through the workspace dependency to
  * `packages/types/dist/index.d.ts` — BUILD `@object-ui/types` before believing
- * either colour this file reports. The one runtime assertion — the four
- * registrations exist — is the anti-vacuity control for the prop-type pins:
+ * either colour this file reports. The one runtime assertion — the surviving
+ * registration exists — is the anti-vacuity control for the prop-type pins:
  * a prop type is only worth pinning for a renderer that is registered.
  */
 
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
-import type { SchemaRegistry, KanbanSchema as DeclaredKanbanSchema, KanbanColumn as DeclaredKanbanColumn, KanbanCard as DeclaredKanbanCard } from '@object-ui/types';
-import type { KanbanSchema, KanbanColumn, KanbanCard } from '../types';
+import type {
+  SchemaRegistry,
+  ObjectQLComponentSchema,
+  ObjectKanbanSchema as DeclaredObjectKanbanSchema,
+  KanbanColumn as DeclaredKanbanColumn,
+  KanbanCard as DeclaredKanbanCard,
+} from '@object-ui/types';
+import type { KanbanColumn, KanbanCard } from '../types';
 import type { ObjectKanbanComponentProps } from '../ObjectKanban';
-import type { KanbanRendererProps } from '../index';
 import '../index';
 
 /* -------------------------------------------------------------------------- */
@@ -55,67 +64,65 @@ type IsAny<T> = 0 extends 1 & T ? true : false;
 
 // Non-vacuity controls: `any` on either side would satisfy every `extends`
 // below while checking nothing.
-type _PluginFaceIsReal = Assert<Equal<IsAny<KanbanSchema>, false>>;
+type _FaceIsReal = Assert<Equal<IsAny<DeclaredObjectKanbanSchema>, false>>;
 type _RegistryIsReal = Assert<Equal<IsAny<SchemaRegistry>, false>>;
 
-// 1. ONE declaration: what this package exports as `KanbanSchema` /
-//    `KanbanColumn` / `KanbanCard` is the `@object-ui/types` declaration, not a
-//    structurally-equal copy. `Equal` is invariant, so a re-declared twin that
-//    drifted by one member turns this red.
-type _SchemaIsTheDeclaredOne = Assert<Equal<KanbanSchema, DeclaredKanbanSchema>>;
+// 1. ONE declaration: what this package exports as `KanbanColumn` / `KanbanCard`
+//    is the `@object-ui/types` declaration, not a structurally-equal copy.
+//    `Equal` is invariant, so a re-declared twin that drifted by one member
+//    turns this red. (`KanbanSchema` was the third member of this row until
+//    objectui#8802 retired it with the bare `kanban` node key; the two that
+//    remain are consumed by `KanbanImpl`, `CardTemplates` and `useColumnWidths`
+//    and are NOT retired.)
 type _ColumnIsTheDeclaredOne = Assert<Equal<KanbanColumn, DeclaredKanbanColumn>>;
 type _CardIsTheDeclaredOne = Assert<Equal<KanbanCard, DeclaredKanbanCard>>;
 
-// 2. The map that calls itself the Single Source of Truth names the same type
-//    the registered renderer consumes — the objectui#7645 defect, closed by the
-//    ruling rather than by weakening the entry.
-type _RegistryEntryIsThisFace = Assert<Equal<SchemaRegistry['kanban'], KanbanSchema>>;
-
-// 3. The renderers' props type-check against the declared schema:
-//    - `ObjectKanban` (behind `ObjectKanbanRenderer`, registered for `'kanban'`
-//      AND `'object-kanban'`) ACCEPTS the declared face as its `schema`.
+// 2. The map that calls itself the Single Source of Truth no longer offers the
+//    RETIRED key. objectui#7645's defect was that `SchemaRegistry['kanban']`
+//    named a type the registered renderer did not consume; objectui#8802 closed
+//    it the other way, by retiring the key.
 //
-//      ⚠️ This leg read `Equal<…, KanbanSchema>` until objectui#7322 item ②.
-//      Identity was never what the ruling claimed — the ruling's words are that
-//      "the four registered renderers' props still type-check against the
-//      declared schema", i.e. assignability, which is the same form the
-//      `kanban-ui` leg below already uses and for the same reason. Identity was
-//      merely the shape the prop happened to have while it named ONE arm, and
-//      that was itself the defect objectui#7322 item ② filed: the same renderer
-//      is registered for `'object-kanban'` too, whose declared node type is
-//      `ObjectKanbanSchema`, and no such node was assignable to the prop. The
-//      prop is now the union of the two registered keys' declared types, so the
-//      ruling's claim holds on this arm and now holds on the other one as well.
-//      The union's own honesty is pinned in
-//      `object-kanban-component-props-7322.test.ts`, which derives the
-//      registered key set from `../index` off disk; this leg keeps guarding
-//      what objectui#7664 asserted — that THIS declaration is the one the
-//      renderer consumes.
-type _ObjectKanbanTakesTheDeclaredFace = Assert<KanbanSchema extends ObjectKanbanComponentProps['schema'] ? true : false>;
-//    - `KanbanRenderer` (`'kanban-ui'`) accepts a declared board — its inline
-//      prop schema is a looser projection (`columns?: Array<any>`), so the
-//      claim is assignability, not identity;
-type _KanbanUiAcceptsTheDeclaredFace = Assert<KanbanSchema extends KanbanRendererProps['schema'] ? true : false>;
-//    - `'kanban-enhanced'` is registered as `({ schema }: { schema: any })` and
-//      accepts anything by construction — nothing to pin, and pinning `any`
-//      would be the vacuity the controls above exclude.
+//    ⚠️ Measured rather than assumed, and NOT repaired here: this map has never
+//    carried an `'object-kanban'` entry either, so the positive half of this pin
+//    cannot be spelled against it. The union is where the surviving face is
+//    reachable, so that is where the positive leg is asserted.
+type _RetiredKeyIsGoneFromTheMap = Assert<Equal<'kanban' extends keyof SchemaRegistry ? true : false, false>>;
+//    Non-vacuity: a live sibling key IS still in the map, so the `false` above
+//    is a reading and not a `keyof` that answers `false` to everything.
+type _MapStillHasLiveKeys = Assert<Equal<'chatbot' extends keyof SchemaRegistry ? true : false, true>>;
+//    And the surviving face is the one the ObjectQL union selects for the key.
+type _UnionSelectsTheDeclaredFace = Assert<
+  Equal<Extract<ObjectQLComponentSchema, { type: 'object-kanban' }>, DeclaredObjectKanbanSchema>
+>;
+
+// 3. The renderer's props type-check against the declared schema: `ObjectKanban`
+//    (behind `ObjectKanbanRenderer`, now registered for `'object-kanban'` ALONE)
+//    accepts the declared face as its `schema`.
+//
+//    ⚠️ Assignability, not identity, and deliberately so — that is the form
+//    objectui#7322 item ② settled on when the prop served two keys. It stays
+//    assignability now that it serves one, because the ruling's own words are
+//    that the props "type-check against the declared schema"; identity was only
+//    ever the shape the prop happened to have.
+type _ObjectKanbanTakesTheDeclaredFace = Assert<
+  DeclaredObjectKanbanSchema extends ObjectKanbanComponentProps['schema'] ? true : false
+>;
 
 // 4. The declared face is still a tagged node, and a raw record field on a
 //    card still reads `any` (the open-record index signature survived the move).
-type _FaceIsTagged = Assert<Equal<KanbanSchema['type'], 'kanban'>>;
+type _FaceIsTagged = Assert<Equal<DeclaredObjectKanbanSchema['type'], 'object-kanban'>>;
 type _CardIsAnOpenRecord = Assert<Equal<IsAny<KanbanCard['dueDate']>, true>>;
 
-describe('the registered kanban renderers consume the declared arm (objectui#7664)', () => {
+describe('the registered kanban renderer consumes the declared arm (objectui#7664)', () => {
   it('is pinned at compile time', () => {
     expect(true).toBe(true);
   });
 
-  it('all four registrations the ruling counts exist — the prop-type pins above are about live renderers', () => {
-    for (const type of ['kanban', 'kanban-ui', 'kanban-enhanced', 'object-kanban']) {
-      expect(ComponentRegistry.has(type), `\`${type}\` is not registered`).toBe(true);
-    }
-    // `'kanban'` and `'object-kanban'` are the SAME renderer, which is why one
-    // prop-type pin (`ObjectKanbanComponentProps`) covers both keys.
-    expect(ComponentRegistry.get('kanban')).toBe(ComponentRegistry.get('object-kanban'));
+  it('the ONE surviving registration exists — the prop-type pins above are about a live renderer', () => {
+    expect(ComponentRegistry.has('object-kanban'), '`object-kanban` is not registered').toBe(true);
+    // Firing control on the same instrument: a name nothing registers answers
+    // `false`, so the `true` above is a reading rather than a matcher that
+    // agrees with everything.
+    expect(ComponentRegistry.has('zzz-not-a-type')).toBe(false);
   });
 });

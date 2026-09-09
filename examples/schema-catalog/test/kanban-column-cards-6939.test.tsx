@@ -187,25 +187,49 @@ describe('objectui#6939 — the mirror now accepts the spelling every board read
     expect(reasons(getExample(id).schema)).toEqual([]);
   });
 
-  it.each(IDS)('%s: the `items` spelling is now REFUSED', (id) => {
-    // The other half of the accept-set move. This document PASSED before the
-    // rename; a mirror that merely widened would still accept it.
-    expect(reasons(toItemsSpelling(getExample(id).schema))).not.toEqual([]);
+  it.each(IDS)('⚠️ %s: `columns[].items` is ACCEPTED again — objectui#6939\'s judging was ARM-SCOPED and the arm retired', (id) => {
+    // ⭐ This leg asserted `.not.toEqual([])` — REFUSED — until objectui#8802.
+    // The reading flipped, and it flipped for a structural reason worth
+    // spelling out rather than papering over:
+    //
+    //   - objectui#6939 made `columns[].cards` a JUDGED key by declaring
+    //     `columns: z.array(KanbanColumnSchema)` on the `kanban` arm;
+    //   - objectui#8802 retired that arm with the bare node type key, and the
+    //     surviving `object-kanban` face (`objectql.zod.ts#ObjectKanbanSchema`)
+    //     has NEVER declared `columns`;
+    //   - so `columns` now rides `BaseSchema`'s `.passthrough()` and nothing
+    //     inside it is judged — not the `cards` / `items` spelling, not a
+    //     card's required `title`, not `cards`'s type.
+    //
+    // ⛔ NOT repaired here: declaring `columns` on `ObjectKanbanSchema` WIDENS a
+    // published accept set, which is a ruling and not a repair. Recorded as an
+    // assertion so it cannot drift back in silence, and reported on the
+    // retirement PR for the maintainer.
+    expect(reasons(toItemsSpelling(getExample(id).schema))).toEqual([]);
   });
 
-  it('`cards` is a real declaration, not a passthrough hole', () => {
-    // `BaseSchema` is `.passthrough()`, so an unknown key proves nothing here.
-    // Every probe below uses the DECLARED key.
+  it('⚠️ `cards` is no longer a judged declaration on the surviving arm — measured, with a firing control', () => {
+    // The same four probes objectui#6939 wrote, re-read on the surviving face.
+    // Every one of them is accepted now, INCLUDING the two that are nonsense
+    // (`cards: 'nope'`, a card with no `title`) and the one objectui#6939
+    // required (`cards` present at all).
     const col = (extra: Record<string, unknown>) => ({
-      type: 'kanban',
+      type: 'object-kanban',
+      groupBy: 'status',
+      data: [],
       columns: [{ id: 'todo', title: 'To Do', ...extra }],
     });
-    expect(safeValidateSchema(col({ cards: 'nope' })).success).toBe(false);
-    expect(safeValidateSchema(col({ cards: [{ id: '1' }] })).success).toBe(false); // card needs `title`
-    expect(safeValidateSchema(col({})).success).toBe(false); // `cards` is required
-    // …and the good shape passes, so the three above fail for their own reason.
-    expect(safeValidateSchema(col({ cards: [] })).success).toBe(true);
-    expect(safeValidateSchema(col({ cards: [{ id: '1', title: 'Task' }] })).success).toBe(true);
+    expect({
+      cardsIsAString: safeValidateSchema(col({ cards: 'nope' })).success,
+      cardHasNoTitle: safeValidateSchema(col({ cards: [{ id: '1' }] })).success,
+      cardsAbsent: safeValidateSchema(col({})).success,
+      wellFormed: safeValidateSchema(col({ cards: [{ id: '1', title: 'Task' }] })).success,
+    }).toEqual({ cardsIsAString: true, cardHasNoTitle: true, cardsAbsent: true, wellFormed: true });
+
+    // FIRING CONTROL on the same call: the surviving arm is not accepting
+    // everything — its own tombstone still refuses by name, so the four `true`s
+    // above are readings about `columns` and not about a dead validator.
+    expect(safeValidateSchema({ ...col({ cards: [] }), groupField: 'status' }).success).toBe(false);
   });
 });
 

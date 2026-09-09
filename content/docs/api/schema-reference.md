@@ -910,79 +910,41 @@ A complete object management interface combining grid, form, search, filters, an
 
 ## Complex Schemas
 
-### KanbanSchema
+### ObjectKanbanSchema
 
-A drag-and-drop Kanban board. The `kanban` type key validates the shape the registered renderer (`@object-ui/plugin-kanban`) reads: bind the board to an object with `objectName` + `groupBy` (the lanes come from the group field's options), or author it statically with `columns`, each carrying its `cards`.
+A drag-and-drop Kanban board. The `object-kanban` type key validates the shape the registered renderer (`@object-ui/plugin-kanban`) reads: bind the board to an object with `objectName` + `groupBy` — the lanes come from the group field's options — or hand it rows on `data`.
+
+> **The bare `kanban` node type key is retired** (objectui#8802, ruled 2026-09-09). It published two faces that disagreed with each other, and `object-kanban` is now the one spelling. A `{ "type": "kanban" }` document is refused by name and told to write `object-kanban`.
+>
+> ⚠️ The **stored view type** `"kanban"` — what `listViews[].type` and `defaultViewType` hold — is a **different layer and is unchanged**. Do not rewrite it: a saved kanban view already renders through the `object-kanban` node type, because `ObjectView` maps the stored type onto it.
 
 ```json
 {
-  "type": "kanban",
+  "type": "object-kanban",
   "objectName": "tasks",
   "groupBy": "status",
-  "cardTitle": "title",
+  "titleField": "title",
   "cardFields": ["assignee", "due_date"],
   "quickAdd": true
-}
-```
-
-A static board carries its cards inline:
-
-```json
-{
-  "type": "kanban",
-  "columns": [
-    {
-      "id": "todo",
-      "title": "To Do",
-      "cards": [
-        {
-          "id": "task-1",
-          "title": "Design mockups",
-          "description": "Create wireframes for new feature",
-          "badges": [{ "label": "High", "variant": "destructive" }]
-        },
-        { "id": "task-2", "title": "Write tests", "description": "Unit tests for auth module" }
-      ]
-    },
-    {
-      "id": "in-progress",
-      "title": "In Progress",
-      "limit": 3,
-      "cards": [
-        { "id": "task-3", "title": "API integration", "description": "Connect to payment gateway" }
-      ]
-    },
-    {
-      "id": "done",
-      "title": "Done",
-      "cards": []
-    }
-  ]
 }
 ```
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `objectName` | `string` | Object to fetch records from. |
-| `groupBy` | `string` | Field whose values become the lanes (maps to column ids). |
-| `swimlaneField` | `string` | Field for swimlane rows (2D grouping). |
-| `cardTitle` | `string` | Field used as the card title. |
+| `groupBy` | `string` | **Required.** Field whose values become the lanes (maps to column ids). |
+| `titleField` | `string` | Field used as the card title. |
 | `cardFields` | `string[]` | Fields rendered on each card. |
-| `data` | `any[]` | Inline records, bucketed into lanes by `groupBy`. |
+| `filter` | `any[]` | Query filter, forwarded verbatim as `$filter`. |
 | `limit` | `number` | Fetch window for the board (default 100). |
-| `columns` | `KanbanColumn[]` | Lanes, each with `id`, `title`, `cards`, and optional `limit` / `className` / `collapsed`. A card has `id`, `title`, optional `description` and `badges`. |
 | `quickAdd` | `boolean` | Show a Quick Add button at the bottom of each column. |
 | `coverImageField` | `string` | Field whose URL renders as the card cover image. |
+| `allowCollapse` | `boolean` | Allow lanes to collapse and expand. |
 | `conditionalFormatting` | `KanbanConditionalFormattingRule[]` | Card colouring rules — native `{ field, operator, value }` or spec `{ condition, style }`. |
-| `grouping` | `GroupingConfig` | ListView grouping config; its first field is the swimlane fallback. |
-| `navigation` | `ViewNavigationConfig` | Record navigation behaviour when a card is clicked (drawer / dialog / page). Defaults to an inline right-side drawer. |
-| `onCardMove` | `function` | Runtime slot supplied by a React host, `(cardId, fromColumnId, toColumnId, newIndex)`; not authorable in JSON. |
-| `onCardClick` | `function` | Runtime slot supplied by a React host, `(card, event?)`; not authorable in JSON. On the object-bound board the host's handler runs alongside the record-detail overlay. |
-| `onQuickAdd` | `function` | Runtime slot supplied by a React host, `(columnId, title)`; not authorable in JSON. |
 
-> Four spellings the `kanban` arm once accepted are now refused by name (objectui#7742, ADR-0049). `allowCollapse`, `cardTemplates` and `columnWidths` were declared and read by no registered board — collapse a lane with `columns[].collapsed`; card templates and column widths reach the board through a component prop and a hook option, not through the node. `titleField` is the legacy spelling of `cardTitle` and is retired on this arm only: write `cardTitle`. An `object-kanban` node still accepts `titleField`.
+> `groupField` is refused by name (objectui#7322): the renderer reads `groupBy`.
 
-> The former `@object-ui/types` kanban dialect — `DeclarativeKanbanSchema`, with a board-level `draggable`, a column `color` and card `labels` / `priority` — was retired in objectui#7664: no registered renderer read it, so a board written that way validated and rendered empty. `draggable` and a column `color` are now refused by name; a static board written with `columns[].cards[]` as above is the same document in both dialects and renders every card.
+> The retired `kanban` arm declared `columns`, `cardTitle`, `swimlaneField`, `grouping` and `navigation`; the `object-kanban` face never did, and it is unchanged. The renderer still reads those keys, so a board may carry them — they are simply not judged. The board's React host supplies `onCardMove` / `onCardClick` / `onQuickAdd` as props; none of the three is authorable in JSON.
 
 **Related:** [ObjectViewSchema](#objectviewschema), [ObjectGridSchema](#objectgridschema)
 
@@ -1237,8 +1199,9 @@ A toggle control that switches between different view types (list, grid, kanban,
       "label": "Kanban",
       "icon": "Kanban",
       "schema": {
-        "type": "kanban",
-        "columns": []
+        "type": "object-kanban",
+        "objectName": "tasks",
+        "groupBy": "status"
       }
     }
   ]
@@ -1256,7 +1219,7 @@ A toggle control that switches between different view types (list, grid, kanban,
 | `storageKey` | `string` | Storage key for persisting the preference. |
 | `onViewChange` | `string` | Expression or callback invoked on view change. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [KanbanSchema](#kanbanschema), [CalendarViewSchema](#calendarviewschema)
+**Related:** [ObjectViewSchema](#objectviewschema), [ObjectKanbanSchema](#objectkanbanschema), [CalendarViewSchema](#calendarviewschema)
 
 ---
 
@@ -1331,7 +1294,7 @@ import type { ActionSchema, DetailSchema } from '@object-ui/types';
 import type { ObjectGridSchema, ObjectFormSchema, ObjectViewSchema } from '@object-ui/types';
 
 // Complex
-import type { KanbanSchema, DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
+import type { DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
 
 // Views
 import type { DetailViewSchema, ViewSwitcherSchema } from '@object-ui/types';

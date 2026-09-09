@@ -293,7 +293,7 @@ Test how multiple plugins work together:
 {
   "type": "div",
   "children": [
-    { "type": "kanban", "..." },
+    { "type": "object-kanban", "..." },
     { "type": "bar-chart", "..." },
     { "type": "data-table", "..." }
   ]
@@ -372,7 +372,9 @@ serve it from your own backend and load it with `?api=<base>`.
 
 ```json
 {
-  "type": "kanban",
+  "type": "object-kanban",
+  "groupBy": "status",
+  "data": [],
   "columns": [
     {
       "id": "todo",

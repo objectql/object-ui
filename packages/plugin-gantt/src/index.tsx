@@ -109,12 +109,45 @@ ComponentRegistry.register('object-gantt', ObjectGanttRenderer, {
   ],
 });
 
-ComponentRegistry.register('gantt', ObjectGanttRenderer, {
-  namespace: 'view',
-  label: 'Gantt View',
-  category: 'view',
-  inputs: [
-    { name: 'objectName', type: 'string', required: true },
-    { name: 'gantt', type: 'object', description: 'startDateField, endDateField, titleField, progressField, percentageField, colorField, dependenciesField' },
-  ],
-});
+/**
+ * ⛔ The bare `gantt` node type key is RETIRED (objectui#8008, maintainer
+ * ruling 2026-09-09, route 3). `object-gantt` is the one spelling this plugin
+ * serves.
+ *
+ * ## What was here, and why it went
+ *
+ * `ComponentRegistry.register('gantt', ObjectGanttRenderer, { namespace:
+ * 'view', ... })` — a second key on the SAME renderer, which stored both
+ * `view:gantt` and the bare `gantt` fallback. The declared face admitted only
+ * one of the two: `ObjectGanttSchema.type` is the literal `'object-gantt'`, so
+ * an author who annotated their node could not write the key the registry
+ * accepted (`TS2322`), while an author who left the literal bare got no
+ * checking at all. Two published faces, opposite verdicts.
+ *
+ * ## Why unregistering is the whole retirement here — measured, not assumed
+ *
+ * ⚠️ `BaseSchema` closes with `[key: string]: any` and `BaseSchemaCore` ends
+ * `.passthrough()`, so a dropped MEMBER KEY is KEPT, not refused (the
+ * objectui#7664 failure). That hazard does not reach a TYPE NAME on this
+ * surface, and the reason is structural rather than lucky: no schema face in
+ * `@object-ui/types` ever declared `gantt` as a component node type — measured
+ * whole-repo, zero declarations, against a firing control of two for
+ * `object-gantt` (`objectql.ts` + its Zod mirror). There is no arm to convert
+ * into a named refusal, so unregistering IS the retirement.
+ *
+ * ⇒ Registration-only retirement. Contrast the `kanban` sibling in the same
+ * batch (objectui#8802), which DID have a declared arm and therefore got a
+ * named refusal rather than a deletion.
+ *
+ * ## ⛔ Two layers, and only one of them moved
+ *
+ * The string `gantt` also names a STORED `NamedListView.type` — the value
+ * `CreateViewDialog` writes and every tenant's database holds. That layer is
+ * untouched: `packages/plugin-view/src/ObjectView.tsx`'s `switch (viewType)`
+ * maps the stored `gantt` view type onto the node type it emits, and it already
+ * emits `object-gantt`. ⇒ Every gantt view any user ever created through the
+ * console already renders through the surviving spelling; this retirement moves
+ * zero stored documents.
+ *
+ * Pinned in `src/__tests__/bare-gantt-node-key-retired-8008.test.ts`.
+ */

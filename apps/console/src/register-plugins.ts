@@ -85,10 +85,11 @@ ComponentRegistry.registerLazy('object-gantt', () => import('@object-ui/plugin-g
   namespace: 'plugin-gantt',
   category: 'view',
 });
-ComponentRegistry.registerLazy('gantt', () => import('@object-ui/plugin-gantt'), {
-  namespace: 'view',
-  category: 'view',
-});
+// ⛔ The bare `gantt` node type key is RETIRED (objectui#8008, maintainer
+// ruling 2026-09-09, route 3) — `object-gantt` above is the surviving spelling.
+// The STORED `NamedListView.type` value `gantt` is a different layer and is
+// untouched: `ObjectView`'s `switch (viewType)` already emits `object-gantt`
+// for it.
 
 ComponentRegistry.registerLazy('markdown', () => import('@object-ui/plugin-markdown'), {
   namespace: 'plugin-markdown',
@@ -121,16 +122,11 @@ ComponentRegistry.registerLazy('object-kanban', () => import('@object-ui/plugin-
   namespace: 'plugin-kanban',
   category: 'view',
 });
-ComponentRegistry.registerLazy('kanban', () => import('@object-ui/plugin-kanban'), {
-  namespace: 'view',
-  category: 'view',
-});
-for (const variant of ['kanban-ui', 'kanban-enhanced']) {
-  ComponentRegistry.registerLazy(variant, () => import('@object-ui/plugin-kanban'), {
-    namespace: 'plugin-kanban',
-    category: 'view',
-  });
-}
+// ⛔ The bare `kanban` key (objectui#8802) and the `kanban-ui` /
+// `kanban-enhanced` variants (objectui#8257) are RETIRED — maintainer rulings
+// 2026-09-09. `object-kanban` above is the surviving spelling. The STORED
+// `NamedListView.type` value `kanban` is a different layer and is untouched:
+// `ObjectView`'s `switch (viewType)` already emits `object-kanban` for it.
 
 ComponentRegistry.registerLazy('report', () => import('@object-ui/plugin-report'), {
   namespace: 'plugin-report',

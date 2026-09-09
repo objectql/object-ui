@@ -32,10 +32,13 @@
  * `InlineFieldDefinition` stays local: it is the quick-add FORM's field
  * definition (`InlineQuickAdd.tsx`), not a member of the authored board.
  */
+// ⛔ `KanbanSchema` is NOT re-exported any more: it RETIRED with the bare
+// `kanban` node type key (objectui#8802, maintainer ruling 2026-09-09).
+// `ObjectKanbanSchema` (also from `@object-ui/types`) is the surviving face,
+// and `ObjectKanban` takes it directly.
 export type {
   KanbanCard,
   KanbanColumn,
-  KanbanSchema,
   CardTemplate,
   ColumnWidthConfig,
 } from '@object-ui/types';

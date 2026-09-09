@@ -75,10 +75,17 @@ import { manifestFromConfigs, validateTree } from '@object-ui/sdui-parser';
 // bounded window).
 import '../index';
 
-/** The two tags this one renderer is published under. */
+/**
+ * The tag this one renderer is published under.
+ *
+ * ⚠️ It was a LIST OF TWO — `object-kanban` and `view:kanban` — until
+ * objectui#8802 retired the bare `kanban` node type key (maintainer ruling
+ * 2026-09-09). The `it.each` shape is deliberately KEPT over the one survivor:
+ * the rows below are per-(tag, key), and collapsing them to bare `it`s would
+ * make re-adding a tag a rewrite rather than a one-line edit.
+ */
 const KANBAN_TAGS = [
   { label: 'object-kanban', type: 'object-kanban', namespace: 'plugin-kanban' },
-  { label: 'view:kanban', type: 'kanban', namespace: 'view' },
 ] as const;
 
 /** A filter in the JSON-rules form `ObjectKanban` forwards as `$filter`. */

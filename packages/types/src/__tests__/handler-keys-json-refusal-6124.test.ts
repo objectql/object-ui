@@ -87,7 +87,6 @@ import {
   ChatbotEnhancedSchema as ChatbotEnhancedZod,
   ChatbotFloatingSchema as ChatbotFloatingZod,
   FilterBuilderSchema as FilterBuilderZod,
-  KanbanSchema as KanbanZod,
 } from '../zod/complex.zod';
 import {
   AlertSchema as AlertZod,
@@ -145,7 +144,6 @@ import type {
   ChatbotEnhancedSchema,
   ChatbotFloatingSchema,
   FilterBuilderSchema,
-  KanbanSchema,
 } from '../complex';
 import type { AlertSchema, DataTableSchema, ListItem, TreeViewSchema } from '../data-display';
 import type { AccordionSchema, CollapsibleSchema, ToggleGroupSchema } from '../disclosure';
@@ -224,19 +222,29 @@ const objectOf = (mirror: z.ZodType, key: string): z.ZodObject<z.ZodRawShape> =>
  * `toFormControlDomProps` whitelist, card's `<Card {...cardProps}>`).
  */
 const RUNTIME_SLOT: readonly Site[] = [
-  // objectui#7664 — the `'kanban'` arm is the plugin dialect now, and
-  // `KanbanRenderer` forwards all three of these off `schema.*` in one block
-  // (`plugin-kanban/src/index.tsx`). `onCardClick` is a slot on the retired
-  // declarative face AND on this one: on the `'kanban'` key `ObjectKanban`
-  // substitutes its own function, but it substitutes `onCardMove` in the same
-  // object literal, and its substitute CALLS an authored `onCardClick` through
-  // the prop `ObjectKanban` declares for it. Measured per registration in
-  // `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx`; the first
-  // cut of this card dropped the key instead, which ACCEPTED a document this
-  // ledger had refused.
-  ['complex.zod.ts', 'KanbanSchema', 'onCardMove', KanbanZod],
-  ['complex.zod.ts', 'KanbanSchema', 'onCardClick', KanbanZod],
-  ['complex.zod.ts', 'KanbanSchema', 'onQuickAdd', KanbanZod],
+  // ⛔ objectui#7664's three `KanbanSchema` slots — `onCardMove`, `onCardClick`,
+  // `onQuickAdd` — LEFT this ledger with their arm: objectui#8802 retired the
+  // bare `kanban` node type key (maintainer ruling 2026-09-09) and
+  // `KanbanSchema` retired with it, on both faces.
+  //
+  // ⚠️ This is a ledger SHRINK, and the distinction matters because shrinking
+  // one is normally the exact failure this file was written to catch: the first
+  // cut of objectui#7664 DROPPED `onCardClick` from the arm, which turned a
+  // refused document into an accepted one while every ratchet stayed green.
+  // What separates the two is where the refusal went:
+  //   - a key dropped from a LIVE arm stops being judged and the value is KEPT,
+  //     because `BaseSchema` is `.passthrough()`;
+  //   - an arm whose TYPE LITERAL retired stops being reachable at all — a
+  //     `{ "type": "kanban" }` document is now refused BY NAME by
+  //     `RetiredKanbanNodeSchema`, so all three keys are refused a fortiori,
+  //     on a document that never reaches a member check.
+  // Pinned end to end in `./bare-kanban-node-key-retired-8802.test.ts`.
+  //
+  // ⚠️ `KanbanRenderer` still forwards all three off `schema.*`, and the
+  // SURVIVING `object-kanban` face declares none of them — measured, and
+  // recorded as a red-flag reading in
+  // `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx` rather
+  // than repaired, because declaring them would WIDEN a published accept set.
   ['complex.zod.ts', 'CalendarViewSchema', 'onViewChange', CalendarViewZod],
   ['complex.zod.ts', 'FilterBuilderSchema', 'onChange', FilterBuilderZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onError', ChatbotZod],
@@ -296,10 +304,10 @@ const RUNTIME_SLOT: readonly Site[] = [
  * from the declared `(value: string) => void`, not a consumer of it.
  */
 const RETIRED: readonly Site[] = [
-  // objectui#7664 carried these two tombstones onto the successor arm under the
-  // same `'kanban'` key, so the spelling keeps refusing by name.
-  ['complex.zod.ts', 'KanbanSchema', 'onColumnAdd', KanbanZod],
-  ['complex.zod.ts', 'KanbanSchema', 'onCardAdd', KanbanZod],
+  // ⛔ objectui#7664's two `KanbanSchema` tombstones — `onColumnAdd`,
+  // `onCardAdd` — LEFT this ledger with their arm (objectui#8802). Same
+  // reasoning as the three runtime slots above: the arm's TYPE LITERAL retired,
+  // so the document never reaches a member check.
   ['complex.zod.ts', 'CarouselSchema', 'onSlideChange', CarouselZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onSendMessage', ChatbotZod],
   ['data-display.zod.ts', 'AlertSchema', 'onDismiss', AlertZod],
@@ -384,20 +392,26 @@ describe('census: no on* key in the eight mirrors is declared z.function() (obje
     ]);
   });
 
-  it('67 sites are ledgered, 45 runtime slots + 22 retired, with no key filed twice', () => {
+  it('62 sites are ledgered, 42 runtime slots + 20 retired, with no key filed twice', () => {
     // 58 from objectui#6124; the 59th is `ObjectDataTableSchema.onRowClick`,
     // minted with its arm by objectui#6576 / #6914; the 60th is
     // `AlertDialogSchema.onAction`, declared by objectui#7104 for a key the
     // renderer had been reading undeclared; 61–66 are the six slots the
     // `ChatbotEnhancedSchema` / `ChatbotFloatingSchema` twins were born with
-    // (objectui#7655); the 67th is `KanbanSchema.onQuickAdd`, the third
-    // `KanbanRenderer` forward, ledgered when objectui#7664 re-keyed this arm
-    // onto the plugin dialect — `onCardMove` and `onCardClick` carried over
-    // from the retired declarative face under the same `'kanban'` key.
-    expect(RUNTIME_SLOT).toHaveLength(45);
-    expect(RETIRED).toHaveLength(22);
+    // (objectui#7655); the 67th was `KanbanSchema.onQuickAdd`, ledgered when
+    // objectui#7664 re-keyed the `'kanban'` arm onto the plugin dialect.
+    //
+    // ⭐ 67 → 62: objectui#8802 retired the bare `kanban` node type key and its
+    // arm, taking FIVE `KanbanSchema` sites with it — three runtime slots
+    // (`onCardMove`, `onCardClick`, `onQuickAdd`) and two tombstones
+    // (`onColumnAdd`, `onCardAdd`). ⛔ A ledger SHRINK is normally this file's
+    // own failure mode; the two comment blocks above state why an ARM
+    // retirement is not that failure, and `./bare-kanban-node-key-retired-8802.test.ts`
+    // measures the refusal that replaced them.
+    expect(RUNTIME_SLOT).toHaveLength(42);
+    expect(RETIRED).toHaveLength(20);
     const ids = ALL_SITES.map(([file, schema, key]) => `${file}#${schema}.${key}`);
-    expect(new Set(ids).size).toBe(67);
+    expect(new Set(ids).size).toBe(62);
   });
 
   it.each(ALL_SITES)('%s %s.%s is DECLARED on the mirror shape, with the objectui#6124 guidance as its description', (_file, _schema, key, mirror) => {
@@ -520,8 +534,6 @@ type KeepsFunction<T> = [Extract<NonNullable<T>, (...args: never[]) => unknown>]
   : true;
 
 export type assertionRetiredKeysAreTombstoned = [
-  Expect<RetiredIsNever<KanbanSchema['onColumnAdd']>>,
-  Expect<RetiredIsNever<KanbanSchema['onCardAdd']>>,
   Expect<RetiredIsNever<CarouselSchema['onSlideChange']>>,
   Expect<RetiredIsNever<ChatbotSchema['onSendMessage']>>,
   Expect<RetiredIsNever<AlertSchema['onDismiss']>>,
@@ -545,9 +557,6 @@ export type assertionRetiredKeysAreTombstoned = [
 ];
 
 export type assertionRuntimeSlotsKeepTheirFunctionType = [
-  Expect<KeepsFunction<KanbanSchema['onCardMove']>>,
-  Expect<KeepsFunction<KanbanSchema['onCardClick']>>,
-  Expect<KeepsFunction<KanbanSchema['onQuickAdd']>>,
   Expect<KeepsFunction<CalendarViewSchema['onViewChange']>>,
   Expect<KeepsFunction<FilterBuilderSchema['onChange']>>,
   Expect<KeepsFunction<ChatbotSchema['onError']>>,

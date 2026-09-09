@@ -1,5 +1,7 @@
 {
-  "type": "kanban",
+  "type": "object-kanban",
+  "groupBy": "status",
+  "data": [],
   "columns": [
     {
       "id": "backlog",

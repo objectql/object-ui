@@ -19,10 +19,13 @@ import type {
   DashboardWidget as SpecDashboardWidget,
   DateRangeDefaultRange as SpecDateRangeDefaultRange,
   GlobalFilter as SpecGlobalFilter,
-  GroupingConfig,
 } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
-import type { KanbanConditionalFormattingRule, ViewNavigationConfig } from './objectql.js';
+// `GroupingConfig`, `KanbanConditionalFormattingRule` and `ViewNavigationConfig`
+// were imported for `KanbanSchema`'s `grouping`, `conditionalFormatting` and
+// `navigation` members and had no other reader in this module; they left with
+// the retired `'kanban'` arm (objectui#8802). All three are still declared and
+// still exported from their own modules.
 
 /**
  * Kanban card — the shape the registered `'kanban'` renderer reads.
@@ -135,7 +138,9 @@ export interface KanbanColumn {
   cards: KanbanCard[];
   /**
    * WIP limit — the card count at which the lane warns. Never reaches the
-   * query; the board's fetch window is {@link KanbanSchema.limit}.
+   * query; the board's fetch window is `ObjectKanbanSchema.limit`
+   * (`./objectql.ts`) — the `kanban` arm that used to declare it retired with
+   * the node key (objectui#8802).
    */
   limit?: number;
   className?: string;
@@ -175,325 +180,59 @@ export interface KanbanColumn {
 }
 
 /**
- * Kanban Board component schema — the `'kanban'` arm of {@link ComplexSchema}
- * and the face `ObjectKanbanRenderer` (registered for `'kanban'` and
- * `'object-kanban'`) consumes; `KanbanRenderer` (`'kanban-ui'`) and the
- * `'kanban-enhanced'` registration read the same keys off `schema`.
+ * ⛔ `KanbanSchema` — the `'kanban'` arm — is RETIRED (objectui#8802,
+ * maintainer ruling 2026-09-09: 「从我们的业务需求角度，我应该只需要
+ * `object-kanban`」, recorded verbatim and not translated).
  *
- * Renders a drag-and-drop kanban board for task management: either bound to
- * an object (`objectName` + `groupBy`, lanes materialised from the group
- * field's options) or authored statically (`columns` carrying their `cards`).
+ * ## What this dissolves
+ *
+ * The bare `kanban` node type key published TWO faces with OPPOSITE verdicts on
+ * the same document: `@object-ui/plugin-kanban`'s registry `inputs` declared
+ * `titleField` while this arm refused it by name after batch #70
+ * (objectui#7742). With the key retired there is no arm left to disagree with,
+ * so objectui#8802's four options are moot rather than chosen between.
+ *
+ * ## Where the vocabulary went
+ *
+ * ⛔ Nowhere, and that is the point: `object-kanban` has ALWAYS had its own
+ * declared face, {@link ObjectKanbanSchema} (`./objectql.ts`), and an
+ * `object-kanban` document has always been judged by it alone. Retiring this
+ * arm therefore changes the verdict on `type: 'kanban'` documents only. The
+ * keys this arm alone declared — `columns`, `cardTitle`, `swimlaneField`,
+ * `grouping`, `conditionalFormatting`, `navigation` — were never part of the
+ * `object-kanban` face and are not being removed from it.
+ *
+ * ## ⚠️ Why the Zod mirror is a NAMED REFUSAL and not a deletion
+ *
+ * {@link BaseSchema} closes with `[key: string]: any` and its Zod twin ends
+ * `.passthrough()`. A dropped MEMBER key is therefore KEPT, not refused — the
+ * failure objectui#7664's own first cut shipped at `onCardClick`. A dropped
+ * TYPE LITERAL behaves differently on a DISCRIMINATED union (`AnyComponentSchema`
+ * selects one arm from the authored literal), so removal alone would already
+ * refuse — but only with the union's generic `Invalid input`, naming no remedy.
+ * ⇒ `zod/complex.zod.ts` keeps an arm for the literal and refuses it BY NAME
+ * through `retiredNodeType()`, pointing the author at `object-kanban`.
+ *
+ * The TypeScript half of the refusal is this deletion: with no `kanban` arm in
+ * {@link ComplexSchema} and no `'kanban'` entry in `SchemaRegistry`, `tsc`
+ * refuses the literal at the authoring site.
+ *
+ * ## ⛔ The layer that did NOT move
+ *
+ * `kanban` also names a STORED `NamedListView.type` (`./objectql.ts`) — the
+ * value `CreateViewDialog` writes and every tenant's database holds. It is
+ * UNTOUCHED. `plugin-view`'s `ObjectView` maps a stored `kanban` view onto the
+ * node type `object-kanban` already, as it does for all twelve stored view
+ * types, so every board any user ever created through the console already
+ * renders through the surviving spelling and this retirement moves zero stored
+ * documents.
+ *
+ * {@link KanbanCard}, {@link KanbanColumn}, {@link CardTemplate} and
+ * {@link ColumnWidthConfig} are NOT retired — the renderer, the `CardTemplates`
+ * component and the `useColumnWidths` hook still consume them.
+ *
+ * Pinned in `./__tests__/bare-kanban-node-key-retired-8802.test.ts`.
  */
-export interface KanbanSchema extends BaseSchema {
-  type: 'kanban';
-
-  /**
-   * Object name to fetch data from.
-   */
-  objectName?: string;
-
-  /**
-   * Field to group records by (maps to column IDs).
-   */
-  groupBy?: string;
-
-  /**
-   * Field for swimlane rows (2D grouping). When set, cards are grouped
-   * vertically by `groupBy` (columns) and horizontally by `swimlaneField` (rows).
-   */
-  swimlaneField?: string;
-
-  /**
-   * Field to use as the card title.
-   */
-  cardTitle?: string;
-
-  /**
-   * Fields to display on the card.
-   */
-  cardFields?: string[];
-
-  /**
-   * Static data or bound data. Stays a raw-row input: objectui#7651 (a
-   * record-source ladder for the board) was ruled B and closed not_planned.
-   */
-  data?: any[];
-
-  /**
-   * Row cap for the fetch. Defaults to `DEFAULT_KANBAN_LIMIT` (100); a board
-   * renders every fetched record into a lane and has no pagination control, so
-   * this is the author's window rather than a page size. A bound `dataSource`
-   * writes it here too — the binding's own `limit`, or the named view's
-   * `pagination.pageSize`.
-   *
-   * Not to be confused with {@link KanbanColumn.limit}, one level down: that is
-   * a lane's WIP limit (the card count at which the lane warns) and never
-   * reaches the query.
-   */
-  limit?: number;
-
-  /**
-   * Array of columns to display in the kanban board.
-   * Each column contains an array of cards.
-   */
-  columns?: KanbanColumn[];
-
-  /**
-   * Callback function when a card is moved between columns or reordered.
-   *
-   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
-   * metadata: JSON has no function value, so the zod twin refuses this key by
-   * name and points at the node-type spelling. Kept callable here because
-   * `KanbanRenderer` forwards it (`onCardMove={schema.onCardMove}`); the
-   * object-bound board (`ObjectKanban`) supplies its own persisting handler.
-   */
-  onCardMove?: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => void;
-
-  /**
-   * Callback function when a card is clicked.
-   *
-   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
-   * metadata: JSON has no function value, so the zod twin refuses this key by
-   * name and points at the node-type spelling. Kept callable here because it is
-   * read on every channel measured (objectui#7664, the contract review of
-   * PR #7743):
-   *
-   *   - `KanbanRenderer` forwards it (`onCardClick={schema.onCardClick}`) in the
-   *     same block as {@link KanbanSchema.onCardMove} and
-   *     {@link KanbanSchema.onQuickAdd};
-   *   - on the `'kanban'` and `'object-kanban'` keys `ObjectKanban` substitutes
-   *     its own function — and substitutes `onCardMove` in the very same object
-   *     literal, so that reading retires both keys or neither;
-   *   - and its substitute CALLS the authored handler: `ObjectKanban` declares
-   *     an `onCardClick` PROP (`onCardMove` has none), which `SchemaRenderer`
-   *     supplies by spreading every non-metadata schema key as a React prop.
-   *
-   * ⛔ Do not "simplify" this back into a deletion. `BaseSchema` is
-   * `.passthrough()`, so removing the key does not refuse it — it stops being
-   * judged and the value is kept, which is how the first cut of objectui#7664
-   * turned a refused key into an accepted one with every ratchet green.
-   * `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx` derives the
-   * forwarded key set from the read site and goes red on that deletion.
-   *
-   * The event is `unknown` rather than a mouse event because this package
-   * declares zero dependencies and has no React types; `KanbanImpl` narrows it
-   * to `React.MouseEvent` at the call site.
-   */
-  onCardClick?: (card: KanbanCard, event?: unknown) => void;
-
-  /**
-   * Optional CSS class name to apply custom styling.
-   */
-  className?: string;
-
-  /**
-   * Enable Quick Add button at the bottom of each column.
-   * When true, a "+" button appears allowing inline card creation.
-   * @default false
-   */
-  quickAdd?: boolean;
-
-  /**
-   * Callback when a new card is created via Quick Add.
-   *
-   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
-   * metadata: JSON has no function value, so the zod twin refuses this key by
-   * name and points at the node-type spelling. Kept callable here because
-   * `KanbanRenderer` forwards it (`onQuickAdd={schema.onQuickAdd}`), and
-   * `ObjectKanban` spreads the authored schema into that renderer.
-   */
-  onQuickAdd?: (columnId: string, title: string) => void;
-
-  /**
-   * Field name to use as cover image on cards.
-   * The field value should be a URL string or file object with a `url` property.
-   */
-  coverImageField?: string;
-
-  /**
-   * Conditional formatting rules for card coloring. Accepts the native
-   * `{ field, operator, value }` shape and the spec `{ condition, style }` CEL
-   * shape (issue #1584).
-   */
-  conditionalFormatting?: KanbanConditionalFormattingRule[];
-
-  /**
-   * Grouping configuration from ListView.
-   * When set, the first grouping field is used as swimlaneField fallback.
-   */
-  grouping?: GroupingConfig;
-
-  /**
-   * Record navigation behaviour when a card is clicked (drawer / dialog /
-   * page). Defaults to an inline right-side drawer; set `{ mode: 'page' }` to
-   * route to the standalone detail page instead. Read at `ObjectKanban.tsx`
-   * (`navConfig`), which feeds it to `useNavigationOverlay`.
-   *
-   * DECLARED by objectui#7742 (decision batch #70) on the gantt precedent
-   * objectui#5903 set: the read existed and this face did not name it, so an
-   * authored overlay mode rode {@link BaseSchema}'s `[key: string]: any` —
-   * admitted, never examined — and the read site had to spell itself
-   * `(schema as any).navigation`. Declaring it WIDENS the published accept set;
-   * it is the one widening in a card whose other rows all narrow.
-   *
-   * The spec owns the member list — `mode`, `view`, `preventNavigation`,
-   * `openNewTab`, `size`, `width` — and its schema REFUSES anything else. Do
-   * not restate the vocabulary here.
-   *
-   * Same spec type as {@link ObjectGanttSchema.navigation} and
-   * {@link ObjectGridSchema.navigation} — aligned with `@objectstack/spec`
-   * `ListView.navigation` rather than restated, so the vocabulary cannot fork.
-   */
-  navigation?: ViewNavigationConfig;
-
-  /**
-   * RETIRED (objectui#7742, ADR-0049, maintainer decision batch #70,
-   * 2026-09-07) — declared on both faces and read by NO registered board.
-   *
-   * Measured on this branch over `packages/plugin-kanban/src`, every file
-   * including tests: `allowCollapse` 0 hits / 0 files, with `groupBy` (85/27),
-   * `cardTitle` (18/9) and `coverImageField` (17/3) firing as controls on the
-   * same instrument, so the zero is a reading and not a dead grep. The
-   * capability EXISTS through another channel — `KanbanEnhanced` collapses a
-   * lane off `KanbanColumn.collapsed` — so an author who wrote
-   * `allowCollapse: true` validated green and got a board that never collapsed
-   * off that key. A board-level switch wired to the per-lane mechanism is a new
-   * card if it is ever wanted; the ruling did not order one.
-   *
-   * A tombstone rather than a plain removal on PRONG 2 of the discriminator the
-   * precedent changesets state (objectui#5941, #7526): the key was TAUGHT as
-   * working — `content/docs/api/schema-reference.md` carried the row
-   * "`allowCollapse` | `boolean` | Allow columns to be collapsed." Prong 1 does
-   * not apply: there is no live replacement KEY to name, only a different
-   * channel.
-   *
-   * ⚠️ Inertness is why the key is retired, not why it is tombstoned. {@link
-   * BaseSchema} is `.passthrough()`, so dropping it from the mirror would leave
-   * a document naming it silently ACCEPTED with the value kept — the failure
-   * objectui#7664's own first cut shipped at {@link KanbanSchema.onCardClick}.
-   *
-   * ⛔ NOT the same key as `ObjectKanbanSchema.allowCollapse` (`objectql.ts`),
-   * which the batch #70 ruling did not reach and which stays declared on the
-   * `object-kanban` arm.
-   * @deprecated Not part of this contract — the value was inert.
-   */
-  allowCollapse?: never;
-
-  /**
-   * RETIRED (objectui#7742, ADR-0049, maintainer decision batch #70,
-   * 2026-09-07) — declared on both faces and read by NO registered board.
-   *
-   * Measured with the census above: `cardTemplates` 0 hits / 0 files across
-   * `packages/plugin-kanban/src`, same run and same firing controls. The
-   * capability exists through a COMPONENT PROP — `CardTemplates.tsx` takes
-   * `templates: CardTemplate[]` — never off the schema, so nothing an author
-   * wrote here ever reached it. {@link CardTemplate} itself stays exported:
-   * that prop and `plugin-kanban`'s re-export still consume the type.
-   *
-   * Tombstoned on PRONG 2, same as {@link KanbanSchema.allowCollapse}:
-   * `content/docs/api/schema-reference.md` carried the row "`cardTemplates` |
-   * `CardTemplate[]` | Predefined quick-add templates."
-   * @deprecated Not part of this contract — the value was inert.
-   */
-  cardTemplates?: never;
-
-  /**
-   * RETIRED (objectui#7742, ADR-0049, maintainer decision batch #70,
-   * 2026-09-07) — declared on both faces and read by NO registered board.
-   *
-   * Measured with the census above: `columnWidths` 0 hits / 0 files across
-   * `packages/plugin-kanban/src`, same run and same firing controls. The
-   * capability exists through a HOOK OPTION — `useColumnWidths` takes a
-   * `ColumnWidthConfig` argument — never off the schema. {@link
-   * ColumnWidthConfig} itself stays exported: that hook and `plugin-kanban`'s
-   * re-export still consume the type.
-   *
-   * ⚠️ The repo-wide name census for this key is NOT zero (22 hits / 11 files)
-   * and every one of those is a DIFFERENT key of the same spelling on the grid
-   * surface — `data-table.tsx`, `ObjectGrid.tsx`, `RecordPickerDialog.tsx`. The
-   * board's zero is the `packages/plugin-kanban/src` reading, and the grid key
-   * is untouched by this retirement.
-   *
-   * Tombstoned on PRONG 2, same as {@link KanbanSchema.allowCollapse}:
-   * `content/docs/api/schema-reference.md` carried the row "`columnWidths` |
-   * `ColumnWidthConfig` | Column width configuration."
-   * @deprecated Not part of this contract — the value was inert.
-   */
-  columnWidths?: never;
-
-  /**
-   * RETIRED on THIS arm (objectui#7742, ADR-0049, maintainer decision batch
-   * #70, 2026-09-07) — one arm, one spelling: write {@link
-   * KanbanSchema.cardTitle}.
-   *
-   * ⚠️ This tombstone is NOT an inertness finding, and reading it as one gets
-   * the mechanism backwards. `ObjectKanban.tsx` DOES read the key —
-   * `schema.cardTitle || schema.titleField` and `schema.cardTitle ??
-   * schema.titleField` — and that read is load-bearing for the SIBLING arm:
-   * `ObjectKanbanSchema` (`objectql.ts`) declares `titleField` and the batch #70
-   * ruling says in as many words that the `object-kanban` arm KEEPS it
-   * (objectui#7322 item ②, PR #8153, re-measured here from `25907cd70`). What
-   * is retired is this arm's ACCEPTANCE of the legacy spelling, not the read.
-   *
-   * So a `{ "type": "kanban" }` document naming `titleField` is now refused BY
-   * NAME and pointed at `cardTitle`; a `{ "type": "object-kanban" }` document
-   * naming it still validates and still renders. One renderer, two node types,
-   * two accept sets — which is the shape objectui#7322 item ② already gave the
-   * component's prop union.
-   *
-   * ⚠️ Never declared on this face before now: it rode {@link BaseSchema}'s
-   * `[key: string]: any`, which is why both reads were spelled `(schema as
-   * any).titleField` until PR #8153 widened the prop to the two-arm union.
-   * Declaring the tombstone is therefore the FIRST time this face judges the
-   * key at all — a narrowing, not a re-narrowing.
-   * @deprecated Not part of this contract on the `kanban` arm — write `cardTitle`.
-   */
-  titleField?: never;
-
-  /**
-   * RETIRED with the declarative face (objectui#7664, ADR-0049) — `draggable`
-   * was a `DeclarativeKanbanSchema` member and no registered board reads it
-   * (measured: zero `draggable` read sites in `@object-ui/plugin-kanban`;
-   * drag-and-drop is always on).
-   *
-   * A tombstone rather than a plain removal on PRONG 2 of the discriminator the
-   * precedent changesets state (objectui#5941, #7526; the one-line form is
-   * under correction as objectui#7678) — a tombstone exists (1) to steer
-   * authors to a named live replacement KEY, or (2) to keep loud a key the docs
-   * taught as working. Prong 1 does not apply: drag-and-drop is unconditional,
-   * so there is no replacement key to name, and the remedy is to delete the
-   * member. Prong 2 carries it: `content/docs/api/schema-reference.md` taught
-   * this key as working — before this card its kanban example opened with
-   * `"draggable": true` and its property table read "`draggable` | `boolean` |
-   * Enable drag-and-drop between columns."
-   *
-   * ⚠️ Inertness is why the key is retired, not why it is tombstoned. A key
-   * this documented must be refused by NAME rather than dropped: {@link
-   * BaseSchema} is `.passthrough()`, so dropping it from the mirror would leave
-   * a document naming it silently accepted with the value kept — the failure
-   * this card's own first cut shipped at {@link KanbanSchema.onCardClick}.
-   * @deprecated Not part of this contract — the value was inert.
-   */
-  draggable?: never;
-  /**
-   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
-   * `kanban` renderer takes `({ schema })` and never reads it. Carried over
-   * from the retired declarative face so the successor arm under the same
-   * `'kanban'` key keeps refusing the spelling by name; author behaviour as a
-   * node type (`{ "type": "toast" }`, an `action:button` node) instead.
-   * @deprecated Not part of this contract — the value was inert.
-   */
-  onColumnAdd?: never;
-  /**
-   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
-   * `kanban` renderer takes `({ schema })` and never reads it. Carried over
-   * from the retired declarative face so the successor arm under the same
-   * `'kanban'` key keeps refusing the spelling by name; author behaviour as a
-   * node type (`{ "type": "toast" }`, an `action:button` node) instead.
-   * @deprecated Not part of this contract — the value was inert.
-   */
-  onCardAdd?: never;
-}
 
 /**
  * A predefined card template with pre-filled field values.
@@ -2180,7 +1919,11 @@ export interface DashboardComponentSchema extends BaseSchema {
  * Union type of all complex schemas
  */
 export type ComplexSchema =
-  | KanbanSchema
+  // ⛔ `KanbanSchema` (`type: 'kanban'`) RETIRED here — objectui#8802,
+  // maintainer ruling 2026-09-09. Its Zod twin keeps an arm for the literal so
+  // an authored `type: "kanban"` is refused BY NAME and pointed at
+  // `object-kanban`; on this face the retirement IS the absence, which is what
+  // makes `tsc` refuse the literal at the authoring site.
   | CalendarViewSchema
   | FilterBuilderSchema
   | CarouselSchema

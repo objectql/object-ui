@@ -40,7 +40,10 @@ describe('KanbanRenderer — uncategorized lane (#2792)', () => {
     render(
       <KanbanRenderer
         schema={{
-          type: 'kanban',
+          // `object-kanban` — the bare `kanban` node type key RETIRED
+          // (objectui#8802). Inert here (this is a props bag, not a document),
+          // but a fixture must not spell a retired key.
+          type: 'object-kanban',
           groupBy: 'status',
           columns,
           data: [
@@ -62,7 +65,10 @@ describe('KanbanRenderer — uncategorized lane (#2792)', () => {
     render(
       <KanbanRenderer
         schema={{
-          type: 'kanban',
+          // `object-kanban` — the bare `kanban` node type key RETIRED
+          // (objectui#8802). Inert here (this is a props bag, not a document),
+          // but a fixture must not spell a retired key.
+          type: 'object-kanban',
           groupBy: 'status',
           columns,
           data: [{ id: '1', title: 'Matches', status: 'in_progress' }],

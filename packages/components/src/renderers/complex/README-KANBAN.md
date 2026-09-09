@@ -20,7 +20,9 @@ A fully functional, schema-driven Kanban board component for Object UI with drag
 
 ```json
 {
-  "type": "kanban",
+  "type": "object-kanban",
+  "groupBy": "status",
+  "data": [],
   "className": "w-full h-[600px]",
   "columns": [
     {
@@ -56,7 +58,9 @@ A fully functional, schema-driven Kanban board component for Object UI with drag
 
 ```json
 {
-  "type": "kanban",
+  "type": "object-kanban",
+  "groupBy": "status",
+  "data": [],
   "columns": [...],
   "onCardMove": "(event) => { console.log('Card moved:', event); }"
 }
@@ -68,7 +72,7 @@ A fully functional, schema-driven Kanban board component for Object UI with drag
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `type` | `"kanban"` | Yes | Component type identifier |
+| `type` | `"object-kanban"` | Yes | Component type identifier. ⚠️ The bare `kanban` spelling was RETIRED in objectui#8802 (ruled 2026-09-09) and is refused by name. |
 | `columns` | `KanbanColumn[]` | Yes | Array of column configurations |
 | `className` | `string` | No | Custom CSS classes |
 | `onCardMove` | `function` | No | Callback when a card is moved |
@@ -105,7 +109,9 @@ A fully functional, schema-driven Kanban board component for Object UI with drag
 
 ```json
 {
-  "type": "kanban",
+  "type": "object-kanban",
+  "groupBy": "status",
+  "data": [],
   "columns": [
     {
       "id": "backlog",
@@ -137,7 +143,9 @@ A fully functional, schema-driven Kanban board component for Object UI with drag
 
 ```json
 {
-  "type": "kanban",
+  "type": "object-kanban",
+  "groupBy": "status",
+  "data": [],
   "columns": [
     {
       "id": "new",
@@ -175,7 +183,9 @@ The Kanban component uses Tailwind CSS and can be customized using the `classNam
 
 ```json
 {
-  "type": "kanban",
+  "type": "object-kanban",
+  "groupBy": "status",
+  "data": [],
   "className": "w-full h-[800px] bg-gray-50 p-4 rounded-lg",
   "columns": [...]
 }

@@ -251,7 +251,11 @@ export {
   KanbanColumnSchema,
   CardTemplateSchema,
   ColumnWidthConfigSchema,
-  KanbanSchema,
+  // ⛔ `KanbanSchema` RETIRED with the bare `kanban` node type key
+  // (objectui#8802, maintainer ruling 2026-09-09). `RetiredKanbanNodeSchema`
+  // takes its place inside `ComplexSchema` so an authored `type: "kanban"` is
+  // refused BY NAME and pointed at `object-kanban`; it is deliberately NOT
+  // exported — nothing outside this package parses against a refusal arm.
   CalendarViewModeSchema,
   CalendarEventSchema,
   CalendarViewSchema,

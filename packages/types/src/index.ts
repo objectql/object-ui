@@ -309,7 +309,9 @@ export type {
 export type {
   KanbanCard,
   KanbanColumn,
-  KanbanSchema,
+  // ⛔ `KanbanSchema` RETIRED with the bare `kanban` node type key
+  // (objectui#8802, maintainer ruling 2026-09-09) — `ObjectKanbanSchema` below
+  // is the surviving kanban face.
   CardTemplate,
   ColumnWidthConfig,
   CalendarViewMode,
