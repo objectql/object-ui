@@ -86,7 +86,7 @@ describe('localizeMetadataForm — the spec form, in the author’s language', (
       'zh-CN',
     );
     expect(fieldByName(zh, 'columns')).toMatchObject({ label: '列数', helpText: '栅格列数（默认 12）' });
-    expect(fieldByName(zh, 'refreshInterval')?.label).toBe('自动刷新');
+    expect(fieldByName(zh, 'refreshIntervalSeconds')?.label).toBe('自动刷新');
     expect(fieldByName(zh, 'header')?.label).toBe('页眉');
   });
 
@@ -98,10 +98,30 @@ describe('localizeMetadataForm — the spec form, in the author’s language', (
     );
     const gap = fieldByName(zh, 'gap');
     expect(gap?.label).toBe('间距');
-    expect(gap?.helpText).not.toMatch(/Tailwind/i);
-    // The English source still says it — that copy is the spec's to fix, and
-    // this overlay deliberately does not rewrite the producer's own text.
-    expect(fieldByName(dashboardForm, 'gap')?.helpText).toMatch(/Tailwind/i);
+
+    // ⚠️ THE CONTROL IS NOT A SENTENCE PIN, and it used to be one. This asserted
+    // that the English producer copy still said "Tailwind" — true while the spec
+    // shipped `Grid gap (Tailwind units)`, and false from @objectstack/spec
+    // 17.4.0, which rewrote it to "Space between widgets, in steps of 0.25rem
+    // (4 = 1rem)" (objectui#8785). The producer was right to fix its own copy;
+    // the pin was wrong to name a sentence it does not own, and re-pointing it
+    // at the new sentence would buy exactly one release before rotting again.
+    //
+    // What this test actually claims is narrower and durable: the overlay hands
+    // the author text they can act on, where the producer's copy reaches for
+    // DEVELOPER vocabulary — a framework name, a CSS unit — to say the same
+    // thing. So the control asserts the English carries some of that vocabulary
+    // and the zh carries none of it. It stays non-vacuous (the English leg must
+    // fire for the zh leg to mean anything) without pinning any one wording, and
+    // if the spec ever writes this hint in plain author language the control
+    // reddens and someone re-reads the overlay — which is the correct outcome,
+    // not a false alarm: the overlay would have nothing left to do here.
+    // A framework name, or a CSS length written as an author never would —
+    // digits welded to a unit. ⚠️ `\brem\b` does NOT work here: the boundary
+    // before `rem` never matches in `0.25rem`, because `5` is a word character.
+    const DEVELOPER_UNITS = /tailwind|\d\s*(rem|px)\b/i;
+    expect(fieldByName(dashboardForm, 'gap')?.helpText).toMatch(DEVELOPER_UNITS);
+    expect(gap?.helpText).not.toMatch(DEVELOPER_UNITS);
   });
 
   it('synthesizes ALL of the `header` composite’s sub-rows — a partial list would hide the rest', () => {

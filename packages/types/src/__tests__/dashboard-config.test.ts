@@ -34,7 +34,7 @@ describe('DashboardConfig TypeScript Types', () => {
       description: 'Overview of sales pipeline',
       columns: 12,
       gap: 16,
-      refreshInterval: 30,
+      refreshIntervalSeconds: 30,
       widgets: [
         {
           id: 'w1',
@@ -119,7 +119,7 @@ describe('DashboardConfig Zod Validation', () => {
       description: 'Overview of sales pipeline',
       columns: 12,
       gap: 16,
-      refreshInterval: 30,
+      refreshIntervalSeconds: 30,
       widgets: [
         {
           id: 'w1',

@@ -535,10 +535,22 @@ export const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }>
  * objectui#8223 (`sort`) cleared on: the SPEC already declares all five and the
  * RENDERER already honours all five, so this restores `declared = enforced`
  * instead of publishing anything new. Measured with a control on the same
- * `safeParse` call — because "the spec declares it" is exactly the assumption
- * objectui#8172 falsified for `limit`, which four faces teach and the strict
- * `ComponentPropsMap` refuses BY NAME. An unrecognised probe key draws
- * `unrecognized_keys` on these calls while none of these five does.
+ * `safeParse` call — because "the spec declares it" is an assumption
+ * objectui#8172 once falsified for `limit`: four faces taught the key and the
+ * strict `ComponentPropsMap` refused it BY NAME. ⚠️ That reading is HISTORY as of
+ * @objectstack/spec 17.4.0. objectstack#16503 (landed as objectstack#16562)
+ * added `limit: z.number().int().positive().optional()` to
+ * `ComponentPropsMap['object-kanban']` — the maintainer's option-A ruling on
+ * objectui#8172, the contract catching up with a capability that was already
+ * implemented, typed, mapped and documented — so `limit` is DECLARED below with
+ * the others. Re-measured here rather than inherited: all four faces now agree
+ * (renderer `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT`; BOTH `@object-ui/types`
+ * faces, TS and zod; `content/docs/plugins/plugin-kanban.mdx`; the spec).
+ * ⛔ The declaration carries NO default: a materialised `limit` would defeat the
+ * gate's `readLimit(base) === undefined` branch, and a bound view's
+ * `pagination.pageSize` would then never fill it. `DEFAULT_KANBAN_LIMIT = 100`
+ * stays documented rather than declared. An unrecognised probe key draws
+ * `unrecognized_keys` on these calls while none of the declared keys does.
  *
  * ## What is deliberately NOT here yet
  *
@@ -565,6 +577,7 @@ const OBJECT_KANBAN_INPUTS: ComponentInput[] = [
   { name: 'objectName', type: 'string', required: true },
   { name: 'columns', type: 'array' },
   { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the board fetches. Lowered to `$filter` on the query.' },
+  { name: 'limit', type: 'number', description: 'Row cap — the most records the board fetches, lowered to the query’s top-level `$top` (renderer default 100). The board renders every fetched record into a lane and offers no pagination, so this is the author’s window on the object rather than a page size. PRECEDENCE: a node-level `dataSource` binding’s own `limit` wins outright; the `pagination.pageSize` of a view that binding names fills this key only when the node leaves it unset.' },
   { name: 'groupBy', type: 'string', description: 'Record field whose value buckets cards into lanes. Its picklist options become the lanes when `columns` is absent, and a drag between lanes writes the target lane’s value back to the record. A value matching no lane lands in the trailing “Uncategorized” lane rather than disappearing.' },
   { name: 'cardTitle', type: 'string', description: 'Record field rendered as the card title. Read AHEAD of `titleField`, which is the legacy spelling of the same choice; when neither yields a value the shared record-display resolver names the card.' },
   { name: 'titleField', type: 'string', description: 'Legacy spelling of `cardTitle` — the record field rendered as the card title. `cardTitle` wins when both are authored.' },

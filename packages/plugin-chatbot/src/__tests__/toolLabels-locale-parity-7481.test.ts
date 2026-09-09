@@ -14,14 +14,23 @@
  * cloud AI packages register a tool.
  *
  * The registry (`@objectstack/spec`'s `PLATFORM_TOOLS_BY_PACKAGE`) is the
- * contract, so it is what this suite reads. But the pinned spec LAGS the cloud
- * runtime — the five names in {@link AHEAD_OF_PIN} are registered by
- * `service-ai-studio` today and are not in the snapshot — and a step label the
- * user reads must not wait on a pin bump. So the coverage set is
- * `registry ∪ AHEAD_OF_PIN`, and a member of `AHEAD_OF_PIN` that the registry
- * has caught up with must be REMOVED from that list, which the last case here
- * enforces. That keeps the hand-held half shrinking rather than growing into a
- * second, permanent registry.
+ * contract, so it is what this suite reads. The pinned spec could LAG the cloud
+ * runtime, and a step label the user reads must not wait on a pin bump, so the
+ * coverage set is `registry ∪ AHEAD_OF_PIN` — a hand-held escape hatch for names
+ * the snapshot has not listed yet. A member the registry has caught up with must
+ * be REMOVED from that list, which the last case here enforces, so the hand-held
+ * half shrinks rather than growing into a second, permanent registry.
+ *
+ * ⭐ IT HAS SHRUNK TO NOTHING, AND THAT IS THE MECHANISM WORKING. The five names
+ * this file was written around — `get_authoring_rules` (cloud#1837),
+ * `load_tools`, `open_record`, `test_flow`, `toggle_flow` — are all in
+ * `PLATFORM_TOOLS_BY_PACKAGE` as of `@objectstack/spec` 17.4.0, so
+ * {@link AHEAD_OF_PIN} is empty and coverage is the registry alone
+ * (objectui#8772 took the pin there). ⛔ The list is kept, not deleted: the next
+ * tool the cloud registers ahead of a snapshot needs the same hatch, and
+ * rebuilding it under pressure is how a permanent second registry starts.
+ * {@link GRADUATED} keeps this file's guards honest while the list is empty —
+ * see its note.
  *
  * The English pin is the other half. The packs' own comment states the rule —
  * "the `en` values are deliberately EQUAL to what that title-caser produces:
@@ -43,11 +52,25 @@ const REGISTRY = (
 
 /**
  * Tools the cloud AI runtime registers that the PINNED spec snapshot does not
- * list yet. Sourced from cloud `service-ai-studio`'s `plugin.ts` tool
- * definitions (`AUTHORING_RULE_`, `LOAD_TOOLS_`, `OPEN_RECORD_`, `FLOW_`).
- * Shrink this list on a pin bump — never grow it as a habit.
+ * list yet — sourced from cloud `service-ai-studio`'s `plugin.ts` tool
+ * definitions. Shrink this list on a pin bump — never grow it as a habit.
+ *
+ * EMPTY at this pin: every name it carried has graduated (see {@link GRADUATED}).
  */
-const AHEAD_OF_PIN = ['get_authoring_rules', 'load_tools', 'open_record', 'test_flow', 'toggle_flow'] as const;
+const AHEAD_OF_PIN: readonly string[] = [];
+
+/**
+ * The names that HAVE graduated from {@link AHEAD_OF_PIN} into the registry.
+ *
+ * ⛔ Not a record for its own sake — it is the live instrument this file needs
+ * while `AHEAD_OF_PIN` is empty. Every guard below was anchored on that list
+ * being non-empty, so with it emptied they would read green against a
+ * `PLATFORM_TOOLS_BY_PACKAGE` that had vanished, gone empty, or lost these very
+ * names: `[].filter(…)` is `[]` and `arrayContaining([])` passes on anything.
+ * Asserting these five ARE in the registry is the reading that cannot be
+ * satisfied by an absent export, and it is the same fact the emptying rests on.
+ */
+const GRADUATED = ['get_authoring_rules', 'load_tools', 'open_record', 'test_flow', 'toggle_flow'] as const;
 
 /** Every tool name that must carry a step label in every pack. */
 const COVERED: string[] = [
@@ -73,9 +96,13 @@ describe('chatbot.tool.* covers every tool the runtime can show (objectui#7481)'
 
   it('reads a non-empty coverage set', () => {
     // Guards against the whole suite going vacuously green if the spec export
-    // disappears AND the hand-held list is emptied.
-    expect(COVERED.length).toBeGreaterThanOrEqual(AHEAD_OF_PIN.length);
-    expect(COVERED).toEqual(expect.arrayContaining([...AHEAD_OF_PIN]));
+    // disappears. With `AHEAD_OF_PIN` empty the coverage set is the REGISTRY
+    // alone, so the floor is read off the registry rather than off the
+    // hand-held list — the two `AHEAD_OF_PIN` assertions that used to stand here
+    // are both tautologies on an empty list.
+    expect(REGISTRY, 'PLATFORM_TOOLS_BY_PACKAGE did not resolve').toBeTruthy();
+    expect(COVERED.length).toBeGreaterThan(GRADUATED.length);
+    expect(COVERED).toEqual(expect.arrayContaining([...GRADUATED, ...AHEAD_OF_PIN]));
   });
 
   it.each(LANGS)('%s defines a non-empty label for every covered tool', (lang) => {
@@ -96,12 +123,19 @@ describe('chatbot.tool.* covers every tool the runtime can show (objectui#7481)'
   });
 
   it('AHEAD_OF_PIN carries only names the pinned registry still lacks', () => {
-    // The moment `.objectstack-sha` advances past a tool's registry entry, the
-    // hand-held list must lose it — otherwise this file becomes a second
-    // registry that nobody keeps in sync.
+    // The moment the pin advances past a tool's registry entry, the hand-held
+    // list must lose it — otherwise this file becomes a second registry that
+    // nobody keeps in sync. This is the case that fired on the 17.4.0 bump and
+    // named all five; they were removed rather than the assertion relaxed.
     const inRegistry = new Set(Object.values(REGISTRY ?? {}).flat());
     const caughtUp = AHEAD_OF_PIN.filter((name) => inRegistry.has(name));
     expect(caughtUp, 'remove these from AHEAD_OF_PIN — the pinned spec now lists them').toEqual([]);
+
+    // ⚠️ The line above is a tautology while the list is empty, so it is not
+    // left standing alone: the graduation it records is asserted directly. If
+    // the registry ever stops listing one of these, THIS is what reddens —
+    // and the repair would be to put that name back on `AHEAD_OF_PIN`.
+    expect(GRADUATED.filter((name) => !inRegistry.has(name))).toEqual([]);
   });
 });
 

@@ -445,14 +445,19 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
       setTimeout(() => setRefreshing(false), 600);
     }, [onRefresh]);
 
-    // Auto-refresh interval
+    // Auto-refresh interval. The `* 1000` is seconds → milliseconds, and the
+    // key now says so itself: @objectstack/spec 17.4.0 renamed
+    // `refreshInterval` to `refreshIntervalSeconds` precisely because a reader
+    // multiplying by 1000 was the tell that the unit lived out of band
+    // (objectstack#15680, objectui#7783). The arithmetic is unchanged — the
+    // value is still seconds.
     useEffect(() => {
-      if (!schema.refreshInterval || schema.refreshInterval <= 0 || !onRefresh) return;
-      intervalRef.current = setInterval(handleRefresh, schema.refreshInterval * 1000);
+      if (!schema.refreshIntervalSeconds || schema.refreshIntervalSeconds <= 0 || !onRefresh) return;
+      intervalRef.current = setInterval(handleRefresh, schema.refreshIntervalSeconds * 1000);
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
-    }, [schema.refreshInterval, onRefresh, handleRefresh]);
+    }, [schema.refreshIntervalSeconds, onRefresh, handleRefresh]);
 
     const handleWidgetClick = useCallback((e: React.MouseEvent, widgetId: string | undefined) => {
       if (!designMode || !onWidgetClick || !widgetId) return;

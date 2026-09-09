@@ -345,27 +345,32 @@ ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecord
     { name: 'object', type: 'string' },
     {
       name: 'filter',
-      // `'object'` is the spec's shape, not a chosen arm. `filter` is
-      // `FilterConditionSchema.optional()`, and that schema is
-      // `z.record(z.string(), z.unknown()).and(z.object({ $and, $or, $not }))`
-      // — a plain object. `checkType`'s `'object'` case in
-      // `sdui-parser/src/validate.ts` accepts exactly what the spec accepts
-      // here (a non-null non-array object) and rejects exactly what it rejects
-      // (arrays, strings, numbers, booleans — all verified against
-      // `ElementRecordPickerPropsSchema.safeParse` in the parity test next to
-      // this file). So this is the one case in the family where the coarse
-      // vocabulary lines up with the contract exactly as declared: one arm, no
-      // union to spell and nothing for the description to make up for. Contrast
-      // `element:text_input.defaultValue`, whose `string | number` needs two
-      // arms (objectui#3832), and `emptyText` below, which declares two for the
-      // same reason once its render site learned to resolve both
+      // `'array'` is the spec's shape, not a chosen arm. objectstack#14406
+      // CONVERGED this key onto `z.array(ViewFilterRuleSchema)` — the last
+      // record-form `filter` in `ComponentPropsMap`, closing the maintainer's
+      // 2026-08-25 ruling that the platform carries one filter orthography
+      // (objectui#6206-B). It was `FilterConditionSchema` (the MongoDB-style
+      // `z.record(z.string(), z.unknown()).and(z.object({ $and, $or, $not }))`)
+      // until then, and this entry said `'object'` for exactly that reason.
+      // `checkType`'s `'array'` case in `sdui-parser/src/validate.ts` accepts
+      // what the spec now accepts here and rejects what it rejects — the record
+      // form included, which the spec refuses by KIND. Both halves are verified
+      // against `ElementRecordPickerPropsSchema.safeParse` in the parity test
+      // next to this file. So this stays the case in the family where the
+      // coarse vocabulary lines up with the contract exactly as declared: one
+      // arm, no union to spell. ⚠️ The array is a rule-OBJECT list, not a tuple
+      // list: `[['a', '=', 1]]` is refused at `filter.0`, and the coarse
+      // `'array'` cannot say so — which is what the description below is for.
+      // Contrast `element:text_input.defaultValue`, whose `string | number`
+      // needs two arms (objectui#3832), and `emptyText` below, which declares
+      // two for the same reason once its render site learned to resolve both
       // (objectui#5590).
-      type: 'object',
+      type: 'array',
       // Taken from what the renderer DOES with the key, because the one thing
       // an author cannot read off the spec is which of the two places they may
       // write a filter actually wins.
       description:
-        'Filter criteria narrowing which records the picker offers, as a spec FilterCondition object — `{ status: "open" }`, or `{ $and: [ … ] }` for a group. It becomes the `$filter` of the picker\'s own query, so it decides which records exist for the user, not merely how they are shown. PRECEDENCE: a node-level `dataSource` binding wins outright. The renderer reads `dataSource.filter ?? filter`, so when the binding — or the saved view its `view` names, which AND-combine with each other because the spec calls the binding\'s filter *additional* — supplies a filter, THIS key is dropped entirely rather than merged into it; it applies only when the node carries no `dataSource`, or that `dataSource` and its view both leave `filter` unset. A rule ARRAY (an ObjectQL AST, or a view\'s rule list) is not a FilterCondition and the spec rejects it here.',
+        'Filter rules narrowing which records the picker offers, as a ViewFilterRule ARRAY — `[{ field: "status", operator: "equals", value: "open" }, …]`, the one filter orthography this map\'s array-declared `filter` doors share. It becomes the `$filter` of the picker\'s own query, so it decides which records exist for the user, not merely how they are shown. PRECEDENCE: a node-level `dataSource` binding wins outright. The renderer reads `dataSource.filter ?? filter`, so when the binding — or the saved view its `view` names, which AND-combine with each other because the spec calls the binding\'s filter *additional* — supplies a filter, THIS key is dropped entirely rather than merged into it; it applies only when the node carries no `dataSource`, or that `dataSource` and its view both leave `filter` unset. MEMBERS ARE RULE OBJECTS: the MongoDB-style record form (`{ status: "open" }`, `{ $and: [ … ] }`) was retired by objectstack#14406 and the spec now refuses it by kind, and a bare tuple (`["a", "=", 1]`) is refused as a member because each entry must be an object.',
     },
     { name: 'labelField', type: 'string' },
     { name: 'valueField', type: 'string' },

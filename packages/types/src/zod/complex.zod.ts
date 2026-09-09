@@ -1062,9 +1062,12 @@ export const GlobalFilterSchema = z.object({
  *
  * `BaseSchema` is `.passthrough()` while the spec's `DashboardSchema` is
  * strict, so before this derivation every spec-only key rode through objectui
- * unvalidated — `header`, `refreshInterval`, `performance`, `aria`,
+ * unvalidated — `header`, `refreshIntervalSeconds`, `performance`, `aria`,
  * `protection` and the `_lock*`/`_package*`/`_provenance` package-lock
- * envelope were neither checked nor declared.
+ * envelope were neither checked nor declared. (That key was spelled
+ * `refreshInterval` until @objectstack/spec 17.4.0 renamed it — objectui#7783;
+ * the spec now carries a `retiredKey` tombstone under the old spelling, and it
+ * flows in here by reference like every other member of this set.)
  *
  * Omitted, each for a stated reason:
  *  - `name`/`label`/`description` — component-envelope keys owned by BaseSchema;
@@ -1151,7 +1154,7 @@ export const DashboardConfigSchema = z.object({
   description: z.string().optional().describe('Dashboard description'),
   columns: z.number().min(1).max(24).optional().describe('Grid columns (1-24)'),
   gap: z.number().min(0).optional().describe('Grid gap in pixels'),
-  refreshInterval: z.number().min(0).optional().describe('Auto-refresh interval in seconds'),
+  refreshIntervalSeconds: z.number().min(0).optional().describe('Auto-refresh interval in seconds'),
   widgets: z.array(DashboardWidgetConfigSchema).optional().describe('Dashboard widgets'),
   globalFilters: z.array(z.any()).optional().describe('Global filter conditions'),
   dateRange: z.object({

@@ -70,6 +70,19 @@ const filterDescription = () => input('filter')?.description ?? '';
 const withFilter = (filter: unknown) => ({ object: 'account', filter });
 
 /**
+ * The accepted `filter` value, in ONE place because five assertions read it.
+ *
+ * A `ViewFilterRule` list — what objectstack#14406 converged this key onto
+ * (objectui#7663), and the orthography every array-declared `filter` door in
+ * `ComponentPropsMap` shares. ⚠️ `operator` is spelled `equals` rather than the
+ * `eq` alias on purpose: the spec NORMALISES `eq` to `equals` on parse, so a
+ * fixture written with the alias would make the round-trip assertion below
+ * (`parsed.data?.filter` equals what went in) fail for a reason that has
+ * nothing to do with the key being reachable.
+ */
+const RULE_ARRAY = [{ field: 'status', operator: 'equals', value: 'open' }];
+
+/**
  * Does the installed spec REFUSE an undeclared top-level key, or drop it in
  * silence? (objectui#4910, measured on both pins.)
  *
@@ -114,9 +127,9 @@ describe('element:record_picker — registry inputs vs @objectstack/spec', () =>
     // parse only reports that no undeclared key was present. Survival is the
     // claim on both pins.
     expect(specTopLevelKeys()).toContain('filter');
-    const parsed = ElementRecordPickerPropsSchema.safeParse(withFilter({ status: 'open' }));
+    const parsed = ElementRecordPickerPropsSchema.safeParse(withFilter(RULE_ARRAY));
     expect(parsed.success).toBe(true);
-    expect(parsed.data?.filter).toEqual({ status: 'open' });
+    expect(parsed.data?.filter).toEqual(RULE_ARRAY);
 
     // The contrast that makes the criterion meaningful: the SAME payload plus a
     // key the spec does not declare. Two contract spellings, one verdict — the
@@ -126,7 +139,7 @@ describe('element:record_picker — registry inputs vs @objectstack/spec', () =>
     // to `notASpecKey` instead of to the declared key having gone bad, and the
     // green parse asserted just above is what proves the base is valid.
     const undeclared = ElementRecordPickerPropsSchema.safeParse({
-      ...withFilter({ status: 'open' }),
+      ...withFilter(RULE_ARRAY),
       notASpecKey: 1,
     } as never);
 
@@ -150,49 +163,85 @@ describe('element:record_picker — registry inputs vs @objectstack/spec', () =>
       // retired.
       expect(undeclared.success).toBe(true);
       expect(Object.keys(undeclared.data ?? {})).not.toContain('notASpecKey');
-      expect(undeclared.data?.filter).toEqual({ status: 'open' });
+      expect(undeclared.data?.filter).toEqual(RULE_ARRAY);
     }
 
     expect(inputNames()).toContain('filter');
     expect(filterDescription()).not.toBe('');
   });
 
-  it('declares `object` as the type the spec actually accepts, not `array`', () => {
-    // objectui#3830's landing sketch guessed `'array'` and flagged the guess as
-    // needing checking against the resolved pin. It is wrong, and this is why:
-    // `ElementRecordPickerProps.filter` is `FilterConditionSchema`, which is
-    // `z.record(z.string(), z.unknown()).and(z.object({ $and, $or, $not }))` —
-    // an OBJECT. A rule array (an ObjectQL AST, a view's `ViewFilterRule[]`) is
-    // rejected outright.
-    expect(ElementRecordPickerPropsSchema.safeParse(withFilter({ status: 'open' })).success).toBe(true);
-    expect(ElementRecordPickerPropsSchema.safeParse(withFilter({ $and: [{ a: 1 }] })).success).toBe(true);
-    expect(ElementRecordPickerPropsSchema.safeParse(withFilter([['a', '=', 1]])).success).toBe(false);
+  it('declares `array` as the type the spec actually accepts, not `object`', () => {
+    // ⚠️ This pin was the mirror image of itself until objectui#7663.
+    // objectui#3830's landing sketch guessed `'array'`, flagged the guess as
+    // needing checking against the resolved pin, and the check said `'object'`:
+    // `ElementRecordPickerProps.filter` was `FilterConditionSchema`
+    // (`z.record(z.string(), z.unknown()).and(z.object({ $and, $or, $not }))`),
+    // so the rule ARRAY was the shape rejected outright.
+    //
+    // objectstack#14406 CONVERGED the key onto `z.array(ViewFilterRuleSchema)`
+    // — the last record-form `filter` in `ComponentPropsMap`, under the
+    // maintainer's one-orthography ruling (objectui#6206-B, 2026-08-25). The
+    // sketch's guess is the answer now, and the verdicts below simply swap
+    // sides. ⛔ The refusals are asserted as an ENVELOPE (kind and path), not as
+    // a bare `success === false`, so a parse that fails for some unrelated
+    // reason cannot stand in for the contract refusing the record form.
+    const accepted = ElementRecordPickerPropsSchema.safeParse(withFilter(RULE_ARRAY));
+    expect(accepted.success).toBe(true);
+
+    // The RECORD form — every spelling of it — is now refused BY KIND, at the
+    // key itself.
+    for (const recordForm of [{ status: 'open' }, { $and: [{ a: 1 }] }]) {
+      const refused = ElementRecordPickerPropsSchema.safeParse(withFilter(recordForm));
+      expect(refused.success, JSON.stringify(recordForm)).toBe(false);
+      expect(refused.error?.issues.map((i) => i.code)).toContain('invalid_type');
+      expect(refused.error?.issues.map((i) => i.path.join('.'))).toContain('filter');
+    }
+
+    // Still refused, and for the same reason as before: neither is an array.
     expect(ElementRecordPickerPropsSchema.safeParse(withFilter('a = 1')).success).toBe(false);
     expect(ElementRecordPickerPropsSchema.safeParse(withFilter(42)).success).toBe(false);
 
-    expect(input('filter')?.type).toBe('object');
+    // An array whose MEMBERS are not rule objects is refused too — at
+    // `filter.0`, not at `filter`. The coarse `'array'` declaration cannot say
+    // this, which is why the input's description spells the member shape out.
+    const tuples = ElementRecordPickerPropsSchema.safeParse(withFilter([['a', '=', 1]]));
+    expect(tuples.success).toBe(false);
+    expect(tuples.error?.issues.map((i) => i.path.join('.'))).toContain('filter.0');
+
+    expect(input('filter')?.type).toBe('array');
   });
 
-  it('the coarse `object` type costs nothing here — it accepts exactly what the spec accepts', () => {
+  it('the coarse `array` type agrees with the spec at the KIND boundary, and stops there', () => {
     // The `element:text_input.defaultValue` sibling declares TWO arms, because
     // the spec's type there is the union `string | number` (objectui#3832). This
-    // key is the case where one arm agrees with the contract exactly:
-    // `checkType`'s `'object'` arm in
-    // `sdui-parser/src/validate.ts` passes a non-null non-array object and warns
-    // `type-mismatch` on everything else — the same partition `safeParse` draws
-    // above. Asserted through the real validator, not by reading its source, so
-    // a future widening of either side shows up here as a disagreement.
+    // key still needs only one — `checkType`'s `'array'` arm in
+    // `sdui-parser/src/validate.ts` passes an array and warns `type-mismatch` on
+    // everything else, which is the same KIND partition `safeParse` draws above
+    // now that objectstack#14406 converged the key onto a rule array
+    // (objectui#7663). Asserted through the real validator, not by reading its
+    // source, so a future widening of either side shows up here as a
+    // disagreement.
     const manifest = manifestFromConfigs([
-      { type: TYPE, namespace: 'element', inputs: [{ name: 'filter', type: 'object' }] },
+      { type: TYPE, namespace: 'element', inputs: [{ name: 'filter', type: 'array' }] },
     ]);
     const codesFor = (literal: string) =>
       compile(`<${TYPE} filter={${literal}} />`, manifest).diagnostics.map((d) => d.code);
 
-    expect(codesFor('{"status":"open"}')).toEqual([]);
-    expect(codesFor('{"$and":[{"a":1}]}')).toEqual([]);
-    expect(codesFor('[["a","=",1]]')).toContain('type-mismatch');
+    expect(codesFor('[{"field":"status","operator":"equals","value":"open"}]')).toEqual([]);
+    // The record form is now the refused kind on BOTH authorities — this is the
+    // assertion that flipped, and the reason the declaration had to move with
+    // the spec rather than stay `'object'` and disagree with it.
+    expect(codesFor('{"status":"open"}')).toContain('type-mismatch');
+    expect(codesFor('{"$and":[{"a":1}]}')).toContain('type-mismatch');
     expect(codesFor('42')).toContain('type-mismatch');
     expect(codesFor('null')).toContain('type-mismatch');
+
+    // ⚠️ WHERE THE AGREEMENT ENDS, stated rather than left to be discovered.
+    // The coarse vocabulary has no member arm, so a tuple list passes the
+    // manifest check and is refused by the spec at `filter.0` (asserted above).
+    // That is a KNOWN gap in the declaration's resolution, not a disagreement to
+    // repair here: the description carries what the type cannot say.
+    expect(codesFor('[["a","=",1]]')).toEqual([]);
   });
 
   it('the `filter` description says which of the two filters an author writes wins', () => {
@@ -242,7 +291,7 @@ describe('element:record_picker — registry inputs vs @objectstack/spec', () =>
     // unknown-prop for filter" would also be what a broken manifest, an
     // unregistered tag or a silent parse failure looks like.
     const r = compile(
-      `<${TYPE} object="account" filter={{"status":"open"}} searchFields={["name"]} />`,
+      `<${TYPE} object="account" filter={[{"field":"status","operator":"equals","value":"open"}]} searchFields={["name"]} />`,
       manifest,
     );
 
@@ -255,7 +304,7 @@ describe('element:record_picker — registry inputs vs @objectstack/spec', () =>
     // And the key survives into the compiled tree as itself — the whole point of
     // publishing it is that the author's `filter` reaches the renderer, which
     // turns it into the picker query's `$filter`.
-    expect(r.tree).toMatchObject({ type: TYPE, filter: { status: 'open' } });
+    expect(r.tree).toMatchObject({ type: TYPE, filter: RULE_ARRAY });
     expect(r.diagnostics.some((d) => d.severity === 'error')).toBe(false);
   });
 });

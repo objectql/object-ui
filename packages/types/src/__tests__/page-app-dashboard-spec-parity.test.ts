@@ -175,9 +175,12 @@ describe('spec-only keys are now VALIDATED, not passed through (objectstack#4115
     expect(OuiAppSchema.safeParse({ type: 'app', branding: 'blue' }).success).toBe(false);
   });
 
-  it('Dashboard declares header/refreshInterval/performance', () => {
+  it('Dashboard declares header/refreshIntervalSeconds/performance', () => {
     const keys = Object.keys(shapeOf(OuiDashboardSchema));
-    for (const key of ['header', 'refreshInterval', 'performance', 'protection']) {
+    // `refreshIntervalSeconds` is the post-rename spelling (objectui#7783); the
+    // spec still carries `refreshInterval` as a `retiredKey` tombstone, so
+    // asserting the OLD name here would pass on the tombstone and prove nothing.
+    for (const key of ['header', 'refreshIntervalSeconds', 'performance', 'protection']) {
       expect(keys, `'${key}' is still undeclared`).toContain(key);
     }
   });

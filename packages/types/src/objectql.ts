@@ -164,13 +164,18 @@ export type { CalendarConfig } from '@objectstack/spec/ui';
  *    GanttConfigSchema". It is, as of rc.6, so the key now arrives from the
  *    spec and the note is gone with it.
  *
- * `timeSegments` is the one key the spec genuinely does not model, and it stays
- * here declared as objectui's own. That is legal metadata rather than a second
- * dialect: `GanttConfigSchema` is `$loose` upstream (see the note at
- * `zod/objectql.zod.ts` — "the renderers grow config knobs"), so a key the spec
- * does not declare passes its parse instead of being rejected. The intersection
- * inherits that looseness, which is the spec's own decision for this vocabulary
- * and not a widening taken here.
+ * ⚠️ THE LOOSENESS THIS PARAGRAPH USED TO REST ON IS GONE. `GanttConfigSchema`
+ * was `$loose` upstream, so a key the spec did not declare passed its parse
+ * instead of being rejected, and the members intersected below were legal
+ * metadata riding that window. objectstack#15469 CLOSED it: the schema is a
+ * `strictObject`, an undeclared key is refused by name, and the ten keys objectui
+ * read through the window — `timeSegments` among them — are DECLARED upstream
+ * with describes. So the members below no longer extend the spec's vocabulary;
+ * they restate part of it, and `SpecGanttConfig` already carries every one.
+ *
+ * ⛔ Do not read this block as an extension point. Writing an undeclared sub-key
+ * into `timeSegments` (or any member here) is refused at parse now, where it
+ * used to pass — the prose said the opposite until objectui#7845 corrected it.
  */
 export type GanttConfig = SpecGanttConfig & {
   /**
@@ -216,9 +221,10 @@ export type GanttConfig = SpecGanttConfig & {
   // referenced by neither declaration — so the vocabulary is lifted here rather
   // than restated, and the two faces derive from ONE source that cannot fork.
   //
-  // Like `timeSegments` above, each is legal metadata rather than a second
-  // dialect: `GanttConfigSchema` is `$loose` upstream, so a key the spec does not
-  // model passes its parse instead of being rejected.
+  // Like `timeSegments` above, each of the nine is now DECLARED by the spec —
+  // objectstack#15469 closed `GanttConfigSchema` and modelled them, so they are
+  // no longer objectui-only metadata riding a `$loose` parse. They stay written
+  // out here for their prose; the vocabulary itself is the spec's.
   /**
    * Record field marking a node as view-only (truthy → locked). A locked
    * row's bar can't be dragged/resized, its progress can't be dragged, no

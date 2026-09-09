@@ -2099,8 +2099,18 @@ export interface DashboardComponentSchema extends BaseSchema {
    *    every `BaseSchema` slot.
    */
   widgets: Array<DashboardWidgetSlotComponentSchema | DashboardWidgetSchema>;
-  /** Auto-refresh interval in seconds. When set, the dashboard will periodically trigger onRefresh. */
-  refreshInterval?: number;
+  /**
+   * Auto-refresh interval in seconds. When set, the dashboard will periodically
+   * trigger onRefresh.
+   *
+   * Renamed from `refreshInterval` in @objectstack/spec 17.4.0 (objectstack#15680,
+   * ruling B on objectstack#14478: a duration-shaped number carries its unit in
+   * the key name, never only in the describe prose). The spec's `DashboardSchema`
+   * — which this node derives its spec-owned half from — now REFUSES the old
+   * spelling with a `retiredKey` tombstone naming this one, so the two faces
+   * would disagree at parse if this declaration had stayed (objectui#7783).
+   */
+  refreshIntervalSeconds?: number;
   /**
    * Dashboard header configuration.
    * Aligned with @objectstack/spec DashboardHeaderSchema.

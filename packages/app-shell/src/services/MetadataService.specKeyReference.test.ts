@@ -268,23 +268,26 @@ describe('objectui#6041 · saveFields PUTs the relationship target as `reference
  * to be a declared divergence.
  *
  * ⚠️ Read the instrument note before adding a spec assertion here. This repo's
- * pin is `@objectstack/spec` **17.3.0** (`pnpm-lock.yaml`; the 17.2.0 this note
- * used to name was superseded by objectui#7122). At 17.3.0 the #13632
- * refinement refuses an absent and an EMPTY `reference` but spells its
- * emptiness test as an equality against `''`, so `'   '` still parses green.
- * An assertion of the shape "the spec accepts `'   '`" therefore measures the
- * VERSION SKEW below, not a standing opinion of this repo's.
+ * pin is `@objectstack/spec` **17.4.0** (`pnpm-lock.yaml`; 17.3.0 before
+ * objectui#8772, 17.2.0 before objectui#7122).
  *
- * The divergence itself is retired (objectui#8621): objectstack#16920 applies
- * that emptiness test to the trimmed value, so upstream now refuses the same
- * shape under the same `custom` issue at the same `reference` path, and this
- * writer's predicate mirrors the contract instead of exceeding it. The fix is
- * an unreleased `minor` at the time of writing, which is why the spec half
- * below still reads `success = true`: it is pinned against the INSTALLED spec,
- * and it is the tripwire that reddens when the pin reaches the fix. ⛔ The
- * writer's refusal is asserted separately and does not depend on the installed
- * spec at all — that separation is what makes the bump a one-line edit here and
- * no behaviour change at all in `MetadataService.ts`.
+ * ⭐ THE SKEW IS CLOSED, AND THE TRIPWIRE THAT SAID SO HAS FIRED. Until 17.3.0
+ * the #13632 refinement refused an absent and an EMPTY `reference` but spelled
+ * its emptiness test as an equality against `''`, so `'   '` parsed green while
+ * this writer refused it — a real divergence, declared rather than hidden.
+ * objectstack#16920 (reported as objectstack#16126, retired here under
+ * objectui#8621) applies that test to the TRIMMED value, and it shipped in
+ * 17.4.0. Measured at this pin: `'   '`, `''` and an absent target are all
+ * refused upstream under the same `custom` issue at the same `reference` path
+ * the writer names, so the writer's predicate now MIRRORS the contract rather
+ * than exceeding it.
+ *
+ * The row below was written as a tripwire against exactly this event and said
+ * what to do when it fired — "the reading becomes `false` and nothing else here
+ * moves" — which is what happened: the spec half flipped, and `MetadataService.ts`
+ * did not change at all. ⛔ The writer's refusal is still asserted separately and
+ * still does not depend on the installed spec; that separation is what kept this
+ * a prose-and-one-verdict edit.
  */
 describe('objectui#7714 · the target states, and the retired divergence', () => {
   const puttable = async (reference: unknown) => {
@@ -327,33 +330,45 @@ describe('objectui#7714 · the target states, and the retired divergence', () =>
     expect(savedFields(puts)[0].reference).toBe(' account ');
   });
 
-  it('the VERSION SKEW is real at THIS pin: 17.3.0 accepts `\'   \'`, this writer refuses it', async () => {
+  it('the VERSION SKEW is CLOSED at THIS pin: 17.4.0 refuses `\'   \'` too, exactly as this writer does', async () => {
     // The writer half — true regardless of which spec is installed, and
     // unchanged by objectstack#16920. This is the row that must never move.
     const { refused } = await puttable('   ');
     expect(refused).toBe(true);
 
-    // The spec half, stated honestly for the INSTALLED 17.3.0, where #13632's
-    // emptiness test is an equality against `''`. Discriminating on its own at
-    // this pin — an absent target IS refused here (asserted below), so a green
-    // `'   '` isolates blankness rather than reflecting a schema that accepts
-    // everything. ⚠️ This is a TRIPWIRE, not an endorsement: objectstack#16920
-    // trims before the test, so this line reddens when the pin reaches it — at
-    // which point the reading becomes `false` and nothing else here moves.
-    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' }).success).toBe(true);
+    // The spec half. This line read `.toBe(true)` while the pin was 17.3.0,
+    // where #13632's emptiness test was an equality against `''`; it was written
+    // as a TRIPWIRE for the day objectstack#16920 reached the pin, and
+    // objectui#8772 is that day. Asserted as an ENVELOPE rather than a bare
+    // `success === false`, because the two halves of the claim are separable: a
+    // blank target must be refused, and refused AS a blank target — the same
+    // `custom` issue at the same `reference` path the absent case draws, not an
+    // `invalid_type` or some unrelated failure that would satisfy a bare false.
+    const blank = FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' });
+    expect(blank.success).toBe(false);
+    expect(blank.error!.issues.map((i) => i.code)).toContain('custom');
+    expect(blank.error!.issues.map((i) => i.path.join('.'))).toContain('reference');
 
-    // Falsifying control for the line above: the refinement IS attached and IS
-    // consulted at this pin — an absent target is refused, as `custom` at path
-    // `reference`. A passthrough schema would have made the green above
-    // meaningless.
+    // Non-vacuity for the refusal above: the schema has NOT simply become
+    // hostile to every `reference`. A real name still parses green, and a name
+    // that merely carries surrounding whitespace still does too — the trim is
+    // for the TEST only, which is the same reading the writer's own
+    // pass-it-through row above depends on.
+    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: 'account' }).success).toBe(true);
+    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: ' account ' }).success).toBe(true);
+
+    // The absent case, which the blank case above now matches exactly — the
+    // convergence stated as a measurement rather than asserted in prose.
     const absent = FieldSchema.safeParse({ type: 'lookup', label: 'L' });
     expect(absent.success).toBe(false);
     expect(absent.error!.issues.map((i) => i.code)).toContain('custom');
 
-    // Second control, at value level rather than presence level: a non-string
-    // is refused as `invalid_type` by the base schema before the refinement
-    // runs. Blankness was simply not among the things the 17.3.0 test covered —
-    // the gap objectstack#16126 reported and objectstack#16920 closed.
+    // Value level rather than presence level: a non-string is refused as
+    // `invalid_type` by the base schema before the refinement runs — a
+    // different issue code from the blank case above, which is what makes
+    // "refused as a blank target" a distinguishable verdict at all. Blankness
+    // was simply not among the things the 17.3.0 test covered — the gap
+    // objectstack#16126 reported and objectstack#16920 closed.
     const nonString = FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: 42 });
     expect(nonString.success).toBe(false);
     expect(nonString.error!.issues.map((i) => i.code)).toContain('invalid_type');

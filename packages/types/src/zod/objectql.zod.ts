@@ -535,17 +535,26 @@ const LIST_VIEW_LOCAL_OVERRIDES = [
 // trade-off the spec-field import on `ListViewSchema` makes.
 //
 // `gantt` needs no local schema at all: the spec config already covers every field
-// the renderer reads and is `.passthrough()` for renderer-ahead knobs, so it flows
-// in with the rest of the imported spec fields.
+// the renderer reads, so it flows in with the rest of the imported spec fields.
+// It used to cover them by being `.passthrough()` for renderer-ahead knobs;
+// objectstack#15469 closed that window and DECLARED the ten it was carrying, so
+// today the coverage is by declaration (objectui#7845).
 //
 // The deprecated aliases below are the pre-#2231 objectui vocabulary. They stay
 // accepted so stored view metadata keeps validating, but the spec key is canonical
 // and wins at every read-site.
 //
-// `.passthrough()` is kept from the pre-#2231 shapes for the same reason the spec
-// puts it on `GanttConfigSchema`/`TreeConfigSchema`: the renderers grow config knobs
-// ahead of the protocol (calendar's `allDayField`, for one), and stripping them here
-// would silently disable a shipped capability.
+// `.passthrough()` is kept from the pre-#2231 shapes because the renderers grow
+// config knobs ahead of the protocol (calendar's `allDayField`, for one), and
+// stripping them here would silently disable a shipped capability. ⚠️ It is NOT
+// kept "for the same reason the spec puts it on
+// `GanttConfigSchema`/`TreeConfigSchema`", which is what this note used to say:
+// objectstack#15469 closed both of those upstream, so the spec-side precedent is
+// gone and only the local reason survives (objectui#7845). Measured for the two
+// shapes below: `swimlaneField` (kanban) and `endField` (timeline) are still
+// absent from the spec's `KanbanConfigSchema` / `TimelineConfigSchema`, so these
+// `.passthrough()`s still carry real authored values —
+// `core/src/utils/__tests__/normalize-list-view.test.ts` pins exactly those two.
 const KanbanConfig = stripImportedDefaults(SpecKanbanConfigSchema).partial().extend({
   /** @deprecated legacy alias for the spec's `groupByField` */
   groupField: z.string().optional().describe('Deprecated alias for groupByField'),
@@ -877,62 +886,6 @@ export const ObjectTreeSchema = BaseSchema.extend({
 });
 
 /**
- * objectui's own `GanttConfig` extensions — everything `../objectql.ts` declares
- * on {@link GanttConfig} beyond the spec's `SpecGanttConfigSchema` (objectui#6051
- * lifted nine of them out of `plugin-gantt`'s package-private `GanttConfigEx`;
- * `timeSegments` was already there).
- *
- * Held as ONE field map rather than inlined, so the flattened top-level spelling
- * below is built from a single source — the same way the TS side derives its
- * flattened members from `GanttConfig`. It is also the shape the nested `gantt`
- * block is built from (objectui#6475): one line extending `SpecGanttConfigSchema`
- * with this map — so both authoring faces share one vocabulary and cannot fork
- * from each other.
- *
- * Not exported: the parity census in `__tests__/zod-mirror-parity.test.ts` reads
- * `^export const` out of this directory and would require a registered TS
- * counterpart for it. It has none of its own — it is a fragment of `GanttConfig`,
- * and `GanttConfig` is checked through the two faces that carry it.
- */
-const GanttConfigExtensionFields = {
-  borderColorField: z.string().optional().describe('Record field carrying a per-task alert stroke colour'),
-  lockField: z.string().optional().describe('Record field marking a row view-only (truthy → locked)'),
-  objectField: z.string().optional().describe("Record field carrying the row's own object API name"),
-  summaryExtent: z.enum(['children', 'self']).optional().describe("How a summary bar's span is computed"),
-  defaultCollapsedDepth: z.number().optional().describe('Auto-collapse tree nodes at/below this 0-indexed depth'),
-  dependencyTypes: z.boolean().optional().describe('Whether the store persists dependency link TYPES (fs/ss/ff/sf)'),
-  timeZone: z.string().optional().describe("Business time zone (IANA name) the chart's calendar renders in"),
-  exportFileName: z.string().optional().describe('Base name for exported PNG/PDF files'),
-  interactions: z
-    .object({
-      move: z.boolean().optional().describe('Bar / subtree dragging'),
-      resize: z.boolean().optional().describe('Edge resize grips'),
-      progress: z.boolean().optional().describe('The progress drag handle'),
-      link: z.boolean().optional().describe('Dependency UI: drag-to-link dots and the create/delete menu'),
-    })
-    .optional()
-    .describe('Per-interaction switches, each defaulting to true'),
-  timeSegments: z
-    .object({
-      dayStart: z.string().optional().describe("Clock time the shift-day begins, 'HH:mm'"),
-      bands: z
-        .array(
-          z.object({
-            key: z.string().optional().describe('Stable band id'),
-            label: z.string().describe('Display label'),
-            start: z.string().describe("Band start, 'HH:mm'"),
-            end: z.string().describe("Band end, 'HH:mm'"),
-            color: z.string().optional().describe('Accent colour for the column tint'),
-          })
-        )
-        .describe('Ordered bands covering the 24h shift-day'),
-      showMidnight: z.boolean().optional().describe('Draw the dashed calendar-midnight cue'),
-    })
-    .optional()
-    .describe('Shift segmentation for the day-mode timeline'),
-};
-
-/**
  * ObjectGantt Schema
  *
  * `objectName` is OPTIONAL and the member ends in `requireRecordSource`
@@ -1023,12 +976,32 @@ export const ObjectGanttSchema = BaseSchema.extend({
   capacity: stripImportedDefaults(SpecGanttConfigSchema).shape.capacity,
   quickFilters: stripImportedDefaults(SpecGanttConfigSchema).shape.quickFilters,
   autoZoomToFilter: stripImportedDefaults(SpecGanttConfigSchema).shape.autoZoomToFilter,
-  // …and objectui's own ten, from the one field map above.
-  ...GanttConfigExtensionFields,
+  // …and the ten that used to be a SECOND declaration here. objectui read them
+  // through `GanttConfigSchema`'s then-open `.passthrough()` window and had to
+  // model them locally (`GanttConfigExtensionFields`, objectui#6051/#6475);
+  // objectstack#15469 closed the window and declared all ten upstream, so they
+  // arrive by reference like every member above and the local field map is
+  // retired (objectui#7845). Compared member for member before deleting: the
+  // spec's declarations cover the same keys, the same `interactions`
+  // (move/resize/progress/link) and `timeSegments` (dayStart/bands/showMidnight)
+  // sub-shapes and the same band members, with strictly fuller describes — the
+  // local copy carried no describe, alias or member the spec's lacks.
+  borderColorField: stripImportedDefaults(SpecGanttConfigSchema).shape.borderColorField,
+  lockField: stripImportedDefaults(SpecGanttConfigSchema).shape.lockField,
+  objectField: stripImportedDefaults(SpecGanttConfigSchema).shape.objectField,
+  summaryExtent: stripImportedDefaults(SpecGanttConfigSchema).shape.summaryExtent,
+  defaultCollapsedDepth: stripImportedDefaults(SpecGanttConfigSchema).shape.defaultCollapsedDepth,
+  dependencyTypes: stripImportedDefaults(SpecGanttConfigSchema).shape.dependencyTypes,
+  timeZone: stripImportedDefaults(SpecGanttConfigSchema).shape.timeZone,
+  exportFileName: stripImportedDefaults(SpecGanttConfigSchema).shape.exportFileName,
+  interactions: stripImportedDefaults(SpecGanttConfigSchema).shape.interactions,
+  timeSegments: stripImportedDefaults(SpecGanttConfigSchema).shape.timeSegments,
   // `gantt` — the BLOCK face `getGanttConfig`'s FIRST branch reads and prefers
-  // (objectui#6469 ruled block-over-flat) — objectui#6475. Built from the same
-  // field map as the flat face above, `SpecGanttConfigSchema` extended with
-  // `GanttConfigExtensionFields`, so the two authoring faces cannot fork.
+  // (objectui#6469 ruled block-over-flat) — objectui#6475. It is now
+  // `SpecGanttConfigSchema` itself, the same vocabulary the flat face above
+  // derives from key by key, so the two authoring faces cannot fork. The
+  // `.extend(GanttConfigExtensionFields)` this used to carry is gone with the
+  // field map (objectui#7845): the spec declares those ten itself.
   //
   // This is the one entry among the 28 that NARROWS rather than merely names: a
   // `gantt` block previously rode through `.passthrough()` entirely unvalidated;
@@ -1042,7 +1015,7 @@ export const ObjectGanttSchema = BaseSchema.extend({
   // configuration` on failure. Maintainer ruling, objectui#6475 (2026-08-27),
   // Option A: enforce as-is, no warning window (excluded by the startup-stage
   // no-gradualism rule, objectstack#12668 — no named external-user evidence).
-  gantt: stripImportedDefaults(SpecGanttConfigSchema).extend(GanttConfigExtensionFields).optional().describe(
+  gantt: stripImportedDefaults(SpecGanttConfigSchema).optional().describe(
     'Nested gantt config block — the authoring face, and the winner over the flattened top-level keys whenever present'
   ),
   // The query/data keys the fetch path reads. They were declared on

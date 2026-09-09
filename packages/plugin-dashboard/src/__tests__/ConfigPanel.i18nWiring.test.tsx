@@ -239,7 +239,7 @@ describe('leg 2 — each key sits where it belongs', () => {
           collapsible: true,
           fields: [
             expect.objectContaining({
-              key: 'refreshInterval',
+              key: 'refreshIntervalSeconds',
               label: 'dashboard.config.field.autoRefresh',
               options: [
                 { value: '0', label: 'dashboard.config.refresh.off' },

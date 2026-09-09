@@ -251,7 +251,12 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
       { id: 'review', type: 'screen', label: 'CSM review', config: { fields: [ { name: 'discount', label: 'Discount %', type: 'number', required: false }, { name: 'note', label: 'Note', type: 'text', required: true, visibleWhen: 'discount > 0' } ] } },
       { id: 'notify', type: 'script', label: 'Email the owner', config: { actionType: 'email', template: 'renewal_reminder', recipients: ['owner.email', 'csm@example.com'], variables: { contractId: '{contractId}' } } },
       { id: 'enrich', type: 'script', label: 'Score (code)', config: { script: "variables.score = 42;\nreturn variables;", outputVariables: ['score'] } },
-      { id: 'end', type: 'end', label: 'End', config: { outcome: 'success' } },
+      // `completed`, not `success`: @objectstack/spec 17.4.0 narrowed the end
+      // node's outcome enum to `completed | refused` (objectui#8785). `refused`
+      // is not interchangeable — the spec additionally REQUIRES a `message`
+      // beside it, because a refusal with no text is the shape that contract
+      // exists to replace. This sample ends successfully, so it is `completed`.
+      { id: 'end', type: 'end', label: 'End', config: { outcome: 'completed' } },
     ],
     // `FlowEdgeSchema.id` is REQUIRED — the canvas already keys off it when
     // present (splitting an edge, adding a back-edge), and an id-less edge
@@ -315,10 +320,15 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     schedule: { type: 'cron', expression: '0 2 * * *', timezone: 'UTC' },
     handler: 'syncOrders',
     retryPolicy: { maxRetries: 3 },
-    // `timeout`, not `timeoutMs` — the unit is already milliseconds. There is
-    // no `concurrency` key on a job; `JobSchema` is `.strict()` since spec
-    // 17.0.0, so both spellings are now rejected by name instead of dropped.
-    timeout: 600000,
+    // `timeoutMs`, not `timeout` — @objectstack/spec 17.4.0 RETIRED the bare
+    // spelling and put the unit in the key name, the same ruling that renamed
+    // `dashboard.refreshInterval` (ruling B on objectstack#14478): the sibling
+    // `retryPolicy.backoffMs` already spelled its own unit, so one surface was
+    // teaching two conventions. The VALUE is unchanged — still milliseconds.
+    // There is no `concurrency` key on a job either; `JobSchema` is `.strict()`
+    // since spec 17.0.0, so both retired spellings are rejected by name rather
+    // than dropped (objectui#8785).
+    timeoutMs: 600000,
   },
 
   agent: {

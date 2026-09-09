@@ -997,7 +997,7 @@ A widget-based dashboard with configurable grid layout and auto-refresh.
   "type": "dashboard",
   "columns": 4,
   "gap": 6,
-  "refreshInterval": 30000,
+  "refreshIntervalSeconds": 30,
   "widgets": [
     {
       "id": "revenue",
@@ -1050,7 +1050,7 @@ A widget-based dashboard with configurable grid layout and auto-refresh.
 | `columns` | `number` | Number of grid columns. |
 | `gap` | `number` | Gap between widgets (Tailwind spacing scale). |
 | `widgets` | `DashboardWidgetSchema[]` | **Required.** Widget definitions with `id`, `title`, `colSpan`, `rowSpan`, and `body`. |
-| `refreshInterval` | `number` | Auto-refresh interval in milliseconds. |
+| `refreshIntervalSeconds` | `number` | Auto-refresh interval in **seconds** — the renderer multiplies by 1000. Renamed from `refreshInterval`, which this table documented as milliseconds and which it never was (objectui#7783). |
 
 Each widget supports `colSpan` and `rowSpan` to control its size in the grid. The `body` can be any `SchemaNode`.
 

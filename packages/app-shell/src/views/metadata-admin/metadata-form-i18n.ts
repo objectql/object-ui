@@ -84,11 +84,13 @@ const METADATA_FORM_BUNDLE: TranslationBundle = {
           label: { label: '显示名称', helpText: '展示给使用者的名称' },
           description: { label: '描述' },
           columns: { label: '列数', helpText: '栅格列数（默认 12）' },
-          // The spec's own hint here is `Grid gap (Tailwind units)` — a unit
-          // only a developer can act on. Reported upstream rather than
-          // "translated" literally; this says what the author can decide.
+          // The spec's own hint reaches for developer vocabulary to say this —
+          // `Grid gap (Tailwind units)` before 17.4.0, and "Space between
+          // widgets, in steps of 0.25rem (4 = 1rem)" since. Either way it names
+          // a unit only a developer can act on, so this row says what the author
+          // can decide rather than transliterating it (objectui#8785).
           gap: { label: '间距', helpText: '组件之间的间距，数值越大越松' },
-          refreshInterval: { label: '自动刷新', helpText: '自动刷新间隔（秒），0 表示不自动刷新' },
+          refreshIntervalSeconds: { label: '自动刷新', helpText: '自动刷新间隔（秒），0 表示不自动刷新' },
           header: { label: '页眉', helpText: '页眉设置：标题、描述与操作按钮' },
           // All three children of the `header` composite — see the ⛔ note above.
           'header.showTitle': { label: '显示标题', helpText: '在页眉中显示仪表板名称' },

@@ -1781,7 +1781,7 @@ function FieldControl({
   //    "pin it to today's default" in the saved metadata.
   //
   // ⚠️ Scope of the second half at the current spec pin: `columns` / `gap` /
-  // `refreshInterval` carry NO `default` in `DashboardSchema` — "(default 12)"
+  // `refreshIntervalSeconds` carry NO `default` in `DashboardSchema` — "(default 12)"
   // exists only as prose in the description, and the 12 is applied by the
   // renderer. Those three boxes therefore stay empty until the spec declares
   // the defaults it documents; filed upstream rather than hard-coded here,

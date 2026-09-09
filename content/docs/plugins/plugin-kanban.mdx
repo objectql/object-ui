@@ -166,8 +166,9 @@ const board: ObjectKanbanSchema = {
 }
 ```
 
-The `dataSource` binding sets it too — its own `limit`, or the
-`pagination.pageSize` of the view it names (see
+The `dataSource` binding sets it too, and the two do not rank the same way: the
+binding's OWN `limit` wins outright, while the `pagination.pageSize` of a view it
+names fills the cap only when the board leaves `limit` unset (see
 [Data source](/docs/guide/data-source)).
 
 <Callout type="info">

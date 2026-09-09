@@ -142,14 +142,16 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
     setTimeout(() => setRefreshing(false), 600);
   }, [onRefresh]);
 
-  // Auto-refresh interval
+  // Auto-refresh interval — seconds → milliseconds, as the key now says
+  // (objectui#7783; the spec renamed `refreshInterval` to
+  // `refreshIntervalSeconds`, value unchanged).
   React.useEffect(() => {
-    if (!schema.refreshInterval || schema.refreshInterval <= 0 || !onRefresh) return;
-    intervalRef.current = setInterval(handleRefresh, schema.refreshInterval * 1000);
+    if (!schema.refreshIntervalSeconds || schema.refreshIntervalSeconds <= 0 || !onRefresh) return;
+    intervalRef.current = setInterval(handleRefresh, schema.refreshIntervalSeconds * 1000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [schema.refreshInterval, onRefresh, handleRefresh]);
+  }, [schema.refreshIntervalSeconds, onRefresh, handleRefresh]);
   const [layouts, setLayouts] = React.useState<{ lg: RGLLayout[] }>(
     () => buildDefaultLayouts(schema),
   );
