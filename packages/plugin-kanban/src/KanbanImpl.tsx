@@ -75,6 +75,13 @@ export interface KanbanBoardProps {
   objectFields?: unknown
   /** Field name for swimlane rows (2D grouping) */
   swimlaneField?: string
+  /**
+   * The cards in `columns` are a fetched WINDOW, not the whole group
+   * (objectui#8307) — see `laneCountLabel`. Injected by `ObjectKanban`, the
+   * only entry point that issues the windowed query; a board handed its rows
+   * whole leaves it unset and keeps the bare number.
+   */
+  countsAreWindowed?: boolean
 }
 
 /**
@@ -270,6 +277,43 @@ function columnWidthClasses(columnStyle?: React.CSSProperties): string {
     : "w-[85vw] sm:w-80 shrink-0";
 }
 
+/**
+ * How a lane count is WRITTEN, in ONE place, for every header on this board.
+ *
+ * The number handed in is `col.cards.length` — the count of fetched rows that
+ * fell into this lane. The fetch is windowed at a real `$top` (objectui#4025),
+ * and the board groups what came back, so over any object with more rows than
+ * the window that number is not the size of the group: every lane is short,
+ * the lanes sum to the window, and the result is CREDIBLE — 77 / 19 / 2 reads
+ * as a plausible funnel against a true 88 / 46 / 28 / 14 / 9 / 15, so nothing
+ * prompts the reader to distrust it (objectui#8307).
+ *
+ * The fix is not a better number — this component does not have one, and
+ * getting one means a server-side group-count aggregate over the whole
+ * filtered set. The fix is to stop the number claiming to be something it is
+ * not: `77+` says "at least 77", which is what a count over a window actually
+ * establishes.
+ *
+ * ⚠️ The boundary case is deliberate. `countsAreWindowed` comes from
+ * "the fetch came back with at least as many rows as it asked for", and a
+ * board holding EXACTLY the window is indistinguishable from a truncated one
+ * from this side of the wire — no client-side signal separates them without
+ * asking the server a second question. So such a board renders `77+` for a
+ * lane that really does hold 77. That is the safe half of the ambiguity:
+ * "at least 77" is TRUE when the lane holds exactly 77, whereas the bare
+ * "77" is FALSE whenever the board is in fact truncated. The marker is
+ * conservative; it is never wrong.
+ *
+ * A shared function rather than a template literal repeated per header,
+ * because this board paints lane counts from three places (the flat column
+ * header, and the swimlane layout's column-title row and lane rows) and a
+ * count that is honest on one layout and bare on another is the same defect
+ * with a smaller blast radius. Adding a header means calling this.
+ */
+function laneCountLabel(count: number, countsAreWindowed?: boolean): string {
+  return countsAreWindowed ? `${count}+` : String(count)
+}
+
 function KanbanColumnView({
   column,
   cards,
@@ -280,6 +324,7 @@ function KanbanColumnView({
   objectFields,
   columnStyle,
   suppressEmptyPlaceholder,
+  countsAreWindowed,
 }: {
   column: KanbanColumn
   cards: KanbanCard[]
@@ -298,6 +343,8 @@ function KanbanColumnView({
    * doesn't read as N redundant copies of the same message.
    */
   suppressEmptyPlaceholder?: boolean
+  /** The cards handed in are a fetched window — see `laneCountLabel` (objectui#8307). */
+  countsAreWindowed?: boolean
 }) {
   const { t } = useKanbanT()
   const safeCards = cards || [];
@@ -349,7 +396,7 @@ function KanbanColumnView({
                   : "bg-muted/70 text-muted-foreground",
               )}
             >
-              {safeCards.length}
+              {laneCountLabel(safeCards.length, countsAreWindowed)}
               {column.limit && <span className="text-muted-foreground/70 font-normal">{` / ${column.limit}`}</span>}
             </span>
             {isLimitExceeded && (
@@ -402,21 +449,21 @@ function DndBridge({ children }: { children: (dnd: ReturnType<typeof useDnd>) =>
   return <>{children(dnd)}</>
 }
 
-export default function KanbanBoard({ columns, onCardMove, onCardClick, className, quickAdd, onQuickAdd, coverImageField, conditionalFormatting, objectFields, swimlaneField }: KanbanBoardProps) {
+export default function KanbanBoard({ columns, onCardMove, onCardClick, className, quickAdd, onQuickAdd, coverImageField, conditionalFormatting, objectFields, swimlaneField, countsAreWindowed }: KanbanBoardProps) {
   const hasDnd = useHasDndProvider()
 
   if (hasDnd) {
     return (
       <DndBridge>
-        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={dnd} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} objectFields={objectFields} swimlaneField={swimlaneField} />}
+        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={dnd} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} objectFields={objectFields} swimlaneField={swimlaneField} countsAreWindowed={countsAreWindowed} />}
       </DndBridge>
     )
   }
 
-  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={null} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} objectFields={objectFields} swimlaneField={swimlaneField} />
+  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={null} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} objectFields={objectFields} swimlaneField={swimlaneField} countsAreWindowed={countsAreWindowed} />
 }
 
-function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, quickAdd, onQuickAdd, coverImageField: _coverImageField, conditionalFormatting, objectFields, swimlaneField }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
+function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, quickAdd, onQuickAdd, coverImageField: _coverImageField, conditionalFormatting, objectFields, swimlaneField, countsAreWindowed }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
   const { t } = useKanbanT()
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
 
@@ -729,7 +776,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
                 className={cn(columnWidthClasses(columnInlineStyle), "text-center")}
               >
                 <span className=" text-xs sm:text-sm font-semibold tracking-wider text-primary/90 uppercase">{col.title}</span>
-                <span className="ml-2 text-xs text-muted-foreground">({col.cards.length})</span>
+                <span className="ml-2 text-xs text-muted-foreground">({laneCountLabel(col.cards.length, countsAreWindowed)})</span>
               </div>
             ))}
           </div>
@@ -750,7 +797,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
                 >
                   <span className={cn("transition-transform text-xs", isCollapsed ? "" : "rotate-90")}>▶</span>
                   <span className=" text-xs font-semibold text-muted-foreground uppercase tracking-wider">{lane}</span>
-                  <span className=" text-xs text-muted-foreground">({laneCardCount})</span>
+                  <span className=" text-xs text-muted-foreground">({laneCountLabel(laneCardCount, countsAreWindowed)})</span>
                 </button>
 
                 {/* Lane content */}
@@ -797,6 +844,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               objectFields={objectFields}
               columnStyle={columnInlineStyle}
               suppressEmptyPlaceholder={isBoardEmpty}
+              countsAreWindowed={countsAreWindowed}
             />
           ))}
         </div>
