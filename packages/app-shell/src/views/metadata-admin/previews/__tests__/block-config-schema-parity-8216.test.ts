@@ -179,14 +179,15 @@ const EXEMPT: Readonly<Record<string, { reason: string; card: string }>> = {
  * would absorb a future spec-face violation on the same name.
  */
 const LEDGER: ReadonlyArray<{ block: string; path: string; face: OracleFace; card: string; why: string }> = [
-  {
-    block: 'object-kanban',
-    path: 'limit',
-    face: 'spec',
-    card: 'objectui#8172',
-    why:
-      'The renderer honours it — ObjectKanban.tsx sends `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT` — and both @object-ui/types faces declare it, but ComponentPropsMap[object-kanban] does not. The producer side is upstream, so removing the control would delete a working affordance to satisfy a schema that is behind it.',
-  },
+  // `object-kanban::limit@spec` stood here until @objectstack/spec 17.4.0. It was
+  // the ledger working exactly as designed: the renderer honoured the key, both
+  // `@object-ui/types` faces declared it and the docs taught it, while
+  // `ComponentPropsMap['object-kanban']` refused it by name — so the row said
+  // "upstream owes this" instead of deleting a working affordance to satisfy a
+  // schema that was behind it. objectstack#16503 (landed as objectstack#16562)
+  // declared `limit` upstream, which is the maintainer's option-A ruling on
+  // objectui#8172, and the row went stale. Deleted rather than kept: a row that
+  // no longer describes a violation is as red here as a violation with no row.
   {
     block: 'object-form',
     path: 'formType',
@@ -389,17 +390,27 @@ describe('BLOCK_CONFIG ↔ node-schema parity — the ratchet (objectui#8216)', 
     // being ledgered with no probe behind it. `page:tabs::items[].key` was the
     // second row until objectui#8278 renamed that control to `value`; its
     // measurement moved WITH it, to `page-tabs-item-value-8278.test.tsx`.
-    expect(LEDGER.filter((r) => r.face === 'spec').map(ledgerId)).toEqual([
-      'object-kanban::limit@spec',
-    ]);
+    expect(LEDGER.filter((r) => r.face === 'spec').map(ledgerId)).toEqual([]);
 
+    // ⚠️ The spec-face ledger is EMPTY, so the self-deleting probe list above is
+    // empty too — and an empty list of probes is exactly what a broken oracle
+    // lookup also produces. The live control below is what separates the two: it
+    // re-measures the row this test used to carry (`object-kanban::limit@spec`,
+    // objectui#8172) and asserts the verdict that RETIRED it, so "no spec-face
+    // violations" stays a reading rather than a silence.
     const kanban = SPEC_ORACLES['object-kanban'] as { safeParse: (v: unknown) => any };
-    const withLimit = kanban.safeParse({ objectName: 'opportunity', groupBy: 'stage', limit: 50 });
-    expect(withLimit.success).toBe(false);
-    expect(withLimit.error.issues.flatMap((i: any) => i.keys ?? [])).toContain('limit');
+    const base = { objectName: 'opportunity', groupBy: 'stage' };
     expect(
-      kanban.safeParse({ objectName: 'opportunity', groupBy: 'stage' }).success,
-      'the base kanban must parse clean, or the refusal above proves nothing',
+      kanban.safeParse(base).success,
+      'the base kanban must parse clean, or neither verdict below proves anything',
     ).toBe(true);
+    // The former violation, now declared upstream (objectstack#16503).
+    expect(kanban.safeParse({ ...base, limit: 50 }).success).toBe(true);
+    // The oracle still refuses an undeclared sibling BY NAME — without this the
+    // line above would be satisfied just as well by an oracle that stopped
+    // refusing anything at all.
+    const bogus = kanban.safeParse({ ...base, notAKanbanKey: 1 });
+    expect(bogus.success).toBe(false);
+    expect(bogus.error.issues.flatMap((i: any) => i.keys ?? [])).toContain('notAKanbanKey');
   });
 });
