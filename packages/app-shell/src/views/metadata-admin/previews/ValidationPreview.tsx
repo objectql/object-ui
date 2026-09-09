@@ -71,6 +71,7 @@ import {
   Workflow,
   XOctagon,
 } from 'lucide-react';
+import { EmptyDescription } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
@@ -350,7 +351,17 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
                   {f}
                 </span>
               ))}
-              {fields.length === 0 && <span className="text-xs text-muted-foreground italic">none</span>}
+              {/*
+                * Empty COLLECTION (`fields.length`), not an absent scalar: the
+                * populated arm above is a chip list. The shared carrier renders
+                * a <div> and this row is `display: flex` — which blockifies
+                * every child, so the <span> it replaces already computed to
+                * `display: block`. Measured in Chromium against real Tailwind
+                * output: container and marker boxes are identical either way
+                * (the same swap in a NON-flex block container does move them,
+                * which is what proves the comparison was live).
+                */}
+              {fields.length === 0 && <EmptyDescription className="text-xs italic">none</EmptyDescription>}
             </div>
           </Section>
           <Section title="Cross-field condition" icon={Code2}>
