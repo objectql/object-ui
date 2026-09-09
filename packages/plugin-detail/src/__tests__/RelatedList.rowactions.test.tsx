@@ -8,10 +8,25 @@
  * row-actions column, so the actions appear in each row's overflow menu.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render } from '@testing-library/react';
 import * as React from 'react';
 import { RelatedList } from '../RelatedList';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). `RelatedList` reads
+ * `useIsMobile` (breakpoint 768): above it a `type="table"` list renders a real
+ * `data-table`, below it an `object-gallery` card layout with no headers, no
+ * cells and no sort.
+ *
+ * Every case here reads the row-action controls the table draws.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 // Capture the schema RelatedList hands to SchemaRenderer.
 const h = vi.hoisted(() => ({ schema: null as any }));

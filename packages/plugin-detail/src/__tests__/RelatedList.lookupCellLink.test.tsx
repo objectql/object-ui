@@ -21,13 +21,28 @@
  * keep the related-list half honest at the end of ITS path — the detail body
  * being green is not evidence for this one.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import * as React from 'react';
 
 import { RelatedList } from '../RelatedList';
 import { RelatedRecordActionsProvider } from '@object-ui/react';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). `RelatedList` reads
+ * `useIsMobile` (breakpoint 768): above it a `type="table"` list renders a real
+ * `data-table`, below it an `object-gallery` card layout with no headers, no
+ * cells and no sort.
+ *
+ * Every case here reads what a lookup CELL draws.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 // Capture the schema RelatedList hands to SchemaRenderer (the data-table), so
 // a column's cell can be rendered directly — the same lever
