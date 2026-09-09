@@ -93,7 +93,7 @@ export const TextSpanSchema = BaseSchema.extend({
 export const TextSchema = BaseSchema.extend({
   type: z.literal('text'),
   content: z.string().optional()
-    .describe('Text content — the one content spelling `text` reads, at renderers/basic/text.tsx:162,167 as `{schema.content}` (declared by objectui#6150; its `value` fallback spelling was retired by objectui#6951)'),
+    .describe('Text content — the one content spelling `text` reads (declared by objectui#6150; its `value` fallback spelling was retired by objectui#6951)'),
   // ADR-0049 RETIREMENT TOMBSTONE (objectui#6951 / objectui#7016, maintainer
   // ruling A1 of 2026-09-04). `value` was the second spelling of the one
   // content slot; the renderer now reads `content` alone, so a plain deletion
@@ -552,7 +552,7 @@ export const HtmlElementSchema = BaseSchema.extend({
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
     .describe('Child components — read as `schema.children ?? schema.body`; ignored for the void tags `img` / `hr` / `br`'),
   href: z.string().optional()
-    .describe('`a` link target; scheme-sanitised at html-elements.tsx:74 (`javascript:` / `data:` / `vbscript:` are dropped)'),
+    .describe('`a` link target; scheme-sanitised (`javascript:` / `data:` / `vbscript:` are dropped)'),
   target: z.string().optional().describe('`a` browsing context — an internal link navigates through the SPA router unless this names another target'),
   rel: z.string().optional().describe('`a` link relationship'),
   title: z.string().optional().describe('Advisory title — declared for `a`, `img` and `abbr`'),
