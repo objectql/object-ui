@@ -309,7 +309,7 @@ Then in schema — note the `data.` root:
 |---|---|---|
 | `data` | the `dataSource` passed to `SchemaRendererProvider` | `${data.canDeleteContacts}` |
 | `user` / `current_user` | the ambient host scope (app-shell's `ExpressionProvider`) | `${user.id}` |
-| `app`, `features` | the ambient host scope | `${features.multiOrgEnabled}` |
+| `features` | the ambient host scope | `${features.multiOrgEnabled}` |
 | `page` | `PageSchema.variables`, inside a Page | `${page.selectedId}` |
 
 The ambient roots exist only while a host scope is mounted — `ExpressionProvider`
