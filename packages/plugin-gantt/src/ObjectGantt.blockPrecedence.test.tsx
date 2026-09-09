@@ -258,7 +258,10 @@ describe('the named key set cannot drift from `GanttConfig` (objectui#6469)', ()
     // added to the spec arrives here without a second edit.
     expect(FLAT_GANTT_CONFIG_KEYS).toContain('startDateField');
     expect(FLAT_GANTT_CONFIG_KEYS).toContain('quickFilters');
-    // objectui's own members, lifted into `GanttConfig` by objectui#6472.
+    // The ten that used to be named by a second literal here: objectui read them
+    // through the schema's `.passthrough()` window, objectstack#15469 closed the
+    // window and DECLARED them, and objectui#7845 retired the literal. They must
+    // keep arriving — now by the same derivation as the line above, not by list.
     expect(FLAT_GANTT_CONFIG_KEYS).toContain('lockField');
     expect(FLAT_GANTT_CONFIG_KEYS).toContain('timeSegments');
     // The legacy singular alias the flat branch still reads.
@@ -272,8 +275,10 @@ describe('the named key set cannot drift from `GanttConfig` (objectui#6469)', ()
  * Compile-time coverage pin (`tsc -p tsconfig.test.json` type-checks this file).
  * `never` exactly while every `GanttConfig` key — the one declaration both faces
  * derive from — appears in `FLAT_GANTT_CONFIG_KEYS`. A `GanttConfig` key that
- * neither `GanttConfigSchema.shape` nor `GANTT_CONFIG_EXTENSION_KEYS` models
- * makes this line fail to compile, NAMING the missing key.
+ * `GanttConfigSchema.shape` does not model makes this line fail to compile,
+ * NAMING the missing key. Before objectui#7845 a second literal
+ * (`GANTT_CONFIG_EXTENSION_KEYS`) could also satisfy it; the spec now declares
+ * those ten, so the shape is the only source that can.
  */
 type AssertNever<T extends never> = T;
 export type UncoveredGanttConfigKey = AssertNever<

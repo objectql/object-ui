@@ -102,10 +102,10 @@ export interface QuickFilterDef {
 
 /**
  * The gantt config as THIS renderer consumes it: `GanttConfig` from
- * `@object-ui/types` — the spec's `GanttConfigSchema` plus objectui's own
- * extensions — with `quickFilters` and `timeSegments` narrowed to the plugin's
- * runtime types, and the spec-declared members re-documented with the behaviour
- * this renderer gives them.
+ * `@object-ui/types` — the spec's `GanttConfigSchema`, which since
+ * objectstack#15469 declares the whole vocabulary — with `quickFilters` and
+ * `timeSegments` narrowed to the plugin's runtime types, and the spec-declared
+ * members re-documented with the behaviour this renderer gives them.
  *
  * ⚠️ Nothing here may declare a key `GanttConfig` does not (objectui#6051). Nine
  * members that lived ONLY here — `lockField`, `objectField`, `summaryExtent`,
@@ -122,9 +122,10 @@ type GanttConfigEx = GanttConfig & GanttConfigRestated;
  * measured against the shipped `GanttConfig` on `main` (objectui#6471; the card
  * counted eleven before objectui#6051/#6472 landed part of the lift).
  *
- * All twelve RESTATE a key `GanttConfig` already declares — eleven arrive from
- * the spec's `GanttConfigSchema` (19 keys), `timeSegments` is objectui's own —
- * and every one is mutually assignable with its twin. That includes
+ * All twelve RESTATE a key `GanttConfig` already declares, and since
+ * objectstack#15469 closed the schema all twelve — `timeSegments` included —
+ * arrive from the spec's `GanttConfigSchema` (29 keys); every one is mutually
+ * assignable with its twin. That includes
  * `quickFilters` and `timeSegments`, which objectui#6471 called load-bearing
  * NARROWINGS: measured on `main` they narrow nothing. What those two still do is
  * NAME this plugin's runtime types (`QuickFilterDef[]` /
@@ -368,31 +369,6 @@ type KnownKeys<T> = keyof {
 export type KnownGanttConfigKey = KnownKeys<GanttConfig>;
 
 /**
- * objectui's own `GanttConfig` members — the ten the spec's `GanttConfigSchema`
- * does not model. They lived in this file's private `GanttConfigEx` until
- * objectui#6472 lifted them into `@object-ui/types`, which is what makes
- * `GanttConfig` the single declaration BOTH faces derive from.
- *
- * Listed here rather than derived because the runtime object that models them
- * (`GanttConfigExtensionFields` in `@object-ui/types/zod`) is module-private
- * there. `satisfies` keeps every entry a real `GanttConfig` key, and the
- * coverage pin in `ObjectGantt.blockPrecedence.test.tsx` fails to compile if
- * `GanttConfig` grows a key that neither source models.
- */
-const GANTT_CONFIG_EXTENSION_KEYS = [
-  'borderColorField',
-  'lockField',
-  'objectField',
-  'summaryExtent',
-  'defaultCollapsedDepth',
-  'dependencyTypes',
-  'timeZone',
-  'exportFileName',
-  'interactions',
-  'timeSegments',
-] as const satisfies readonly KnownGanttConfigKey[];
-
-/**
  * The FLAT spelling of `GanttConfig`'s keys — what `getGanttConfig`'s flat
  * branch reads, and what `ObjectView` / `ListView` EMIT.
  *
@@ -403,16 +379,21 @@ const GANTT_CONFIG_EXTENSION_KEYS = [
  * authoring surface — and it is why the precedence flip below strands neither
  * producer.
  *
- * The spec-modelled half is DERIVED from `GanttConfigSchema` — the same zod
- * object the block branch validates against — so a key added to the spec reaches
- * the shadow diagnostic without a second edit (the discipline
- * `FLAT_MAP_CONFIG_KEYS` set in objectui#5177). `dependencyField` is the legacy
- * singular alias the flat branch still reads beside `dependenciesField`; it is
- * not a `GanttConfig` key, so it is named on its own.
+ * DERIVED from `GanttConfigSchema` in full — the same zod object the block
+ * branch validates against — so a key added to the spec reaches the shadow
+ * diagnostic without a second edit (the discipline `FLAT_MAP_CONFIG_KEYS` set in
+ * objectui#5177). Until objectstack#15469 that derivation covered only part of
+ * the vocabulary and a second literal, `GANTT_CONFIG_EXTENSION_KEYS`, named the
+ * ten keys the renderer read through the schema's then-open `.passthrough()`
+ * window. The spec now declares all ten, so the list is one source again and the
+ * literal is retired (objectui#7845) — keeping it would have made every one of
+ * the ten a DUPLICATE entry here, which is what the no-duplicates pin in
+ * `ObjectGantt.blockPrecedence.test.tsx` measured. `dependencyField` is the
+ * legacy singular alias the flat branch still reads beside `dependenciesField`;
+ * it is not a `GanttConfig` key, so it is named on its own.
  */
 export const FLAT_GANTT_CONFIG_KEYS = [
   ...(Object.keys(GanttConfigSchema.shape) as (keyof typeof GanttConfigSchema.shape)[]),
-  ...GANTT_CONFIG_EXTENSION_KEYS,
   'dependencyField' as const,
 ];
 
