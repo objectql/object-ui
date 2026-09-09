@@ -145,34 +145,53 @@ The `Page` component provides a consistent wrapper for individual pages with opt
 
 ### With Action Buttons
 
+A `page` node has no action row of its own. Buttons are NODES, and they go in `body`:
+
 ```json
 {
   "type": "page",
   "title": "Products",
-  "actions": [
+  "body": [
     {
-      "type": "button",
-      "label": "Add Product",
-      "variant": "default",
-      "icon": "plus"
+      "type": "flex",
+      "justify": "end",
+      "gap": 2,
+      "children": [
+        {
+          "type": "button",
+          "label": "Add Product",
+          "variant": "default",
+          "icon": "plus"
+        },
+        {
+          "type": "button",
+          "label": "Export",
+          "variant": "outline",
+          "icon": "download"
+        }
+      ]
     },
     {
-      "type": "button", 
-      "label": "Export",
-      "variant": "outline",
-      "icon": "download"
+      "type": "object-grid",
+      "object": "products"
     }
-  ],
-  "body": {
-    "type": "object-grid",
-    "object": "products"
-  }
+  ]
 }
 ```
 
 `label` is the button's text key — `text` is not a `ButtonSchema` key, and because
 `BaseSchema` is `.passthrough()` nothing refuses it: the validator keeps the unknown key
 and `button.tsx`, which reads `schema.label`, renders a button with no text.
+
+> **⛔ `actions` on a `page` node is refused by name** (objectui#7926). This page used to
+> teach `"actions": [ … ]` as a sibling of `title`, and it drew **nothing**: `PageRenderer`
+> has never had a read point for the key, and `BaseSchema`'s `.passthrough()` kept the array
+> rather than refusing it — so the author got a green validation and an empty page (before
+> objectui#7933 it also reached the DOM as `actions="[object Object]"`). `PageNodeSchema`
+> now declares the key as a refusal, so the same document fails with the remedy in the
+> message instead of rendering silently short. Buttons in `body`, as above; on a record page,
+> the `page:header` block's own `actions` — which are **action ids**, not nodes
+> (see the [PageHeader reference](/docs/layout/page-header)).
 
 ### Schema API
 
@@ -189,8 +208,8 @@ and `button.tsx`, which reads `schema.label`, renders a button with no text.
     label: string,
     href?: string
   }>,
-  actions?: SchemaNode[],      // Action buttons
-  
+  // NO `actions` — refused by name (objectui#7926); put the buttons in `body`
+
   // Content
   body: SchemaNode,            // Main page content
   
@@ -509,6 +528,8 @@ Omit `sidebar` and the content fills the width under the top bar.
 
 ### Detail Page with Actions
 
+Same rule as above: the buttons are nodes in `body`, not an `actions` key on the page.
+
 ```json
 {
   "type": "page",
@@ -518,30 +539,37 @@ Omit `sidebar` and the content fills the width under the top bar.
     { "label": "Customers", "href": "/customers" },
     { "label": "Acme Corporation" }
   ],
-  "actions": [
+  "body": [
     {
-      "type": "action:button",
-      "name": "edit_record",
-      "label": "Edit",
-      "variant": "default",
-      "icon": "pencil",
-      "actionType": "editRecord"
+      "type": "flex",
+      "justify": "end",
+      "gap": 2,
+      "children": [
+        {
+          "type": "action:button",
+          "name": "edit_record",
+          "label": "Edit",
+          "variant": "default",
+          "icon": "pencil",
+          "actionType": "editRecord"
+        },
+        {
+          "type": "action:button",
+          "name": "delete_record",
+          "label": "Delete",
+          "variant": "destructive",
+          "icon": "trash",
+          "actionType": "deleteRecord"
+        }
+      ]
     },
     {
-      "type": "action:button",
-      "name": "delete_record",
-      "label": "Delete",
-      "variant": "destructive",
-      "icon": "trash",
-      "actionType": "deleteRecord"
+      "type": "card",
+      "children": [
+        { "type": "text", "content": "Record details..." }
+      ]
     }
-  ],
-  "body": {
-    "type": "card",
-    "children": [
-      { "type": "text", "content": "Record details..." }
-    ]
-  }
+  ]
 }
 ```
 
@@ -660,19 +688,31 @@ Add breadcrumbs to help users navigate:
 }
 ```
 
-### 3. Action Buttons in Headers
+### 3. Action Buttons at the Top of the Body
 
-Place primary actions in page headers:
+Place primary actions in the first `body` node, so they sit above the content:
 
 ```json
 {
   "type": "page",
   "title": "Orders",
-  "actions": [
-    { "type": "button", "label": "New Order", "variant": "default" }
+  "body": [
+    {
+      "type": "flex",
+      "justify": "end",
+      "gap": 2,
+      "children": [
+        { "type": "button", "label": "New Order", "variant": "default" }
+      ]
+    }
   ]
 }
 ```
+
+⛔ Not `"actions"` on the `page` node — that key has no reader and is refused by name
+(objectui#7926). A record page has a second door: the `page:header` block, whose `actions`
+are **action ids** resolved from the object's own actions metadata, not nodes
+(see the [PageHeader reference](/docs/layout/page-header)).
 
 ### 4. Max Width for Forms
 
