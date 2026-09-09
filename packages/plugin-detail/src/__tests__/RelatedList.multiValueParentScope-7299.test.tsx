@@ -50,6 +50,17 @@
  * answers "all rows" for anything, which the assertions below would read as a
  * pass. So `evaluate` throws on every shape it was not written for.
  *
+ * ## Where the verdict comes from
+ *
+ * The arity VERDICT is `@objectstack/spec/data`'s exported `isMultiValueField`,
+ * imported rather than re-implemented — the component only finds the field def
+ * to hand it. That is not hygiene: this component picks `$contains` vs `=` on
+ * the answer, and the driver that refuses the query picks on the spec's, so a
+ * local copy would be two readers of one question disagreeing, which is the
+ * defect this card is about. The three `SPEC PREDICATE` cases below pin the
+ * places where the spec's rule and an eyeballed `multiple === true` DIFFER,
+ * measured on `@objectstack/spec` 17.4.0, in both directions.
+ *
  * ## The control
  *
  * `SINGLE_VALUED` runs the same page against the same evaluator with a scalar
@@ -282,10 +293,48 @@ describe('RelatedList — a related list on a MULTI-VALUE relationship returns d
     expect(lastScopedCall(ds, CHILD)).toEqual({ $filter: { [REL]: { $contains: PARENT_ID } } });
   });
 
+  it('SPEC PREDICATE — an inherently-array option type is multi-valued with no `multiple` flag', async () => {
+    // The verdict is `@objectstack/spec/data`'s `isMultiValueField`, not a local
+    // rule, and this case is why that distinction is load-bearing rather than
+    // tidy: `MULTI_OPTION_TYPES` (`multiselect` / `checkboxes` / `tags`) persist
+    // an ARRAY with no flag at all. An eyeballed `multiple === true` answers
+    // "single-valued" here and emits the equality the driver refuses — this
+    // card's own defect, reproduced one layer up by the fix for it.
+    const ds = makeDS(recordSchema(CHILD, { [REL]: { type: 'multiselect' } }), MULTI_ROWS);
+    renderList(ds, CHILD, REL);
+    await waitFor(() => {
+      expect(lastScopedCall(ds, CHILD)).toEqual({ $filter: { [REL]: { $contains: PARENT_ID } } });
+    });
+  });
+
+  it('SPEC PREDICATE — `multiple: true` is INERT on a type outside MULTI_CAPABLE_TYPES', async () => {
+    // The same delegation read the other way. `master_detail` is not a
+    // multi-capable type, so the flag does not make its stored value an array
+    // and equality is the correct predicate. An eyeballed `multiple === true`
+    // would send `$contains` against a scalar column — wrong in the opposite
+    // direction, and invisible, because it fails as "no rows" rather than as a
+    // refusal.
+    const ds = makeDS(
+      recordSchema('contact', { account: { type: 'master_detail', reference: 'account', multiple: true } }),
+      SINGLE_ROWS,
+    );
+    renderList(ds, 'contact', 'account');
+    expect(await screen.findByText('Alice')).toBeInTheDocument();
+    expect(scopedCalls(ds, 'contact')).toEqual([{ $filter: { account: PARENT_ID } }]);
+  });
+
+  it('COUNTER-PROBE — a def that declares no `type` is single-valued', async () => {
+    const ds = makeDS(recordSchema('contact', { account: { multiple: true } }), SINGLE_ROWS);
+    renderList(ds, 'contact', 'account');
+    await waitFor(() => expect(ds.find).toHaveBeenCalled());
+    expect(scopedCalls(ds, 'contact')).toEqual([{ $filter: { account: PARENT_ID } }]);
+  });
+
   it('COUNTER-PROBE — an off-spec truthy `multiple` is NOT coerced into multi-value', async () => {
     // AGENTS.md #0.1: `multiple: 'yes'` is a producer bug. Reading it as `true`
     // here would make the renderer a second, looser contract for field arity —
     // and would silently change the predicate for metadata the spec rejects.
+    // The spec's predicate refuses it for the same reason (`=== true`).
     const ds = makeDS(recordSchema('contact', { account: { type: 'lookup', multiple: 'yes' } }), SINGLE_ROWS);
     renderList(ds, 'contact', 'account');
     await waitFor(() => expect(ds.find).toHaveBeenCalled());

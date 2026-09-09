@@ -41,6 +41,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
 import type { ViewFilterRule } from '@objectstack/spec/ui';
+import { isMultiValueField, type ValueShapeFieldDef } from '@objectstack/spec/data';
 import { getCellRenderer, resolveCellRendererType, RecordPickerDialog, deriveLookupColumns } from '@object-ui/fields';
 import {
   columnIdentity,
@@ -209,8 +210,9 @@ export interface RelatedListProps {
    *     — MEMBERSHIP, because the stored value is an ARRAY of ids and equality
    *     asks whether the whole array IS one id.
    *
-   * See {@link isMultiValueField} for where the arity comes from and why the
-   * answer is never guessed.
+   * The verdict is `@objectstack/spec/data`'s own `isMultiValueField`, not a
+   * local rule — see {@link parentRelationshipFieldDef} for why that matters
+   * here of all places.
    */
   parentId?: string | number;
   /** Lucide icon name (kebab-case) to render next to the section title. */
@@ -329,35 +331,42 @@ export const RelatedToolbarButton: React.FC<{
 };
 
 /**
- * Is `fieldName` declared MULTI-VALUED (`multiple: true`) on this object schema?
+ * Pull one field's definition out of an object schema, in either served shape.
  *
- * The sole input to the parent-scope arity decision (objectui#7299), and
- * deliberately the only one. A `multiple: true` relationship — `Field.user({
- * multiple: true })` is the platform's own shape for it — stores an ARRAY of
- * ids, which the drivers persist as a JSON-valued column. `=` against that
- * column compares the whole serialized array with a single value and can never
- * equal one member; `driver-sql` says exactly that, by field name, and refuses
- * with `400 INVALID_FILTER` while prescribing `$contains` for membership. So
- * the arity is not a preference the renderer expresses, it is a fact about the
- * stored value that decides which predicate is even answerable.
+ * The ARITY VERDICT itself is NOT computed here — it is
+ * `@objectstack/spec/data`'s `isMultiValueField`, imported above. This function
+ * exists only to find the def to hand it, which is the part the spec cannot do:
+ * the spec takes a `ValueShapeFieldDef`, and the metadata API serves a
+ * CONTAINER of them in two shapes — the Record keyed by field name, and the
+ * array of defs carrying their own `name` (the pair `FieldContainerLike` in
+ * `@object-ui/core` names). A reader that knows only one of them silently
+ * answers "no such field" for the other, which is this card's own bug spelled
+ * as a default.
  *
- * BOTH served field-container shapes are read — the Record keyed by field name
- * and the array of defs carrying their own `name`, the pair `FieldContainerLike`
- * in `@object-ui/core` names. A reader that knows only one of them answers
- * "single-valued" for the other, which is this card's bug spelled as a default.
- *
- * ⛔ Strictly `=== true`, never truthiness. An off-spec `multiple: 'yes'` is a
- * producer bug (AGENTS.md #0.1) and coercing it here would make the renderer a
- * second, looser contract for field arity — the one thing #0.1 forbids.
+ * ⛔ Do not reintroduce a local arity rule here, however small. This component
+ * decides `$contains` vs `=` on the answer, and the driver that refuses the
+ * query decides on the spec's — two readers of one question, disagreeing, is
+ * exactly the defect objectui#7299 is about, and putting it one layer up would
+ * be a worse version of it. The spec's rule is BROADER than an eyeballed
+ * `multiple === true` in both directions: `multiselect` / `checkboxes` / `tags`
+ * persist an array with no flag at all, and `multiple: true` is INERT on a type
+ * outside `MULTI_CAPABLE_TYPES` (`master_detail`, say). Both are pinned.
  */
-function isMultiValueField(objectSchema: unknown, fieldName: string | undefined): boolean {
-  if (!fieldName || !objectSchema || typeof objectSchema !== 'object') return false;
+function parentRelationshipFieldDef(
+  objectSchema: unknown,
+  fieldName: string | undefined,
+): ValueShapeFieldDef | undefined {
+  if (!fieldName || !objectSchema || typeof objectSchema !== 'object') return undefined;
   const fields = (objectSchema as { fields?: unknown }).fields;
-  if (!fields || typeof fields !== 'object') return false;
+  if (!fields || typeof fields !== 'object') return undefined;
   const def = Array.isArray(fields)
     ? fields.find((f) => (f as { name?: unknown } | null)?.name === fieldName)
     : (fields as Record<string, unknown>)[fieldName];
-  return (def as { multiple?: unknown } | null | undefined)?.multiple === true;
+  if (!def || typeof def !== 'object') return undefined;
+  // `type` is the one member the spec's predicate reads besides `multiple`; a
+  // def without it answers `false` through both of the predicate's set lookups,
+  // which is the right answer for a field whose type nobody declared.
+  return def as ValueShapeFieldDef;
 }
 
 export const RelatedList: React.FC<RelatedListProps> = ({
@@ -504,10 +513,10 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   // `getObjectSchema`, or one whose schema fetch rejects, would then never fetch
   // rows at all — trading this card's loud 400 on one relationship shape for a
   // silent empty list on EVERY related list in the app.
-  const referenceFieldIsMultiValue = React.useMemo(
-    () => isMultiValueField(objectSchema, referenceField),
-    [objectSchema, referenceField],
-  );
+  const referenceFieldIsMultiValue = React.useMemo(() => {
+    const def = parentRelationshipFieldDef(objectSchema, referenceField);
+    return def !== undefined && isMultiValueField(def);
+  }, [objectSchema, referenceField]);
 
   // Add-picker target schema, fetched lazily on first open. It drives the
   // picker's display column (`add.picker.labelField` → displayField), the
