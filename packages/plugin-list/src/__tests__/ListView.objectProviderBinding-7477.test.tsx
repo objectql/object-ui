@@ -53,9 +53,11 @@
  *
  * `invents NO binding …` and `leaves the value provider alone …` each assert
  * that NO query is started. Read straight after their `waitFor`, that absence
- * was dated to MOUNT rather than to a settled load: on both of those paths the
- * view spy's props land on the FIRST commit, so `not.toHaveBeenCalled()` was
- * being evaluated before a deferred query could have run. Both pins stayed
+ * was dated to MOUNT rather than to a settled load. Measured, not assumed: in
+ * BOTH of those tests the kanban spy has already recorded two props entries by
+ * the time `render` returns, so `waitFor` is satisfied without ever yielding
+ * and `not.toHaveBeenCalled()` was evaluated before a deferred query could
+ * have run. Both pins stayed
  * GREEN against an implementation strictly worse than the bug — one line in
  * `ListView.tsx` that fires `dataSource.find` 50ms after every mount — so they
  * could not tell "starts no query" from "starts a query a tick later", which
@@ -66,8 +68,10 @@
  * AFTER any query would have started. On the `value` path nothing settles at
  * all: `loading` is false from the first commit and never flips. On the
  * `object`-provider-without-object path the one transition that exists —
- * `loading` going false — is set from the very branch a query would start
- * from, so it postdates a synchronous query and not a deferred one. The
+ * `loading` going false, per the `useState` initializer in `ListView.tsx` — is
+ * set from the very branch a query would start from, and the measurement above
+ * shows it has already happened before `render` returns. It postdates a
+ * SYNCHRONOUS query and never a deferred one, which is the shape at issue. The
  * absence is therefore watched over a bounded window; see `ABSENCE_SETTLE_MS`.
  *
  * The other three absence reads in this file are NOT this shape, and that is
