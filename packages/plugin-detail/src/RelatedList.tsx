@@ -971,6 +971,63 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     // auto-derived path so a `status` column reads "Planned" (badge), never the
     // raw `planned`, regardless of how the columns were supplied.
     const makeCell = (key: string, def: any): ((value: any) => any) | undefined => {
+      // ⛔ A column whose field carries no `type` gets NO cell — and therefore
+      // none of the objectui#8459 placeholder below. That boundary is
+      // DELIBERATE, and objectui#8477 is the card that measured it and chose to
+      // write it down here rather than close it.
+      //
+      // THE GAP, stated honestly: `pruneEmpty` above judges this very column
+      // with the full `isValueEmpty`, so a column survives because *some other
+      // row* has a value — and this row's whitespace-only cell then paints
+      // visually blank, the exact UI the em-dash below exists to prevent,
+      // reached through the one door that never gets a cell. Measured: an
+      // undeclared `memo` column holding `'   '` renders a blank `div.truncate`
+      // while its sibling row renders `real memo`.
+      //
+      // ⚠️ WHY "just attach a minimal cell here" IS NOT A SHORTCUT — IT SHIPS A
+      // CRASH. The data-table's no-cell branch is not a pass-through: with no
+      // `cell` it applies TWO transforms — `String(value)` for a non-null
+      // object, and `formatCellValue(value)`, the locale ISO date/datetime face
+      // objectui#7443 and objectui#7620 spent two cards folding into ONE home —
+      // whereas a `cell`'s return value is handed STRAIGHT to React, with no
+      // way to defer any single value back to that default. Measured on one
+      // untyped column, same row, `tbody` innerHTML byte for byte, no-cell
+      // versus a cell returning its argument unchanged:
+      //
+      //   `real memo` / `0` / `false`   identical
+      //   ISO date `2026-07-04`         `Jul 4`                 becomes `2026-07-04`
+      //   ISO datetime                  `Mar 5, 2024, 02:30 PM` becomes the raw ISO string
+      //   array `['a','b']`             `a,b`                   becomes `ab`
+      //   object `{latitude,longitude}` `[object Object]`       THROWS
+      //                                 "Objects are not valid as a React child"
+      //
+      // The object row is not a rendering difference, it is a crash — and
+      // untyped columns rendering `[object Object]` are precisely the
+      // population such a cell reaches first.
+      //
+      // ⛔ Choosing whether to attach a cell by INSPECTING THE VALUE is the same
+      // idea in a disguise: that is inferring a type from a value, fenced off
+      // by objectui#8477 explicitly.
+      //
+      // ⇒ SUCCESSOR — objectui#8817. The layer that owns "how a value renders
+      // when there is no cell" is the data-table itself, so it also owns "what
+      // an empty one draws"; fixing it from out here would force a SECOND
+      // spelling of `formatCellValue` (a `useCallback` inside that component,
+      // exported nowhere, closing over its own language state). That is a
+      // product-wide behaviour change with its own ruling to make — is the
+      // table's "empty" this file's `isValueEmpty`, or does the disagreement
+      // merely move up one layer? Until it lands, this boundary stands.
+      //
+      // REACHABILITY, so the next reader need not re-derive it: this line is
+      // reached only for a field that IS declared and carries no `type`. The
+      // card's own case — a column key the schema never declares — never
+      // arrives here at all: both explicit-column call sites guard with
+      // `def ? makeCell(...) : undefined`, and the auto-derived walk guards with
+      // `if (def.type)`. The `if (!CellRenderer)` line just below is, by
+      // contrast, DEAD: `getCellRenderer` is typed to return a component and
+      // ends in `standardMap[fieldType] || TextCellRenderer`, so it never
+      // returns a falsy renderer — measured over seven spellings, including
+      // ones no producer can emit, all of which resolved to `TextCellRenderer`.
       if (!def?.type) return undefined;
       const rendererType = resolveCellRendererType({ type: def.type, format: def.format }) || def.type;
       const CellRenderer = getCellRenderer(rendererType);
