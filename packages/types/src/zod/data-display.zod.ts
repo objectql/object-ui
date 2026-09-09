@@ -21,6 +21,38 @@ import { ChartTypeSchema as SpecChartTypeSchema, I18nLabelSchema } from '@object
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { aliasKeyRefusal, handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { TABLE_COLUMN_TYPES, type TreeNode } from '../data-display.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
+ */
+
 
 /**
  * Alert Schema - Alert/notification component
@@ -385,7 +417,7 @@ export const TreeViewSchema = BaseSchema.extend({
  * how #2901 came to be filed against the wrong side of the contract: it read
  * this copy as the protocol and concluded the renderer had outgrown it.
  */
-export const ChartTypeSchema = SpecChartTypeSchema;
+export const ChartTypeSchema = stripImportedDefaults(SpecChartTypeSchema);
 
 /**
  * Zod twin of {@link ChartDataSeries} — the objectui chart node's inline-data
@@ -475,7 +507,7 @@ export const ChartDataSeriesSchema = z.object({
   //
   // `chartType` is NOT among the six: it is an ALIAS REFUSAL ARM, declared
   // beside `type` above (objectui#7694).
-  label: I18nLabelSchema.optional().describe(
+  label: stripImportedDefaults(I18nLabelSchema).optional().describe(
     'Legend / tooltip name for this series — a plain string or an inline locale map; defaults to the column key',
   ),
   variant: z.enum(['primary', 'comparison']).optional().describe(

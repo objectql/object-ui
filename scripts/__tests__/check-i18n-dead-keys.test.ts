@@ -81,6 +81,12 @@ const EN_FIXTURE = `const en = {
   plural: { count_one: '{{count}} item', count_other: '{{count}} items' },
   bulk: { a: 'A', b: 'B' },
   dynamic: { category: { electronics: 'Electronics', books: 'Books' } },
+  boundary: {
+    onlyPrefix: 'A candidate a longer key merely STARTS with',
+    onlyDotted: 'A candidate a longer DOTTED key merely starts with',
+    onlySuffix: 'A candidate a longer key merely ENDS with',
+    realHit: 'A candidate something really does spell',
+  },
 } as const;
 export default en;
 `;
@@ -113,11 +119,29 @@ export const FIELD_CONFIG = [
 ];
 `;
 
+/**
+ * Text that is evidence about a DIFFERENT key than the one it contains — the
+ * three shapes `textFootprint()`'s key-boundary requirement must refuse
+ * (objectui#8701) — plus one occurrence that is genuine evidence and must
+ * still count. Deliberately NOT `t()` calls: the point is what the whole-repo
+ * text net does with the bytes, and a call site would take these keys out of
+ * the candidate set through the AST leg instead.
+ */
+const LONGER_KEY_MENTIONS_SOURCE = `
+export const NOT_ABOUT_THESE_KEYS = [
+  'boundary.onlyPrefixExtended',
+  'boundary.onlyDotted.detail',
+  'otherNamespace.boundary.onlySuffix',
+];
+export const ABOUT_THIS_ONE = { labelKey: 'boundary.realHit' };
+`;
+
 function fixtureRoot() {
   return repoWith({
     'packages/i18n/src/locales/en.ts': EN_FIXTURE,
     'packages/x/src/Widget.tsx': CONSUMER_SOURCE,
     'packages/x/src/fieldConfig.ts': INDIRECT_MENTION_SOURCE,
+    'packages/x/src/longerKeys.ts': LONGER_KEY_MENTIONS_SOURCE,
   });
 }
 
@@ -163,6 +187,39 @@ describe('sweep()', () => {
     // would land in needsReview and `confirmed` would always be empty.
     const { confirmed } = sweep(fixtureRoot());
     expect(confirmed.length).toBeGreaterThan(0);
+  });
+
+  it('CONFIRMS a candidate a longer key merely STARTS with (objectui#8701)', () => {
+    // The pack sweep's own tier split, not just the predicate: these three
+    // shapes are the ones that were reported as textual hits for the shorter
+    // key before the boundary became `textFootprint()`'s default, sending a
+    // reader to a line that never mentions the key they are hunting.
+    const { confirmed, needsReview } = sweep(fixtureRoot());
+    expect(confirmed).toContain('boundary.onlyPrefix');
+    expect(needsReview.map((f) => f.key)).not.toContain('boundary.onlyPrefix');
+  });
+
+  it('CONFIRMS a candidate a longer DOTTED key merely starts with (objectui#8701)', () => {
+    const { confirmed, needsReview } = sweep(fixtureRoot());
+    expect(confirmed).toContain('boundary.onlyDotted');
+    expect(needsReview.map((f) => f.key)).not.toContain('boundary.onlyDotted');
+  });
+
+  it('CONFIRMS a candidate a longer key merely ENDS with (objectui#8701)', () => {
+    const { confirmed, needsReview } = sweep(fixtureRoot());
+    expect(confirmed).toContain('boundary.onlySuffix');
+    expect(needsReview.map((f) => f.key)).not.toContain('boundary.onlySuffix');
+  });
+
+  it('still demotes a candidate a file really does spell (objectui#8701)', () => {
+    // The other direction of the same predicate: the boundary must not empty
+    // the NEEDS-REVIEW tier. Without this, a `textFootprint()` that found
+    // nothing anywhere would pass the three pins above.
+    const { confirmed, needsReview } = sweep(fixtureRoot());
+    expect(confirmed).not.toContain('boundary.realHit');
+    expect(needsReview.find((f) => f.key === 'boundary.realHit')?.hits).toEqual([
+      'packages/x/src/longerKeys.ts',
+    ]);
   });
 
   it('demotes a key to NEEDS-REVIEW when its literal string appears outside a t() call', () => {
@@ -692,23 +749,97 @@ describe('sweepDesignerTable()', () => {
   });
 });
 
-describe('textFootprint() key-boundary option', () => {
-  it('is off by default, so the pack sweep’s measured behaviour is unchanged', () => {
-    const root = repoWith({ 'packages/x/src/a.ts': "export const k = 'ns.group.leaf.detail';\n" });
-    expect(textFootprint(root, ['ns.group.leaf']).get('ns.group.leaf')).toEqual(['packages/x/src/a.ts']);
+/**
+ * The key-boundary requirement, pinned in BOTH directions (objectui#8701).
+ *
+ * The two halves catch opposite degenerate predicates, which is the point of
+ * having both: every REJECTS case below reddens for a predicate that answers
+ * `true` for everything (the shipped substring test is one such predicate, and
+ * so is `() => true`), and every ACCEPTS case reddens for a predicate that
+ * answers `false` for everything. Neither half alone is a pin — a `false`
+ * predicate would sail through the rejections while reporting no evidence
+ * about anything, which is strictly worse than the bug being fixed here.
+ *
+ * The ACCEPTS cases are also why the boundary is not "the key must be the whole
+ * line" or "the key must be quoted": a real hit arrives inside a call, inside
+ * an array, at end of line, and in prose that never quotes it, and each of
+ * those spellings is pinned separately rather than represented by one.
+ */
+describe('textFootprint() key boundary', () => {
+  const KEY = 'ns.group.leaf';
+  /** `propertyChain: false` throughout: this leg is the FULL-KEY probe, and the
+   *  chain probe would otherwise answer some of these cases for it. */
+  const footprintOf = (files: Record<string, string>, options = {}) =>
+    textFootprint(repoWith(files), [KEY], { propertyChain: false, ...options }).get(KEY);
+
+  // ── REJECTS: text about a longer key is not evidence about this key ───────
+  it('REJECTS a longer key that continues with an identifier character', () => {
+    expect(footprintOf({ 'packages/x/src/a.ts': `export const k = '${KEY}Extended';\n` })).toEqual([]);
   });
 
-  it('rejects a match that continues into a longer key when enabled', () => {
-    const root = repoWith({ 'packages/x/src/a.ts': "export const k = 'ns.group.leaf.detail';\n" });
-    expect(
-      textFootprint(root, ['ns.group.leaf'], { propertyChain: false, keyBoundary: true }).get('ns.group.leaf'),
-    ).toEqual([]);
+  it('REJECTS a longer DOTTED key — the hole `occursAtPropertyBoundary` leaves open', () => {
+    // `.` does not continue an IDENTIFIER, so the property-chain probe's guard
+    // accepts this shape. The key-boundary class is wider by exactly `.` and `-`.
+    expect(footprintOf({ 'packages/x/src/a.ts': `export const k = '${KEY}.detail';\n` })).toEqual([]);
   });
 
-  it('still matches the whole key when enabled', () => {
-    const root = repoWith({ 'packages/x/src/a.ts': "export const k = 'ns.group.leaf';\n" });
-    expect(
-      textFootprint(root, ['ns.group.leaf'], { propertyChain: false, keyBoundary: true }).get('ns.group.leaf'),
-    ).toEqual(['packages/x/src/a.ts']);
+  it('REJECTS a longer key that continues with a hyphen', () => {
+    expect(footprintOf({ 'packages/x/src/a.ts': `export const k = '${KEY}-compact';\n` })).toEqual([]);
+  });
+
+  it('REJECTS a longer key that merely ENDS with this key — the LEFT side', () => {
+    // The other hole in the chain-probe guard, and the one that is not about
+    // identifier characters at all: it checks nothing to the left. Measured on
+    // the pack sweep, this shape alone accounted for 4 of the 13 keys the
+    // boundary re-tiered, every one of them a designer-table key ending in a
+    // pack key.
+    expect(footprintOf({ 'packages/x/src/a.ts': `export const k = 'otherNs.${KEY}';\n` })).toEqual([]);
+  });
+
+  // ── ACCEPTS: a real occurrence is still evidence ──────────────────────────
+  it('ACCEPTS a quoted call-site spelling', () => {
+    expect(footprintOf({ 'packages/x/src/a.ts': `t('${KEY}');\n` })).toEqual(['packages/x/src/a.ts']);
+  });
+
+  it('ACCEPTS a double-quoted value in a data file', () => {
+    expect(footprintOf({ 'packages/x/src/a.json': `{ "labelKey": "${KEY}" }\n` })).toEqual(['packages/x/src/a.json']);
+  });
+
+  it('ACCEPTS an unquoted prose mention with ordinary sentence punctuation', () => {
+    expect(footprintOf({ 'content/docs/x.md': `See ${KEY}, which nothing renders.\n` })).toEqual([
+      'content/docs/x.md',
+    ]);
+  });
+
+  it('REJECTS the same prose mention when a full stop follows the key', () => {
+    // The cost the docstring states rather than discovers, pinned so it is a
+    // known price and not a surprise: `.` is a key character, so a sentence
+    // that ends ON the key reads as a longer key and stops counting. This is
+    // the one direction in which the boundary claims MORE evidence of deadness
+    // than the substring test did.
+    expect(footprintOf({ 'content/docs/x.md': `Nothing renders ${KEY}.\n` })).toEqual([]);
+  });
+
+  it('ACCEPTS an occurrence at end of line with no trailing character at all', () => {
+    expect(footprintOf({ 'packages/x/src/a.ts': `// ${KEY}` })).toEqual(['packages/x/src/a.ts']);
+  });
+
+  it('ACCEPTS an occurrence at the very start of a line', () => {
+    expect(footprintOf({ 'content/docs/x.md': `${KEY} — the label key\n` })).toEqual(['content/docs/x.md']);
+  });
+
+  it('ACCEPTS a real hit on a line that ALSO carries a longer key', () => {
+    // Every occurrence is checked, not just the first: one line can hold both
+    // shapes, and stopping at the first rejection would drop real evidence.
+    expect(footprintOf({ 'packages/x/src/a.ts': `const m = { '${KEY}.detail': 1, '${KEY}': 2 };\n` })).toEqual([
+      'packages/x/src/a.ts',
+    ]);
+  });
+
+  // ── the escape hatch, kept measurable ─────────────────────────────────────
+  it('reproduces the pre-objectui#8701 substring behaviour when opted out', () => {
+    expect(footprintOf({ 'packages/x/src/a.ts': `export const k = '${KEY}.detail';\n` }, { keyBoundary: false })).toEqual([
+      'packages/x/src/a.ts',
+    ]);
   });
 });

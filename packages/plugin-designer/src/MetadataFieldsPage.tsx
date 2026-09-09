@@ -440,31 +440,53 @@ function describeUnusableTarget(reference: unknown): string {
  * page's existing error surface — the same banner a nameless or duplicated
  * field already produces, and no new UI affordance.
  *
- * ## The `.trim()` is a DECLARED DIVERGENCE, not an accident
+ * ## The `.trim()` MIRRORS the contract — it is no longer a local opinion
  *
- * The predicate is `typeof reference === 'string' && reference.trim() !== ''`,
- * which is STRICTER than the contract. Measured on 17.3.0, at field level and
- * again through the whole document:
+ * The predicate is `typeof reference === 'string' && reference.trim() !== ''`.
+ * It WAS a declared divergence when written: 17.3.0's #13632 refinement spelled
+ * its emptiness test as an equality against `''`, so the spec accepted a
+ * whitespace-only target while this page refused it. objectstack#16920 (merged
+ * 2026-09-08, closing objectstack#16126) applies that test to the TRIMMED value
+ * — `packages/spec/src/data/field.zod.ts`, the `FieldSchema` `superRefine`:
+ *
+ *   if (
+ *     (field.type === 'lookup' || field.type === 'master_detail') &&
+ *     (field.reference === undefined || field.reference.trim() === '')
+ *   ) { ctx.addIssue({ code: 'custom', path: ['reference'], … }); }
+ *
+ * Same `custom` issue, same `reference` path, same message absent and `''`
+ * already got, so this page and the contract now refuse the identical set.
+ *
+ * ⚠️ That is the spec FROM THE RELEASE CARRYING objectstack#16920, not the
+ * INSTALLED spec. This repo's pin is `@objectstack/spec` 17.3.0
+ * (`pnpm-lock.yaml`), which predates the fix (an unreleased `minor` upstream at
+ * the time of writing). Measured on the installed 17.3.0 artifact, whose
+ * shipped test still reads `field.reference === ''`:
  *
  *   FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' })
  *     => success = true
  *   ObjectSchema.safeParse({ …, fields: { rel: { …, reference: '   ' } } })
  *     => success = true
  *
- * — the spec ACCEPTS a whitespace-only target and this page refuses it.
- * objectui being stricter than the platform is a divergence, not a neutral
- * choice, so it is STATED rather than left to be inferred from a predicate;
- * undeclared, it is indistinguishable from a bug and the next reader "fixes" it.
+ * (controls at that pin: absent and `''` refused as `custom` at `reference`,
+ * `'account'` accepted.) Until the pin reaches the fix, this guard is still the
+ * only thing refusing `'   '` here. ⛔ Bumping the pin is not this note's
+ * business.
  *
- * ⭐ Kept, deliberately. A whitespace-only `reference` names no object — the
- * spec's own `ObjectSchema.fields` key grammar (`/^[a-z_][a-z0-9_]*$/`) admits
- * no whitespace-bearing name for it to resolve to — so admitting it buys the
+ * ⭐ Kept — now for its OWN reason rather than the divergence's. It refuses at
+ * EDITOR time, before the PUT, naming the field while it is still on screen;
+ * the contract refuses at the publish gate, where the same shape arrives as a
+ * 422 on the whole object document with the half-filled draft riding along. A
+ * whitespace-only `reference` names no object at either end — the spec's own
+ * `ObjectSchema.fields` key grammar (`/^[a-z_][a-z0-9_]*$/`) admits no
+ * whitespace-bearing name for it to resolve to — so admitting it buys the
  * author nothing and only moves the identical failure past the PUT and into a
  * stored document, where it surfaces with no field named.
  *
- * ⚠️ Filed upstream as objectstack#16126 (open). If the spec trims, this page's
- * behaviour is unchanged and only the declaration retires — which is why the
- * pins assert this writer's refusal separately from the spec's verdict.
+ * ⚠️ The refusal MESSAGE below still says the spec ACCEPTS this value and still
+ * names objectstack#16126. Deliberate: it is version-qualified to 17.3.0, which
+ * IS the installed pin, and the pins assert it verbatim. It retires with the
+ * pin bump, not with this note.
  */
 function assertRelationshipTargetPresent(
   field: { type?: string; reference?: unknown },

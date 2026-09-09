@@ -91,20 +91,23 @@
  * (`packages/`, `apps/`, `examples/`, `e2e/`, `content/`, `scripts/` — everything
  * except the standard build/dep noise and the locale packs themselves, which by
  * definition contain every candidate's defining line and would make every
- * candidate "referenced") for the literal dotted key string. A hit means the
- * key's exact spelling appears somewhere this script's AST pass does not look —
+ * candidate "referenced") for the literal dotted key string, counting an
+ * occurrence only where the key stands ALONE — bounded on both sides by a
+ * character that cannot continue a dotted key (`occursAtKeyBoundary()`), so a
+ * longer key that merely contains this one is not read as evidence about it.
+ * A hit means the key's own spelling appears somewhere the AST pass does not look —
  * closing gap 1 (an `examples/`/`e2e/` call site would spell the key as a plain
  * string there too) and softening gap 2 (an `i18nKey: 'console.objectView.new'`
  * property literal IS a plain-text occurrence of the key, even though it is not
  * an argument of `t()`).
  *
- *   - CONFIRMED — no call site (AST) and no textual occurrence anywhere else in
- *     the repo. The tier with the MOST EVIDENCE, which is not the same claim as
+ *   - CONFIRMED — no call site (AST) and no bounded textual occurrence of the
+ *     key anywhere else in the repo. The tier with the MOST EVIDENCE, which is not the same claim as
  *     the safest to delete: what it does and does not guarantee is written out
  *     under "What CONFIRMED does NOT guarantee" below rather than left to the
  *     word "strongest". Sample-verifying before deleting (objectui#4658's own
  *     dispatch ruling) is a standing requirement, not a transitional one.
- *   - NEEDS-REVIEW — no call site, but the literal string appears somewhere
+ *   - NEEDS-REVIEW — no call site, but the whole key appears somewhere
  *     (a comment, a doc, a fixture, an indirect `i18nKey:`-style property). The
  *     candidate might still be genuinely dead; the hit just means a human has to
  *     look at it before deleting, which is exactly what "AST-dead" alone cannot
@@ -209,13 +212,23 @@
  *      modules.
  *   3. A consumer outside the AST walk's `packages/`+`apps/` scope that also
  *      never spells the key as text (gap 1 above).
+ *   4. A pack-object property reader of a TWO-SEGMENT key (objectui#8701). The
+ *      full-key probe used to catch that shape by accident, because a substring
+ *      test accepts `somePack.topNs.leaf` as an occurrence of `topNs.leaf`; the
+ *      key-boundary requirement refuses it, since a `.` on the left is exactly
+ *      what marks a longer key. The property-chain leg does not take over below
+ *      three segments (it returns `null` there on purpose), so for two-segment
+ *      keys the enumerated importer list above is the only check left, and it
+ *      is read by hand. Measured when the boundary became the default:
+ *      re-deriving that list and reading every NON-TEST importer it returns,
+ *      not one of them reads any of the keys the change re-tiered.
  *
  * The tier is therefore the one to READ FIRST, and each entry still needs a
  * human before deletion. The cost of reading it as bulk-deletable is measured:
  * on the day objectui#7592 was filed, 33 of 147 CONFIRMED entries — 22% of the
  * tier — were one live subtree (`chatbot.tool.*`, rendering in ten packs), and
  * following the tier would have reverted every AI tool card to English in nine
- * locales. That class is closed; these three are not.
+ * locales. That class is closed; these four are not.
  *
  * ## Usage
  *
@@ -320,19 +333,39 @@ const KEY_CHAR = /[A-Za-z0-9_$.-]/;
  * character — i.e. at least one occurrence is the whole key rather than a
  * prefix or suffix of a longer one.
  *
- * Opt-in (`keyBoundary`), because the two corpora want opposite defaults. The
- * pack sweep has always used a plain substring test and its measured
- * false-positive rate was taken with that behaviour; changing it here would
- * silently re-tier that report. The designer table, by contrast, is densely
- * prefix-nested — a chrome key and its own sub-keys sit in the same namespace —
- * so without this check most of its NEEDS-REVIEW tier is evidence about a
- * DIFFERENT key.
+ * ON by default, for both corpora. It arrived opt-in with the designer table
+ * (objectui#8388) and defaulted OFF for one reason only: objectui#4658's ruling
+ * rests on a false-positive rate measured with the plain substring test, and
+ * re-tiering that report inside an unrelated PR would have moved that reading
+ * with nobody re-measuring it. objectui#8701 re-measured it and flipped the
+ * default — see that PR body for the before/after rate and for the per-key
+ * reading of every candidate the flip re-tiered. `keyBoundary: false` still
+ * reaches the old behaviour, and the self-test uses it to keep the shape this
+ * guard exists to refuse demonstrable.
  *
- * ⚠️ The cost, stated rather than discovered: a prose mention that ends in a
- * full stop no longer counts as a hit, so this can move a key from
- * NEEDS-REVIEW up into CONFIRMED — the direction that claims MORE evidence of
- * deadness. That is why CONFIRMED is documented as "read this first", never as
- * "safe to bulk delete".
+ * BOTH sides are load-bearing, and `occursAtPropertyBoundary()` is NOT a
+ * substitute for this predicate — a boundary is not a boundary. That guard
+ * refuses only a next character that CONTINUES AN IDENTIFIER, which leaves two
+ * holes here: `.` continues a dotted key without continuing an identifier, so
+ * `ns.group.leaf` followed by `.detail` passes it; and it checks nothing on the
+ * LEFT, so a longer key ENDING in this key (`otherNs.group.leaf` when the key
+ * is `group.leaf`) reads as a hit for it. Measured on the pack sweep when this
+ * became the default: reusing the chain guard here would have corrected 9 of
+ * the 13 mis-demoted keys and left 4 wrong, each of those 4 demoted by a longer
+ * key ending in it — the left side alone. The right-hand `.` hole cost 0 keys
+ * on that tree; it is still guarded, because a tree where a hole costs nothing
+ * is not a tree where it cannot.
+ *
+ * ⚠️ Two costs, stated rather than discovered:
+ *
+ *   1. A prose mention that ends in a full stop no longer counts as a hit, so
+ *      this can move a key from NEEDS-REVIEW up into CONFIRMED — the direction
+ *      that claims MORE evidence of deadness. That is why CONFIRMED is
+ *      documented as "read this first", never as "safe to bulk delete".
+ *   2. For a two-segment key it withdraws the accidental cover the substring
+ *      test gave to pack-object property readers — class 4 of "What CONFIRMED
+ *      does NOT guarantee" in the header, where the remaining check is written
+ *      down.
  */
 function occursAtKeyBoundary(content, key) {
   for (let from = 0; ; from += 1) {
@@ -373,16 +406,17 @@ function occursAtKeyBoundary(content, key) {
  * @param {boolean} [options.propertyChain=true] Run the property-chain probe.
  *   Off for a corpus whose table is not exported, where no property-access
  *   reader can exist (see `DESIGNER_TABLE`).
- * @param {boolean} [options.keyBoundary=false] Require a full-key match to be
- *   bounded by non-key characters — see `occursAtKeyBoundary()` for why the two
- *   corpora want opposite defaults.
+ * @param {boolean} [options.keyBoundary=true] Require a full-key match to be
+ *   bounded by non-key characters. Pass `false` for the pre-objectui#8701
+ *   substring behaviour, which counts a longer key that merely contains this
+ *   one — see `occursAtKeyBoundary()`.
  * @returns {Map<string, string[]>} key -> repo-relative file paths that
  *   mention it outside `definitionPrefix` (deduped, sorted). A path matched
  *   only by the property-chain probe carries `PROPERTY_CHAIN_HIT_SUFFIX`. A key
  *   absent from the map, or mapped to `[]`, has no textual footprint at all.
  */
 export function textFootprint(root, keys, options = {}) {
-  const { definitionPrefix = LOCALES_DIR, propertyChain = true, keyBoundary = false } = options;
+  const { definitionPrefix = LOCALES_DIR, propertyChain = true, keyBoundary = true } = options;
   const result = new Map(keys.map((key) => [key, []]));
   if (keys.length === 0) return result;
 
@@ -803,7 +837,6 @@ export function sweepDesignerTable(root) {
   const footprints = textFootprint(root, candidates, {
     definitionPrefix: DESIGNER_TABLE,
     propertyChain: false,
-    keyBoundary: true,
   });
   const tablesOf = (key) => DESIGNER_TABLE_CONSTS.filter((name) => tables.get(name).has(key));
 
@@ -917,8 +950,9 @@ if (invokedDirectly) {
       `\n${result.candidateCount} candidate(s) with no call site this pass can see, across ` +
         `${result.byNamespace.size} namespace(s): ${result.confirmed.length} CONFIRMED (no textual ` +
         `footprint anywhere else in the repo either), ${result.needsReview.length} NEEDS-REVIEW ` +
-        '(the AST pass sees no call site, but the literal key string appears somewhere else in the ' +
-        'repo — read that occurrence before treating the key as dead).',
+        '(the AST pass sees no call site, but the whole key — not merely a longer key that contains ' +
+        'it — appears somewhere else in the repo; read that occurrence before treating the key as ' +
+        'dead).',
     );
 
     const sortedNamespaces = [...result.byNamespace.entries()].sort(

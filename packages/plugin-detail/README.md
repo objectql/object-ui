@@ -243,6 +243,27 @@ const schema: DetailViewSchema = {
 };
 ```
 
+### `summaryFields` and non-scalar values
+
+A summary chip is a single-line pill, and it formats `currency`, `date`,
+`datetime`, `percent` and the option families itself. Any other value it can
+render as text it renders as text.
+
+An **object** value — an expanded lookup payload, an address, a location, a
+file — is drawn by that field's own cell renderer, so the chip shows what the
+same value shows everywhere else on the page: the referenced record's name, the
+formatted postal line, the coordinates, the file name.
+
+Fifteen field kinds are the exception, because their renderer does not fit a
+pill: the option families draw a badge (which would nest inside the chip's own),
+`user` draws an avatar, `image` / `avatar` / `signature` draw an image and no
+text at all, and `boolean` / `toggle` / `date` / `datetime` / `repeater` draw a
+"No value" face for a value the chip only exists because the page called
+filled. Those keep a text chip, carrying `@object-ui/fields`' shared value
+coercion — the record's name where the object has one, and `[Object]` where it
+does not. The set and the measurement behind it are
+`src/summaryChipRenderers.ts`.
+
 ## Components
 
 ### DetailSection

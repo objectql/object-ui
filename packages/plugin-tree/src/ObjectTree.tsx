@@ -255,7 +255,7 @@ function flattenVisible(roots: TreeNode[], expanded: Set<string>): TreeNode[] {
 }
 
 /** Collect ids that should start expanded, honoring an optional depth cap. */
-function initialExpanded(roots: TreeNode[], depth?: number): Set<string> {
+function seedExpanded(roots: TreeNode[], depth?: number): Set<string> {
   const set = new Set<string>();
   const walk = (nodes: TreeNode[]) => {
     for (const n of nodes) {
@@ -268,6 +268,62 @@ function initialExpanded(roots: TreeNode[], depth?: number): Set<string> {
   };
   walk(roots);
   return set;
+}
+
+/**
+ * What the USER said about one node's expansion, keyed by record id. Sparse on
+ * purpose: an id is present only if the user clicked that node's chevron, and
+ * the value is the answer they gave (`true` = open, `false` = closed). It is
+ * NOT an expansion set — a missing id means "the user never said", which is a
+ * third state that a `Set<string>` of open ids cannot represent.
+ */
+type ExpansionOverrides = ReadonlyMap<string, boolean>;
+
+/**
+ * The expanded-id set for ONE render: the seed the forest asks for, with the
+ * user's answers laid over it.
+ *
+ * ## The composition rule (objectui#8666)
+ *
+ * > A new forest may re-seed, but a node the user deliberately opened or closed
+ * > — and which is still in the forest — keeps the user's answer. Every other
+ * > node, including a genuinely NEW one, takes the seed.
+ *
+ * The override walk descends the WHOLE forest, not only the seeded-open part:
+ * the user can open a node that sits below `defaultExpandedDepth`, and its own
+ * children are then reachable and overridable in turn.
+ *
+ * ⭐ WHY THE USER'S EDITS ARE STORED, AND NOT THE EXPANSION SET ITSELF. The
+ * shape this replaces kept the resolved set in state and re-seeded it from an
+ * effect. That set cannot tell "the user closed this node" apart from "the seed
+ * never opened it", so re-seeding a new forest has only two outcomes and both
+ * are wrong: overwrite, and the user's collapse is lost on every identity
+ * change of `roots`; or union/skip, and a genuinely new subtree never opens.
+ * Recording the user's EDITS separately is what makes both halves derivable at
+ * once — it is the reason for the map, not an implementation detail of it.
+ *
+ * An override for an id that is no longer in the forest is never read, because
+ * this walk only visits nodes that ARE in it. It is also not discarded: if that
+ * record comes back (a filter widened, a refetch), it is the same record and it
+ * keeps the same answer.
+ */
+function resolveExpanded(
+  roots: TreeNode[],
+  depth: number | undefined,
+  overrides: ExpansionOverrides,
+): Set<string> {
+  const expanded = seedExpanded(roots, depth);
+  if (overrides.size === 0) return expanded;
+  const walk = (nodes: TreeNode[]) => {
+    for (const n of nodes) {
+      const answer = overrides.get(n.id);
+      if (answer === true) expanded.add(n.id);
+      else if (answer === false) expanded.delete(n.id);
+      walk(n.children);
+    }
+  };
+  walk(roots);
+  return expanded;
 }
 
 /**
@@ -615,17 +671,39 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     [records, parentField],
   );
 
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // Re-seed expansion whenever the tree shape changes.
-  useEffect(() => {
-    setExpanded(initialExpanded(roots, config.defaultExpandedDepth));
-  }, [roots, config.defaultExpandedDepth]);
+  /**
+   * Expansion is DERIVED, not mirrored (objectui#8666).
+   *
+   * State holds only the user's own answers; the seed is computed from the
+   * forest during render. What this fixes: the seed used to live in a
+   * `useState` set that a passive `useEffect` re-seeded, so the commit that
+   * FIRST painted the table still carried the previous (empty) mirror — the
+   * root drew, its children did not, and a second commit drew the seeded-open
+   * forest. Probed in the DOM, the sequence was
+   * `loading → table with 1 row → table with 2 rows`; it is now
+   * `loading → table with 2 rows`. See {@link resolveExpanded} for the rule
+   * that lets a re-seed and a user's override coexist, which is the half a
+   * naive "just seed during render" conversion destroys.
+   *
+   * Pinned by `ObjectTree.expandedDerived-8666.test.tsx` — both halves.
+   */
+  const [overrides, setOverrides] = useState<ExpansionOverrides>(() => new Map());
 
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+  const expanded = useMemo(
+    () => resolveExpanded(roots, config.defaultExpandedDepth, overrides),
+    [roots, config.defaultExpandedDepth, overrides],
+  );
+
+  /**
+   * Record the user's answer for one node. `isOpen` is the state the row was
+   * PAINTED with, read from the resolved set at the call site: the updater
+   * below sees only the override map, which does not know the seed, so the
+   * node's current answer has to come from the render that the user clicked.
+   */
+  const toggle = (id: string, isOpen: boolean) =>
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(id, !isOpen);
       return next;
     });
 
@@ -748,7 +826,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
                         className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted"
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggle(node.id);
+                          toggle(node.id, isOpen);
                         }}
                       >
                         {isOpen ? (

@@ -70,6 +70,7 @@ import {
 } from '@objectstack/spec/ui';
 
 import { ObjectViewSchema } from '../zod/objectql.zod';
+import { stripImportedDefaults } from '../zod/imported-defaults.js';
 import { ViewSwitcherSchema } from '../zod/views.zod';
 import { safeValidateSchema } from '../zod/index.zod';
 import type { ObjectViewSchema as TsObjectViewSchema, NamedListView } from '../objectql';
@@ -322,11 +323,19 @@ describe('objectui#7779 — the zod mirror declares the eight keys and the tombs
 
 describe('objectui#7779 — the three spec-modelled keys are the spec\'s own slots BY REFERENCE', () => {
   it.each(SPEC_REFERENCED)('`%s` IS `SpecListViewSchema.shape.%s` — the same object, not a copy', (key) => {
+    // ⭐ objectui#8317 (decision batch #90): the spec enters this package through
+    // `stripImportedDefaults`, so the object to compare against is
+    // `SpecListViewSchema` AS IT ARRIVES HERE. That hop removes the imported
+    // `ZodDefault`s and nothing else — a slot with none comes back
+    // reference-equal, which is why `searchableFields` and `filterableFields`
+    // are unchanged by it and `navigation` (four defaults) is not.
+    // ⛔ Still `toBe`: a local restatement is the drift objectui#4588 measured.
     expect(
       shapeMember(ObjectViewSchema, key),
-      `ObjectViewSchema.${key} must be SpecListViewSchema.shape.${key} by reference — a local ` +
-        'restatement is the drift objectui#4588 measured; if the spec slot is wrong, fix the spec',
-    ).toBe(shapeMember(SpecListViewSchema, key));
+      `ObjectViewSchema.${key} must be stripImportedDefaults(SpecListViewSchema).shape.${key} by ` +
+        'reference — a local restatement is the drift objectui#4588 measured; if the spec slot is ' +
+        'wrong, fix the spec',
+    ).toBe(shapeMember(stripImportedDefaults(SpecListViewSchema), key));
   });
 
   it.each(SPEC_REFERENCED)('`%s` is also the slot `ObjectListViewSchema` carries under that name (the spec models it on both view faces)', (key) => {
@@ -342,13 +351,29 @@ describe('objectui#7779 — the three spec-modelled keys are the spec\'s own slo
   it('`navigation` parses exactly as the spec\'s `NavigationConfigSchema` does (the slot is that schema, optional)', () => {
     const slot = shapeMember(ObjectViewSchema, 'navigation') as { safeParse(v: unknown): { success: boolean; data?: unknown } };
     // The spec declares `mode: NavigationModeSchema.default('page')`, so a
-    // config that lets the mode default is legal authored metadata — the exact
-    // input the hand copy of objectui#4588 refused.
+    // config that omits the mode is legal authored metadata — the exact input
+    // the hand copy of objectui#4588 refused. ⭐ It is STILL accepted, and since
+    // objectui#8317 (decision batch #90) the parsed document no longer carries a
+    // `mode` the author did not write: acceptance unchanged, substitution gone.
     const defaulted = slot.safeParse({ view: 'summary_view' });
     expect(defaulted.success).toBe(true);
-    expect((defaulted.data as { mode?: string }).mode).toBe('page');
+    expect((defaulted.data as { mode?: string }).mode).toBeUndefined();
+    expect(defaulted.data).toEqual({ view: 'summary_view' });
+    // …and a document that DOES write it round-trips unchanged, which is what
+    // separates "stopped substituting" from "stopped declaring".
+    expect(slot.safeParse({ view: 'summary_view', mode: 'page' }).data)
+      .toEqual({ view: 'summary_view', mode: 'page' });
+    // ⚠️ Two comparisons, deliberately. The first is against the spec slot AS IT
+    // ENTERS THIS PACKAGE — the object actually under test. The second is
+    // against the RAW spec slot, and it is the measurement that says the strip
+    // moved no accept set: every probe agrees with upstream, defaults or not.
+    const enteredSlot = stripImportedDefaults(SpecNavigationConfigSchema).optional();
     for (const probe of [{ mode: 'drawer' }, { mode: 'bogus' }, 'page', { mode: 'page', bogus: 1 }, undefined]) {
-      expect(slot.safeParse(probe).success, JSON.stringify(probe)).toBe(SpecNavigationConfigSchema.optional().safeParse(probe).success);
+      expect(slot.safeParse(probe).success, JSON.stringify(probe)).toBe(enteredSlot.safeParse(probe).success);
+      expect(
+        slot.safeParse(probe).success,
+        `${JSON.stringify(probe)} — the strip must move no accept set`,
+      ).toBe(SpecNavigationConfigSchema.optional().safeParse(probe).success);
     }
     // A string is refused at `navigation`, an unknown mode at `navigation.mode`:
     // the spec's strict object, not a local `z.any()`.

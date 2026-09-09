@@ -108,7 +108,20 @@ describe('paramToField', () => {
   // and objectui#7357 added `dependsOn` to that half when it retired the
   // snake_case `depends_on` this adapter used to emit — this face was the one
   // in-repo framework producer of that spelling, so the emit had to move with
-  // the reader or the dialog's dependent lookups would have gone dead silently.
+  // the reader.
+  //
+  // ⚠️ CORRECTED (objectui#8672). This sentence used to end "…or the dialog's
+  // dependent lookups would have gone dead silently", which describes a WORKING
+  // cascade in this dialog. Measured, there has never been one: `dependsOn` is
+  // emitted onto the field bag below, but `ActionParamDialog` supplies
+  // `dependentValues` only to `CASCADE_OPTION_WIDGET_TYPES` (`select` /
+  // `multiselect` / `radio` / `checkboxes` — `lookup` is not a member), so
+  // `LookupField` resolves `{}` and the gate NEVER lifts. What moving the emit
+  // preserved is therefore the GATE, not a cascade: leaving it behind would have
+  // flipped a permanently gated picker into an ungated, UNFILTERED one — the
+  // silent behaviour change `paramToField.ts`'s own comment records. Pinned in
+  // `views/ActionParamDialog.lookupDependsOnReach-8672.test.tsx`; which
+  // disposition that gap gets is open on objectui#8672.
   // The remaining snake members below (`reference_to`, `title_format`,
   // `lookup_columns`, `lookup_page_size`) were outside both rulings and are
   // unchanged — this mixed shape is deliberate, and asserting it keeps the two

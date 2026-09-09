@@ -398,3 +398,283 @@ describe('layout.ts `@default` docs agree with the renderer, re-measured (object
     });
   });
 });
+
+/**
+ * objectui#8318 rows — the seven keys the re-test found LIVE.
+ *
+ * ## Why these rows exist at all
+ *
+ * objectui#8318 classified 16 of objectui#7735's 41 de-defaulted keys as "no
+ * registered renderer reads the key at all", so that `@default` on them
+ * describes nothing that runs. Its exemplar was `CardSchema.variant`, measured
+ * as "both files registering `card` contain no read of `schema.variant`".
+ *
+ * That sentence is true and the conclusion does not follow. `SchemaRenderer`
+ * hands a node's REMAINING keys to the component as React props (the strip list
+ * is the destructure just above `...componentProps`), so a renderer can consume
+ * a key WITHOUT NAMING IT and a `schema.KEY` grep cannot see that channel —
+ * objectui#8410. The triage seat inverted the burden of proof and required a
+ * three-question re-test of all 16: (a) is the key among `SchemaRenderer`'s
+ * stripped metadata keys, (b) does the registering renderer destructure and
+ * forward the rest-spread, (c) does the primitive actually consume the prop.
+ *
+ * The re-test found the classification wrong for SEVEN keys, and the reason is
+ * duller than the spread channel: the original sweep looked only inside
+ * `packages/components/src/renderers/`. Every reader below is a DIRECT
+ * `schema.KEY` / `action.KEY` read, in a package that sweep never opened —
+ * `packages/plugin-detail`, `packages/runner`, `packages/core/src/actions`.
+ * Each one applies EXACTLY the value its `@default` publishes, which is why
+ * these are pinnable as agreement rows rather than corrections: nothing about
+ * the documentation moves, but from here CI notices if either side does.
+ *
+ *   | member                     | tag          | the reader, and what it applies         |
+ *   |----------------------------|--------------|-----------------------------------------|
+ *   | `ActionSchema.method`      | `'POST'`     | `ActionRunner.executeAPI`: `|| 'POST'`  |
+ *   | `ActionSchema.chainMode`   | `'sequential'`| `handlePostExecution`: `|| 'sequential'`|
+ *   | `ActionSchema.reload`      | `true`       | `executeActionSchema`: `!== false`      |
+ *   | `ActionSchema.close`       | `true`       | `executeActionSchema`: `!== false`      |
+ *   | `DetailSchema.showBack`    | `true`       | `DetailView`: `(schema.showBack ?? true)`|
+ *   | `DetailViewSchema.showBack`| `true`       | the same two read sites                 |
+ *   | `AppComponentSchema.layout`| `"sidebar"`  | `LayoutRenderer`: `app.layout \|\| 'sidebar'`|
+ *
+ * `DetailSchema.showBack` and `DetailViewSchema.showBack` share one reader
+ * because `plugin-detail` registers BOTH node types onto `DetailView`
+ * (`register('detail', DetailView)` and `register('detail-view',
+ * DetailViewRenderer)`, the latter a gate wrapper around the same component).
+ * That is the `FlexLayoutProps.align` shape from the top of this file with the
+ * sign flipped: two declarations, one consumer, and the two tags AGREE — so
+ * unlike `align` a single value IS right for both, and both rows are pinned to
+ * the same derivation. If the two node types ever diverge, this pin is what
+ * says so.
+ *
+ * ## What is deliberately NOT pinned here, and why
+ *
+ * `DetailSchema.loading` and `DetailViewSchema.loading` are ALSO live —
+ * `DetailView` reads `schema.loading` at the skeleton gate — but their tag says
+ * `true` while the read is a bare `||` disjunct, so an omitted key renders NO
+ * skeleton and the effective default is `false`. That is a genuine objectui#7735
+ * instance hiding inside the population objectui#8318 called referent-less, and
+ * it is the sharpest thing the re-test found. It is not pinned because BOTH
+ * possible fixes are somebody's ruling — correct the tag to `false`, or give the
+ * reader the `?? true` the tag promises (a behaviour change) — and a pin on
+ * either side of an open question pre-empts it. Pinning the tag as it stands
+ * would pin the defect; pinning the reader as it stands would redden the fix.
+ *
+ * The other nine keys stay unpinned for the opposite reason: the re-test could
+ * not find a reader for them, and "no reader" is the input to objectui#8318's
+ * own question 1 (is the tag wrong, or is the key dead?), which is order-locked
+ * behind this measurement and reserved to the maintainer. The absence of a
+ * `crud-dialog` renderer is already recorded on the tree — see the header of
+ * `handler-keys-string-any-mirrors-7344.test.ts` and `crud.zod.ts` — and is not
+ * duplicated here.
+ *
+ * ## Derivation
+ *
+ * Same two-sided rule as every row above: the reader's fallback is extracted
+ * from the reader's own source, the tag from the declaring `.ts`, and the two
+ * are compared. Two extractions here are NEGATION-shaped (`x !== false`), where
+ * the applied default is the negation of the compared literal rather than the
+ * literal itself; the helper below does that conversion in one place so the row
+ * assertions stay readable. Two others match in more than one place, and the
+ * pin requires every site to agree — a fallback that disagrees with itself is
+ * not a fallback, and `@default` would have no single referent to describe.
+ *
+ * Quote style differs between the declaring files (`'POST'` vs `"sidebar"`), so
+ * the comparison strips the outer quotes. Quoting is not the contract; the
+ * value is. Exactly-one-tag is asserted separately, so a second tag cannot hide.
+ */
+const CRUD = 'packages/types/src/crud.ts';
+const VIEWS = 'packages/types/src/views.ts';
+const APP = 'packages/types/src/app.ts';
+const ACTION_RUNNER = 'packages/core/src/actions/ActionRunner.ts';
+const DETAIL_VIEW = 'packages/plugin-detail/src/DetailView.tsx';
+const PLUGIN_DETAIL_INDEX = 'packages/plugin-detail/src/index.tsx';
+const LAYOUT_RENDERER = 'packages/runner/src/LayoutRenderer.tsx';
+
+/** `action.method || 'POST'` — both branches of `executeAPI`. */
+const ACTION_METHOD = /action\.method \|\| '([^']+)'/g;
+/** `action.chainMode || 'sequential'` — the chain dispatch. */
+const ACTION_CHAIN_MODE = /action\.chainMode \|\| '([^']+)'/g;
+/** `result.reload = action.reload !== false` — a NEGATION-shaped default. */
+const ACTION_RELOAD = /result\.reload = action\.reload !== (true|false);/g;
+/** `result.close = action.close !== false` — the same shape. */
+const ACTION_CLOSE = /result\.close = action\.close !== (true|false);/g;
+/** `(schema.showBack ?? true)` — both read sites in `DetailView`. */
+const DETAIL_SHOW_BACK = /\(schema\.showBack \?\? (true|false)\)/g;
+/** `app.layout || 'sidebar'` — the app-shell layout selector. */
+const APP_LAYOUT = /app\.layout \|\| '([^']+)'/g;
+
+/**
+ * Every capture of `re` in `src`, asserted non-empty and unanimous.
+ *
+ * The non-empty half is the positive control this file requires of every
+ * extraction: a regex that quietly stopped matching would make its row
+ * vacuously true. The unanimity half is a claim about the code — where a
+ * fallback is written more than once, all of its spellings must agree, or
+ * "the value the renderer applies" is not a single value for `@default` to
+ * describe.
+ */
+function soleCapture(src: string, re: RegExp, where: string): string {
+  const found = [...src.matchAll(new RegExp(re.source, 'g'))].map((m) => m[1]);
+  expect(found.length, `no match for ${re.source} in ${where}`).toBeGreaterThan(0);
+  expect(new Set(found).size, `${re.source} disagrees with itself in ${where}: ${found.join(', ')}`).toBe(1);
+  return found[0];
+}
+
+/** The default a `x !== <literal>` read applies when the key is absent. */
+const negationDefault = (compared: string): string => String(compared === 'false');
+
+/** A `@default` tag's value with any outer quoting removed. */
+const unquote = (tag: string): string => tag.replace(/^['"]|['"]$/g, '');
+
+/** The single `@default` a member publishes, unquoted. */
+function soleDefaultTag(body: string, member: string): string {
+  const tags = defaultTags(docblockFor(body, member));
+  expect(tags, `${member} should publish exactly one @default`).toHaveLength(1);
+  return unquote(tags[0]);
+}
+
+describe('objectui#8318 — the `@default`s the "no renderer reads it" list got wrong', () => {
+  const crud = read(CRUD);
+  const views = read(VIEWS);
+  const app = read(APP);
+
+  describe('positive controls — every extraction still matches, and each reader is still wired', () => {
+    it('each reader still writes the shape its row is derived from', () => {
+      const runner = read(ACTION_RUNNER);
+      expect(soleCapture(runner, ACTION_METHOD, ACTION_RUNNER)).toBeTruthy();
+      expect(soleCapture(runner, ACTION_CHAIN_MODE, ACTION_RUNNER)).toBeTruthy();
+      expect(soleCapture(runner, ACTION_RELOAD, ACTION_RUNNER)).toBeTruthy();
+      expect(soleCapture(runner, ACTION_CLOSE, ACTION_RUNNER)).toBeTruthy();
+      expect(soleCapture(read(DETAIL_VIEW), DETAIL_SHOW_BACK, DETAIL_VIEW)).toBeTruthy();
+      expect(soleCapture(read(LAYOUT_RENDERER), APP_LAYOUT, LAYOUT_RENDERER)).toBeTruthy();
+    });
+
+    it('each member is still declared where this file looks for it', () => {
+      expect(() => docblockFor(interfaceBody(crud, 'ActionSchema'), 'method')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(crud, 'ActionSchema'), 'chainMode')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(crud, 'ActionSchema'), 'reload')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(crud, 'ActionSchema'), 'close')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(crud, 'DetailSchema'), 'showBack')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(views, 'DetailViewSchema'), 'showBack')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(app, 'AppComponentSchema'), 'layout')).not.toThrow();
+    });
+
+    /**
+     * The row-8/9 rows are only about ONE reader because both node types are
+     * registered onto it. If that ever stops being true the two `showBack`
+     * declarations acquire separate consumers and the rows below stop being
+     * derivable from a single file.
+     */
+    it('`detail` and `detail-view` both still resolve to `DetailView`', () => {
+      const index = read(PLUGIN_DETAIL_INDEX);
+      expect(index).toContain("ComponentRegistry.register('detail', DetailView");
+      expect(index).toContain("ComponentRegistry.register('detail-view', DetailViewRenderer");
+      expect(read(PLUGIN_DETAIL_INDEX)).toMatch(/<DetailView schema=\{bound as DetailViewSchema\}/);
+    });
+  });
+
+  describe('row 8 — ActionSchema.method', () => {
+    it("publishes the verb `executeAPI` falls back to", () => {
+      const applied = soleCapture(read(ACTION_RUNNER), ACTION_METHOD, ACTION_RUNNER);
+      expect(soleDefaultTag(interfaceBody(crud, 'ActionSchema'), 'method')).toBe(applied);
+    });
+
+    it('the fallback is a member of the union the type declares', () => {
+      const applied = soleCapture(read(ACTION_RUNNER), ACTION_METHOD, ACTION_RUNNER);
+      expect(interfaceBody(crud, 'ActionSchema')).toContain(`'${applied}'`);
+    });
+  });
+
+  describe('row 9 — ActionSchema.chainMode', () => {
+    it('publishes the mode the chain dispatch falls back to', () => {
+      const applied = soleCapture(read(ACTION_RUNNER), ACTION_CHAIN_MODE, ACTION_RUNNER);
+      expect(soleDefaultTag(interfaceBody(crud, 'ActionSchema'), 'chainMode')).toBe(applied);
+    });
+
+    it('the fallback is a member of the union `ActionExecutionMode` declares', () => {
+      const applied = soleCapture(read(ACTION_RUNNER), ACTION_CHAIN_MODE, ACTION_RUNNER);
+      expect(crud).toMatch(new RegExp(`export type ActionExecutionMode[^;]*'${applied}'`));
+    });
+  });
+
+  describe('row 10 — ActionSchema.reload (a negation-shaped default)', () => {
+    it('publishes what `action.reload !== false` yields on absence', () => {
+      const compared = soleCapture(read(ACTION_RUNNER), ACTION_RELOAD, ACTION_RUNNER);
+      expect(soleDefaultTag(interfaceBody(crud, 'ActionSchema'), 'reload')).toBe(negationDefault(compared));
+    });
+
+    /**
+     * The discrimination control for the negation shape. `!== false` and
+     * `!== true` are one character apart and mean opposite things, so the row
+     * above is only a measurement if the helper really distinguishes them.
+     */
+    it('the helper reads the negation in the right direction', () => {
+      expect(negationDefault('false')).toBe('true');
+      expect(negationDefault('true')).toBe('false');
+    });
+  });
+
+  describe('row 11 — ActionSchema.close (the same shape)', () => {
+    it('publishes what `action.close !== false` yields on absence', () => {
+      const compared = soleCapture(read(ACTION_RUNNER), ACTION_CLOSE, ACTION_RUNNER);
+      expect(soleDefaultTag(interfaceBody(crud, 'ActionSchema'), 'close')).toBe(negationDefault(compared));
+    });
+
+    /**
+     * `reload` and `close` are read a second time, TOGETHER, by the
+     * executability guard just above the result assembly — an action that
+     * declares neither a handler nor an api is refused rather than reported as
+     * a silent success. That read is why an EXPLICIT `true` is not redundant
+     * with the default, and it is the reason both keys are live rather than
+     * merely present.
+     */
+    it('both keys are also read by the executability guard', () => {
+      expect(read(ACTION_RUNNER)).toMatch(/action\.reload === true \|\| action\.close === true/);
+    });
+  });
+
+  describe('rows 12-13 — DetailSchema.showBack and DetailViewSchema.showBack (two declarations, one reader)', () => {
+    it('DetailSchema.showBack publishes what `DetailView` applies', () => {
+      const applied = soleCapture(read(DETAIL_VIEW), DETAIL_SHOW_BACK, DETAIL_VIEW);
+      expect(soleDefaultTag(interfaceBody(crud, 'DetailSchema'), 'showBack')).toBe(applied);
+    });
+
+    it('DetailViewSchema.showBack publishes the same value', () => {
+      const applied = soleCapture(read(DETAIL_VIEW), DETAIL_SHOW_BACK, DETAIL_VIEW);
+      expect(soleDefaultTag(interfaceBody(views, 'DetailViewSchema'), 'showBack')).toBe(applied);
+    });
+
+    /**
+     * The load-bearing half: the two declarations must keep AGREEING, because
+     * they are consumed by one component. `FlexLayoutProps.align` is what
+     * happens when that stops being true and a single tag is kept anyway.
+     */
+    it('the two declarations agree with each other', () => {
+      expect(soleDefaultTag(interfaceBody(crud, 'DetailSchema'), 'showBack'))
+        .toBe(soleDefaultTag(interfaceBody(views, 'DetailViewSchema'), 'showBack'));
+    });
+  });
+
+  describe('row 14 — AppComponentSchema.layout', () => {
+    it('publishes the strategy `LayoutRenderer` falls back to', () => {
+      const applied = soleCapture(read(LAYOUT_RENDERER), APP_LAYOUT, LAYOUT_RENDERER);
+      expect(soleDefaultTag(interfaceBody(app, 'AppComponentSchema'), 'layout')).toBe(applied);
+    });
+
+    it('the fallback is a member of the union the type declares', () => {
+      const applied = soleCapture(read(LAYOUT_RENDERER), APP_LAYOUT, LAYOUT_RENDERER);
+      expect(interfaceBody(app, 'AppComponentSchema')).toContain(`'${applied}'`);
+    });
+
+    /**
+     * The reader is typed by the declaration it describes, which is what makes
+     * it the right authority for this tag rather than a look-alike `layout` on
+     * some other schema (`DetailViewSchema.layout` and `ObjectForm`'s both
+     * exist and mean something else).
+     */
+    it('the reader is typed by AppComponentSchema, not a look-alike', () => {
+      expect(read(LAYOUT_RENDERER)).toMatch(/app:\s*AppComponentSchema/);
+    });
+  });
+});
