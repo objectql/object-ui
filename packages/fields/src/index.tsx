@@ -1801,6 +1801,11 @@ export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElem
  * File field cell renderer
  */
 export function FileCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  // Hoisted ABOVE the empty guard on purpose (objectui#8441): this renderer's
+  // first statement was that early return, and a hook placed after a
+  // conditional return violates the rules of hooks — the call would be skipped
+  // for an empty value and hook order would desync between renders.
+  const t = useFieldTranslate();
   if (!value) return <EmptyValue />;
   
   const fileField = field as any;
@@ -1808,11 +1813,19 @@ export function FileCellRenderer({ value, field }: CellRendererProps): React.Rea
   
   if (Array.isArray(value)) {
     const count = value.length;
-    return (
-      <span className="text-sm text-gray-600">
-        {count} {count === 1 ? 'file' : 'files'}
-      </span>
-    );
+    // Same channel and the same literal-key rule as `RepeaterCellRenderer`
+    // below (objectui#8441). The `count === 1 ? 'file' : 'files'` this replaces
+    // was NOT a rule violation — it is English — but it was equally
+    // unlocalized, and plural-safe for English only: `ru` has four plural
+    // categories and `ar` six, so a two-branch ternary cannot spell either.
+    // Two adjacent cells answering one concept two ways is the shape the
+    // repeater fix exists to close, so both read one channel.
+    const translated = t?.('detail.fileCount', { count });
+    const label =
+      !translated || translated === 'detail.fileCount'
+        ? `${count} ${count === 1 ? 'file' : 'files'}`
+        : translated;
+    return <span className="text-sm text-gray-600">{label}</span>;
   }
   
   // An object carrying nothing is not a file (objectui#8596). The spec's
@@ -2631,6 +2644,54 @@ export function AddressCellRenderer({ value }: CellRendererProps): React.ReactEl
 }
 
 /**
+ * `repeater` cell renderer — how many sub-records the row holds.
+ *
+ * Routed through `useFieldTranslate` (objectui#8441). It used to be an inline
+ * arrow inside {@link getCellRenderer}'s table spelling the count as the
+ * number followed by a hardcoded Chinese unit word (the literal is quoted in
+ * objectui#8441; it is not reproduced here because AGENTS.md #-1 governs code
+ * comments too) — user-facing text hardcoded into a standard renderer, which breaks AGENTS.md #-1 AND bypasses i18n: every reader on every
+ * locale read it, English ones included, next to the English siblings
+ * (`[Vector]`, `[Grid]`, `FileCellRenderer`) on the same detail page. Making it
+ * English would have answered only the first of those two.
+ *
+ * ⭐ A NAMED module-level component, not the inline arrow it replaces.
+ * `getCellRenderer` rebuilds its `standardMap` — and therefore every arrow
+ * literal in it — on EVERY call, and the call sites resolve inside render
+ * (`DetailSection`, `renderFieldValue`). An inline entry is thus a new
+ * component TYPE each render, so React unmounts and remounts the cell every
+ * time and any hook state goes with it — here react-i18next's language
+ * subscription, torn down and rebuilt per render. Every other hook-using entry
+ * in that table (`DateCellRenderer`, `DateTimeCellRenderer`,
+ * `ImageCellRenderer`, `FormulaCellRenderer`) is a stable module-level
+ * reference for the same reason.
+ *
+ * ⛔ Deliberately NOT exported: the published surface of `@object-ui/fields`
+ * stays exactly where it was. The table entry is reachable for tests the way
+ * every call site reaches it — `getCellRenderer('repeater')`.
+ */
+function RepeaterCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  const t = useFieldTranslate();
+  const n = Array.isArray(value) ? value.length : 0;
+  if (n === 0) return <EmptyValue />;
+  // The key is written as a LITERAL for the reason `UnresolvedUserReference`
+  // states above: `check:i18n-keys` judges a literal key against the `en` pack
+  // and checks that the arguments here are exactly the holes that value has,
+  // and it downgrades a key read from a constant to report-only.
+  const translated = t?.('detail.repeaterItemCount', { count: n });
+  // Same provider-less rule `useFieldLabel` documents: i18next echoes the key
+  // when nothing resolves it, and the English fallback applies then. That
+  // fallback is held byte-equal to the `en` pack's `_one`/`_other` values by a
+  // pin, since this shape is invisible to the inline-`defaultValue` half of
+  // `check:i18n-keys`.
+  const label =
+    !translated || translated === 'detail.repeaterItemCount'
+      ? `${n} ${n === 1 ? 'item' : 'items'}`
+      : translated;
+  return <span className="text-gray-500 italic">{label}</span>;
+}
+
+/**
  * Get the appropriate cell renderer for a field type
  */
 export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> {
@@ -2703,12 +2764,7 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
     object: JsonCellRenderer,
     composite: JsonCellRenderer,
     record: JsonCellRenderer,
-    repeater: ({ value }: CellRendererProps) => {
-      const n = Array.isArray(value) ? value.length : 0;
-      return n > 0
-        ? <span className="text-gray-500 italic">{n} 项</span>
-        : <EmptyValue />;
-    },
+    repeater: RepeaterCellRenderer,
     vector: () => <span className="text-gray-500 italic">[Vector]</span>,
     grid: () => <span className="text-gray-500 italic">[Grid]</span>,
   };

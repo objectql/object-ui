@@ -1085,6 +1085,12 @@ const ja = {
     hideEmptyFields: "空フィールドを非表示",
     noValue: "値なし",
     unresolvedReference: "未解決の参照: {{value}} はユーザーとして解決されませんでした",
+    repeaterItemCount: "{{count}} 件",
+    repeaterItemCount_one: "{{count}} 件",
+    repeaterItemCount_other: "{{count}} 件",
+    fileCount: "ファイル {{count}} 件",
+    fileCount_one: "ファイル {{count}} 件",
+    fileCount_other: "ファイル {{count}} 件",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
