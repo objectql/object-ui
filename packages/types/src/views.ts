@@ -53,6 +53,100 @@ import type { ListView as SpecListView } from '@objectstack/spec/ui';
 export type ViewType = NonNullable<SpecListView['type']> | 'list' | 'detail';
 
 /**
+ * Per-view `tree` configuration — the HOST-composition contract (objectui#8253).
+ *
+ * This is the block a host writes as `tree` on a `views` entry
+ * (`ObjectViewProps.views[n].tree`, or `options.tree` on a stored view record),
+ * and it is the ONE declaration of that shape. ⛔ Do not re-derive a private
+ * copy of it: the module-local `TreeConfig` in `plugin-tree/src/ObjectTree.tsx`
+ * that used to be the only description of these keys is now an import of this
+ * type, and objectui#7646 is the shape a second copy takes.
+ *
+ * ## Why it is declared here, and what it is NOT
+ *
+ * `tree` is a HOST-COMPOSITION-ONLY view type, ruled deliberate on objectui#5321
+ * (maintainer ruling B, 2026-08-20): it is a member of neither
+ * `ObjectViewSchema.defaultViewType` nor `NamedListView.type`, so no AUTHORED
+ * document selects a tree view and the branch runs only when a host passes a
+ * `views` prop. ⛔ That ruling is untouched by this declaration — typing the
+ * host path does not put `tree` on an authored union, and this type is NOT the
+ * `object-tree` NODE schema. The node an author writes is `ObjectTreeSchema`
+ * (`./objectql.ts`), whose keys sit FLAT on the node; this block sits nested
+ * under a view entry and is written by a host, never by a document author.
+ *
+ * ## Why it is a contract at all (objectui#8253, ruling batch #78, 2026-09-07)
+ *
+ * Maintainer 「同意」 on option (a): a configuration a real host STORES and
+ * RE-WRITES is a contract and has a type. The live host is the console — it
+ * passes stored view records to `ObjectView` as `views`, and its create-view
+ * dialog offers `tree`. Until this declaration existed a console user's
+ * misspelled `parentFeild` was admitted by the `[key: string]: any` on the
+ * views entry, read by nobody, and reported by nothing: declared ≠ enforced on
+ * a surface a non-author re-writes.
+ *
+ * ## The reader census these keys are exactly total over
+ *
+ * Every key below is read, and every read of this block is of a key below:
+ *
+ *   - `plugin-tree/src/ObjectTree.tsx`      `getTreeConfig` — the resolver
+ *   - `plugin-view/src/ObjectView.tsx`      the `'tree'` branch of `generateViewSchema`
+ *   - `plugin-list/src/ListView.tsx`        the `'tree'` branch
+ *   - `app-shell/src/views/ObjectView.tsx`  `options.tree`, the console's own composition
+ *
+ * ⚠️ `fields` is `string[]`, matching `ObjectTreeSchema.fields`, even
+ * though `ObjectTree`'s `fieldKey` also normalises a column OBJECT
+ * (`{ name | fieldName | field | key }`). That tolerance exists because hosts
+ * like `ListView` forward their own already-resolved column entries into the
+ * same slot; it is a reader's resilience, ⛔ not an invitation to write column
+ * objects here, and declaring the wider form would widen the accept set past
+ * what the sibling node schema admits.
+ */
+export interface TreeViewConfig {
+  /**
+   * Field holding the parent record reference (single-parent pointer).
+   * When omitted, the renderer auto-detects the object's `tree` /
+   * self-reference field.
+   */
+  parentField?: string;
+  /** Field rendered (indented) in the tree's first column. Floored at `name`. */
+  labelField?: string;
+  /**
+   * Legacy second rung for {@link TreeViewConfig.labelField}, kept DECLARED
+   * rather than removed — measured, objectui#8253.
+   *
+   * The ruling put this key to a measurement: declare it if the console writes
+   * it, else delete the read. The measurement came back split, and the half
+   * that decides is the READ side. The console's create-view dialog does NOT
+   * offer it — `CreateViewDialog.tsx`'s `tree` slot collects `parentField` and
+   * nothing else, while `titleField` is what its calendar / timeline / gantt
+   * slots collect. But the console's own host composition reads it BY NAME
+   * (`app-shell/src/views/ObjectView.tsx`, `viewDef.tree?.titleField`), so do
+   * `ListView` and `ObjectView`'s tree branches, and the rung is PINNED as live
+   * behaviour by `app-shell/src/views/ObjectView.titleFieldConvergence.test.tsx`
+   * — "the tree's second view-declared rung (`tree.titleField`) still answers",
+   * a regression pin objectui#6557 landed precisely so a later edit could not
+   * collapse the tree's two view-declared rungs into one.
+   *
+   * ⇒ Deleting the read would reverse a recorded ruling and redden its pin,
+   * which is a maintainer's call and not a rider on this card. Declaring it is
+   * what makes declared = enforced across all four read sites at once.
+   *
+   * ⛔ Not a tolerant dual-read to be extended: `labelField` is the canonical
+   * spelling and wins wherever both are present.
+   */
+  titleField?: string;
+  /**
+   * Additional fields rendered as flat columns alongside the label column.
+   * When omitted the host's own column list is used.
+   */
+  fields?: string[];
+  /**
+   * Initial expansion depth. `0` = roots only; omitted = expand everything.
+   */
+  defaultExpandedDepth?: number;
+}
+
+/**
  * Detail View Field Configuration
  */
 export interface DetailViewField {
