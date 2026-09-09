@@ -343,9 +343,56 @@ interface ViewBucket {
   formViews: Record<string, any>;
 }
 
-/** A first-class ViewItem carries a `viewKind` discriminant + `object` binding. */
+/**
+ * Is this row BOUND to an object — either persisted ViewItem spelling?
+ *
+ * This answers binding only ("does it belong in an object's bucket?"). WHERE
+ * its body lives is a separate question with a separate answer, {@link
+ * viewItemBody} — and conflating the two is exactly what silently ate a flat
+ * overlay's author-written `columns` (objectui#8411).
+ *
+ * `viewKind && object` is sound for binding, and that is measured against
+ * `ViewMetadataSchema` (@objectstack/spec 17.3.0) rather than assumed: both
+ * ViewItem-family members carry both keys, so neither can be dropped to widen
+ * this. A body with a nested `config` but no `viewKind` is refused by the
+ * record member's `viewKind` discriminator ("No matching discriminator"), and a
+ * flat overlay without `object` is refused as well. The aggregated container
+ * carries neither key and still falls through to the stack gate below.
+ */
 function isViewItem(view: any): boolean {
   return !!view && typeof view === 'object' && !!view.viewKind && !!view.object;
+}
+
+/**
+ * WHERE a bound row's body lives — `ViewMetadataSchema`'s OWN discriminant,
+ * asked in ONE place (objectui#8411).
+ *
+ * The spec union spells one view body three ways and tells them apart by shape.
+ * Two of those three reach this merge as bound rows:
+ *
+ *  - **standalone ViewItem record** — recognised by a nested `config`, which
+ *    holds the body (`type`/`data`/`columns`/`sections`);
+ *  - **flattened runtime overlay** — spec's own table recognises it as "an
+ *    inline view config; no `config`, no container slot". There is nothing to
+ *    unwrap: the row IS the body, and its `object` / `viewKind` / `name` /
+ *    `label` ride along on it.
+ *
+ * (The third, the aggregated container, is not bound and never reaches here.)
+ *
+ * This used to be a `{}` fallback, so the overlay's branch read a `config` it
+ * does not have and the entry collapsed to `{ name, label, isDefault }` — every
+ * top-level `columns` / `type` / `data` the author wrote was dropped, with no
+ * diagnostic, while the tab still rendered (binding is by `object` +
+ * `viewKind`, which is why nothing looked broken from the outside).
+ *
+ * Reading the `config` discriminant here closes a drift rather than opening a
+ * new dialect: the sibling read paths already ask it this way — `listViews` in
+ * `@object-ui/data-objectstack` unwraps a nested `config` and returns a flat
+ * row verbatim, and `viewDisplayType` (metadata-admin) reads `config.type`
+ * first and top-level `type` second.
+ */
+function viewItemBody(view: any): Record<string, any> {
+  return view.config && typeof view.config === 'object' ? view.config : view;
 }
 
 /**
@@ -355,15 +402,17 @@ function isViewItem(view: any): boolean {
  * `{ name, object, viewKind, label?, isDefault?, config }`, so both are keyed by
  * the canonical `<object>.<key>` name the composer owns.
  *
- * The `config` body is flattened to the legacy NamedListView/FormView shape the
- * renderer consumes (type/data/columns/sections at top level); the item-level
- * label/isDefault ride along and `name` is stamped with the id so primary-view
- * promotion (which matches on `list.name`) finds this entry by its listViews key.
+ * The body is resolved by {@link viewItemBody} — a record's nested `config` is
+ * flattened to the legacy NamedListView/FormView shape the renderer consumes
+ * (type/data/columns/sections at top level), and a flat overlay is already in
+ * that shape — the item-level label/isDefault ride along and `name` is stamped
+ * with the id so primary-view promotion (which matches on `list.name`) finds
+ * this entry by its listViews key.
  * FORM-family views land in `formViews` only, never in the list-view switcher.
  */
 function applyViewItem(bucket: ViewBucket, view: any): void {
   const key = view.name || `${view.object}.${view.viewKind}`;
-  const body = view.config && typeof view.config === 'object' ? view.config : {};
+  const body = viewItemBody(view);
   const entry = {
     ...body,
     name: key,
