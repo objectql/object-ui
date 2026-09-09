@@ -105,7 +105,7 @@ export function buildDashboardSchema(t: ConfigPanelTranslate): ConfigPanelSchema
         collapsible: true,
         fields: [
           {
-            key: 'refreshInterval',
+            key: 'refreshIntervalSeconds',
             label: t('dashboard.config.field.autoRefresh'),
             type: 'select',
             defaultValue: '0',

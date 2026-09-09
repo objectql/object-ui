@@ -91,7 +91,7 @@ ComponentRegistry.register(
       { name: 'header', type: 'object', description: 'Header block: { showTitle?, showDescription?, actions? }. Strict — the contract rejects any other key. Renders nothing (zero pixels) when everything it would show is suppressed.' },
       { name: 'globalFilters', type: 'array', description: 'Dashboard-level filter bar — the spec’s GlobalFilter[]. Filter values live as dashboard variables (readable in widget expressions as page.<name>) and are AND-merged into each bound widget’s query per its filterBindings.' },
       { name: 'dateRange', type: 'object', description: 'Built-in date-range filter: { field?, defaultRange?, allowCustomRange? }. `defaultRange` takes the spec’s date presets plus "custom"; the bound field defaults to created_at.' },
-      { name: 'refreshInterval', type: 'number', description: 'Auto-refresh period in seconds. Zero or a negative value disables the timer, and it only runs when the host wires an onRefresh handler.' },
+      { name: 'refreshIntervalSeconds', type: 'number', description: 'Auto-refresh period in seconds. Zero or a negative value disables the timer, and it only runs when the host wires an onRefresh handler.' },
       { name: 'columns', type: 'number' },
       { name: 'gap', type: 'number' },
       { name: 'className', type: 'string' }

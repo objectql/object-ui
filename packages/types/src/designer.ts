@@ -597,8 +597,8 @@ export interface DashboardConfig {
   columns?: number;
   /** Grid gap in pixels */
   gap?: number;
-  /** Auto-refresh interval in seconds */
-  refreshInterval?: number;
+  /** Auto-refresh interval in seconds (renamed from `refreshInterval`, objectui#7783) */
+  refreshIntervalSeconds?: number;
   /** Dashboard widgets */
   widgets?: DashboardWidgetConfig[];
 

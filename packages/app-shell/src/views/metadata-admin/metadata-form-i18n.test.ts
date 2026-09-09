@@ -86,7 +86,7 @@ describe('localizeMetadataForm — the spec form, in the author’s language', (
       'zh-CN',
     );
     expect(fieldByName(zh, 'columns')).toMatchObject({ label: '列数', helpText: '栅格列数（默认 12）' });
-    expect(fieldByName(zh, 'refreshInterval')?.label).toBe('自动刷新');
+    expect(fieldByName(zh, 'refreshIntervalSeconds')?.label).toBe('自动刷新');
     expect(fieldByName(zh, 'header')?.label).toBe('页眉');
   });
 

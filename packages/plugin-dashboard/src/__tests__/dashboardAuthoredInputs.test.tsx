@@ -13,7 +13,8 @@
  * The `dashboard` registration published exactly three inputs (`columns`,
  * `gap`, `className`) while `DashboardRenderer` honoured `widgets`, `label` /
  * legacy `title`, `description`, `header`, `globalFilters`, `dateRange` and
- * `refreshInterval`. `inputs` is not documentation: it is the published
+ * `refreshIntervalSeconds` (spelled `refreshInterval` until @objectstack/spec
+ * 17.4.0 renamed it — objectui#7783). `inputs` is not documentation: it is the published
  * authoring surface (`gen-manifest.ts` serializes it into
  * `sdui.manifest.json` — the save gate and parser whitelist — and into
  * `sdui-intrinsics.d.ts`, and `dashboard` is in `PUBLIC_BLOCKS`). So
@@ -156,7 +157,7 @@ const DECLARED: Array<[string, unknown]> = [
   ['header', { showTitle: false, actions: [{ label: 'Open', actionUrl: '/x' }] }],
   ['globalFilters', [{ field: 'region', label: 'Region', type: 'select' }]],
   ['dateRange', { field: 'created_at', defaultRange: 'last_30_days' }],
-  ['refreshInterval', 30],
+  ['refreshIntervalSeconds', 30],
 ];
 
 /** Values matching NO declared arm — each must still be reported. */
@@ -167,7 +168,7 @@ const OFF_ARM: Array<[string, unknown]> = [
   ['header', true],
   ['globalFilters', 'region'],
   ['dateRange', []],
-  ['refreshInterval', '30'],
+  ['refreshIntervalSeconds', '30'],
 ];
 
 /** The two keys ruled OUT, with the evidence a reader can re-check. */
@@ -218,7 +219,7 @@ describe('the honoured keys now validate clean on an inline dashboard node (obje
       header: { showTitle: true },
       columns: 4,
       gap: 6,
-      refreshInterval: 30,
+      refreshIntervalSeconds: 30,
       dateRange: { field: 'created_at', defaultRange: 'last_30_days' },
       globalFilters: [{ field: 'region', label: 'Region', type: 'select' }],
     });
@@ -330,7 +331,7 @@ describe('the published artifacts carry the change — same generators as gen-ma
       'header',
       'globalFilters',
       'dateRange',
-      'refreshInterval',
+      'refreshIntervalSeconds',
       'columns',
       'gap',
       'className',
@@ -350,7 +351,7 @@ describe('the published artifacts carry the change — same generators as gen-ma
     expect(block).toContain('header?: Record<string, unknown>;');
     expect(block).toContain('globalFilters?: unknown[];');
     expect(block).toContain('dateRange?: Record<string, unknown>;');
-    expect(block).toContain('refreshInterval?: number;');
+    expect(block).toContain('refreshIntervalSeconds?: number;');
     // The exclusions stay out of the type surface an author compiles against.
     expect(block).not.toMatch(/\btitle\b/);
     expect(block).not.toMatch(/\baria\b/);

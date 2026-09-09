@@ -424,7 +424,7 @@ The authored shape is typed by `@object-ui/types`:
 
 | Import from `@object-ui/types` | What it types |
 | --- | --- |
-| `DashboardComponentSchema` | the whole `type: 'dashboard'` node — `columns`, `gap`, `widgets`, `header`, `globalFilters`, `dateRange`, `refreshInterval`, … |
+| `DashboardComponentSchema` | the whole `type: 'dashboard'` node — `columns`, `gap`, `widgets`, `header`, `globalFilters`, `dateRange`, `refreshIntervalSeconds`, … |
 | `DashboardWidgetSchema` | one entry of `widgets[]` — the spec's `DashboardWidget` keys, plus objectui's own (`component`, `layout`, `options`, …) |
 | `DashboardWidgetSlotComponentSchema` | the other kind of `widgets[]` entry — a component node placed directly in the slot, `type` one of the closed component set (`metric-card`); every other key is that component's own prop |
 | `DashboardWidgetLayout` | a widget's `{ x, y, w, h }` grid box |

@@ -88,7 +88,7 @@ const METADATA_FORM_BUNDLE: TranslationBundle = {
           // only a developer can act on. Reported upstream rather than
           // "translated" literally; this says what the author can decide.
           gap: { label: '间距', helpText: '组件之间的间距，数值越大越松' },
-          refreshInterval: { label: '自动刷新', helpText: '自动刷新间隔（秒），0 表示不自动刷新' },
+          refreshIntervalSeconds: { label: '自动刷新', helpText: '自动刷新间隔（秒），0 表示不自动刷新' },
           header: { label: '页眉', helpText: '页眉设置：标题、描述与操作按钮' },
           // All three children of the `header` composite — see the ⛔ note above.
           'header.showTitle': { label: '显示标题', helpText: '在页眉中显示仪表板名称' },
