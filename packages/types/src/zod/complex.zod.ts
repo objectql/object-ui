@@ -409,46 +409,66 @@ export const FilterGroupSchema: z.ZodType<any> = z.lazy(() =>
  * `…Clear allRemove condition…`, and the three value inputs degrade from
  * `text`/`number`/`number` to three `text` boxes.
  *
- * ## The type vocabulary
+ * ## The type vocabulary — the FOURTEEN the published doc declares
  *
- * `text` / `number` / `boolean` / `date` / `datetime` / `time` are the ruled
- * six, and all six are live and MUTUALLY DISTINGUISHABLE at the value control
- * (measured, one condition row each): `<input type>` `text`, `number`, `date`,
- * `datetime-local`, `time`, and for `boolean` no input at all but an extra
- * option Select. They are `FilterValueFamily`
- * (`custom/filter-builder.tsx:406`), which `valueFamilyForFieldType` folds a
- * column's `type` into and `FILTER_INPUT_TYPE_BY_FAMILY` draws from.
+ * Ruled on objectui#7562 (director seat, decision batch #88, 2026-09-08): of
+ * the three declarations of this one authoring surface — the published doc
+ * (`content/docs/components/complex/filter-builder.mdx`), the component, and
+ * this mirror — the DOC is the authority. The component already follows it,
+ * and a contract does not retract what it published to authors. So the enum
+ * below is the doc's fourteen in the doc's order, and `type` is OPTIONAL
+ * because the doc publishes `type?:` and the renderer reads `fieldType ||
+ * "text"` (`custom/filter-builder.tsx:408`, and again at 964 for operators).
  *
- * `string` LEAVES the vocabulary: it renders identically to a nonsense
- * spelling, because both reach the text control by the unrecognised-word
- * fallthrough rather than by being read. It is a phantom, and `text` is the
- * spelling the registration's own `defaultProps` and all five catalog entries
- * use.
+ * ⛔ The ruling carried a PRECONDITION, measured before this enum moved:
+ * every one of the fourteen has a renderer branch, because a key declared that
+ * nothing draws would have had to come OUT of the doc instead. Measured on
+ * `e3fb3b6` by driving one condition row per member through the real
+ * `FilterBuilder` and reading both the value control and the operator bucket.
+ * All fourteen passed and nothing was removed from the doc. The branches, in
+ * `custom/filter-builder.tsx`:
  *
- * ⚠ `select` is RETAINED, which departs from a literal reading of the ruling's
- * six. The ruling inherits the finding card's description of `select` as
- * "extra"; measured, it is not. `selectLikeTypes = ["select", "status"]`
- * (`custom/filter-builder.tsx:935`) is consumed by `operatorsForFieldType`
- * (line 989, the `equals`/`in`/`notIn` bucket) and by
- * `isOptionDrivenValueControl` (line 739), and a `select` column draws the
- * option-driven Select rather than a text box — 39 elements and no `<input>`,
- * against 36 and one. Dropping it would REFUSE a spelling this mirror accepts
- * today and the renderer draws distinctly, which is a fresh instance of the
- * class this card closes. Flagged for contract review rather than decided here.
+ *   - `numberLikeTypes:931` — `number`, `currency`, `percent`, `rating`
+ *     ⇒ `<input type="number">` and the numeric bucket (`greaterThan` /
+ *     `lessThan` / `greaterOrEqual` / `lessOrEqual`).
+ *   - `dateLikeTypes:933`, plus the three equality tests at 411-413 — `date`,
+ *     `datetime`, `time` ⇒ `<input type>` `date` / `datetime-local` / `time`
+ *     and `before` / `after` / `between`.
+ *   - `boolean` is its own family (line 410) ⇒ no `<input>` at all but a
+ *     two-item Select, and a two-operator bucket nothing else has.
+ *   - `selectLikeTypes:935` — `select`, `status`; `lookupLikeTypes:947` —
+ *     `lookup`, `master_detail`, `user` ⇒ the option-driven Select (a THIRD
+ *     combobox on the row, no `<input>`) and the relational `in` / `notIn`
+ *     bucket. With no static option domain but a `referenceTo` — or
+ *     `type: 'user'`, which defaults its own — all three lookup-like members
+ *     draw the remote search picker instead (line 1277).
  *
- * ⚠ NOT declared, and NOT a regression this change introduces: `status`,
- * `currency`, `percent`, `rating`, `lookup`, `master_detail` and `user` are
- * live spellings with their own buckets and controls (`number` inputs for the
- * first four by way of `numberLikeTypes`, the option Select for the last three
- * by way of `lookupLikeTypes`) and every one of them is refused by this mirror
- * BEFORE this change as well as after. Reported on objectui#6939 as a
- * pre-existing gap; widening to them is an accept-set change the ruling does
- * not cover.
+ * ⚠ `text` is the fourteenth and its branch is BY NAME, not by a distinct
+ * control: it IS the unrecognised-word fallthrough target, so a `text` column
+ * measures identical to a nonsense spelling AND to an absent `type` — same 35
+ * elements, same `<input type="text">`, same operator bucket, all three. What
+ * makes it READ rather than phantom is that the renderer names it: line 408 is
+ * where an absent `type` acquires the family called `text`, and `text` is a
+ * `FilterValueFamily` member (line 405) and a `FILTER_INPUT_TYPE_BY_FAMILY`
+ * key (line 431). The ruling says the same from the other side — "`text` when
+ * absent, as the renderer already reads it" — so its optional half cannot land
+ * while `text` is deleted.
+ *
+ * `string` stays OUT, and that is the contrast the paragraph above turns on:
+ * it is named NOWHERE in the renderer, so it reaches the text control only by
+ * the fallthrough. A phantom, removed by objectui#6939 and not restored here;
+ * the published doc does not offer it either, so the two faces agree.
  */
 export const FilterFieldSchema = z.object({
   value: z.string().describe('Field key — the identity every read site matches on'),
   label: z.string().describe('Field label'),
-  type: z.enum(['text', 'number', 'boolean', 'date', 'datetime', 'time', 'select']).describe('Field type'),
+  type: z.enum([
+    'text', 'number', 'currency', 'percent', 'rating',
+    'date', 'datetime', 'time',
+    'boolean',
+    'select', 'status',
+    'lookup', 'master_detail', 'user',
+  ]).optional().describe('Field type — the published doc\'s fourteen; `text` when absent'),
   operators: z.array(FilterOperatorSchema).optional().describe('Available operators'),
   options: z.array(z.object({
     label: z.string(),

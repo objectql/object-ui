@@ -56,6 +56,23 @@
  *     renders byte-identically (the render half measures that). Requiring it
  *     would invent a refusal the renderer does not make.
  *
+ * ## objectui#7562 — the vocabulary widened to the published doc's FOURTEEN
+ *
+ * Ruled 2026-09-08 (director seat, decision batch #88): of the three
+ * declarations of this authoring surface the published doc is the AUTHORITY,
+ * so `type` widens to its fourteen members and becomes OPTIONAL (`text` when
+ * absent). The ruling's precondition — every one of the fourteen has a
+ * renderer branch, or it comes out of the doc instead — was measured first,
+ * one condition row per member through the real `FilterBuilder`, reading both
+ * the value control and the operator bucket. All fourteen passed; nothing was
+ * withdrawn from the doc. `FilterFieldSchema`'s docblock carries the table.
+ *
+ * The assertions below therefore MOVED, not merely widened: the seven
+ * `still refuses the live-but-unruled spelling …` pins became
+ * `accepts …, and the renderer draws it`, and the doc-vs-mirror assertion's
+ * closing line — which pinned that the mirror still required `type` — became
+ * its opposite. That is the whole delta objectui#7562 lands here.
+ *
  * ## What this change does NOT reach, stated rather than left as an absence
  *
  * Two of the four census entries — `product-search` and `with-conditions`, plus
@@ -130,7 +147,16 @@ function expectType<T extends true>(_: T = true as T): void { /* compile-time on
 // drifts back, which is the half a runtime assertion cannot cover.
 expectType<Equal<TsFilterField['value'], string>>();
 expectType<Equal<TsFilterField['type'],
-  'text' | 'number' | 'boolean' | 'date' | 'datetime' | 'time' | 'select'>>();
+  | 'text' | 'number' | 'currency' | 'percent' | 'rating'
+  | 'date' | 'datetime' | 'time'
+  | 'boolean'
+  | 'select' | 'status'
+  | 'lookup' | 'master_detail' | 'user'
+  | undefined>>();
+// `type` is OPTIONAL, not merely `… | undefined`: an entry that OMITS the key
+// must be assignable, which only this annotation proves — the same distinction
+// the group `id` needs three lines down (objectui#7562, item 2).
+const fieldWithoutType: TsFilterField = { value: 'a', label: 'A' };
 expectType<Equal<TsFilterGroup['logic'], 'and' | 'or'>>();
 expectType<Equal<TsFilterGroup['id'], string | undefined>>();
 // `id` is OPTIONAL, not merely typed `string | undefined`: an object that omits
@@ -174,12 +200,37 @@ describe('objectui#6939 — the field key is `value`', () => {
 const RULED = ['text', 'number', 'boolean', 'date', 'datetime', 'time'] as const;
 
 /**
- * Live field-type spellings this mirror refuses BEFORE this change and still
- * refuses after — each with its own bucket in `custom/filter-builder.tsx`
- * (`numberLikeTypes` for the first four, `selectLikeTypes`/`lookupLikeTypes`
- * for the rest) and its own value control.
+ * The seven the published doc declares that this mirror refused until
+ * objectui#7562 — each with its own named bucket in
+ * `custom/filter-builder.tsx` and its own value control, which is exactly why
+ * the ruling let them in rather than cutting them out of the doc.
+ *
+ * Paired with the bucket that CARRIES each one, so "it draws" is asserted
+ * against the renderer source rather than restated as prose. The buckets are
+ * literal `const` arrays, so a rename or a deletion in the component turns
+ * this red instead of leaving the mirror declaring a key nothing draws.
  */
-const UNRULED_LIVE_TYPES = ['status', 'currency', 'percent', 'rating', 'lookup', 'master_detail', 'user'] as const;
+const DOC_ONLY_TYPES: ReadonlyArray<readonly [string, string]> = [
+  ['currency', 'const numberLikeTypes = ["number", "currency", "percent", "rating"]'],
+  ['percent', 'const numberLikeTypes = ["number", "currency", "percent", "rating"]'],
+  ['rating', 'const numberLikeTypes = ["number", "currency", "percent", "rating"]'],
+  ['status', 'const selectLikeTypes = ["select", "status"]'],
+  ['lookup', 'const lookupLikeTypes = ["lookup", "master_detail", "user"]'],
+  ['master_detail', 'const lookupLikeTypes = ["lookup", "master_detail", "user"]'],
+  ['user', 'const lookupLikeTypes = ["lookup", "master_detail", "user"]'],
+];
+
+/** The seven spellings above, for the places that only need the names. */
+const UNRULED_LIVE_TYPES = DOC_ONLY_TYPES.map(([type]) => type);
+
+/** Every member the published doc offers — the accept set after objectui#7562. */
+const DOCUMENTED_FOURTEEN = [
+  'text', 'number', 'currency', 'percent', 'rating',
+  'date', 'datetime', 'time',
+  'boolean',
+  'select', 'status',
+  'lookup', 'master_detail', 'user',
+] as const;
 
 describe('objectui#6939 — the type vocabulary', () => {
 
@@ -204,17 +255,69 @@ describe('objectui#6939 — the type vocabulary', () => {
     expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A', type: 'string' }).success).toBe(false);
   });
 
-  it.each(UNRULED_LIVE_TYPES)(
-    'still refuses the live-but-unruled spelling `%s` — a PRE-EXISTING gap, not a regression here',
-    (type) => {
-      // ⚠️ Each of these has its own bucket in the component and draws its own
-      // control, and each was refused by this mirror BEFORE this change as well
-      // as after. Widening to them is an accept-set change the ruling does not
-      // cover; reported on objectui#6939 instead of taken here. This assertion
-      // exists so the gap is a recorded decision rather than an absence.
-      expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A', type }).success).toBe(false);
+  it.each(DOC_ONLY_TYPES)(
+    'accepts `%s`, and the renderer draws it — the bucket that carries it is `%s`',
+    (type, bucket) => {
+      // objectui#7562, items 1+2. This assertion is the INVERSE of the one it
+      // replaced (`still refuses the live-but-unruled spelling …`): the ruling
+      // made the published doc the authority, so a member the doc offers and
+      // the renderer draws is a member this mirror accepts.
+      //
+      // The two halves are asserted together on purpose. Accepting a spelling
+      // is only correct while the renderer still has a branch for it, and the
+      // ruling's precondition is exactly that pairing — "⛔ never a key
+      // declared that nothing draws". So the accept and the branch that earns
+      // it redden as one.
+      expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A', type }).success).toBe(true);
+      expect(readFileSync(join(REPO_ROOT, READER), 'utf8')).toContain(bucket);
     },
   );
+
+  it('`text` earns its place by NAME, not by a distinct control', () => {
+    // ⚠️ The one member whose branch a DOM measurement cannot show. `text` is
+    // the unrecognised-word fallthrough TARGET, so a `text` column draws what
+    // a nonsense spelling draws; measured, they are identical. What separates
+    // it from the `string` phantom below is that the renderer NAMES it — line
+    // 408 is where an absent `type` acquires the family called `text` — and
+    // that naming is also what makes `type` safe to leave optional, which is
+    // why these two assertions live in one test.
+    const src = readFileSync(join(REPO_ROOT, READER), 'utf8');
+    expect(src).toContain('const type = fieldType || "text"');
+    // Pinned in FULL, because the claim is about the whole list: these are the
+    // six family names, and `string` is not one of them.
+    expect(src).toContain(
+      'type FilterValueFamily = "text" | "number" | "boolean" | "date" | "datetime" | "time"',
+    );
+    expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A', type: 'text' }).success).toBe(true);
+    // …and `string`, which the renderer names in no bucket (the four are
+    // pinned verbatim in the tests above) and in no field-type equality test,
+    // is still refused. The pair is the point: one fallthrough, two verdicts,
+    // decided by whether the renderer says the word.
+    expect(src).not.toContain('type === "string"');
+    expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A', type: 'string' }).success).toBe(false);
+  });
+
+  it('`type` is OPTIONAL — the renderer reads `fieldType || "text"`', () => {
+    // objectui#7562 item 2. `{ value, label }` is what `FilterBuilderProps`
+    // declares (`type?: string`) and what a field list stripped of `type`
+    // renders as: three text columns, every row still drawn. The mirror
+    // refused it until this change, which is the divergence being closed.
+    expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A' }).success).toBe(true);
+    // Absent is not the same as PRESENT-and-nonsense: the vocabulary is still
+    // closed, so this widening cannot be read as "type stopped being checked".
+    expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A', type: 'zzz' }).success).toBe(false);
+    expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A', type: undefined }).success).toBe(true);
+  });
+
+  it('the accept set is EXACTLY the published doc, member for member', () => {
+    // The set equality, not fourteen individual accepts: an enum that had
+    // gained a fifteenth member the doc never published would pass every
+    // per-member assertion above and fail only here.
+    const declared = (FilterFieldSchema as unknown as {
+      shape: { type: { unwrap(): { options: string[] } } };
+    }).shape.type.unwrap().options;
+    expect([...declared].sort()).toEqual([...DOCUMENTED_FOURTEEN].sort());
+  });
 
   it('the gap is measured against the PUBLISHED doc, not against a private opinion', () => {
     // `content/docs/components/complex/filter-builder.mdx` is a THIRD
@@ -230,10 +333,11 @@ describe('objectui#6939 — the type vocabulary', () => {
     for (const type of [...RULED, 'select', ...UNRULED_LIVE_TYPES]) {
       expect(doc, `the published doc no longer offers \`${type}\``).toContain(`'${type}'`);
     }
-    // …and the doc declares `type` OPTIONAL, which this mirror still does not.
-    // A fourth pre-existing gap, recorded for the same reason as the seven.
+    // …and the doc declares `type` OPTIONAL, which this mirror now does too.
+    // Read from the doc rather than restated, so narrowing the DOC to a
+    // required `type` reddens here as well — the wrong direction, both ways.
     expect(doc).toContain('type?:');
-    expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A' }).success).toBe(false);
+    expect(FilterFieldSchema.safeParse({ value: 'a', label: 'A' }).success).toBe(true);
   });
 });
 
@@ -356,5 +460,6 @@ describe('objectui#6939 — the keys are DECLARED, not passthrough holes', () =>
   it('the unused type-level bindings above are referenced, so lint keeps them', () => {
     expect(groupWithoutId.conditions).toEqual([]);
     expect(legacyNamedField).toBeDefined();
+    expect(fieldWithoutType.value).toBe('a');
   });
 });
