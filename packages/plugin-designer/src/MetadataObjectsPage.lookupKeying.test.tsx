@@ -377,6 +377,18 @@ describe('objectui#6522 · SITE B — the raw-payload lookup keys every server o
     // the real payload rather than something off the prototype chain.
     expect(puts[0].body.pluralLabel).toBe('Constructors');
     expect(puts[0].body.fields).toBeDefined();
+    // COMPLETION ANCHOR (objectui#8690). The emptiness below is only worth
+    // reading once `handleObjectsChange` has run to the END: `reload()` is its
+    // last statement, so the manager receiving the re-read list is the signal
+    // that every write the handler was going to make has been made. Waiting on
+    // `puts` instead dates the absence to the FIRST write, which covers the
+    // delete scan only because that scan happens to run before the save loop —
+    // a property of the page, not one this file asserts. Measured: with a stray
+    // `reset` issued after the saves, the `puts` wait leaves the delete log
+    // green while C0/H1/H2 above — which already anchor on the reload — go red.
+    // `label` and not `name` because the name is unchanged by a rename: only
+    // the relabelled row is a value the pre-reload state cannot answer with.
+    await waitFor(() => expect(managerProps!.objects.map((o) => o.label)).toEqual(['Renamed']));
     expect(deletes).toEqual([]);
     expect(shownError()).toBeNull();
   });
