@@ -1240,6 +1240,25 @@ const en = {
     hideEmptyFields: 'Hide empty fields',
     noValue: 'No value',
     unresolvedReference: 'Unresolved reference: {{value}} was not resolved to a user',
+    // Cell-level COUNT phrases for the `repeater` and file cells
+    // (objectui#8441). Both were written straight into the renderer before this
+    // — `repeater` as a number plus a hardcoded Chinese unit word, which every
+    // reader on every locale saw, and `FileCellRenderer` as an English-only
+    // `count === 1 ? 'file' : 'files'`, which is not plural-safe anywhere else.
+    // One channel, two call sites.
+    //
+    // REAL i18next plural families (base + `_one` + `_other`), NOT the
+    // two-sibling-key `xxxCountOne` shape used by `common.itemCount` above: the
+    // BASE key is load-bearing (objectui#3863). i18next asks `Intl.PluralRules`
+    // for the ONE suffix a number needs and, finding no such slot, walks
+    // `fallbackLng` to `en` — so without it `ru` renders English at counts 2-20
+    // and `ar` at 2-99. `all-locales-key-parity.test.ts` owns that rule.
+    repeaterItemCount: '{{count}} items',
+    repeaterItemCount_one: '{{count}} item',
+    repeaterItemCount_other: '{{count}} items',
+    fileCount: '{{count}} files',
+    fileCount_one: '{{count}} file',
+    fileCount_other: '{{count}} files',
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps

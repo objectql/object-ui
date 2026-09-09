@@ -1084,6 +1084,12 @@ const de = {
     hideEmptyFields: "Leere Felder ausblenden",
     noValue: "Kein Wert",
     unresolvedReference: "Nicht aufgelöste Referenz: {{value}} wurde keinem Benutzer zugeordnet",
+    repeaterItemCount: "{{count}} Einträge",
+    repeaterItemCount_one: "{{count}} Eintrag",
+    repeaterItemCount_other: "{{count}} Einträge",
+    fileCount: "{{count}} Dateien",
+    fileCount_one: "{{count}} Datei",
+    fileCount_other: "{{count}} Dateien",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps

@@ -1091,6 +1091,12 @@ const ar = {
     hideEmptyFields: "إخفاء الحقول الفارغة",
     noValue: "لا قيمة",
     unresolvedReference: "مرجع غير مُحلّل: لم يتم تحويل {{value}} إلى مستخدم",
+    repeaterItemCount: "{{count}} عنصر (عناصر)",
+    repeaterItemCount_one: "{{count}} عنصر",
+    repeaterItemCount_other: "{{count}} عناصر",
+    fileCount: "{{count}} ملف (ملفات)",
+    fileCount_one: "{{count}} ملف",
+    fileCount_other: "{{count}} ملفات",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
