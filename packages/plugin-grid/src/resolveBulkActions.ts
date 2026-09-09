@@ -153,6 +153,133 @@ function toBulkActionDef(action: NamedActionDef, localize?: ActionLabelResolver)
   };
 }
 
+/**
+ * Is this authored `bulkActionDefs` member a def the selection bar can render?
+ *
+ * "Usable" is defined by WHAT THE RENDERER READS, not by a fresh opinion about
+ * what a def ought to carry: `BulkActionBar` uses `def.name` twice — as the
+ * React `key` of the button it maps to, and as the argument to
+ * `formatActionLabel` when the def declares no `label`. A member without a
+ * non-empty string `name` therefore has no identity and no label, and
+ * `formatActionLabel(undefined)` threw `TypeError: Cannot read properties of
+ * undefined (reading 'replace')` DURING RENDER — taking the whole selection bar
+ * down on the author's first multi-row selection (objectui#8730).
+ *
+ * Every other `BulkActionDef` key is optional at the read site (an absent
+ * `operation` falls through to the button's default treatment, an absent
+ * `visible` means ungated), so `name` is the whole predicate. It covers the
+ * reported bare string and, by the same test, `null`, a number, `{}` and
+ * `{ name: '' }`.
+ *
+ * ⛔ NOT a coercion. A bare `'approve'` is NOT lifted into `{ name: 'approve' }`
+ * and resolved the way `bulkActions` is: that would make the two vocabularies
+ * interchangeable, which is a product change to what a `bulkActionDefs` member
+ * MEANS (objectui#3002 / objectui#3139 established them as two vocabularies
+ * deliberately), not a crash fix. The member is skipped, and said out loud.
+ */
+export function isUsableBulkActionDef(member: unknown): member is BulkActionDef {
+  if (!member || typeof member !== 'object') return false;
+  const name = (member as { name?: unknown }).name;
+  return typeof name === 'string' && name.length > 0;
+}
+
+/** Where the offending block lives, for the first line of the message. */
+export interface BulkActionDefsAddress {
+  /** The schema node's `type` — `object-grid`, or the `view:grid` alias. */
+  blockType?: unknown;
+  /** The object the grid queries, when it names one. */
+  objectName?: unknown;
+  /** The grid's authored label, when it has one — often the only human name. */
+  label?: unknown;
+}
+
+function quote(value: unknown): string {
+  return typeof value === 'string' ? `'${value}'` : String(value);
+}
+
+function describeAddress({ blockType, objectName, label }: BulkActionDefsAddress): string {
+  const block = typeof blockType === 'string' && blockType.length > 0 ? blockType : 'object-grid';
+  const parts: string[] = [];
+  if (typeof objectName === 'string' && objectName.length > 0) parts.push(`objectName: '${objectName}'`);
+  else parts.push('no objectName');
+  if (typeof label === 'string' && label.length > 0) parts.push(`label: '${label}'`);
+  return `${block} (${parts.join(', ')})`;
+}
+
+/**
+ * Describe ONE skipped member: what it spells, and what to write instead.
+ *
+ * Each branch reports only what it checked. The string arm carries the extra
+ * sentence because a bare action name is not nonsense — it is the OTHER key's
+ * vocabulary, and naming that key is the whole fix for the author.
+ */
+function describeMember(member: unknown): string {
+  if (member === null || member === undefined) {
+    return `the entry is ${String(member)}, not a def object`;
+  }
+  if (typeof member !== 'object') {
+    const rewrite = typeof member === 'string' && member.length > 0
+      ? ` Write \`{ name: '${member}', operation: 'custom' }\` here, or move the bare name to `
+        + '`bulkActions`, which resolves it against the object\'s declared actions and promotes the match.'
+      : '';
+    return `the entry is a ${typeof member} (${quote(member)}), not a def object — this key's `
+      + `members are full \`BulkActionDef\` objects, used as authored.${rewrite}`;
+  }
+  const entry = member as Record<string, unknown>;
+  const keys = Object.keys(entry);
+  const seen = keys.length > 0
+    ? `keys seen: ${keys.map((k) => `\`${k}\``).join(', ')}`
+    : 'the entry is empty `{}`';
+  if (!('name' in entry)) {
+    return `${seen} — no \`name\` key, so the def has no identity.`;
+  }
+  const name = entry.name;
+  if (typeof name !== 'string') {
+    return `${seen} — \`name\` is a ${name === null ? 'null' : typeof name} (${quote(name)}), `
+      + 'and only a non-empty string names an action.';
+  }
+  return `${seen} — \`name\` is an empty string, so the button would carry no key and no label.`;
+}
+
+/**
+ * The message for a `bulkActionDefs` array carrying members the bar cannot
+ * render, or `null` when every authored member is usable.
+ *
+ * Naming the ADDRESS is the whole point: which block, which object, which
+ * index, what was seen, and what to write instead. A message that only said
+ * something went wrong would leave the author exactly where the crash did.
+ *
+ * The channel is `ObjectGrid`'s existing one for "you declared it, the renderer
+ * dropped it" — a `useEffect` keyed on the schema slice and one `console.warn`
+ * prefixed `[ObjectUI] ObjectGrid <topic>:`, the same shape as the columns
+ * diagnostic and the export-format warning, rather than a third differently
+ * shaped one beside them.
+ */
+export function describeUnusableBulkActionDefs(
+  members: unknown,
+  address: BulkActionDefsAddress,
+): string | null {
+  if (!Array.isArray(members) || members.length === 0) return null;
+  const skipped = members
+    .map((member, index) => ({ index, member }))
+    .filter(({ member }) => !isUsableBulkActionDef(member));
+  if (skipped.length === 0) return null;
+
+  const survivors = members.length - skipped.length;
+  const subject = `${skipped.length} of ${members.length} authored bulk-action `
+    + `def${members.length === 1 ? '' : 's'} cannot be rendered and `
+    + `${skipped.length === 1 ? 'is' : 'are'} skipped`;
+  const headline = survivors === 0
+    ? `${subject}, so this selection bar offers NO bulk-action buttons`
+    : `${subject} (${survivors} still render)`;
+  const lines = skipped.map(({ index, member }) => `  • bulkActionDefs[${index}]: ${describeMember(member)}`);
+
+  return `[ObjectUI] ObjectGrid bulkActionDefs: ${describeAddress(address)} — ${headline}.\n`
+    + `${lines.join('\n')}\n`
+    + '  A `bulkActionDefs` member must be an object with a non-empty string `name`: the selection '
+    + 'bar uses it as the button\'s React key AND as the source of its label.';
+}
+
 export function resolveBulkActions(opts: {
   /**
    * The view's `bulkActions` names, already stripped of the canonical
@@ -180,7 +307,22 @@ export function resolveBulkActions(opts: {
   /** Names that matched no declared action; dispatched by name. */
   unresolved: string[];
 } {
-  const rawAuthored = Array.isArray(opts.bulkActionDefs) ? opts.bulkActionDefs : [];
+  // [objectui#8730] THE GUARD SITE. This is the one place where the authored
+  // `bulkActionDefs` array becomes the list the selection bar maps over, so the
+  // React `key` and the label are read off the SAME validated def. A member the
+  // bar cannot render is dropped here rather than refused, coerced, or defended
+  // against again downstream — `BulkActionBar` keeps reading `def.name`
+  // unconditionally, because by this line it can.
+  //
+  // Referential identity is preserved when nothing is dropped (`every` before
+  // `filter`): the `defs` contract below promises the authored array BY
+  // REFERENCE when nothing folds in, and an always-allocating filter would
+  // break that for every clean view — see `resolveBulkActions.test.ts`'s
+  // "returns the authored array by reference when nothing folds in".
+  const authoredMembers = Array.isArray(opts.bulkActionDefs) ? opts.bulkActionDefs : [];
+  const rawAuthored = authoredMembers.every(isUsableBulkActionDef)
+    ? authoredMembers
+    : authoredMembers.filter(isUsableBulkActionDef);
   const names = Array.isArray(opts.bulkActions) ? opts.bulkActions : [];
   const objectActions = Array.isArray(opts.objectActions) ? opts.objectActions : [];
 
