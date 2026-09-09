@@ -267,8 +267,12 @@ describe('object-grid `bulkActionDefs` members are FULL DEFS (objectui#8071)', (
       // pre-fix shape threw during render.
       expect(renderedBulkActionIds()).toEqual(['bulk-action-archive']);
       expect(screen.getByTestId('bulk-action-archive')).toHaveTextContent('Put it away');
-      // The label the coercion would have produced, named so the refusal is
-      // legible rather than implied by an absent testid.
+      // The label the FULL coercion would have produced — lifted AND resolved
+      // the way `bulkActions` is — named so the refusal is legible rather than
+      // implied by an absent testid. Row 1 is its reachability control: that
+      // row proves this exact string DOES render when a member is read as a
+      // name in the key whose vocabulary that is, so its absence here is a
+      // measured difference and not a string nothing ever produces.
       expect(screen.queryByText('Approve the invoice')).not.toBeInTheDocument();
 
       // THE BAR SURVIVES — the affordance the crash destroyed. `getByTestId`
