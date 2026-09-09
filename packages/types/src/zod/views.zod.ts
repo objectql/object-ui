@@ -24,6 +24,13 @@ import { ListViewSchema as SpecListViewSchema } from '@objectstack/spec/ui';
 /**
  * The spec's own list-view type vocabulary, unwrapped from its `.default('grid')`.
  *
+ * ⭐ NOT a crossing of the objectui#8317 import boundary, and this file has no
+ * other read of `@objectstack/spec`, which is why it imports no
+ * `stripImportedDefaults`. A vocabulary is a set of VALUES, not a subschema:
+ * `.removeDefault()` here reaches the spec's enum and nothing that could write a
+ * key into a parsed document ever flows from it. The declared-exception list in
+ * `../__tests__/imported-defaults-8317.test.ts` names this site and its twin.
+ *
  * Deliberately NOT exported: `__tests__/zod-mirror-parity.test.ts` runs a
  * population census over every `export const` in this directory, and this is a
  * derivation helper rather than a mirror anyone should reach for. The same

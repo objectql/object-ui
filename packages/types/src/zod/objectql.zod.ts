@@ -39,6 +39,38 @@ import { BaseSchema, specFieldsExcept } from './base.zod.js';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { DrillDownConfigSchema } from './data-display.zod.js';
 import { ViewSwitcherSchema } from './views.zod.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
+ */
+
 
 /**
  * HTTP Method Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -50,7 +82,7 @@ import { ViewSwitcherSchema } from './views.zod.js';
  * so this repo keeps exporting it under the `HttpMethodSchema` name — following
  * the rename WITHOUT changing cross-package semantics (objectui#3499).
  */
-export const HttpMethodSchema = SpecHttpMethodSubsetSchema;
+export const HttpMethodSchema = stripImportedDefaults(SpecHttpMethodSubsetSchema);
 
 /**
  * HTTP Request Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -58,14 +90,14 @@ export const HttpMethodSchema = SpecHttpMethodSubsetSchema;
  * `body` is the spec's `z.unknown()` (a superset of the old record/string/FormData/
  * Blob union) and `method` now defaults to `'GET'` on parse.
  */
-export const HttpRequestSchema = SpecHttpRequestSchema;
+export const HttpRequestSchema = stripImportedDefaults(SpecHttpRequestSchema);
 
 /**
  * View Data Source Schema — `@objectstack/spec/ui` schema re-exported by reference
  * (issue #2231; formerly a hand-written mirror that had drifted behind the spec's
  * fourth `provider: 'schema'` variant for schema-bound forms).
  */
-export const ViewDataSchema = SpecViewDataSchema;
+export const ViewDataSchema = stripImportedDefaults(SpecViewDataSchema);
 
 /**
  * List Column Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -82,21 +114,21 @@ export const ViewDataSchema = SpecViewDataSchema;
  * One behavior change rides along: the spec's `prefix.type` defaults to `'text'`
  * on parse instead of staying `undefined`, so the renderer always gets a value.
  */
-export const ListColumnSchema = SpecListColumnSchema;
+export const ListColumnSchema = stripImportedDefaults(SpecListColumnSchema);
 
 /**
  * Selection Config Schema — `@objectstack/spec/ui` schema re-exported by reference
  * (issue #2231; formerly a hand-written mirror). `type` now defaults to `'none'`
  * on parse instead of staying undefined.
  */
-export const SelectionConfigSchema = SpecSelectionConfigSchema;
+export const SelectionConfigSchema = stripImportedDefaults(SpecSelectionConfigSchema);
 
 /**
  * Pagination Config Schema — `@objectstack/spec/ui` schema re-exported by reference
  * (issue #2231; formerly a hand-written mirror). `pageSize` is now the spec's
  * positive-int with a default of 25 on parse.
  */
-export const PaginationConfigSchema = SpecPaginationConfigSchema;
+export const PaginationConfigSchema = stripImportedDefaults(SpecPaginationConfigSchema);
 
 /**
  * Sort Config Schema
@@ -144,7 +176,7 @@ const SPEC_EXPORT_OPTIONS_OBJECT_SHAPE: SpecExportOptionsShape = ((): SpecExport
     options?: readonly Peelable[];
     shape?: SpecExportOptionsShape;
   };
-  let cur = SpecListViewSchema.shape.exportOptions as unknown as Peelable;
+  let cur = stripImportedDefaults(SpecListViewSchema).shape.exportOptions as unknown as Peelable;
   for (let i = 0; i < 5 && cur && !cur.options && typeof cur.unwrap === 'function'; i++) {
     cur = cur.unwrap();
   }
@@ -349,14 +381,14 @@ export const ObjectViewSchema = BaseSchema.extend({
   defaultListView: z.string().optional().describe('Key of the listViews entry shown first'),
   // Spec slot by reference (objectui#7779) — `NavigationConfigSchema.optional()`,
   // the same object `ListViewSchema` derives its `navigation` from.
-  navigation: SpecListViewSchema.shape.navigation,
+  navigation: stripImportedDefaults(SpecListViewSchema).shape.navigation,
   table: z.lazy(() => ObjectGridSchema.omit({ type: true, objectName: true }).partial()).optional().describe('Table config'),
   form: z.lazy(() => ObjectFormSchema.omit({ type: true, objectName: true, mode: true }).partial()).optional().describe('Form config'),
   // Spec slots by reference (objectui#7779) — `array(string).optional()` on
   // both; the spec's own description marks `filterableFields` a legacy
   // shorthand for `userFilters.fields`.
-  searchableFields: SpecListViewSchema.shape.searchableFields,
-  filterableFields: SpecListViewSchema.shape.filterableFields,
+  searchableFields: stripImportedDefaults(SpecListViewSchema).shape.searchableFields,
+  filterableFields: stripImportedDefaults(SpecListViewSchema).shape.filterableFields,
   showSearch: z.boolean().optional().describe('Show search'),
   showFilters: z.boolean().optional().describe('Show filters'),
   showSort: z.boolean().optional().describe('Show sort controls'),
@@ -514,26 +546,26 @@ const LIST_VIEW_LOCAL_OVERRIDES = [
 // puts it on `GanttConfigSchema`/`TreeConfigSchema`: the renderers grow config knobs
 // ahead of the protocol (calendar's `allDayField`, for one), and stripping them here
 // would silently disable a shipped capability.
-const KanbanConfig = SpecKanbanConfigSchema.partial().extend({
+const KanbanConfig = stripImportedDefaults(SpecKanbanConfigSchema).partial().extend({
   /** @deprecated legacy alias for the spec's `groupByField` */
   groupField: z.string().optional().describe('Deprecated alias for groupByField'),
   /** @deprecated legacy alias for the spec's `columns` (fields shown on each card) */
   cardFields: z.array(z.string()).optional().describe('Deprecated alias for columns'),
 }).passthrough();
 
-const CalendarConfig = SpecCalendarConfigSchema.partial().extend({
+const CalendarConfig = stripImportedDefaults(SpecCalendarConfigSchema).partial().extend({
   // objectui-only: the calendar renderer's initial view mode. No spec counterpart —
   // promote it rather than growing this extension. `'agenda'` was retired
   // (objectui#5784, following #5740): `CalendarView` renders no agenda view.
   defaultView: z.enum(['month', 'week', 'day']).optional().describe("Initial calendar view mode — 'month' | 'week' | 'day' ('agenda' was retired: objectui#5784)"),
 }).passthrough();
 
-const GalleryConfig = SpecGalleryConfigSchema.partial().extend({
+const GalleryConfig = stripImportedDefaults(SpecGalleryConfigSchema).partial().extend({
   /** @deprecated legacy alias for the spec's `coverField` */
   imageField: z.string().optional().describe('Deprecated alias for coverField'),
 }).passthrough();
 
-const TimelineConfig = SpecTimelineConfigSchema.partial().extend({
+const TimelineConfig = stripImportedDefaults(SpecTimelineConfigSchema).partial().extend({
   /** @deprecated legacy alias for the spec's `startDateField` */
   dateField: z.string().optional().describe('Deprecated alias for startDateField'),
 }).passthrough();
@@ -560,7 +592,7 @@ const ViewKindEnum = SpecListViewSchema.shape.type.removeDefault();
  * before this extension an author writing `userActions: { group: false }` had
  * it silently stripped — valid on parse, no effect at render.
  */
-export const UserActionsSchema = SpecUserActionsConfigSchema.extend({
+export const UserActionsSchema = stripImportedDefaults(SpecUserActionsConfigSchema).extend({
   group: z.boolean().optional().describe('Allow users to group records'),
   hideFields: z.boolean().optional().describe('Allow users to show/hide columns'),
   rowColor: z.boolean().optional().describe('Allow users to color rows by a field value'),
@@ -594,7 +626,7 @@ export const ListViewSchema = BaseSchema
   // excludes the tombstone and hands the key back to `BaseSchema`'s
   // passthrough, turning a loud rejection into a silently-accepted dead key.
   // Re-forwarding needs an implementation card filed first (the ruling's text).
-  .extend(specFieldsExcept(SpecListViewSchema.shape, LIST_VIEW_LOCAL_OVERRIDES).shape)
+  .extend(specFieldsExcept(stripImportedDefaults(SpecListViewSchema).shape, LIST_VIEW_LOCAL_OVERRIDES).shape)
   .extend({
     // Component discriminator — load-bearing for the ObjectQLComponentSchema union.
     type: z.literal('list-view'),
@@ -659,7 +691,7 @@ export const ListViewSchema = BaseSchema
     // `role`) plus `live`, which has no spec counterpart. The legacy
     // `{ label, describedBy }` spellings fold into the canonical ones at the
     // ListView boundary (#2890).
-    aria: SpecAriaPropsSchema.extend({
+    aria: stripImportedDefaults(SpecAriaPropsSchema).extend({
       live: z.enum(['polite', 'assertive', 'off']).optional()
         .describe('aria-live politeness for the list region (objectui-only — promote rather than grow this extension)'),
     }).optional().describe('ARIA attributes'),
@@ -700,7 +732,7 @@ export const ListViewSchema = BaseSchema
     // nothing on the render path parses, so a stored array reaches `ListView`
     // un-lifted and its `resolvedExportOptions` fold is load-bearing
     // (objectui#4535 item 4).
-    exportOptions: SpecListViewSchema.shape.exportOptions,
+    exportOptions: stripImportedDefaults(SpecListViewSchema).shape.exportOptions,
     // Per-view-type configs — spec-derived (see the definitions above #2231).
     // `gantt` is NOT here: it flows in from the spec fields unmodified.
     kanban: KanbanConfig.optional().describe('Kanban-specific configuration'),
@@ -826,7 +858,7 @@ export const ObjectMapSchema = BaseSchema.extend({
   sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
   map: ObjectMapConfigSchema.optional().describe('Map configuration (the author face)'),
   enableClustering: z.boolean().optional().describe('Group nearby markers into clusters'),
-  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour (drawer/dialog/page)'),
+  navigation: stripImportedDefaults(SpecNavigationConfigSchema).optional().describe('Record navigation behaviour (drawer/dialog/page)'),
   locationField: z.string().optional().describe('Location field (internal flat form; prefer map.locationField)'),
   titleField: z.string().optional().describe('Title field (internal flat form; prefer map.titleField)'),
   mapStyle: z.string().optional().describe('MapLibre style URL/spec (overrides the public demo default)'),
@@ -935,7 +967,7 @@ export const ObjectGanttSchema = BaseSchema.extend({
   // (objectui#5074). Absence semantics are load-bearing: an omitted `viewMode`
   // lets a persisted layout seed the timeline granularity before the
   // renderer's 'day' fallback — do NOT add `.default('day')` here.
-  viewMode: SpecGanttConfigSchema.shape.viewMode.describe(
+  viewMode: stripImportedDefaults(SpecGanttConfigSchema).shape.viewMode.describe(
     'Initial timeline granularity, honoured by both renderer branches; when omitted, a persisted layout may seed it'
   ),
   // objectui#5903 — ten keys `ObjectGantt` reads and this mirror did not
@@ -952,7 +984,7 @@ export const ObjectGanttSchema = BaseSchema.extend({
   holidays: z.array(z.string()).optional().describe("Non-working dates for the working calendar, ISO 'yyyy-mm-dd' (UTC)"),
   persistLayout: z.boolean().optional().describe('Opt OUT of layout persistence — only an explicit false disables it'),
   viewName: z.string().optional().describe("Layout-persistence scope; storage key is `objectName:viewName` (default 'default')"),
-  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour on task click (drawer/dialog/page)'),
+  navigation: stripImportedDefaults(SpecNavigationConfigSchema).optional().describe('Record navigation behaviour on task click (drawer/dialog/page)'),
   markers: z
     .array(
       z.object({
@@ -977,20 +1009,20 @@ export const ObjectGanttSchema = BaseSchema.extend({
   //
   // The spec-modelled members are taken from `SpecGanttConfigSchema.shape` by
   // reference, exactly as `viewMode` above is, so the vocabulary cannot fork.
-  colorField: SpecGanttConfigSchema.shape.colorField,
-  dependenciesField: SpecGanttConfigSchema.shape.dependenciesField,
-  parentField: SpecGanttConfigSchema.shape.parentField,
-  typeField: SpecGanttConfigSchema.shape.typeField,
-  tooltipFields: SpecGanttConfigSchema.shape.tooltipFields,
-  baselineStartField: SpecGanttConfigSchema.shape.baselineStartField,
-  baselineEndField: SpecGanttConfigSchema.shape.baselineEndField,
-  groupByField: SpecGanttConfigSchema.shape.groupByField,
-  resourceView: SpecGanttConfigSchema.shape.resourceView,
-  assigneeField: SpecGanttConfigSchema.shape.assigneeField,
-  effortField: SpecGanttConfigSchema.shape.effortField,
-  capacity: SpecGanttConfigSchema.shape.capacity,
-  quickFilters: SpecGanttConfigSchema.shape.quickFilters,
-  autoZoomToFilter: SpecGanttConfigSchema.shape.autoZoomToFilter,
+  colorField: stripImportedDefaults(SpecGanttConfigSchema).shape.colorField,
+  dependenciesField: stripImportedDefaults(SpecGanttConfigSchema).shape.dependenciesField,
+  parentField: stripImportedDefaults(SpecGanttConfigSchema).shape.parentField,
+  typeField: stripImportedDefaults(SpecGanttConfigSchema).shape.typeField,
+  tooltipFields: stripImportedDefaults(SpecGanttConfigSchema).shape.tooltipFields,
+  baselineStartField: stripImportedDefaults(SpecGanttConfigSchema).shape.baselineStartField,
+  baselineEndField: stripImportedDefaults(SpecGanttConfigSchema).shape.baselineEndField,
+  groupByField: stripImportedDefaults(SpecGanttConfigSchema).shape.groupByField,
+  resourceView: stripImportedDefaults(SpecGanttConfigSchema).shape.resourceView,
+  assigneeField: stripImportedDefaults(SpecGanttConfigSchema).shape.assigneeField,
+  effortField: stripImportedDefaults(SpecGanttConfigSchema).shape.effortField,
+  capacity: stripImportedDefaults(SpecGanttConfigSchema).shape.capacity,
+  quickFilters: stripImportedDefaults(SpecGanttConfigSchema).shape.quickFilters,
+  autoZoomToFilter: stripImportedDefaults(SpecGanttConfigSchema).shape.autoZoomToFilter,
   // …and objectui's own ten, from the one field map above.
   ...GanttConfigExtensionFields,
   // `gantt` — the BLOCK face `getGanttConfig`'s FIRST branch reads and prefers
@@ -1010,7 +1042,7 @@ export const ObjectGanttSchema = BaseSchema.extend({
   // configuration` on failure. Maintainer ruling, objectui#6475 (2026-08-27),
   // Option A: enforce as-is, no warning window (excluded by the startup-stage
   // no-gradualism rule, objectstack#12668 — no named external-user evidence).
-  gantt: SpecGanttConfigSchema.extend(GanttConfigExtensionFields).optional().describe(
+  gantt: stripImportedDefaults(SpecGanttConfigSchema).extend(GanttConfigExtensionFields).optional().describe(
     'Nested gantt config block — the authoring face, and the winner over the flattened top-level keys whenever present'
   ),
   // The query/data keys the fetch path reads. They were declared on
@@ -1212,9 +1244,9 @@ export const ObjectGallerySchema = BaseSchema.extend({
   objectName: z.string().optional().describe('ObjectQL object name'),
   filter: z.unknown().optional().describe('Query filter, forwarded verbatim as $filter'),
   data: z.array(z.record(z.string(), z.unknown())).optional().describe('Inline records'),
-  gallery: SpecGalleryConfigSchema.optional().describe('Gallery configuration (@objectstack/spec GalleryConfig)'),
-  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour (drawer/dialog/page)'),
-  grouping: SpecGroupingConfigSchema.optional().describe('Grouping configuration for sectioned display'),
+  gallery: stripImportedDefaults(SpecGalleryConfigSchema).optional().describe('Gallery configuration (@objectstack/spec GalleryConfig)'),
+  navigation: stripImportedDefaults(SpecNavigationConfigSchema).optional().describe('Record navigation behaviour (drawer/dialog/page)'),
+  grouping: stripImportedDefaults(SpecGroupingConfigSchema).optional().describe('Grouping configuration for sectioned display'),
   imageField: z.string().optional().describe('DEPRECATED — use gallery.coverField'),
   titleField: z.string().optional().describe('DEPRECATED — use gallery.titleField'),
 });

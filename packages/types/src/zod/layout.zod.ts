@@ -24,6 +24,38 @@ import {
   PageVariableSchema as SpecPageVariableSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
+ */
+
 
 /**
  * Div Schema - Basic HTML container
@@ -362,7 +394,7 @@ export const PageNodeRegionSchema = z.object({
  * variable nothing could ever write — and its `type` enum was missing
  * `record_id`, so a spec-valid record-picker variable was rejected outright.
  */
-export const PageVariableSchema = SpecPageVariableSchema;
+export const PageVariableSchema = stripImportedDefaults(SpecPageVariableSchema);
 
 /**
  * Page Type Schema — `@objectstack/spec/ui` schema re-exported **by reference**
@@ -374,7 +406,7 @@ export const PageVariableSchema = SpecPageVariableSchema;
  * `layout.ts` had drifted the OPPOSITE way (it carried five visualization names
  * the spec explicitly repudiates); both now come from the spec.
  */
-export const PageTypeSchema = SpecPageTypeSchema;
+export const PageTypeSchema = stripImportedDefaults(SpecPageTypeSchema);
 
 /**
  * Spec-owned Page fields, flowing in **by reference** (objectstack#4115).
@@ -398,7 +430,7 @@ export const PageTypeSchema = SpecPageTypeSchema;
  * `.partial()` guarantees no *future* spec field can become required and
  * silently invalidate stored objectui pages.
  */
-const SpecPageFields = specFieldsExcept(SpecPageSchema.shape, [
+const SpecPageFields = specFieldsExcept(stripImportedDefaults(SpecPageSchema).shape, [
   'name',
   'label',
   'description',
