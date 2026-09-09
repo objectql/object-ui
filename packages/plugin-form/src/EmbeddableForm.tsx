@@ -24,6 +24,7 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import type { DataSource, FormField } from '@object-ui/types';
 import { Button } from '@object-ui/components';
 import { CheckCircle2, Lock, Loader2, ShieldCheck } from 'lucide-react';
+import { RICH_TEXT_FIELD_TYPES } from '@object-ui/fields';
 import { ObjectForm } from './ObjectForm';
 import {
   useThankYouRedirectNavigation,
@@ -143,16 +144,40 @@ export interface EmbeddableFormProps {
   className?: string;
 }
 
-/** Hardened default caps applied to text-shaped customFields when the spec
- *  doesn't already define one. Mirrors Airtable/Tally defaults. */
+/** The long-form cap, shared by `textarea` and every rich-content type. */
+const LONG_TEXT_MAX_LENGTH = 5000;
+
+/**
+ * Hardened default caps applied to text-shaped customFields when the spec
+ * doesn't already define one. Mirrors Airtable/Tally defaults.
+ *
+ * ## The rich-content entries are DERIVED, not enumerated (objectui#8438)
+ *
+ * `markdown` and `html` used to be written out here while `richtext` — the
+ * THIRD registry key of the same one widget — was absent, so a public form's
+ * `richtext` field took unbounded input. That is the fourth instance of a
+ * root cause objectui#4831 named in its own body and its fix declined to
+ * remove: *hand-written type lists that stop at two of this widget's three
+ * keys* (objectui#4250 and objectui#4831 are the other two).
+ *
+ * Spreading {@link RICH_TEXT_FIELD_TYPES} is that question answered rather
+ * than deferred again: this table no longer names a rich-content type, so it
+ * can no longer omit one, and a fourth key added to the widget's display table
+ * arrives here in the same commit that adds it.
+ *
+ * ⛔ The four short-text entries above stay literal ON PURPOSE. Each is a
+ * distinct widget with a distinct cap, and there is no table to derive them
+ * from — a predicate wide enough to cover them would be an invention, not a
+ * derivation. The root cause being removed is "one widget, N keys, a list that
+ * knows N-1", which is a statement about the rich-content trio alone.
+ */
 const DEFAULT_MAX_LENGTH: Record<string, number> = {
   text: 200,
   email: 254, // RFC 5321
   url: 2048,
   phone: 32,
-  textarea: 5000,
-  markdown: 5000,
-  html: 5000,
+  textarea: LONG_TEXT_MAX_LENGTH,
+  ...Object.fromEntries(RICH_TEXT_FIELD_TYPES.map((t) => [t, LONG_TEXT_MAX_LENGTH])),
 };
 
 const DEFAULT_HONEYPOT_NAME = '_company_website_2';
