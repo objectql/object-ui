@@ -1079,6 +1079,27 @@ export const ObjectCalendarSchema = BaseSchema.extend({
   endDateField: z.string().optional().describe('End date field'),
   titleField: z.string().optional().describe('Title field'),
   defaultView: z.enum(['month', 'week', 'day']).optional().describe("Default view — 'month' | 'week' | 'day', the renderer's rendered set ('agenda' was retired: objectui#5784)"),
+  // objectui#8174 — the two query keys `ObjectCalendar.tsx` lowers onto its own
+  // `dataSource.find` (`$filter: schema.filter`,
+  // `$orderby: convertSortToQueryParams(schema.sort)`). The spec declares both
+  // on `ComponentPropsMap['object-calendar']` and the plugin's registration
+  // `inputs` publishes both, but neither published face of THIS package named
+  // them: they rode `BaseSchema`'s `.passthrough()` here and its
+  // `[key: string]: any` on the TS side. Spelled exactly as
+  // `ObjectGanttSchema` above spells them, and mirrored at the SAME
+  // requiredness as `../objectql.ts` (both optional) so the zod-mirror-parity
+  // ratchet stays at zero drift for this pair.
+  //
+  // What declaring buys under `.passthrough()` is NOT capped by objectui#7927's
+  // index-signature ceiling: that ceiling is about a MISSPELLED key, which
+  // stays admitted either way. A DECLARED key is now VALUE-validated, and this
+  // mirror reaches `safeValidateSchema` through `AnyComponentSchema` and so
+  // reaches the CLI's `validate` / `check` — `sort: 'name asc'`, the string
+  // clause objectui#8221 retired, moves from "parses green here, then silently
+  // dropped by `convertSortToQueryParams` at runtime" to "refused at authoring
+  // time".
+  filter: z.array(z.any()).optional().describe('Query filter, forwarded verbatim as $filter'),
+  sort: z.array(SortConfigSchema).optional().describe('Sort configuration, forwarded as $orderby (array only; the legacy string clause is retired — objectui#8221)'),
 }).superRefine(requireRecordSource('object-calendar'));
 
 /**
@@ -1195,6 +1216,20 @@ export const ObjectKanbanSchema = BaseSchema.extend({
   groupBy: z.string().describe('Field whose value places a record in a lane — the lane key the object-kanban renderer reads (ObjectKanban.tsx, thirteen sites); required, as the retired groupField was'),
   groupField: retirementTombstone('RETIRED (objectui#7322) — `groupField` is not read by the object-kanban renderer; author `groupBy`. (The view-level `kanban.groupField` alias is unaffected.)'),
   limit: z.number().int().positive().optional().describe('Row cap — the most records the board fetches, sent as a real $top on the query; default 100 (DEFAULT_KANBAN_LIMIT)'),
+  // objectui#8174 — the query key `ObjectKanban.tsx` lowers onto its own
+  // `dataSource.find` (`$filter: schema.filter`), alongside the `$top` that
+  // `limit` above feeds. Same position `groupBy` and `limit` were in before
+  // objectui#7322: declared by the spec (`ComponentPropsMap['object-kanban']`)
+  // and by the plugin's registration `inputs`, read by the renderer, and named
+  // by neither published face of this package. Spelled exactly as
+  // `ObjectGanttSchema` above spells it, and mirrored at the SAME requiredness
+  // as `../objectql.ts` (optional) so the zod-mirror-parity ratchet stays at
+  // zero drift for this pair.
+  //
+  // ⚠️ No `sort` twin here, and the absence is measured: `ObjectKanban.tsx` has
+  // ZERO `schema.sort` read sites and the spec's `object-kanban` entry declares
+  // no `sort` either. Only `ObjectCalendarSchema` above carries both.
+  filter: z.array(z.any()).optional().describe('Query filter, forwarded verbatim as $filter'),
   titleField: z.string().optional().describe('Title field'),
   cardFields: z.array(z.string()).optional().describe('Card fields'),
   quickAdd: z.boolean().optional().describe('Enable Quick Add button at column bottom'),
