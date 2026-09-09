@@ -450,13 +450,21 @@ are checkable offline.
 **Triggers:** Push and PR when changes touch `packages/`, `apps/console/`, or `pnpm-lock.yaml`.
 Its display name in the checks list is **Bundle Analysis**.
 
-### Enforced limit
+### Enforced limits
 
-Exactly one bundle-size number in this repository is enforced — this one:
+The `Check console performance budget` step makes **two** measurements and returns one verdict.
+Both run before either may fail the step, and **either one can fail it** — this is not a single
+enforced number with a second advisory reading beside it:
 
 | Bundle | Max gzip size | Enforced |
 |--------|---------------|----------|
 | Console main entry (`apps/console/dist/assets/index-*.js`) | **350 KB** (`MAX_ENTRY_GZIP_KB`) | Yes — the step exits non-zero when the entry chunk exceeds it |
+| Eager closure — every chunk the entry reaches through **static** imports, i.e. everything the browser must fetch and parse before the app renders | ⛔ Deliberately not restated here. The ceiling lives in `scripts/check-eager-closure-budget.mjs` beside the argument that produced it, and `pnpm check:eager-closure` prints the measured payload, the ceiling and the headroom together in one verdict line | Yes — the step captures that gate's exit code and exits non-zero on it |
+
+Measurement 1 alone was the whole budget until
+[#5324](https://github.com/objectstack-ai/objectui/issues/5324): `advancedChunks` routes vendor and
+workspace code into named chunks on purpose, so most regressions land **outside** `index-*.js` where
+the entry-chunk line cannot see them.
 
 > The 350 KB above is **pinned to the workflow**, not retyped from memory:
 > `scripts/__tests__/ci-cd-pipeline-doc.test.ts` reads `MAX_ENTRY_GZIP_KB` out of
@@ -464,9 +472,10 @@ Exactly one bundle-size number in this repository is enforced — this one:
 > disagrees with it. Change one and you must change the other — the number cannot
 > drift silently again ([#3197](https://github.com/objectstack-ai/objectui/issues/3197)).
 
-- Builds the console app and measures bundle sizes.
+- Builds the workspace packages with `turbo run build` (filtered to `packages/*`), then builds the console app, and measures bundle sizes.
 - Posts a PR comment with the budget report and pass/fail status — but **only when the bundle was actually measured**. A run that was cancelled (a second push supersedes the first via `cancel-in-progress`) posts nothing, and a run whose build never produced a bundle posts a neutral "not measured" note instead of a verdict. A `FAIL` verdict therefore always carries the measured size that exceeded the budget.
 - The comment is rendered by `scripts/render-budget-comment.mjs` (unit-tested), not by logic inlined in YAML.
+- Runs `pnpm check:sdui-registration-pins` in a step of its own, after the budget step. This is the **artifact** half of the `sideEffects` contract: the static gate in `ci.yml` proves the array agrees with the module bodies, but only a real bundler run proves the SDUI widget registrations still reach a chunk. The step declares no `continue-on-error`, so a dropped registration fails this workflow — a size win bought by silently deleting a feature must not read as a size win.
 
 **If it fails:** the step prints `BUDGET EXCEEDED: Main entry is <n> KB gzip (limit: 350 KB)`
 and the PR comment carries the same two numbers, so the log already tells you the size and the
@@ -475,6 +484,14 @@ overshoot. Read the package size report appended to that comment next: the entry
 new eager import pulling a dependency in. Fix it at that import. Raising `MAX_ENTRY_GZIP_KB`
 is a deliberate decision, not a workaround for a red check — and it cannot be done quietly,
 because the pin above fails until this page states the new number too.
+
+**If the eager-closure half fails:** the same step reports it, and the gate's two non-zero exit
+codes are different verdicts on purpose. `1` is a verdict about the **bundle** — the closure is over
+its ceiling. `2` is a verdict about the **gauge** — the report could not be read, or a ceiling has
+drifted out of range of the regression it exists to catch, or it was replaced on the base branch
+after this checkout was made. The step turns a `2` into a failing run carrying a message that says
+so, because a run that measured nothing is not a passing budget and is not a size regression either.
+Run `pnpm check:eager-closure` locally to see which it is; the step log names the half that spoke.
 
 ### Package size report — advisory, not a gate
 
@@ -824,8 +841,8 @@ repository's recurring "looks like enforcement, isn't" class. A marker shown as 
 another fence is neither an opt-in nor an orphan: it is not at top level, so it claims nothing.
 
 **It builds, unlike `skills-paths.yml`:** the criterion is the *published* type surface, so the
-packages the marked fences import must exist as `dist/*.d.ts` first. The build is filtered to exactly
-those packages, and the filter is emitted by the gate itself
+packages the marked fences import must exist as `dist/*.d.ts` first. The job therefore runs
+`turbo run build`, filtered to exactly those packages, and the filter is emitted by the gate itself
 (`node scripts/check-skill-examples.mjs --build-filter`) rather than hand-maintained in the workflow,
 so it grows only as the marked population grows.
 
@@ -1664,12 +1681,27 @@ version it exists to ship is still absent. A repo/npm divergence is a failing ru
 
 The refresh lane is invoked **without** a `publish:` script and **without** npm credentials, so
 it cannot publish by construction rather than by a condition — the release act in this
-repository stays the human merge of the version PR. The publish lane runs
-`pnpm changeset:publish`, and that script is
-`node scripts/check-published-dist-tooling.mjs && changeset publish` — the **blocking** copy of
-the Published Dist Gate above. A published package whose `dist/` carries tooling material stops
-the publish before a single tarball reaches npm, which is where that defect actually costs
-anything ([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
+repository stays the human merge of the version PR.
+
+Before either lane's changesets step, the release job runs `pnpm build` — the publish lane ships
+what that build produced, and the gates below judge the built `dist/`, so there is nothing for them
+to read until it has run.
+
+The publish lane then runs `pnpm changeset:publish`, and that script is
+`node scripts/check-published-dist-tooling.mjs && node scripts/check-spec-range-floors.mjs && changeset publish`
+— the **blocking** copies of the Published Dist Gate and the Spec Range Floors
+gate above. A published package whose `dist/` carries tooling material, or one whose declared
+`@objectstack/spec` floor is missing a symbol its own artifact uses, stops the publish before a
+single tarball reaches npm, which is where those defects actually cost anything
+([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
+
+> ⚠️ **`pnpm changeset:publish` and `pnpm check:published-dist` are named above on purpose, and a
+> `run:`-only reading of this workflow will not find them.** They reach the runner through
+> `changesets/action@v1`'s `publish:` **input**, not through a `run:` step, so a tool — or a person
+> — scanning the YAML for `run:` lines sees a section naming two commands the job appears not to
+> run. It runs them. ⛔ Do not "fix" them out of this section; the parity pin in
+> `scripts/__tests__/ci-cd-pipeline-doc.test.ts` declares them as expected and fails if either the
+> declaration or the prose goes away.
 
 #### The release PR runs no CI, so the refresh lane validates the tree itself
 
@@ -1768,7 +1800,8 @@ workflow; manual. **It carries no `pull_request` trigger, on purpose.**
 
 A package's declared `@objectstack/spec` floor must carry every symbol that package's own
 build output references. The gate is `scripts/check-spec-range-floors.mjs`
-(`pnpm check:spec-floors`); the workflow builds every published package, then the gate compares
+(`pnpm check:spec-floors`); the workflow builds every published package with `turbo run build`
+(filtered only to exclude the docs site), then the gate compares
 each one's `dist` imports of `@objectstack/spec/*` against the export set of the version that
 package's own range admits at its lowest.
 
