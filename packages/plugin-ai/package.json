@@ -33,7 +33,7 @@
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "lucide-react": "^1.31.0"
+    "lucide-react": "^1.41.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
