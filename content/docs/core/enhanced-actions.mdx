@@ -154,8 +154,10 @@ gets its real widget, not a text box (ADR-0059):
   inherit label, type, options, lookup picker config, `multiple`, `accept`,
   and `maxSize` from the object's field definition; inline properties override.
 - `required` blocks submit while the value is empty; `visible` (a CEL
-  predicate over `features` / `current_user` / `app` / `data`) hides a param
-  entirely — e.g. gate a param on an opt-in server capability.
+  predicate over `features` / `current_user` / `data`) hides a param
+  entirely — e.g. gate a param on an opt-in server capability. There is no
+  `app` root: objectui#8155 removed it, because neither ADR-0068 nor
+  `@objectstack/formula`'s `SCOPE_ROOTS` declares one.
 - Values are passed through to the action exactly as the widget emits them
   (`number` → number, `date` → `YYYY-MM-DD`, lookup → record id(s), `file` →
   uploaded file descriptor(s); arrays when `multiple`).

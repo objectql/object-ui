@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { evalRowPredicate } from '@object-ui/core';
 import {
@@ -12,6 +12,7 @@ import {
   type ConditionalFormattingRuleDraft,
 } from './ConditionalFormattingEditor';
 import { __setCelFormulaLoader } from './celAuthoring';
+import { buildExpressionScope } from '../../providers/ExpressionProvider.js';
 
 afterEach(() => {
   cleanup();
@@ -133,13 +134,95 @@ describe('ConditionalFormattingEditor', () => {
 });
 
 describe('ConditionalFormattingEditor · CEL authoring scope (#2571 follow-up)', () => {
-  it('lints a BARE field condition clean — row predicates bind fields bare at runtime', async () => {
+  it('flags a BARE field condition with the record.<field> fix — the row binds only record.*', async () => {
     render(<Harness initial={[{ condition: "status == 'overdue'", style: {} }]} />);
-    // The real engine must accept the bare form (evalRowPredicate spreads the
-    // row); flipping this editor to scope="record" would break this test.
+    // TURNED, deliberately (objectui#7727). This pin used to assert the
+    // opposite — "the real engine must accept the bare form (evalRowPredicate
+    // spreads the row)" — and its own comment predicted this edit: "flipping
+    // this editor to scope=\"record\" would break this test". objectui#5741
+    // (Phase 2 of the objectui#5330 canon) retired the bare shorthand on
+    // runtime record surfaces, so `evalRowPredicate` no longer spreads the row
+    // and `status == 'overdue'` faults with `Unknown variable: status`. The
+    // editor must say so at authoring time rather than lint it clean; the
+    // runtime half of this claim is pinned in the contract suite below.
+    expect(await screen.findByText(/record\.status/, {}, { timeout: 3000 })).toBeTruthy();
+    const ta = document.getElementById('cf-condition-0') as HTMLTextAreaElement;
+    await waitFor(() => expect(ta.getAttribute('aria-invalid')).toBe('true'), { timeout: 3000 });
+  });
+
+  it('still lints a canonical record.<field> condition clean', async () => {
+    render(<Harness initial={[{ condition: "record.status == 'overdue'", style: {} }]} />);
+    // The other half of the narrowing: the scope flip must reject the retired
+    // spelling WITHOUT rejecting the canonical one.
     expect(await screen.findByText('perm.cel.valid', {}, { timeout: 3000 })).toBeTruthy();
     const ta = document.getElementById('cf-condition-0') as HTMLTextAreaElement;
     expect(ta.getAttribute('aria-invalid')).not.toBe('true');
+  });
+
+  it('lints EVERY advertised root clean in the record scope — the aligned state', async () => {
+    // Before objectui#8155 this could only claim FOUR of five advertised roots:
+    // `app` was advertised and REFUSED, so a comment saying "every advertised
+    // root" would have contradicted its own neighbour. The ruling removed `app`
+    // and added `os`, so what this editor advertises is now a subset of what
+    // `@objectstack/formula`'s SCOPE_ROOTS accepts, and the honest assertion is
+    // the total one.
+    //
+    // DERIVED from the advertised list rather than retyped: a root added here
+    // without the engine knowing it reddens on this line, which is the whole
+    // failure mode objectui#8155 was filed for.
+    const condition = ROW_PREDICATE_ROOTS.map((r) =>
+      r === 'record' ? "record.status != ''" : `size(${r}) >= 0`,
+    ).join(' && ');
+    render(<Harness initial={[{ condition, style: {} }]} />);
+    expect(await screen.findByText('perm.cel.valid', {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it('KNOWN GAP — a `data.*` condition still lints CLEAN although the row is not bound under it', async () => {
+    // NOT desired behaviour, and it is the half of the retirement this card
+    // does NOT close. Dropping `'data'` from ROW_PREDICATE_ROOTS stops
+    // RECOMMENDING it; it does not stop the lint ACCEPTING it, because
+    // `@objectstack/formula`'s `SCOPE_ROOTS` lists `data` and so the
+    // record-scope bare-reference check waves it through. `rowPredicateCanon.ts`
+    // already records exactly this for the server oracle: `data.status` is
+    // "⚠️ silently accepted" while the runtime faults on it.
+    //
+    // The runtime half is pinned in the contract suite below, where the same
+    // predicate against the same host bag evaluates to FALSE. Green here plus
+    // false there IS the defect. This test REDDENS when the acceptance is
+    // fixed, at which point objectui#8166 can be closed.
+    render(<Harness initial={[{ condition: "data.status == 'overdue'", style: {} }]} />);
+    expect(await screen.findByText('perm.cel.valid', {}, { timeout: 3000 })).toBeTruthy();
+    const ta = document.getElementById('cf-condition-0') as HTMLTextAreaElement;
+    expect(ta.getAttribute('aria-invalid')).not.toBe('true');
+  });
+
+  it('ALIGNED (objectui#8155) — `app` is neither advertised nor bound, and the lint refuses it', async () => {
+    // This pin used to assert a CONTRADICTION on purpose: the editor advertised
+    // `app` while its own linter refused it, offering the nonsense remedy
+    // `record.app` and no spelling an author could use instead. The 2026-09-07
+    // ruling took option B — objectui aligns to the engine's root vocabulary,
+    // rather than the engine growing a root to match this consumer — so the
+    // contradiction no longer exists and this pin asserts the ALIGNED state.
+    //
+    // ⭐ Deliberately THREE-sided, because the defect was a DISAGREEMENT
+    // between two producers and a one-sided pin would be half a pin. Each
+    // producer drifting back ON ITS OWN must redden here:
+    //   - `app` back in ROW_PREDICATE_ROOTS   -> the first expect fails
+    //   - `app` back in buildExpressionScope  -> the second expect fails
+    //   - the engine growing an `app` root    -> the DOM assertion fails
+    // The closure assertion in the contract suite below catches the pair
+    // moving TOGETHER; it cannot see either half moving alone, which is
+    // exactly the state objectui#8155 was filed about.
+    expect(ROW_PREDICATE_ROOTS).not.toContain('app');
+    expect(Object.keys(buildExpressionScope({ user: { id: 'u1' } }))).not.toContain('app');
+
+    // The third side. The refusal itself is unchanged — what changed is that it
+    // is now CORRECT: nothing advertises `app`, nothing binds it, and the
+    // engine does not know it, so an author is never lured into writing it.
+    render(<Harness initial={[{ condition: "app.name == 'crm'", style: {} }]} />);
+    const ta = document.getElementById('cf-condition-0') as HTMLTextAreaElement;
+    await waitFor(() => expect(ta.getAttribute('aria-invalid')).toBe('true'), { timeout: 3000 });
+    expect(screen.getByText(/bare reference/)).toBeTruthy();
   });
 
   it('still flags an unknown record.<field> with did-you-mean', async () => {
@@ -176,36 +259,151 @@ describe('ConditionalFormattingEditor · CEL authoring scope (#2571 follow-up)',
 });
 
 describe('ROW_PREDICATE_ROOTS ↔ evalRowPredicate runtime contract', () => {
-  // Shaped like the app-shell global predicate scope (ExpressionProvider,
-  // #1583/ADR-0068) that hosts pass into the shared row-predicate evaluator.
   const u = { id: 'u1' };
-  const hostScope = {
-    current_user: u,
+  /**
+   * The app-shell global predicate scope that hosts hand to the shared
+   * row-predicate evaluator — READ FROM ITS PRODUCER, not modelled here.
+   *
+   * Why it is read rather than written out (objectui#7727). This block used to
+   * carry a hand-written literal including `data: {}`, and probed every
+   * advertised root with `size(<root>) >= 0`. For `data` that probe hit the
+   * HOST's own empty object and never the row, so it was green whether or not
+   * `data` named the row: a reading that could not fail, and therefore
+   * indistinguishable from one that passed — the exact trap
+   * `rowPredicateCanon.ts` documents for `data.*` on a record surface.
+   *
+   * Writing the bag out by hand is the same defect one level up: a literal
+   * cannot disagree with the producer, so it silently absorbs any drift. It had
+   * already drifted — the literal omitted `os`, which
+   * `buildExpressionScope` really does bind, and an assertion below therefore
+   * "proved" `os` unbound. Calling the producer is what makes these readings
+   * able to fail: if `buildExpressionScope` gains or loses a root, the closure
+   * assertion says so instead of quietly agreeing with itself.
+   *
+   * ⭐ There is no `app` here, and it could not be put back even by accident:
+   * objectui#8155 removed `app` from `ExpressionScopeInput` as well as from the
+   * returned bag, so passing one is a COMPILE error (TS2353, "'app' does not
+   * exist in type 'ExpressionScopeInput'"). That is a third fence on the same
+   * fact, and the only one that holds without the suite being run.
+   */
+  const fullHostScope = buildExpressionScope({
     user: u,
-    ctx: { user: u },
-    app: { name: 'crm' },
     data: {},
     features: { beta: true },
-  };
+  });
+  /**
+   * The ONE root the host binds that this editor deliberately does not
+   * advertise: `data`, retired on row surfaces (objectui#5741). It gets its own
+   * pin below, against `fullHostScope`, which does carry it.
+   *
+   * `os` used to sit here too. objectui#8155 ruled it back onto the advertised
+   * list in the same patch that removed `app`: it is bound here, ACCEPTED by
+   * the engine, and the measured in-tree identity spelling
+   * (`record.owner == os.user.id`), so withholding it was curation with
+   * nothing behind it.
+   */
+  const CURATED_EXCLUSIONS = ['data'];
+  /**
+   * The same bag with those two removed. Probes for the ADVERTISED roots run
+   * against this one, so no probe can pass off a host binding as a row binding.
+   */
+  const hostScope = Object.fromEntries(
+    Object.entries(fullHostScope).filter(([k]) => !CURATED_EXCLUSIONS.includes(k)),
+  );
+  const row = { id: 'r1', status: 'overdue' };
 
-  it('every advertised root is bound when a row predicate evaluates', () => {
+  /** Advertised roots the HOST binds — derived, never typed out. */
+  const HOST_BOUND_ROOTS = Object.keys(fullHostScope).filter((k) => !CURATED_EXCLUSIONS.includes(k));
+
+  it('binds the row as `record`, and it is the ROW rather than a host `record`', () => {
+    // No host scope at all: only the row can be supplying `record`.
+    expect(evalRowPredicate("record.status == 'overdue'", row, { fallback: false })).toBe(true);
+    // And the row still wins over a host scope carrying its own `record`
+    // (listConditional.ts pins `record` AFTER the spread).
+    expect(
+      evalRowPredicate("record.status == 'overdue'", row, {
+        fallback: false,
+        scope: { ...hostScope, record: { status: 'paid' } },
+      }),
+    ).toBe(true);
+  });
+
+  it('every OTHER advertised root is bound by the HOST — and unbound without it', () => {
     for (const root of ROW_PREDICATE_ROOTS) {
-      // `size(<root>) >= 0` is true iff the root resolves to a bound map —
-      // an unbound root faults and falls back to `false`.
+      if (root === 'record') continue;
+      expect(HOST_BOUND_ROOTS, `advertised root "${root}" is unaccounted for`).toContain(root);
       expect(
-        evalRowPredicate(`size(${root}) >= 0`, { id: 'r1' }, { fallback: false, scope: hostScope }),
-        `root "${root}" should be bound at runtime`,
+        evalRowPredicate(`size(${root}) >= 0`, row, { fallback: false, scope: hostScope }),
+        `root "${root}" should be bound by the host scope`,
       ).toBe(true);
+      // The half that makes the line above a reading: drop the host scope and
+      // the root must go unbound. Without this, a root bound by nothing in
+      // particular would still pass.
+      expect(
+        evalRowPredicate(`size(${root}) >= 0`, row, { fallback: false }),
+        `root "${root}" must come from the HOST scope, not from thin air`,
+      ).toBe(false);
     }
+    // ...and no member escapes the two assertions above by not being checked.
+    // Both sides are derived: the left from the editor, the right from
+    // `buildExpressionScope` minus the curated exclusions. Drift on either
+    // side — a root added to the host bag, a root added to or dropped from the
+    // advertised list — reddens here.
+    expect([...ROW_PREDICATE_ROOTS].sort()).toEqual([...HOST_BOUND_ROOTS, 'record'].sort());
+  });
+
+  it('a BARE field ref no longer names the row — the editor ERROR matches the runtime', () => {
+    // The runtime half of the flipped authoring pin above (objectui#5741).
+    expect(evalRowPredicate("record.status == 'overdue'", row, { fallback: false, scope: hostScope })).toBe(true);
+    expect(evalRowPredicate("status == 'overdue'", row, { fallback: false, scope: hostScope })).toBe(false);
+  });
+
+  it('`data` is RETIRED: unadvertised, and an ambient host `data` never names the row', () => {
+    expect(ROW_PREDICATE_ROOTS).not.toContain('data');
+    // A host may still legitimately carry its own ambient `data` — app-shell's
+    // `buildExpressionScope` does, and this is that bag rather than a model of
+    // it. That is what made the old probe useless...
+    const ambient = fullHostScope;
+    expect(evalRowPredicate('size(data) >= 0', row, { fallback: false, scope: ambient })).toBe(true);
+    // ...while the ROW is not reachable through it at all. Canonical spelling
+    // against the same scope, so the two differ only in the spelling.
+    expect(evalRowPredicate("record.status == 'overdue'", row, { fallback: false, scope: ambient })).toBe(true);
+    expect(evalRowPredicate("data.status == 'overdue'", row, { fallback: false, scope: ambient })).toBe(false);
+    // ⚠️ The line above is FALSE at runtime while the authoring pin above
+    // ("a `data.*` condition still lints CLEAN") is green. That pair is the
+    // half of the retirement this card does not close — objectui#8166.
   });
 
   it('the engine-default extras stay unadvertised because they are NOT bound', () => {
-    for (const root of ['previous', 'input', 'os', 'vars']) {
+    // `os` is NOT in this list: it is genuinely bound, and since objectui#8155
+    // it is advertised too, so asserting it here would be the same hand-model
+    // artefact as the old `data` probe, in the opposite direction.
+    for (const root of ['previous', 'input', 'vars']) {
       expect(ROW_PREDICATE_ROOTS).not.toContain(root);
       expect(
-        evalRowPredicate(`size(${root}) >= 0`, { id: 'r1' }, { fallback: false, scope: hostScope }),
+        evalRowPredicate(`size(${root}) >= 0`, row, { fallback: false, scope: hostScope }),
         `root "${root}" should NOT be bound at runtime`,
       ).toBe(false);
     }
+  });
+
+  it('`os` is ADVERTISED — bound here, and known to the engine (objectui#8155)', () => {
+    // The mirror image of the `app` case, settled the other way by the same
+    // ruling: `app` was advertised-but-refused, `os` was accepted-and-bound but
+    // never offered — the one root an author could legitimately write and would
+    // never be shown.
+    //
+    // The bag here is `buildExpressionScope`'s own output, NOT a scope with
+    // `os` handed in by this test: injecting it would only have proved that
+    // `evalRowPredicate` forwards `scope`, which `size(zzz) >= 0` with `zzz`
+    // injected proves just as well. Reading the producer is what makes this a
+    // statement about app-shell.
+    expect(Object.keys(fullHostScope)).toContain('os');
+    expect(ROW_PREDICATE_ROOTS).toContain('os');
+    expect(CURATED_EXCLUSIONS).not.toContain('os');
+    expect(evalRowPredicate('size(os) >= 0', row, { fallback: false, scope: hostScope })).toBe(true);
+    // The control that makes the line above a reading: a root the host bag does
+    // NOT carry is unbound against the very same scope.
+    expect(evalRowPredicate('size(zzz) >= 0', row, { fallback: false, scope: hostScope })).toBe(false);
   });
 });
