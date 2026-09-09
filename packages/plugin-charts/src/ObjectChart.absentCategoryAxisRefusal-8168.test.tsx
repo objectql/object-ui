@@ -55,6 +55,7 @@ vi.mock('recharts', async () => {
 });
 
 import { ObjectChart, resolveChartCategoryField } from './ObjectChart';
+import type { ObjectChartSchema } from '@object-ui/types';
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
@@ -77,8 +78,13 @@ const dataSourceWithRows = () => ({
   aggregate: vi.fn().mockResolvedValue(ROWS),
 });
 
-const renderChart = (schema: Record<string, unknown>, ds: any = dataSourceWithRows()) =>
-  render(<ObjectChart schema={{ chartType: 'bar', isAnimationActive: false, ...schema }} dataSource={ds} />);
+// `type` moved into the base literal when objectui#7946 anchored
+// `ObjectChartProps.schema` to `ObjectChartSchema`, on which `type` is
+// required and pinned to the registry key. The per-case overrides stay a
+// partial of the anchored type — this file's whole subject is nodes that
+// declare no category axis, so the parameter must keep admitting them.
+const renderChart = (schema: Partial<ObjectChartSchema>, ds: any = dataSourceWithRows()) =>
+  render(<ObjectChart schema={{ type: 'object-chart', chartType: 'bar', isAnimationActive: false, ...schema }} dataSource={ds} />);
 
 /** The refusal is absent AND the chart got far enough to draw. */
 const expectNoRefusal = async () => {

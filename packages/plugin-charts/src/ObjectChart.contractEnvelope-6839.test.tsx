@@ -75,7 +75,7 @@ const asBareArray: Envelope = (rows) => rows;
 const asRecords: Envelope = (rows) => ({ records: rows, total: rows.length });
 
 const schema = {
-  type: 'object-chart',
+  type: 'object-chart' as const,
   chartType: 'bar' as const,
   objectName: 'crm_opportunity',
   xAxisKey: 'stage',

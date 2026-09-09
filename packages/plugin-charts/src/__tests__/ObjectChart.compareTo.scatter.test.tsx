@@ -38,6 +38,7 @@ vi.mock('../ChartRenderer', () => ({
 }));
 
 import { ObjectChart, COMPARISON_SUFFIX } from '../ObjectChart';
+import type { ObjectChartSchema } from '@object-ui/types';
 
 /** ObjectChart probes `/api/v1/meta/object/deal` for option colors; answer it. */
 function installMetaFetchDouble() {
@@ -80,10 +81,14 @@ const makeSource = () => ({
   ]),
 });
 
-const renderChart = (chartType: string, dataSource: unknown, series?: unknown) =>
+// `chartType` takes the anchored union rather than a bare `string`
+// (objectui#7946): `ObjectChartProps.schema` is `ObjectChartSchema`, whose
+// `chartType` is the declared family list, and `type` is required there.
+const renderChart = (chartType: ObjectChartSchema['chartType'], dataSource: unknown, series?: ObjectChartSchema['series']) =>
   render(
     <ObjectChart
       schema={{
+        type: 'object-chart',
         objectName: 'deal',
         chartType,
         aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },

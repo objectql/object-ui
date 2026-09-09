@@ -14,6 +14,10 @@ import { ObjectChartBlock } from './ObjectChart';
 export type { BarChartSchema } from './types';
 export { ChartBarRenderer, ChartRenderer };
 export { ObjectChart, ObjectChartBlock } from './ObjectChart';
+// objectui#7946 — the prop type is part of the published surface, exactly as
+// `plugin-list` exports `ObjectGalleryProps` (objectui#6576). A prop type that
+// anchors a schema but is not exported cannot be asserted against by a consumer.
+export type { ObjectChartProps } from './ObjectChart';
 
 // The ONE place the author-facing chart schema is translated into the
 // renderer's internal pipeline contract (#2880 S1). Published from this entry

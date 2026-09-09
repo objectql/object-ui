@@ -7,7 +7,7 @@ import { ComponentRegistry, chartMeasureKey, humanizeLabel, extractRecords, comp
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton, DataEmptyState } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight, Inbox } from 'lucide-react';
 import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
-import type { DrillDownConfig } from '@object-ui/types';
+import type { DrillDownConfig, ObjectChartSchema } from '@object-ui/types';
 
 /**
  * Humanize a snake_case or kebab-case string into Title Case.
@@ -127,13 +127,45 @@ export function resolveChartCategoryField(schema: {
 export const COMPARISON_SUFFIX = '__comparison';
 
 /**
+ * The COLUMN an inline `aggregate` projects its group under — the string every
+ * column lookup in this file needs.
+ *
+ * `groupBy` is a union: a bare field name, or the structured date-bucketing
+ * node `{ field, dateGranularity, alias }` the engine takes, in which case the
+ * projected column is the `alias` (or the `field` it defaults to). This is that
+ * normalisation, hoisted out of the comparison-merge leg below, which has
+ * spelled it inline since the structured node arrived — "Normalise to the
+ * underlying string field name so all column lookups work".
+ *
+ * ⚠️ Module-local on purpose: it is a spelling this file already owned twice,
+ * not a new published export. It is also NOT a fourth answer to "what is the
+ * category axis" — {@link resolveChartCategoryField} remains that one, and it
+ * answers a wider question (it also resolves the spec's `xAxis` through
+ * `normalizeChartSchema`). This one answers only "which column did the
+ * aggregate project the group under", which is what a row lookup needs.
+ */
+function aggregateGroupByKey(
+  aggregate: ObjectChartSchema['aggregate'],
+): string | undefined {
+  const gb = aggregate?.groupBy;
+  if (gb && typeof gb === 'object' && !Array.isArray(gb)) return gb.alias || gb.field;
+  return typeof gb === 'string' ? gb : undefined;
+}
+
+/**
  * Client-side aggregation for fetched records.
  * Groups records by `groupBy` field and applies the aggregation function
  * to the `field` values in each group.
+ *
+ * `function` is optional because the `switch` below already implements that:
+ * an absent (or unknown) function falls through to `sum`. The parameter used to
+ * say `function: string`, which was a claim about the CALLER rather than about
+ * this body — and no caller could satisfy it once `ObjectChartSchema.aggregate`
+ * was declared with the requiredness its own reads have (objectui#7946).
  */
 export function aggregateRecords(
   records: any[],
-  aggregate: { field?: string; function: string; groupBy: string }
+  aggregate: { field?: string; function?: string; groupBy: string }
 ): any[] {
   const { field, function: aggFn, groupBy } = aggregate;
   const valueKey = aggregateValueKey(aggregate);
@@ -358,11 +390,53 @@ export async function resolveGroupByLabels(
 // Re-export extractRecords from @object-ui/core for backward compatibility
 export { extractRecords } from '@object-ui/core';
 
-export const ObjectChart = (props: any) => {
+/**
+ * Props of {@link ObjectChart} — anchored to the published `ObjectChartSchema`
+ * (objectui#7946, maintainer ruling 2026-09-09 option A), as objectui#6576 did
+ * for `ObjectGalleryProps.schema`.
+ *
+ * ## What this replaces, and what it buys
+ *
+ * This component was published as `(props: any)`, so every `schema={{ … }}`
+ * literal handed to it — including the two in `app-shell`'s `ObjectView` — was
+ * type-checked against NOTHING. That is the mechanism that let objectui#7891's
+ * undeclared `config` rung live from the day it was written until someone read
+ * the spec by hand, and it is why the two `as any` casts on those literals
+ * measured INERT: an `any` consumer accepts a cast and its absence alike.
+ *
+ * With the anchor, a wrong VALUE TYPE on a declared key is a compile error at
+ * the producer (`xAxisKey: 42`, `series: 'x'`, `type: 'chart'`, and every
+ * `BaseSchema` member — `visible: 42`). ⚠️ A MISSPELLED key is still accepted:
+ * `BaseSchema` carries `[key: string]: any` (objectui#5155), the same ceiling
+ * objectui#6576 accepted knowingly. `__tests__/ObjectChart.schemaAnchor-7946.test.ts`
+ * pins both halves, the ceiling included, so the anchor is not read as more
+ * than it is.
+ */
+export interface ObjectChartProps {
+  /**
+   * The `object-chart` node — anchored to the exported schema type. Every
+   * `BaseSchema` member is writable, `bind` / `className` / `data` included;
+   * the widget's own keys are declared there.
+   */
+  schema: ObjectChartSchema;
+  /**
+   * Host data source. `any` deliberately, and it is NOT a residue of the shape
+   * this card removed: it is the type `SchemaRendererContext.dataSource`
+   * itself carries, and this component falls back to that context value, so a
+   * narrower declaration here would claim a guarantee the fallback cannot
+   * keep. Narrowing it is a repo-wide `dataSource` interface, not this card.
+   */
+  dataSource?: any;
+  /**
+   * Optional host-owned segment click. When provided (e.g. a dataset widget
+   * that owns precise drill-through), it takes over the chart click and the
+   * widget's own object-drill drawer is suppressed.
+   */
+  onSegmentClick?: (ev: ChartSegmentClickEvent) => void;
+}
+
+export const ObjectChart = (props: ObjectChartProps) => {
   const { schema } = props;
-  // Optional host-owned segment click. When provided (e.g. a dataset widget
-  // that owns precise drill-through), it takes over the chart click and the
-  // widget's own object-drill drawer is suppressed.
   const onSegmentClick: ((ev: ChartSegmentClickEvent) => void) | undefined = props.onSegmentClick;
   const context = useContext(SchemaRendererContext);
   const dataSource = props.dataSource || context?.dataSource;
@@ -616,8 +690,16 @@ export const ObjectChart = (props: any) => {
     if (typeof ds.find === 'function') {
       const results = await ds.find(schema.objectName, { $filter: filterForRun });
       let data = extractRecords(results);
-      if (schema.aggregate && data.length > 0) {
-        data = aggregateRecords(data, schema.aggregate);
+      // `aggregateRecords` buckets on `record[groupBy]`, so it needs the
+      // projected COLUMN, not the raw union: a structured `groupBy` node used
+      // as an index stringifies, and every row lands in one bucket keyed by
+      // that stringification. Declaring the key (objectui#7946) is what made
+      // that reachable to a compiler. When no column resolves there is nothing
+      // to group by, and the chart is already refused for exactly that reason
+      // by the absent-category screen below (objectui#8168).
+      const clientGroupBy = aggregateGroupByKey(schema.aggregate);
+      if (schema.aggregate && clientGroupBy && data.length > 0) {
+        data = aggregateRecords(data, { ...schema.aggregate, groupBy: clientGroupBy });
       }
       return data;
     }
@@ -753,15 +835,23 @@ export const ObjectChart = (props: any) => {
           // Resolve groupBy value→label using field metadata. Now that the
           // merge has happened on raw keys, the resolver can convert the
           // shared groupBy column (e.g. 'closed_won' → 'Closed Won') uniformly.
-          if (groupByField && typeof ds.getObjectSchema === 'function') {
+          // `schema.objectName` joins the guard rather than being asserted:
+          // it is OPTIONAL since ADR-0021 (a chart may bind a `dataset`
+          // instead), and every read in this leg — the metadata fetch and the
+          // per-option label lookup — is keyed by an object NAME. Naming the
+          // precondition is what `props: any` used to hide (objectui#7946);
+          // the leg is on the object-bound path, so it is the shape it already
+          // assumed.
+          if (groupByField && schema.objectName && typeof ds.getObjectSchema === 'function') {
+              const objectName = schema.objectName;
               try {
-                  const objectSchema = await ds.getObjectSchema(schema.objectName);
+                  const objectSchema = await ds.getObjectSchema(objectName);
                   data = await resolveGroupByLabels(
                     data,
                     groupByField,
                     objectSchema,
                     ds,
-                    (value, fallback) => fieldOptionLabel(schema.objectName, groupByField, value, fallback),
+                    (value, fallback) => fieldOptionLabel(objectName, groupByField, value, fallback),
                   );
               } catch {
                   // Schema fetch failed — continue with raw values
@@ -853,7 +943,13 @@ export const ObjectChart = (props: any) => {
   // composes an `object-chart` schema directly, and stays absent from the
   // registry `inputs` below.
   const drillDown = (schema as { drillDown?: DrillDownConfig }).drillDown;
-  const groupByField = schema.aggregate?.groupBy || schema.xAxisKey;
+  // Spelled through the shared normalisation rather than `aggregate?.groupBy`
+  // raw: this value is used as a ROW INDEX (`row[groupByField]`), as a FIELD
+  // NAME (`fieldOptionLabel`) and as a drill-filter key, and a structured
+  // `groupBy` node is none of those. The comparison-merge leg above has always
+  // normalised before its own column lookups; this site did not, and `props:
+  // any` is why nothing said so (objectui#7946).
+  const groupByField = aggregateGroupByKey(schema.aggregate) || schema.xAxisKey;
 
   // Build a label→raw map from the resolved chart data. resolveGroupByLabels
   // stashes the original raw enum/id under `__raw_${groupByField}`. The chart

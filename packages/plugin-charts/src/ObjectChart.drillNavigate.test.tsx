@@ -90,8 +90,8 @@ afterEach(() => {
 });
 
 const schema = (drillDown: Record<string, unknown>) => ({
-  type: 'object-chart',
-  chartType: 'bar',
+  type: 'object-chart' as const,
+  chartType: 'bar' as const,
   objectName: 'opportunity',
   xAxisKey: 'stage',
   data: [{ stage: 'won', amount: 42 }],
