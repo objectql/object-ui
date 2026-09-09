@@ -932,6 +932,7 @@ const ja = {
     sortBy: "並べ替え",
     filterPlaceholder: "フィルター…",
     highlightFields: "主要フィールド",
+    highlightsLabel: "レコードの主要フィールド",
     comments: "コメント",
     searchComments: "コメントを検索…",
     addCommentPlaceholder: "コメントを追加… (Ctrl+Enterで送信)",

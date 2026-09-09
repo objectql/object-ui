@@ -1114,6 +1114,7 @@ const en = {
     sortBy: 'Sort by',
     filterPlaceholder: 'Filter…',
     highlightFields: 'Key Fields',
+    highlightsLabel: 'Record highlights',
     // Comments
     comments: 'Comments',
     searchComments: 'Search comments…',
