@@ -189,6 +189,23 @@ has no array-equality node, so `['tags', '=', ['a', 'b']]` was answered by a
 `400` from the wire or an empty list from every in-memory matcher. Spell
 membership as `{ tags: { $in: ['a', 'b'] } }` (or `$nin` for its negation).
 
+An **exotic object** as a field's value — a `RegExp`, a `Set`, a `Map`, a `URL`,
+any class instance — is refused the same way (objectui#8567). It has no row in
+the table above because the table's examples are executed as JSON literals and
+none of these shapes can be written as one; the refusal is no less real for
+that. `{ name: /abc/ }` used to lower to **nothing at all**: `Object.entries` of
+a `RegExp` is `[]`, so the operator loop ran zero times and the `name` condition
+was dropped from the filter entirely, silently widening the result set. The spec
+rules these out — a comparison value must be a string, number, bigint, boolean,
+null or `Date` (`ACCEPTED_FILTER_COMPARAND_TYPES`), and
+`normalizeFilterComparandTypes` answers `400 INVALID_FILTER` for a `RegExp` —
+so the refusal now lands at lowering time instead of the field vanishing. Spell
+a text match as `{ name: { $contains: 'abc' } }` (`$startsWith` / `$endsWith`), a
+membership test as `{ name: { $in: [...] } }`, and a date bound as
+`{ created: { $gte: someDate } }`. A `Date` comparand is **not** exotic: the spec
+accepts it and it lowers as an equality node (objectui#8555). An empty operator
+object `{}` is untouched — it constrains nothing, as it always has.
+
 #### Complex Filter Examples
 
 **Multiple conditions** are combined with `'and'`:

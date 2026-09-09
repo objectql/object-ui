@@ -76,6 +76,10 @@
  *    (`['created', '=', {}]`), and a RegExp comparand is one
  *    `normalizeFilterComparandTypes` refuses outright, so the caricature moves
  *    the failure downstream instead of removing it.
+ *    ⚠️ Those three counts DATE FROM objectui#8555's own tree. objectui#8567
+ *    then turned section 4's RegExp case from a silent-drop negative into a
+ *    refusal, so re-running any of these legs today reads against a different
+ *    section 4. The MODES are unchanged; the numbers are historical.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -240,15 +244,24 @@ describe('objectui#8555 — operator objects lower exactly as before', () => {
     // A `RegExp` is entry-less too, so the same `Object.keys` caricature would
     // emit `['created', '=', /x/]` — a comparand `normalizeFilterComparandTypes`
     // refuses outright (INVALID_FILTER / 400), i.e. the failure moves downstream
-    // rather than going away.
+    // rather than going away. That is what section 4 holds closed, and it still
+    // does: a RegExp never reaches comparand position.
     //
-    // ⚠️ This pins the NEGATIVE only. What this arm does with a RegExp today is
-    // the same silent drop objectui#8555 describes, left in place deliberately:
-    // the spec rules Date IN and rules RegExp OUT, so the two shapes need
-    // different answers and only one of them was in scope. Filed separately.
+    // What CHANGED is the other direction. This case used to pin the negative
+    // only — `.not.toEqual(...)` — because what the arm did with a RegExp was
+    // the same silent DROP objectui#8555 describes, left in place deliberately
+    // while only the Date half was in scope. objectui#8567 closed it: the spec
+    // rules Date IN and rules RegExp OUT, so the drop became a refusal, and the
+    // assertion is now the envelope rather than an inequality. The full class
+    // lives in filter-exotic-comparand-8567.test.ts.
     expect(isAcceptedFilterComparand(/x/)).toBe(false);
-    expect(convertFiltersToAST({ status: 'a', created: /x/ }))
-      .not.toEqual(['and', ['status', '=', 'a'], ['created', '=', /x/]]);
+    let thrown: unknown;
+    try {
+      convertFiltersToAST({ status: 'a', created: /x/ });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toMatchObject({ code: 'INVALID_FILTER', httpStatus: 400 });
   });
 
   it('plain scalars, null and undefined are exactly what they were', () => {
