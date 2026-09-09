@@ -845,7 +845,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
            become a second horizontal scroller competing with the ONE axis
            objectui#8448 settled on the header row and the lane rows. Pinned by
            `__tests__/swimlaneVerticalScroll-8449.test.tsx`. */
-        <div className={cn("flex flex-col gap-2 px-4 sm:px-6 py-3 sm:py-4 min-w-0 overflow-x-hidden overflow-y-auto", className)} role="region" aria-label="Kanban board with swimlanes">
+        <div className={cn("flex flex-col gap-2 px-4 sm:px-6 pb-3 sm:pb-4 min-w-0 overflow-x-hidden overflow-y-auto", className)} role="region" aria-label="Kanban board with swimlanes">
           {/* Column headers.
               This is a SECOND header implementation, parallel to the per-column
               `<h3 id={`kanban-col-${column.id}`}>` that `KanbanColumnView`
@@ -881,6 +881,15 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               below and is what lines the titles up with their columns — it must
               move on both rows or neither.
 
+              `pt-3 sm:pt-4` is the region's former TOP padding, moved onto this
+              row on purpose. A scroll container's padding is inside its
+              scrollport, so content scrolls THROUGH it: with the padding left
+              on the region, a 16px band of the previous lane's cards stayed
+              visible above the pinned header (measured in Chromium — the header
+              stuck at `top + 16`, not `top + 0`). Carried here it is painted
+              with the row's own opaque background instead. The region keeps
+              `pb-*`, which nothing scrolls past.
+
               `sticky top-0` is the other half of objectui#8449's ruling. Now
               that the region scrolls vertically, a header row that scrolled
               away with the lanes would recreate objectui#7303's defect by a
@@ -895,7 +904,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               a sticky box is still in flow — so `shrink-0` above stays exactly
               as load-bearing as objectui#7303's pin says it is. */}
           <div
-            className="flex shrink-0 gap-3 sm:gap-4 pl-36 sm:pl-44 overflow-x-auto sticky top-0 z-10 bg-background"
+            className="flex shrink-0 gap-3 sm:gap-4 pl-36 sm:pl-44 pt-3 sm:pt-4 overflow-x-auto sticky top-0 z-10 bg-background"
             ref={adoptSwimlaneScroll}
             onScroll={syncSwimlaneScroll}
             data-swimlane-scroll-row=""
