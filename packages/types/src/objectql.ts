@@ -98,6 +98,7 @@ import type {
   TimelineConfig,
   NavigationConfig,
   GanttConfig as SpecGanttConfig,
+  CalendarConfig as SpecCalendarConfig,
 } from '@objectstack/spec/ui';
 
 /**
@@ -2765,6 +2766,52 @@ export interface ObjectCalendarSchema extends BaseSchema {
   endDateField?: string;
   /** Field for event title */
   titleField?: string;
+  /**
+   * Record field carrying the event's colour — any CSS colour or a semantic
+   * palette name, typically a server-computed status colour. Resolved PER
+   * RECORD by `plugin-calendar/src/ObjectCalendar.tsx`, which falls back to the
+   * record's own `color` value and then to the platform default, so an authored
+   * value that never arrives is invisible rather than loud.
+   *
+   * DERIVED from {@link CalendarConfig}, the same type the `calendar` block
+   * carries, so the flat spelling cannot drift from the block spelling. That is
+   * verbatim the pattern objectui#6051 established for
+   * {@link ObjectGanttSchema.colorField} — the same key name, the same
+   * mechanism, on this same file — and the reason this member is an indexed
+   * access rather than a fresh `string`.
+   *
+   * Undeclared here until objectui#8466, so an authored value reached the
+   * renderer only through {@link BaseSchema}'s `[key: string]: any` — admitted,
+   * never examined — while `plugin-calendar/README.md` taught it as authorable.
+   */
+  colorField?: SpecCalendarConfig['colorField'];
+  /**
+   * Record field carrying the all-day flag. LOAD-BEARING since objectui#8026:
+   * the events pass in `plugin-calendar/src/ObjectCalendar.tsx` reads it and a
+   * change to the authored key genuinely changes what is drawn. It is also in
+   * that component's `getCalendarConfig` memo dependency list, which is what
+   * makes the change reach the screen.
+   *
+   * objectui-LOCAL, and the one member here with no {@link CalendarConfig} twin
+   * to derive from: `@objectstack/spec`'s `CalendarConfigSchema` is a
+   * `strictObject` of four keys and refuses this one BY NAME with an
+   * `unrecognized_keys` diagnostic. That is the class this package's mirror
+   * already names out loud, where `.passthrough()` is kept explicitly for this
+   * key — "the renderers grow config knobs ahead of the protocol (calendar's
+   * `allDayField`, for one), and stripping them here would silently disable a
+   * shipped capability" (`zod/objectql.zod.ts`).
+   *
+   * ⛔ Declaring it widens NO accept set, which is why Commandment #0.1 is not
+   * engaged. Measured on spec 17.3.0: `ComponentPropsMap['object-calendar']`
+   * refuses ALL FIVE flat field-name keys with `unrecognized_keys` — including
+   * {@link ObjectCalendarSchema.titleField},
+   * {@link ObjectCalendarSchema.startDateField} and
+   * {@link ObjectCalendarSchema.endDateField} above, which have shipped
+   * DECLARED for releases. The flat face is objectui's own lane, taken whole;
+   * this key is its fifth member, not a new dialect. And under `BaseSchema`'s
+   * index signature the value was already `any`, so declaring only NARROWS.
+   */
+  allDayField?: string;
   /**
    * Default view mode — the renderer's rendered set. `'agenda'` was retired
    * (objectui#5784, following #5740): `CalendarView` renders no agenda view,

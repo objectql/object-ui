@@ -1078,6 +1078,27 @@ export const ObjectCalendarSchema = BaseSchema.extend({
   startDateField: z.string().optional().describe('Start date field'),
   endDateField: z.string().optional().describe('End date field'),
   titleField: z.string().optional().describe('Title field'),
+  // objectui#8466 — the last two members of the FLAT field-name face, which
+  // `ObjectCalendar.tsx`'s `getCalendarConfig` reads bare off the node and
+  // which `plugin-calendar/README.md` teaches as authorable. Neither published
+  // face of this package named them: they rode `BaseSchema`'s `[key: string]:
+  // any` on the TS side and its `.passthrough()` here — admitted, never
+  // examined, so a misspelling left the calendar silently colourless while
+  // every published gate passed.
+  //
+  // Mirrored at the SAME requiredness as `../objectql.ts` (both optional) so
+  // the zod-mirror-parity ratchet stays at zero drift for this pair, exactly as
+  // the `filter`/`sort` pair above.
+  //
+  // ⛔ Neither key is added to `plugin-calendar`'s registration `inputs`, and
+  // that asymmetry is deliberate: `ComponentPropsMap['object-calendar']`
+  // refuses all five flat keys with `unrecognized_keys`, so declaring them
+  // THERE would redden the FORWARD direction of
+  // `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`. The flat
+  // face is objectui's own lane — `titleField`/`startDateField`/`endDateField`
+  // have shipped declared here, and absent from `inputs`, for releases.
+  colorField: z.string().optional().describe('Field carrying the per-record event colour — a CSS colour or a semantic palette name'),
+  allDayField: z.string().optional().describe("Field carrying the all-day flag — objectui-local (the spec's CalendarConfigSchema refuses it by name); LOAD-BEARING since objectui#8026"),
   defaultView: z.enum(['month', 'week', 'day']).optional().describe("Default view — 'month' | 'week' | 'day', the renderer's rendered set ('agenda' was retired: objectui#5784)"),
   // objectui#8174 — the two query keys `ObjectCalendar.tsx` lowers onto its own
   // `dataSource.find` (`$filter: schema.filter`,
