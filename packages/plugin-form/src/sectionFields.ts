@@ -23,6 +23,13 @@
  * helper normalizes all three shapes into a runtime FormField with a real
  * `name`, merging object-schema metadata (type/options/validation) with the
  * spec-level overrides.
+ *
+ * Also hosts `warnUnresolvedTopLevelField` (objectui#8738 route 1) — the
+ * top-level `fields` counterpart of this file's own `warnOnMixedVocabulary`,
+ * shared by `ObjectForm.tsx`'s `SimpleObjectForm` and `flatFields.ts`'s
+ * `buildFlatFields`, neither of which is a sectioned variant. It lives here
+ * rather than in a third module because the vocabulary it warns about IS the
+ * one shape (2) documents, and the two warnings should not drift in voice.
  */
 
 import type { FormField } from '@object-ui/types';
@@ -96,6 +103,44 @@ function warnOnMixedVocabulary(fd: Record<string, any>, objectName: string): voi
     `[object-ui] section field { field: '${fd.field}' } also carries name: '${fd.name}' — mixed form-field ` +
       `vocabularies. The spec key wins (the runtime name becomes '${fd.field}'); drop \`name\` from authored ` +
       `form views.`,
+  );
+}
+
+/**
+ * The TOP-LEVEL counterpart of `warnOnMixedVocabulary` above (objectui#8738).
+ *
+ * `sections[].fields` accepts the spec `FormFieldSchema` object — identity key
+ * `field`, normalized by `normalizeSectionField` above. TOP-LEVEL `fields` —
+ * `SimpleObjectForm`'s `fieldsToShow` loop in `ObjectForm.tsx`, and
+ * `buildFlatFields` below in `flatFields.ts` for the drawer/modal
+ * presentations — does NOT: it reads only bare field-name strings (`{ name }`
+ * tolerated). The exact same `{ field: 'x', ... }` object `normalizeSectionField`
+ * treats as canonical resolves to no `name` at the top level, and both read
+ * sites used to drop it in total silence — no throw, no warning, no
+ * empty-state. This is the same voice and the same once-per-occurrence
+ * discipline as `warnOnMixedVocabulary`, for the sibling mistake where a
+ * member resolves to NOTHING rather than to two conflicting names.
+ *
+ * ⛔ This function only WARNS — it never resolves a name from `entry`. Reading
+ * `entry.field` as a fallback name here would be exactly the lenient `?? f.field`
+ * second dialect objectui#8738 forbids: it would make the wrong spelling work
+ * instead of making its failure audible.
+ */
+const warnedUnresolvedTopLevelField = new Set<string>();
+export function warnUnresolvedTopLevelField(entry: unknown, objectName: string): void {
+  const isSpecFieldObject =
+    entry !== null && typeof entry === 'object' && typeof (entry as any).field === 'string';
+  const shape = isSpecFieldObject ? `{ field: '${(entry as any).field}' }` : JSON.stringify(entry);
+  const key = `${objectName}:${shape}`;
+  if (warnedUnresolvedTopLevelField.has(key)) return;
+  warnedUnresolvedTopLevelField.add(key);
+  console.warn(
+    `[object-ui] top-level \`fields\` entry ${shape} resolved to no field name and was skipped. ` +
+      `Top-level \`fields\` takes bare field-name strings (\`{ name }\` is tolerated) — it is NOT the ` +
+      `same vocabulary as \`sections[].fields\`, which also accepts the spec \`FormFieldSchema\` object ` +
+      `(identity key \`field\`, e.g. \`{ field: 'note', colSpan: 2 }\`). That shape has no \`name\` here ` +
+      `and is silently dropped; use a bare field-name string, or move the entry into a ` +
+      `\`sections[].fields\` entry instead.`,
   );
 }
 

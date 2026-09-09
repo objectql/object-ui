@@ -289,7 +289,7 @@ ComponentRegistry.register('form', ObjectFormRenderer, {
   category: 'view',
   inputs: [
     { name: 'objectName', type: 'string', required: true },
-    { name: 'fields', type: 'array' },
+    { name: 'fields', type: 'array', description: 'Bare field names to show, in order (each looked up in the object schema; `{ name }` is tolerated). NOT the same vocabulary as `sections[].fields`, which also accepts the spec `FormFieldSchema` object (identity key `field`, e.g. `{ field: "note", colSpan: 2 }`) — that shape resolves to no name HERE and is silently skipped (this renders through the same `ObjectFormRenderer` / `SimpleObjectForm` as `object-form` above — see its `fields` description).' },
     { name: 'mode', type: 'enum', enum: ['create', 'edit', 'view'] },
   ]
 });
@@ -427,7 +427,7 @@ ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer
     // Declaring them would mint choices an authoring UI offers and this block
     // cannot honour.
     { name: 'formType', type: 'enum', enum: ['simple', 'tabbed'], description: 'How the PARENT half of the form is presented. The detail grids below it are unaffected.' },
-    { name: 'fields', type: 'array', description: 'Which parent fields to show, in order. Ignored when `sections` is given — sections carry their own field lists.' },
+    { name: 'fields', type: 'array', description: 'Which parent fields to show, in order. Ignored when `sections` is given — sections carry their own field lists. Members are bare field names (`{ name }` tolerated); NOT the spec `FormFieldSchema` object `sections[].fields` accepts (identity key `field`) — that shape resolves to no name here and is silently skipped (the parent form renders through the same `ObjectForm` / `SimpleObjectForm` as `object-form` — see its `fields` description).' },
     { name: 'title', type: 'string' },
     { name: 'submitText', type: 'string', description: 'Label of the button that saves the parent and every detail row in one batch.' },
     { name: 'cancelText', type: 'string' },
