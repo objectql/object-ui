@@ -292,16 +292,26 @@ const SUPERSEDES_BINDING = new Set(['data', 'staticData', 'customFields']);
  * generic `array` sample is `['name']`, and a bare string is not a section:
  * `@objectstack/spec`'s `FormViewSchema.sections` rejects it at parse —
  * `safeParse(['name'])` returns *"Invalid input: expected object, received
- * string"* — and requires `fields` on every entry (`[{}]` returns *"0.fields:
- * Invalid input: expected array, received undefined"*). This repo's own type
- * says the same: `ObjectFormSection.fields` is REQUIRED
- * (`packages/types/src/objectql.ts`). So `['name']` is not metadata any author
- * could publish, while `ObjectForm.tsx:1166` reads `section.fields.map(...)` off
- * each entry unguarded and takes the whole block down with *"Cannot read
+ * string"* — and requires every entry to declare its members (`[{}]` returns
+ * *"0.fields: A section must declare its members exactly one way, and this form
+ * section declares neither"*). So `['name']` is not metadata any author could
+ * publish, while `ObjectForm.tsx`'s section loop read `section.fields.map(...)`
+ * off each entry unguarded and took the whole block down with *"Cannot read
  * properties of undefined (reading 'map')"*. That makes the error card a
  * FIXTURE defect, not the product bug the shape suggested — the discriminator
  * being the spec shape, not the fact that a different sample stops the crash
  * (which is true either way).
+ *
+ * ⚠️ Two halves of that reasoning moved with objectui#7051 and are restated
+ * here rather than left to read as still-true. (1) `ObjectFormSection.fields`
+ * is no longer REQUIRED on this repo's type: `group` — the field-group
+ * REFERENCE form, `@objectstack/spec` 17.3.0 / objectstack#13855 — is the other
+ * way a section declares the same fact, so the spec refuses an entry carrying
+ * NEITHER rather than one missing `fields`. The fixture reasoning is unchanged
+ * (a bare string is still not a section, and `{}` is still refused), only its
+ * quoted grounds. (2) That unguarded `.map` is now spelled `?? []`, so this
+ * sample's shape no longer decides whether the block survives — which is
+ * exactly why the sample is justified on the SPEC shape and not on the crash.
  *
  * `formType` is the SEVENTH, and it is why `object-master-detail-form` read GREEN
  * while carrying the identical latent crash. That block declares `formType` as a

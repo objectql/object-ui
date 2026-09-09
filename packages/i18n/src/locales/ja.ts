@@ -1083,6 +1083,7 @@ const ja = {
     showEmptyFields: "{{count}} 件の空フィールドを表示",
     hideEmptyFields: "空フィールドを非表示",
     noValue: "値なし",
+    unresolvedReference: "未解決の参照: {{value}} はユーザーとして解決されませんでした",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -2763,6 +2764,13 @@ const ja = {
     badgeTotal: "合計 {{total}} 件",
     badgeNotifications: "通知 {{unread}} 件",
     badgeApprovals: "承認待ち {{approvals}} 件",
+    arrivalMany: "新着メッセージ {{count}} 件",
+    arrivalRepeats: "このトピックの新着メッセージ {{count}} 件",
+    arrivalOpen: "表示",
+    toastEnabled: "アプリ内通知",
+    desktopEnabled: "デスクトップ通知",
+    desktopBlocked: "ブロックされています。ブラウザーの設定でこのサイトの通知を許可してください。",
+    desktopUnsupported: "このブラウザーはデスクトップ通知に対応していません。",
     emptyUnread: "既読にしました",
     filterUnread: "未読",
     filterAll: "すべて",

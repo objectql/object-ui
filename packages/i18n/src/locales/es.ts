@@ -1087,6 +1087,7 @@ const es = {
     showEmptyFields: "Mostrar {{count}} campos vacíos",
     hideEmptyFields: "Ocultar campos vacíos",
     noValue: "Sin valor",
+    unresolvedReference: "Referencia sin resolver: {{value}} no se resolvió como un usuario",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -2765,6 +2766,13 @@ const es = {
     badgeTotal: "{{total}} en total",
     badgeNotifications: "{{unread}} notificaciones",
     badgeApprovals: "{{approvals}} aprobaciones pendientes",
+    arrivalMany: "{{count}} mensajes nuevos",
+    arrivalRepeats: "{{count}} mensajes nuevos sobre este tema",
+    arrivalOpen: "Ver",
+    toastEnabled: "Avisos en la aplicación",
+    desktopEnabled: "Notificaciones de escritorio",
+    desktopBlocked: "Bloqueado. Permite las notificaciones de este sitio en la configuración del navegador.",
+    desktopUnsupported: "Este navegador no admite notificaciones de escritorio.",
     emptyUnread: "Todo al día",
     filterUnread: "No leídos",
     filterAll: "Todos",

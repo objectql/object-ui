@@ -58,6 +58,7 @@ import { ModeToggle } from './ModeToggle.js';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher.js';
 import { CurrentOrganizationIndicator } from './CurrentOrganizationIndicator.js';
 import { LocaleSwitcher } from './LocaleSwitcher.js';
+import { NotificationPreferencesMenu } from './NotificationPreferencesMenu.js';
 import { ConnectionStatus } from './ConnectionStatus.js';
 import type { ActivityItem } from './ActivityFeed.js';
 import { InboxPopover } from './InboxPopover.js';
@@ -893,6 +894,15 @@ export function AppHeader({
               </span>
               <LocaleSwitcher />
             </div>
+            {/*
+             * objectui#7011 — the two inbox announcement switches. They belong
+             * beside theme and language for the same reason those moved here:
+             * browser-local preferences a user sets once. The desktop switch is
+             * also the ONLY path to `Notification.requestPermission()` in this
+             * console, and keeping it behind a deliberate gesture is what stops
+             * a load-time prompt from spending that channel permanently.
+             */}
+            <NotificationPreferencesMenu />
 
             {isAuthEnabled && (
               <>

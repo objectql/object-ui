@@ -64,7 +64,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && node ../../scripts/check-dist-completeness.mjs",
+    "build": "tsc && vite build && node ../../scripts/check-dist-completeness.mjs",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "type-check": "tsc --noEmit && tsc -p tsconfig.examples.json && tsc -p tsconfig.test.json",
     "lint": "eslint ."
@@ -97,7 +97,8 @@
   },
   "devDependencies": {
     "@object-ui/test-support": "workspace:*",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1"
   },
   "bugs": {
     "url": "https://github.com/objectstack-ai/objectui/issues"

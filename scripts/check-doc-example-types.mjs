@@ -732,7 +732,7 @@ export const UNGATED_EXAMPLES = {
     reason:
       'usage fragment: references `FormField`, which the example never declares',
   },
-  'packages/plugin-form/src/ObjectForm.tsx:122 ObjectForm': {
+  'packages/plugin-form/src/ObjectForm.tsx:123 ObjectForm': {
     card: null,
     codes: [2304],
     reason:
@@ -978,7 +978,7 @@ export const UNGATED_EXAMPLES = {
     reason:
       'usage fragment: references `save`, `storedPage`, which the example never declares',
   },
-  'packages/types/src/objectql.ts:1572 ObjectFormSchema': {
+  'packages/types/src/objectql.ts:1604 ObjectFormSchema': {
     card: null,
     codes: [1005, 1109],
     reason:

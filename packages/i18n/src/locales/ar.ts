@@ -1090,6 +1090,7 @@ const ar = {
     showEmptyFields: "إظهار {{count}} حقل(حقول) فارغة",
     hideEmptyFields: "إخفاء الحقول الفارغة",
     noValue: "لا قيمة",
+    unresolvedReference: "مرجع غير مُحلّل: لم يتم تحويل {{value}} إلى مستخدم",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -2768,6 +2769,13 @@ const ar = {
     badgeTotal: "{{total}} إجمالاً",
     badgeNotifications: "{{unread}} إشعارات",
     badgeApprovals: "{{approvals}} موافقات معلقة",
+    arrivalMany: "{{count}} رسائل جديدة",
+    arrivalRepeats: "{{count}} رسائل جديدة في هذا الموضوع",
+    arrivalOpen: "عرض",
+    toastEnabled: "تنبيهات داخل التطبيق",
+    desktopEnabled: "إشعارات سطح المكتب",
+    desktopBlocked: "محظور. اسمح بالإشعارات لهذا الموقع من إعدادات المتصفح.",
+    desktopUnsupported: "هذا المتصفح لا يدعم إشعارات سطح المكتب.",
     emptyUnread: "كل شيء مقروء",
     filterUnread: "غير مقروء",
     filterAll: "الكل",

@@ -135,8 +135,11 @@ async function settledOn(envelope: Envelope): Promise<number | 'empty-state'> {
  * Run site 2 directly: resolve one `lookup` dimension's labels over a `find()`
  * answering `envelope`, and hand back the axis label the row ended up with.
  *
- * `'Apollo'` means the domain was read; `'P1'` is what `humanizeLabel` makes of
- * the unresolved foreign key, i.e. the silent-looking failure.
+ * `'Apollo'` means the domain was read; `'p1'` — the raw foreign key, verbatim
+ * — is the silent-looking failure. MEASURED, not assumed: the lookup branch
+ * ends `[groupByField]: idToName[rawValue] || rawValue`, so an unresolved key
+ * falls through UNTOUCHED. `humanizeLabel` is not on this path and never
+ * uppercases it; a pin written for `'P1'` reddens on a correct refusal.
  */
 async function labelThrough(envelope: Envelope): Promise<string> {
   const ds: any = { find: vi.fn(async () => envelope(PROJECTS)) };
@@ -185,10 +188,20 @@ describe('ObjectChart — the find() envelopes it reads (objectui#6839)', () => 
       // The sharp half. The bar count is identical either way; what changes is
       // that the axis now carries the raw foreign key. A rows-only pin would
       // have called this module green.
+      //
+      // ⭐ ASSERT THE POSITIVE (objectui#8708). This arm read `.not.toBe(
+      // 'Apollo')` — a negation over an OPEN codomain, so it also accepted
+      // `String(undefined)`, `''`, `'null'` and every other value a resolver
+      // emits once it has stopped resolving anything. ABLATION, on this file:
+      // deleting the `|| rawValue` fallback in `resolveGroupByLabels` — so an
+      // unresolved key reaches the axis as the literal string `undefined` —
+      // left ALL SIX cases green under the old pin. Naming the one value a
+      // correct refusal settles on closes that: `'p1'` is the FK verbatim, the
+      // raw-foreign-key axis the docblock above describes.
       expect(
         await labelThrough(asRecords),
-        'a `records` envelope must not resolve the referenced domain',
-      ).not.toBe('Apollo');
+        'a `records` envelope must leave the axis on the raw foreign key, unresolved',
+      ).toBe('p1');
     });
   });
 });
