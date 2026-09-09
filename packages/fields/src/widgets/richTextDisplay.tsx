@@ -174,6 +174,33 @@ export const RICH_TEXT_CELL_RENDERERS = {
 export type RichTextFieldType = keyof typeof RICH_TEXT_CELL_RENDERERS;
 
 /**
+ * The same three types as a RUNTIME list, DERIVED from THE table rather than
+ * spelled a second time — the type-level {@link RichTextFieldType} cannot be
+ * enumerated at runtime, and a hand-written array beside it would be exactly
+ * the shape this export exists to retire.
+ *
+ * ## Why this export exists
+ *
+ * objectui#4831 asked, in its own body, whether the hand-written type lists
+ * that keep omitting the third of this widget's three registry keys should
+ * become "every type that resolves to the long-text widget". It was answered
+ * by adding one literal, and the omission recurred (objectui#4250,
+ * objectui#8438). This is that question answered in the other direction: a
+ * consumer that spreads this list cannot omit a key, because it never names
+ * one. Adding a fourth key to {@link RICH_TEXT_CELL_RENDERERS} extends every
+ * such consumer in the same commit that adds the key.
+ *
+ * ⚠️ It is NOT a general "long text" list and must not be used as one:
+ * `textarea` renders a `<Textarea>` too and is deliberately absent, because it
+ * is a different widget with its own registry key and its own metadata face.
+ * The invariant this list states is narrower and exact — *these are the keys
+ * `RichTextField` serves*.
+ */
+export const RICH_TEXT_FIELD_TYPES: readonly RichTextFieldType[] = Object.keys(
+  RICH_TEXT_CELL_RENDERERS,
+) as RichTextFieldType[];
+
+/**
  * The SYNTAX a rich-content type stores, derived from the renderer that type
  * resolves to rather than declared a second time.
  *

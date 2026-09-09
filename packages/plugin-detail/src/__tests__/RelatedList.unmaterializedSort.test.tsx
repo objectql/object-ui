@@ -23,10 +23,28 @@
  * formula value is the one the server hydrated on read, so ordering by what the
  * cell shows is honest — the same split #3096 made for relational columns.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, waitFor, screen } from '@testing-library/react';
 import * as React from 'react';
 import { RelatedList } from '../RelatedList';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). `RelatedList` reads
+ * `useIsMobile` (breakpoint 768): above it a `type="table"` list renders a real
+ * `data-table`, below it an `object-gallery` card layout with no headers, no
+ * cells and no sort.
+ *
+ * The `column headers` describe reads the table HEADERS and needs this branch.
+ * The `data-list` describe exercises `type='list'`, which the mobile carve-out
+ * never touches (it applies to `grid`/`table` only), so the pin states the
+ * branch without changing it.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 // Capture the schema RelatedList hands to SchemaRenderer (the data-table), so
 // the column's own `sortable` flag can be read without the table in the way.

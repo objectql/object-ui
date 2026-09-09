@@ -52,13 +52,30 @@
  * projection comes from the platform's own `resolveObjectSortability`
  * (`@objectstack/spec/api`), the resolver the REST layer serves it from.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, waitFor, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import * as React from 'react';
 import { resolveObjectSortability } from '@objectstack/spec/api';
 import { attachObjectSortability } from '@object-ui/core';
 import { RelatedList } from '../RelatedList';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). `RelatedList` reads
+ * `useIsMobile` (breakpoint 768): above it a `type="table"` list renders a real
+ * `data-table`, below it an `object-gallery` card layout with no headers, no
+ * cells and no sort.
+ *
+ * Surface 1 reads the table HEADERS and needs this branch. Surface 2 exercises
+ * `type='list'`, which the mobile carve-out never touches (it applies to
+ * `grid`/`table` only), so the pin states the branch without changing it.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 // Capture the schema RelatedList hands to SchemaRenderer, so the column's own
 // `sortable` flag can be read without the table in the way.
