@@ -295,6 +295,120 @@ describe('classifyEffect', () => {
   });
 });
 
+describe('a call inside a top-level initializer (objectui#8578)', () => {
+  // The card's shape: `export const X = f(...)` where `f` writes a slot living
+  // in another module. A bundler drops the whole statement with the module, so
+  // the effect leaves with the binding — but the classifier used to read the
+  // statement as "declares a constant, does nothing" and score the package 0.
+  //
+  // Every assertion below has a partner that makes the same fixture NOT a
+  // registration, because the widening's own failure mode is the opposite one:
+  // reading `new Set([...])` as a registration would name every module in the
+  // package and spend exactly the bytes the array exists to save.
+  const kindOf = (source: string) => {
+    const file = ts.createSourceFile('probe-8578.ts', source, ts.ScriptTarget.Latest, true);
+    return [...file.statements].map((stmt) => classifyEffect(stmt, new Set())).filter((k) => k !== null);
+  };
+
+  it('sees a call whose callee writes a binding it did not declare', () => {
+    // `nodeUnionOptions[0] = installed` — @object-ui/types' real shape, reduced.
+    expect(
+      kindOf(
+        'const slot: unknown[] = [];\n' +
+          'function install(u: unknown) { slot[0] = u; return u; }\n' +
+          'export const Union = install(1);\n',
+      ),
+    ).toEqual(['registration']);
+  });
+
+  it('...but not when the callee only computes the binding’s value', () => {
+    // The partner. Same statement shape, same call, callee writes nothing.
+    expect(
+      kindOf('function build(u: unknown) { const local = [u]; return local; }\nexport const Union = build(1);\n'),
+    ).toEqual([]);
+  });
+
+  it('does not read a write inside a RETURNED closure as load-time', () => {
+    // `withSettleSignal` in @object-ui/app-shell: the module counter moves when
+    // the wrapper is CALLED, not when the module loads. This is the one site the
+    // whole-workspace measurement flagged before the walk learned to stop at
+    // function boundaries, and it is a false positive.
+    expect(
+      kindOf(
+        'let pending = 0;\n' +
+          'function wrap(f: () => void) { return () => { pending += 1; return f(); }; }\n' +
+          'export const wrapped = wrap(() => {});\n',
+      ),
+    ).toEqual([]);
+  });
+
+  it('walks a function handed as an ARGUMENT to a call being made now', () => {
+    // The asymmetry the partner above needs: a callback passed to a call that
+    // is happening now may run now, so its writes are load-time.
+    expect(
+      kindOf(
+        'const seen: unknown[] = [];\n' +
+          'function each(cb: (v: number) => void) { cb(1); }\n' +
+          'function fill() { each((v) => { seen.push(v); seen[0] = v; }); return seen; }\n' +
+          'export const filled = fill();\n',
+      ),
+    ).toEqual(['registration']);
+  });
+
+  it('reads a call into ANOTHER package as value-producing', () => {
+    // The stated boundary (see the gate's header): the walk cannot see into a
+    // bare specifier, and another package's load-time behaviour is that
+    // package's manifest's problem. Reading these as registrations is what took
+    // @object-ui/app-shell from 14 registering modules to 122 when measured.
+    expect(kindOf("import { z } from 'zod';\nexport const S = z.object({});\n")).toEqual([]);
+    expect(kindOf('export const S = new Set([1, 2]);\n')).toEqual([]);
+    expect(kindOf("import React from 'react';\nexport const C = React.createContext(null);\n")).toEqual([]);
+  });
+
+  it('does not read a call nested inside a declared function as load-time', () => {
+    // `containsCall` (used for STATEMENTS) walks into function bodies; the
+    // initializer rule must not, or every arrow-valued const is a registrar.
+    expect(kindOf('export const render = () => register();\n')).toEqual([]);
+  });
+});
+
+describe('an initializer registrar across a relative import (objectui#8578)', () => {
+  // The unit tests above resolve a callee inside ONE file. This proves the whole
+  // gate on the shape that actually occurs: the registering call is in the
+  // barrel, the function it calls lives one relative import away, and the array
+  // has to name the CALLER.
+  const INITIALIZER_SOURCES: Files = {
+    'packages/pkg/src/index.ts':
+      "import { install } from './slot.js';\nexport const Union = install(1);\nexport { pure } from './pure.js';\n",
+    'packages/pkg/src/slot.ts':
+      'const options: unknown[] = [];\nexport function install(u: unknown) { options[0] = u; return u; }\n',
+    'packages/pkg/src/pure.ts': 'export const pure = 1;\n',
+  };
+
+  it('names the module whose const initializer performs the write', () => {
+    const verdict = run({
+      ...INITIALIZER_SOURCES,
+      'packages/pkg/package.json': manifest(['./dist/index.js', './src/index.ts']),
+    });
+    expect(verdict.problems).toEqual([]);
+    expect(verdict.registrars).toEqual(['src/index.ts']);
+    expect(verdict.ok).toBe(true);
+  });
+
+  it('would go RED if the effect became invisible again', () => {
+    // The discrimination partner: identical fixture except the callee writes
+    // nothing, so the same statement is a plain declaration and naming it is
+    // STALE. A gate that returns the same verdict for both proves nothing.
+    const verdict = run({
+      ...INITIALIZER_SOURCES,
+      'packages/pkg/src/slot.ts': 'export function install(u: unknown) { return [u]; }\n',
+      'packages/pkg/package.json': manifest(['./dist/index.js', './src/index.ts']),
+    });
+    expect(verdict.registrars).toEqual([]);
+    expect(verdict.ok).toBe(true);
+  });
+});
+
 describe('the real workspace', () => {
   it('agrees with every array this repo actually declares', () => {
     const { packages, results } = evaluate(repoRoot);
