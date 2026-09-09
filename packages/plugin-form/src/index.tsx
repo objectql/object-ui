@@ -229,7 +229,7 @@ ComponentRegistry.register('object-form', ObjectFormRenderer, {
   category: 'plugin',
   inputs: [
     { name: 'objectName', type: 'string', required: true },
-    { name: 'fields', type: 'array' },
+    { name: 'fields', type: 'array', description: 'Bare field names to show, in order (each looked up in the object schema; `{ name }` is tolerated). NOT the same vocabulary as `sections[].fields`, which also accepts the spec `FormFieldSchema` object (identity key `field`, e.g. `{ field: "note", colSpan: 2 }`) — that shape resolves to no name HERE and is silently skipped (SimpleObjectForm in ObjectForm.tsx; buildFlatFields in flatFields.ts for the drawer/modal presentations).' },
     { name: 'mode', type: 'enum', enum: ['create', 'edit', 'view'] },
     { name: 'formType', type: 'enum', enum: ['simple', 'tabbed', 'wizard', 'split', 'drawer', 'modal'] },
     { name: 'sections', type: 'array' },
