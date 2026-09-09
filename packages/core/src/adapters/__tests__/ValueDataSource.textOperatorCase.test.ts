@@ -71,6 +71,26 @@ async function selectedIds(filter: unknown): Promise<string[]> {
   return result.data.map((r) => r.id as string);
 }
 
+/**
+ * The same selection, plus the console refusals `find()` drained while making
+ * it (objectui#8748).
+ *
+ * A refused row set and a row set that merely came back empty are the SAME
+ * `[]` on screen, so a pin that reads only the ids cannot tell "this shape is
+ * refused" from "this shape was evaluated and matched nothing" — and for the
+ * comparand rows below that difference IS the card. `refuseFilterNode` drains
+ * through `console.warn`, once per distinct refusal per `find()`.
+ */
+async function selectionAndRefusals(
+  filter: unknown,
+): Promise<{ ids: string[]; refusals: string[] }> {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const ids = await selectedIds(filter);
+  const refusals = warn.mock.calls.map((call) => String(call[0]));
+  warn.mockRestore();
+  return { ids, refusals };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -212,5 +232,87 @@ describe('objectui#7379 — the `$` dialect agrees with the AST dialect', () => 
     expect(await selectedIds({ name: { $icontains: 'ACME' } })).toEqual(
       await selectedIds(['name', 'icontains', 'ACME']),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The comparand door: an EMPTY `icontains` comparand is refused, not run
+// ---------------------------------------------------------------------------
+
+/**
+ * objectui#8748 — `{ name: { $icontains: '' } }` and its AST twin.
+ *
+ * Measured on `origin/main` `0f5cadfa1` over `FILTER_TEXT_ROWS`, both dialects:
+ * **all nine rows, zero console lines**. Every value contains the empty
+ * substring, so the arm ran and constrained nothing — objectui#7349's
+ * fail-open signature, reached through a comparand rather than through an
+ * unknown operator. `FILTER_TEXT_CASES` (`@objectstack/spec/data`) carries the
+ * shape as a REJECTION row (`code: 'INVALID_FILTER'`,
+ * `mustMention: ['$icontains']`), so refusing it is answering the published
+ * table rather than adding a rule here.
+ *
+ * ⚠️ Every case below asserts the row set AND the refusal, because on their own
+ * neither is a pin:
+ *
+ *   - the row set alone (`[]`) is satisfied by a matcher that evaluates the
+ *     empty comparand against an empty fixture, and by any regression that
+ *     answers `[]` to everything — the implementation strictly worse than the
+ *     bug this file's case 0 already guards against;
+ *   - the refusal alone is satisfied by a matcher that logs and then matches
+ *     every row anyway, which is the fail-open direction restated.
+ *
+ * The lit controls stay where they are: case 0's empty filter still selects all
+ * four rows and `=` still selects one, so a red here is about the comparand
+ * door rather than about the harness.
+ */
+describe('objectui#8748 — an EMPTY `icontains` comparand is refused in both dialects', () => {
+  it('the `$` dialect excludes every row and names `$icontains` once', async () => {
+    const { ids, refusals } = await selectionAndRefusals({ name: { $icontains: '' } });
+    expect(ids, 'the pre-card answer was ALL FOUR rows — a predicate constraining nothing').toEqual([]);
+    expect(ids, 'and it must not still be everything').not.toEqual(ALL_IDS);
+    expect(refusals, 'exactly one drained refusal, not zero and not one per row').toHaveLength(1);
+    expect(refusals[0], 'the refusal must NAME the operator (FILTER_TEXT_CASES mustMention)').toContain('$icontains');
+    expect(refusals[0], 'and the field, so an author can find the condition').toContain('name');
+  });
+
+  it('the AST dialect answers the same way and names `icontains`', async () => {
+    const { ids, refusals } = await selectionAndRefusals(['name', 'icontains', '']);
+    expect(ids).toEqual([]);
+    expect(ids).not.toEqual(ALL_IDS);
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]).toContain('icontains');
+    expect(refusals[0]).toContain('name');
+  });
+
+  it('a NON-empty comparand still selects, in silence — the live control for this door', async () => {
+    // Green before this card and after it. Its job is to prove the door refuses
+    // the empty comparand specifically rather than disabling the operator: a
+    // guard written as `!target` or `typeof target !== 'string'` alone would
+    // pass the two cases above and fail here, and so would deleting the arm.
+    const { ids, refusals } = await selectionAndRefusals({ name: { $icontains: 'acme' } });
+    expect(ids, 'the working operator must keep working').toEqual(['upper', 'lower']);
+    expect(refusals, 'a working filter must not print a refusal').toEqual([]);
+  });
+
+  it('the two dialects agree on the refusal, as they do on the answer', async () => {
+    // The pairing objectui#8447 exists over: `find()` picks between the two
+    // matchers on nothing more than whether `$filter` arrived as an array or an
+    // object, so a comparand door on one side only is a result that changes
+    // with the SHAPE of the filter rather than with its meaning.
+    const dollar = await selectionAndRefusals({ name: { $icontains: '' } });
+    const ast = await selectionAndRefusals(['name', 'icontains', '']);
+    expect(dollar.ids).toEqual(ast.ids);
+    expect(dollar.refusals.length).toEqual(ast.refusals.length);
+  });
+
+  it('the sibling positive operators are deliberately NOT widened by analogy', async () => {
+    // `FILTER_TEXT_CASES` declares the empty-comparand refusal for `$icontains`
+    // and for no other operator, so `$contains ''` keeps the answer it has
+    // always given here. Pinned so the next reader sees the asymmetry is a
+    // scope boundary rather than an oversight; moving it is the published
+    // table's decision, not this file's.
+    const { ids, refusals } = await selectionAndRefusals({ name: { $contains: '' } });
+    expect(ids, '`$contains` with an empty comparand is untouched by this card').toEqual(ALL_IDS);
+    expect(refusals).toEqual([]);
   });
 });

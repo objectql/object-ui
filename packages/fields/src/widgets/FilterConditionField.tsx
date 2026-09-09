@@ -136,6 +136,28 @@ function coerceByType(value: any, type?: string): any {
   return value;
 }
 
+/**
+ * The builder operators whose comparand is FREE TEXT typed into the value box,
+ * and which therefore have an "operator chosen, box still empty" state
+ * (objectui#8748).
+ *
+ * `isEmpty` / `isNotEmpty` / `isNull` / `exists` and their kin are not on this
+ * list: they read no value at all, so an empty box is their normal resting
+ * state rather than an unfinished row.
+ */
+const TEXT_COMPARAND_OPERATORS: ReadonlySet<string> = new Set([
+  'contains',
+  'containsCaseInsensitive',
+  'notContains',
+  'startsWith',
+  'endsWith',
+]);
+
+/** An unfinished value box: never typed in, or cleared back out. */
+function isEmptyTextComparand(value: any): boolean {
+  return value === undefined || value === null || value === '';
+}
+
 function toArray(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') return value.split(',').map((s) => s.trim()).filter(Boolean);
@@ -151,6 +173,21 @@ function toArray(value: any): any[] {
 export function condToMongo(c: BuilderCondition, typeOf: (f: string) => string | undefined): Record<string, any> | null {
   const { field, operator, value } = c || ({} as BuilderCondition);
   if (!field) return null;
+  // objectui#8748 — an unfinished text row is DROPPED rather than emitted. This
+  // widget used to emit `{ [field]: { $icontains: '' } }` verbatim for a row
+  // whose operator was chosen and whose value box was still empty, and the only
+  // drop on this path was the missing-FIELD guard above (`filterGroupToMongo`
+  // drops null fragments, nothing else). That shape is a REFUSAL in
+  // `@objectstack/spec`'s `FILTER_TEXT_CASES` — "every row contains the empty
+  // substring, so evaluating it is a predicate that constrains nothing" — and
+  // `ValueDataSource` now refuses it in the same change. Dropping here is what
+  // makes that safe: without it the matcher's refusal would flip a half-built
+  // builder row from "every row" to "no rows", the outcome that adapter's own
+  // `$exists` arm names as worse than the bug. An all-empty builder therefore
+  // yields NO criteria (`filterGroupToMongo` returns null), which the
+  // empty-criteria guard already names out loud (objectstack#3896) rather than
+  // storing a vacuous predicate.
+  if (TEXT_COMPARAND_OPERATORS.has(operator) && isEmptyTextComparand(value)) return null;
   const t = typeOf(field);
   const cv = coerceByType(value, t);
   switch (operator) {
