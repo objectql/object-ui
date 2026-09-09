@@ -19,7 +19,7 @@ import {
   VIEW_FILTER_LIST_VALUE_OPERATORS,
   VIEW_FILTER_PAIR_VALUE_OPERATORS,
 } from '@objectstack/spec/ui';
-import { isAcceptedFilterComparand } from '@objectstack/spec/data';
+import { isAcceptedFilterComparand, ACCEPTED_FILTER_COMPARAND_TYPES_SENTENCE } from '@objectstack/spec/data';
 
 /**
  * FilterNode AST type definition
@@ -196,6 +196,69 @@ function falseIdentityLeaf(field: string, value: unknown[]): FilterNode {
 }
 
 /**
+ * Is `value` an OPERATOR MAP — the shape the operator loop reads — or a
+ * comparand the author wrote?
+ *
+ * The loop's premise is that an object which is not an accepted comparand is a
+ * map of `$` operators. That premise holds for exactly one population: a PLAIN
+ * object, which is what an author writes and what `JSON.parse` of stored
+ * metadata produces. An exotic instance — `RegExp`, `Set`, `Map`, `URL`, a class
+ * instance — is not a map of operators under any reading; it is a VALUE, and
+ * `Object.entries` of each of those is `[]` (measured), which is why the loop
+ * used to run zero times and push NO condition for the field.
+ *
+ * The PROTOTYPE is the test, deliberately, and not `Object.keys(value).length
+ * === 0`: zero own entries is exactly what `{}` and `/x/` have in COMMON, and
+ * they need opposite answers — `{}` is the TRUE identity that constrains
+ * nothing, pinned in filter-date-comparand-8555.test.ts section 4, and a keys
+ * count cannot tell the two apart. Prototype can.
+ *
+ * The second hop admits a CROSS-REALM plain object (an iframe, a `vm` context),
+ * whose prototype is that realm's `Object.prototype` rather than this one's: a
+ * plain object's prototype has a null prototype, while a `RegExp`'s chain is one
+ * link longer. So the test is about SHAPE, not about object identity.
+ *
+ * A plain object with no entries stays an operator map with no operators — the
+ * `{}` identity — whatever else it happens to be. That boundary is deliberate:
+ * this predicate separates values from operator maps, and it is not a second
+ * opinion about the identity objectui#5322 already ruled on.
+ */
+function isOperatorMap(value: object): boolean {
+  const proto = Object.getPrototypeOf(value) as object | null;
+  return proto === null || proto === Object.prototype || Object.getPrototypeOf(proto) === null;
+}
+
+/**
+ * Name the offending comparand for the refusal message.
+ *
+ * `JSON.stringify` is what every other message in this file uses, and it is
+ * useless here: it renders a `RegExp`, a `Set` and a `Map` all as `{}` — the
+ * spec's own refusal prints `({})` for a RegExp for exactly this reason. The
+ * constructor name plus `String(value)` prints `/abc/` for a pattern and falls
+ * back to the type alone when the value has no useful text form.
+ *
+ * Every read is guarded: a refusal message must never itself throw, or the
+ * loud failure this arm exists to produce becomes a different, confusing one.
+ */
+function describeExoticComparand(value: object): string {
+  let name: unknown;
+  let text: string | undefined;
+  try {
+    const proto = Object.getPrototypeOf(value) as { constructor?: { name?: unknown } } | null;
+    name = proto?.constructor?.name;
+  } catch {
+    name = undefined;
+  }
+  if (typeof name !== 'string' || name === '') return 'an object of an unrecognised type';
+  try {
+    text = String(value);
+  } catch {
+    text = undefined;
+  }
+  return text && text !== `[object ${name}]` ? `a ${name} instance (${text})` : `a ${name} instance`;
+}
+
+/**
  * Convert object-based filters to ObjectStack FilterNode AST format.
  * Converts MongoDB-like operators to ObjectStack filter expressions.
  * 
@@ -230,9 +293,13 @@ function falseIdentityLeaf(field: string, value: unknown[]): FilterNode {
  * // => ['created', '=', Date(2026-01-01)]
  *
  * @throws {FilterOperatorError} If an unknown operator is encountered, if
- * `$not` is used — see the `$not` arm for why the AST cannot carry it — or if a
+ * `$not` is used — see the `$not` arm for why the AST cannot carry it — if a
  * field's value is a bare ARRAY (`{ tags: ['a', 'b'] }`) — see the array arm for
- * why that is refused rather than read as `$in`.
+ * why that is refused rather than read as `$in` — or if a field's value is an
+ * EXOTIC object the spec does not accept as a comparand (`{ name: /abc/ }`,
+ * a `Set`, a `Map`): see the exotic-comparand arm for why that is refused
+ * rather than dropped (objectui#8567). An empty operator object (`{}`) is NOT
+ * refused — it is the TRUE identity and constrains nothing, as it always has.
  */
 export function convertFiltersToAST(filter: Record<string, any>): FilterNode | Record<string, any> {
   const conditions: FilterNode[] = [];
@@ -352,6 +419,62 @@ export function convertFiltersToAST(filter: Record<string, any>): FilterNode | R
       if (isAcceptedFilterComparand(value)) {
         conditions.push([field, '=', value]);
         continue;
+      }
+
+      // An EXOTIC object in comparand position — objectui#8567, the other half
+      // of the hole objectui#8555 closed.
+      //
+      // Same silent failure, one door further along: `Object.entries(/abc/)`,
+      // `Object.entries(new Set(['x']))` and `Object.entries(new Map())` are all
+      // `[]` (measured), so the loop below ran zero times and pushed NO condition
+      // for the field. `{ status: 'a', created: /abc/ }` lowered to
+      // `['status', '=', 'a']` — WIDER than the author asked for, with nothing
+      // thrown and nothing logged. With the exotic value alone `conditions` ended
+      // empty and the original object came back untouched, so the defect needed a
+      // sibling field to become visible at all.
+      //
+      // REFUSED rather than lowered, and — unlike the arm above — the spec rules
+      // it OUT rather than IN (measured against @objectstack/spec 17.3.0, floor
+      // ^17.2.0): `isAcceptedFilterComparand(/x/)` is `false`, and
+      // `normalizeFilterComparandTypes({ created: /x/ })` answers `INVALID_FILTER`
+      // / 400 — "Filter comparand at where.created is a RegExp instance ({}),
+      // which no driver can compare." Lowering it would only move that refusal
+      // downstream; dropping it is the defect. So the answer the wire would give
+      // two layers later is given HERE, where the field name and the offending
+      // value are both still in hand.
+      //
+      // ⚠️ This is NOT the class the `$regex` and `$not` refusals below belong
+      // to, and their message idiom is deliberately not copied. Those two answer
+      // "this layer has no TARGET for your operator" — `$regex` is absent from
+      // the spec's `FILTER_OPERATORS`, and `$not` is declared by the spec but has
+      // no keyword in the AST dialect this file emits. This one answers a
+      // question about a VALUE: the spec's own comparand-type predicate rejects
+      // it. The nearest neighbour is the bare-array arm above, which is also
+      // about a comparand — but that refusal rests on the spec DECLINING to rule
+      // (`assertListComparandShapes` rules only on `$in` / `$nin` / `$between`),
+      // which is the opposite authority to this one. What IS shared is the error
+      // TYPE: `FilterOperatorError` is named for operators but already carries
+      // four non-operator refusals in this file, because what it actually
+      // transports is the `INVALID_FILTER` / 400 envelope `classifyLoadError`
+      // reads — see its declaration.
+      //
+      // The accepted-type list is the spec's own sentence, not a second list
+      // spelled out here, for the same reason the gate above is the spec's
+      // predicate rather than a local `instanceof Date`.
+      if (!isOperatorMap(value)) {
+        throw new FilterOperatorError(
+          `[ObjectUI] The filter on field '${field}' carries ${describeExoticComparand(value)} ` +
+          `in comparand position. '@objectstack/spec' does not accept it: a comparison value must ` +
+          `be ${ACCEPTED_FILTER_COMPARAND_TYPES_SENTENCE} (ACCEPTED_FILTER_COMPARAND_TYPES), so ` +
+          `isAcceptedFilterComparand is false for it and normalizeFilterComparandTypes answers 400 ` +
+          `INVALID_FILTER — "which no driver can compare". It is not an operator map either: only ` +
+          `a plain object can be one, so until objectui#8567 this value was read as ZERO operators ` +
+          `and the '${field}' condition was dropped from the filter entirely, silently WIDENING the ` +
+          `result set. Spell a text match as { ${field}: { $contains: '...' } } ($startsWith / ` +
+          `$endsWith; a pattern itself has no operator here, see the $regex refusal), a membership ` +
+          `test as { ${field}: { $in: [...] } }, and a date bound as ` +
+          `{ ${field}: { $gte: new Date(...) } }.`
+        );
       }
 
       // Handle operator-based filters
