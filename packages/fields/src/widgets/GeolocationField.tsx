@@ -22,6 +22,65 @@ export interface GeolocationValue {
 }
 
 /**
+ * A `GeolocationValue` whose two coordinates are both readable numbers — what
+ * {@link hasCoordinates} narrows to, so `formatLocation` can call `.toFixed`
+ * without a second null check of its own.
+ */
+type LocatedGeolocation = GeolocationValue & { latitude: number; longitude: number };
+
+/**
+ * Is this numeric slot FILLED? (objectui#8055)
+ *
+ * ⛔ Deliberately NOT `!n`. Every guard in this widget used to ask the parsed
+ * NUMBER whether it was falsy, and `0` is falsy — so `latitude: 0` (the
+ * equator), `longitude: 0` (the prime meridian) and `accuracy: 0` were all read
+ * as "no value". A record holding a real place displayed as the `EmptyValue`
+ * em dash and its "View on map" affordance was withheld from it; the data was
+ * intact and unreachable. Presence is a NULLISH question, never a falsy one.
+ *
+ * ⚠️ The delta this predicate deliberately keeps to EXACTLY `0` and `-0`:
+ * `NaN` answers `false` here just as it answered falsy before. A bare
+ * `n != null` would have been the card's wording taken literally, and it would
+ * have started rendering `"NaN, NaN"` at a surface that has always shown the
+ * empty placeholder for an unreadable coordinate — a second display defect
+ * wearing the first one's fix. `Infinity` was admitted by the old guard and is
+ * still admitted, for the same reason in the other direction: it is not this
+ * card's value. Every input other than `0` / `-0` answers exactly as it did
+ * before.
+ *
+ * ⭐ It returns a BOOLEAN, and that is the SECOND defect's fix, not a style
+ * choice — see {@link hasCoordinates}.
+ */
+const isPresentNumber = (n: number | null | undefined): n is number =>
+  typeof n === 'number' && !Number.isNaN(n);
+
+/**
+ * Does this value carry a coordinate PAIR? Both halves, both readable.
+ *
+ * ⭐ Boolean-valued on purpose, because three of its call sites are JSX render
+ * expressions. The guard used to be written inline as
+ * `{location.latitude && location.longitude && (…)}`, and with
+ * `location.latitude === 0` that expression EVALUATES TO `0` — which React
+ * renders as a text node. The user saw a stray `0` next to the em dash
+ * (`"—0"`), the `&&`-with-a-numeric-operand hazard.
+ *
+ * ⛔ That is a genuinely different defect from the falsy presence test above,
+ * and the fix is genuinely different too: making the presence test nullish
+ * would still have left a numeric operand in front of `&&`, and making the
+ * operand boolean would still have called the equator "no location". A
+ * predicate that is nullish AND boolean is what closes both, and the class
+ * criterion it answers to is: in this file no "has a value" test whose operand
+ * may legitimately be `0` uses falsy semantics, and no JSX conditional carries
+ * a numeric operand.
+ *
+ * ⛔ Not a tolerant fallback (AGENTS.md #0.1): it accepts nothing this widget
+ * did not already accept in its `value` contract, it only stops MISREADING a
+ * value that contract has always admitted.
+ */
+const hasCoordinates = (loc: GeolocationValue): loc is LocatedGeolocation =>
+  isPresentNumber(loc.latitude) && isPresentNumber(loc.longitude);
+
+/**
  * Geolocation field widget - provides a location picker with coordinates
  * Supports manual entry and browser geolocation API
  */
@@ -150,12 +209,12 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   };
 
   const formatLocation = (loc: GeolocationValue): string => {
-    if (!loc.latitude || !loc.longitude) return '';
+    if (!hasCoordinates(loc)) return '';
     return `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`;
   };
 
   const openInMaps = () => {
-    if (!location.latitude || !location.longitude) return;
+    if (!hasCoordinates(location)) return;
     const url = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
     window.open(url, '_blank');
   };
@@ -171,7 +230,7 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
       <div {...readonlyHostGroupProps} className="flex items-center gap-2">
         <MapPin className="w-4 h-4 text-muted-foreground" />
         {formatted ? <span className="text-sm">{formatted}</span> : <EmptyValue />}
-        {location.latitude && location.longitude && (
+        {hasCoordinates(location) && (
           <Button
             type="button"
             variant="link"
@@ -207,7 +266,7 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
           <Crosshair className="w-4 h-4 mr-2" />
           {isLoading ? 'Getting location...' : 'Use Current Location'}
         </Button>
-        {location.latitude && location.longitude && (
+        {hasCoordinates(location) && (
           <Button
             type="button"
             variant="link"
@@ -265,7 +324,7 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
         </div>
       </div>
 
-      {location.accuracy && (
+      {isPresentNumber(location.accuracy) && (
         <p className="text-xs text-muted-foreground">
           Accuracy: ±{location.accuracy.toFixed(0)}m
         </p>
