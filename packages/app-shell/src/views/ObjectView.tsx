@@ -41,7 +41,7 @@ import { Plus, Upload, Star, StarOff, Table as TableIcon, KanbanSquare, Calendar
 import { useFavorites } from '../hooks/useFavorites.js';
 import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
 import { getIcon } from '../utils/getIcon.js';
-import type { ListViewSchema, ViewNavigationConfig } from '@object-ui/types';
+import type { ListViewSchema, TreeViewConfig, ViewNavigationConfig } from '@object-ui/types';
 import { detectStatusField, isSystemManagedField } from '@object-ui/types';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
 import { ViewConfigPanel } from './ViewConfigPanel.js';
@@ -2355,6 +2355,25 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // objectui#7029: present only when the view actually declared one.
         const calendarOptions = calendarViewOptions(viewDef);
 
+
+        /**
+         * ⚠️ THE RELAY. Every key below is a rung carrying the ACTIVE VIEW's
+         * value into `ListView`; `...listSchema` carries the HOST's.
+         *
+         * A `ListViewSchema` member with NO rung here is invisible to tsc, to
+         * lint and to the tests — `viewDef` is `Record<string, any>`, so
+         * nothing REQUIRES a key to be written. That silence shipped the same
+         * defect three times (objectui#7199 `description`, objectui#7218
+         * `rowColor`, objectui#7516 `fieldOrder`), and objectui#7559 ended it:
+         * `ObjectView.relayRungCensus-7559.test.ts` re-derives the member set
+         * from the zod mirror at test time and requires every member to have
+         * either a rung here or a DECLARED absence with a reason.
+         *
+         * ⇒ Adding a member to `ListViewSchema` and not relaying it is fine —
+         * but it must be said out loud, in that file's `ABSENCES` ledger. ⛔ The
+         * ledger is not a place to record a rung you did not feel like adding:
+         * the kinds carry evidence, and each one is checked.
+         */
         const fullSchema: ListViewSchema = {
             ...listSchema,
             // The active view's display label (same string the ViewTabBar
@@ -2606,8 +2625,20 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     // defaultExpandedDepth survive; labelField falls back to the
                     // view's own `tree.titleField`, then to 'name'. parentField
                     // auto-detects when omitted.
-                    ...((viewDef as any).tree || {}),
-                    labelField: (viewDef as any).tree?.labelField || (viewDef as any).tree?.titleField || 'name',
+                    //
+                    // Read AS `TreeViewConfig` (`@object-ui/types`, objectui#8253):
+                    // `viewDef` is `Record<string, any>`, so both rungs below were
+                    // `any` property accesses and a misspelling was invisible. This
+                    // is the half of objectui#7559 a declaration CAN close, on the
+                    // one block that now has a declaration to close it with — it
+                    // does NOT make a missing rung visible, which is what the census
+                    // pin (`ObjectView.relayRungCensus-7559.test.ts`) is for.
+                    //
+                    // ⚠️ The cast is repeated per rung rather than hoisted into a
+                    // local: objectui#6557's convergence pin reads these seam lines
+                    // out of this file and requires each to name `viewDef` itself.
+                    ...((viewDef.tree as TreeViewConfig | undefined) || {}),
+                    labelField: (viewDef.tree as TreeViewConfig | undefined)?.labelField || (viewDef.tree as TreeViewConfig | undefined)?.titleField || 'name',
                 },
                 // The chart block the view DECLARED, forwarded WHOLE — a
                 // pointer, not a copy of its key set (objectui#7823).
