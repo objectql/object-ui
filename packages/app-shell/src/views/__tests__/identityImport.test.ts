@@ -1,5 +1,5 @@
 // framework#2782 — identity import adapter unit tests (pure logic, no DOM).
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   splitIntoBatches,
   resolveIdentityWriteOptions,
@@ -8,7 +8,9 @@ import {
   collectTemporaryPasswords,
   buildTemporaryPasswordCsv,
   IDENTITY_IMPORT_BATCH_SIZE,
+  IDENTITY_IMPORT_OBJECT,
 } from '../identityImport';
+import { ObjectStackAdapter, clearSharedDiscoveryCache } from '@object-ui/data-objectstack';
 import type { ImportRecordsResult } from '@object-ui/types';
 
 const okResponse = (rows: Array<Record<string, unknown>>, overrides: Record<string, unknown> = {}) => ({
@@ -159,6 +161,200 @@ describe('createIdentityImportDataSource', () => {
     expect(ds.undoImportJob).toBeUndefined();
     expect(ds.cancelImportJob).toBeUndefined();
     expect(ds.find).toBe('passthrough-marker'); // reads pass through
+  });
+});
+
+/**
+ * Saved mappings ARE offered for identity import (objectui#7740) — director
+ * seat, decision batch #68, ledger on objectstack#12708.
+ *
+ * ## What these pins are for, and why not the shape right above them
+ *
+ * The suite above asserts the six withheld job methods with `toBeUndefined()`.
+ * That shape is fine THERE (those keys are written by the object literal, so
+ * the only question is their value) but it must not be copied here: it passes
+ * both when a key is MISSING and when it is present-and-undefined, which are
+ * precisely the two worlds this card is about. Before the fix the wrapper's
+ * `listImportMappings` was missing — dropped by the object spread, because
+ * `ObjectStackAdapter` declares it in its class body and the spread copies own
+ * enumerable properties only. `toBeUndefined()` is green in both worlds and so
+ * cannot tell the defect from the fix.
+ *
+ * What is asserted instead is the fact the wizard actually reads — the exact
+ * predicate at `plugin-grid/src/ImportWizard.tsx`, `typeof list === 'function'`
+ * — in BOTH directions: offered when the base has it, not fabricated when the
+ * base does not.
+ */
+describe('createIdentityImportDataSource — saved mappings are expressed, not inherited (objectui#7740)', () => {
+  const wrap = (base: unknown) =>
+    createIdentityImportDataSource({
+      base,
+      authFetch: vi.fn() as any,
+      baseUrl: 'http://srv',
+      getPasswordPolicy: () => 'auto',
+    }) as any;
+
+  /**
+   * A base whose method lives on the PROTOTYPE, exactly like the real
+   * `ObjectStackAdapter`. This is the arm that was red before the fix: a plain
+   * object base would have carried the method across on the spread and hidden
+   * the whole defect.
+   */
+  class PrototypeBase {
+    seen: string[] = [];
+    find = 'passthrough-marker';
+    async listImportMappings(objectName: string): Promise<unknown[]> {
+      this.seen.push(objectName);
+      return [{ name: 'user_feed', targetObject: objectName }];
+    }
+  }
+
+  it('offers `listImportMappings` off a class-instance base — the wizard predicate passes', async () => {
+    const base = new PrototypeBase();
+    expect(Object.hasOwn(base, 'listImportMappings')).toBe(false); // it is on the prototype
+    const ds = wrap(base);
+
+    // The wizard's own probe, verbatim (ImportWizard.tsx).
+    expect(typeof ds.listImportMappings).toBe('function');
+    // ...and the wrapper says so itself rather than inheriting it: the key is
+    // written by the object literal, not carried over by the spread.
+    expect(Object.hasOwn(ds, 'listImportMappings')).toBe(true);
+  });
+
+  it('binds the forward to the base, so `this` survives the hand-off', async () => {
+    const base = new PrototypeBase();
+    const ds = wrap(base);
+
+    // Detached exactly the way the wizard detaches it before calling.
+    const list = ds.listImportMappings;
+    await expect(list(IDENTITY_IMPORT_OBJECT)).resolves.toEqual([
+      { name: 'user_feed', targetObject: 'sys_user' },
+    ]);
+    expect(base.seen).toEqual(['sys_user']); // `this` was still the base
+  });
+
+  it('does not fabricate the capability when the base has none', () => {
+    // Green before the fix as well as after — its discriminating power is
+    // against the WRONG fix (an unconditional forward, or widening the spread
+    // to copy the prototype), not against the defect.
+    const ds = wrap({ find: 'passthrough-marker' });
+    expect(typeof ds.listImportMappings).not.toBe('function');
+  });
+
+  it('still withholds the six job surfaces — the forward is one method, not a widened spread', () => {
+    const base = new PrototypeBase();
+    const ds = wrap(base);
+    for (const withheld of [
+      'createImportJob',
+      'getImportJobProgress',
+      'getImportJobResults',
+      'listImportJobs',
+      'cancelImportJob',
+      'undoImportJob',
+    ]) {
+      expect(typeof ds[withheld]).not.toBe('function');
+    }
+  });
+});
+
+/**
+ * The three states objectui#7741 gave `listImportMappings` — mappings present /
+ * none / the door refused — now actually REACH `sys_user`.
+ *
+ * #7741 pinned them on the adapter (`data-objectstack/src/listImportMappings.test.ts`).
+ * On identity import they were unreachable regardless: the wrapper dropped the
+ * method, so the wizard never called it and all three states collapsed into the
+ * same "no selector". This drives the real adapter through the real wrapper, so
+ * the pin is about the seam between them and not about either end again.
+ *
+ * The wire body is the shape `data-objectstack`'s own pin measured off the
+ * framework's REST list door, retargeted at `sys_user`.
+ */
+describe('the #7741 three-state read now fires on sys_user through the wrapper (objectui#7740)', () => {
+  const BASE_URL = 'http://identity-import-mappings-pin.local';
+
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+  const SYS_USER_MAPPING = {
+    name: 'staff_roster',
+    label: 'Staff roster',
+    sourceFormat: 'csv',
+    targetObject: 'sys_user',
+    fieldMapping: [
+      { source: 'Work Email', target: 'email', transform: 'none' },
+      { source: 'Full Name', target: 'name', transform: 'none' },
+    ],
+    mode: 'insert',
+    _diagnostics: { valid: true },
+  };
+
+  /** Real adapter + real identity wrapper; only `fetch` is a stub. */
+  const wrapReal = (metaAnswer: () => Response) => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/discovery')) {
+        return json({ success: true, data: { capabilities: {}, routes: {} } });
+      }
+      if (url.endsWith('/api/v1/meta/mapping')) return metaAnswer();
+      return json({ success: false, error: { code: 'NOT_FOUND', message: `unexpected ${url}` } }, 404);
+    });
+    const adapter = new ObjectStackAdapter({ baseUrl: BASE_URL, fetch: fetchImpl as any, autoReconnect: false });
+    const warnings: unknown[] = [];
+    adapter.onMetadataReadWarning((ev) => warnings.push(ev));
+    return {
+      adapter,
+      warnings,
+      ds: createIdentityImportDataSource({
+        base: adapter,
+        authFetch: vi.fn() as any,
+        baseUrl: BASE_URL,
+        getPasswordPolicy: () => 'auto',
+      }) as any,
+    };
+  };
+
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    clearSharedDiscoveryCache();
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warnSpy.mockRestore());
+
+  it('PRESENT — a mapping registered against sys_user reaches the wizard', async () => {
+    const { ds } = wrapReal(() => json({ type: 'mapping', items: [SYS_USER_MAPPING] }));
+    expect(typeof ds.listImportMappings).toBe('function');
+    const mappings = await ds.listImportMappings(IDENTITY_IMPORT_OBJECT);
+    expect(mappings).toHaveLength(1);
+    expect(mappings[0]).toMatchObject({ name: 'staff_roster', targetObject: 'sys_user' });
+  });
+
+  it('NONE — mappings exist, but none target sys_user', async () => {
+    const { ds, warnings } = wrapReal(() =>
+      json({ type: 'mapping', items: [{ ...SYS_USER_MAPPING, name: 'task_feed', targetObject: 'task' }] }),
+    );
+    expect(await ds.listImportMappings(IDENTITY_IMPORT_OBJECT)).toEqual([]);
+    expect(warnings).toEqual([]); // an empty answer is not a failure
+  });
+
+  it('REFUSED — the door said no; the read still answers [] and the warning still travels', async () => {
+    const { ds, warnings } = wrapReal(() =>
+      json({ code: 'UNAUTHENTICATED', message: 'authentication required' }, 401),
+    );
+    // The return contract #7741 deliberately did not move.
+    expect(await ds.listImportMappings(IDENTITY_IMPORT_OBJECT)).toEqual([]);
+    // ...and the discriminator that card ADDED is what separates this from the
+    // NONE arm above. The wrapper does not carry the channel (it is a prototype
+    // method too), and it does not have to: `AdapterProvider` subscribes to the
+    // adapter itself, which is what production does.
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({
+      operation: 'listImportMappings',
+      kind: 'mapping',
+      objectName: 'sys_user',
+      reason: 'refused',
+      status: 401,
+    });
   });
 });
 
