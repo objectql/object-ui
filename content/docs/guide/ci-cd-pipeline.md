@@ -1176,11 +1176,10 @@ job, so either one failing fails the check — and `dependabot-merge-gate.mjs` c
 vi.mock Specifier Check** as a required context. (Named without its `scripts/` path on purpose: this
 section reads as this job's gate list, and that script runs in `dependabot-auto-merge.yml`, so
 spelling the path here would credit this job with a gate it does not run.) They read the same
-`vi.mock` call sites
-deliberately: a population that drifted between them would be a hole neither one reports, which is
-why they share a workflow instead of each registering a context of its own. The workflow `name:` and
-the job `name:` are therefore broader than the older of the two gates, and are left that way on
-purpose — renaming a required context silently un-requires it.
+`vi.mock` call sites deliberately: a population that drifted between them would be a hole neither
+one reports, which is why they share a workflow instead of each registering a context of its own.
+The workflow `name:` and the job `name:` are therefore broader than the older of the two gates, and
+are left that way on purpose — renaming a required context silently un-requires it.
 
 **The specifier gate.** `scripts/check-vi-mock-specifiers.mjs` walks every tracked JS/TS-family
 source file, finds each `vi.mock` / `vi.doMock` call site, and resolves the **relative** specifiers
