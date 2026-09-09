@@ -37,8 +37,35 @@ from 107 to 154:
   `renderers/form/calendar.tsx` registers under exactly that key (`skipFallback`,
   because bare `calendar` belongs to the plugin-calendar view).
 
-Every arm declares only keys its renderer demonstrably reads — the `BarChartSchema`
-discipline objectui#6318 established for the same class of gap.
+Every arm this change AUTHORS declares only keys its renderer demonstrably reads —
+the `BarChartSchema` discipline objectui#6318 established for the same class of gap.
+⚠️ One arm INHERITS more than that, and it is stated rather than glossed:
+`UiCalendarSchema` extends `CalendarSchema`, so it carries `minDate` and `maxDate`,
+which `renderers/form/calendar.tsx` reads zero times (controls, same file: `mode` 3,
+`className` 4 — it reads `mode`, `value`, `defaultValue` and `className`). That is
+pre-existing debt on `CalendarSchema`, not something this change introduces, and
+narrowing it here would be a different card's accept-set movement; the extend is what
+keeps the two spellings one schema.
+
+**A repo-tracked metric moves, declared knowingly.**
+`scripts/measure-strict-authoring-face.mjs` reports `unexportedNodeSchemas` — node
+types reachable only through the union because no schema for them is exported by name
+from `@object-ui/types/zod`, "so no consumer can validate one alone". The four new
+arms are not in that barrel's explicit export lists, so the metric moves from
+`[breadcrumb, object-tree]` to **49 node types** (the same 2, plus this change's 47
+new literals). Measured at this branch's head, not estimated.
+
+Why 49 is acceptable here where 2 was a defect: the 2 were data blocks a consumer had
+a standing reason to validate on their own, and objectui#7917 (PR #8777, open at the
+time of writing, and the holder of `zod/index.zod.ts`) exists to export exactly those.
+The 47 added here are HTML primitives and two input aliases — they have no per-tag
+consumer to serve, and exporting a `SemanticElementSchema` / `HtmlElementSchema` pair
+would publish a NAMED authoring surface (`z.enum` families, not per-tag schemas) that
+this card's ruling does not cover: the ruling is "arm the registered renderers", not
+"add public exports to `@object-ui/types`". So the metric is left to move and said out
+loud instead. ⇒ Whoever next runs that measurement should expect 49, and whoever
+wants the number back down should treat naming these families as its own decision.
+If PR #8777 lands first, the same movement reads `0` to `47`.
 
 **Accept-set movement is widening only.** Nothing that parsed green parses red. Each
 arm still judges VALUES: `{ type: 'img', width: true }`, `{ type: 'password',

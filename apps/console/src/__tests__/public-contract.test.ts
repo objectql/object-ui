@@ -516,6 +516,22 @@ const specCarried = (type: string): boolean =>
  * what they are, which is a gate that stops looking rather than a gate that
  * passes. Ledgering them is the reviewable option; objectui#8775 holds the
  * decision itself, which is NOT this card's to take.
+ *
+ * ⚠️ What an entry here COSTS, stated once so no entry has to re-argue it, and
+ * corrected because objectui#8499 first shipped it wrong. Curating a ledgered
+ * container widens the AI-authoring vocabulary, `sdui.manifest.json` and the
+ * generated intrinsics, and turns the census pin in
+ * `renderers/__tests__/container-declaration-census.test.tsx` red BY DESIGN — a
+ * deliberate re-opening, which is the whole point of pinning it. It does ⛔ NOT
+ * remove the tag from any `kind:'react'` page. `renderers/layout/react-page.tsx`
+ * builds that scope with `if (!tag || cfg.isContainer) continue;`, so it skips
+ * EVERY container config; a ledgered container already carries the flag, so
+ * promotion changes which list the config comes from and nothing about whether
+ * the loop keeps it. Measured on `main`: 46 injected identifiers today, 46 with
+ * `main` promoted, `Main` absent from both. The deletion reading is real but
+ * runs the OTHER way — objectui#6764's direction, where declaring containment on
+ * an already-public block removes an identifier that existed — and reading that
+ * docblock forwards is how it got here.
  */
 
 /**
@@ -529,11 +545,17 @@ const SECTIONING_TAG_UNRULED =
   '`category: layout` and `isContainer: true` (objectui#6764). objectui#8499 armed them as ' +
   '`SemanticElementSchema`, which is what first brought already-declared containers into the ' +
   'population this file derives — none of them is newly a container, and none is newly ' +
-  'authorable. ⚠️ Curating one does NOT merely widen: `renderers/layout/react-page.tsx` drops ' +
-  'containers from the `kind:react` JSX scope by iterating `getPublicConfigs()`, and this tag ' +
-  'being absent from `PUBLIC_BLOCKS` is exactly why there is no injected identifier there for ' +
-  'the flag to remove — so curating it would DELETE the tag from every react page unless that ' +
-  'premise moves in the same change (pinned by `container-declaration-census.test.tsx`). ' +
+  'authorable. What curating one WOULD move, measured rather than reasoned: it widens the ' +
+  'AI-authoring vocabulary, `sdui.manifest.json` and the generated intrinsics, and it turns the ' +
+  '"none of the eight is in the curated public contract" pin in ' +
+  '`container-declaration-census.test.tsx` RED BY DESIGN — which is precisely what ' +
+  '`semantic.tsx` means by re-opening the question THERE. ⛔ It does NOT delete the tag from ' +
+  'any react page, and an earlier revision of this entry said it did: `react-page.tsx` skips ' +
+  'EVERY container config (`if (!tag || cfg.isContainer) continue;`) and these seven already ' +
+  'carry `isContainer: true`, so a promoted config is skipped on exactly the same line an ' +
+  'unlisted one never reaches — measured at 46 injected identifiers before and 46 after ' +
+  'simulating the promotion of `main`, with `Main` absent from both. A lowercase `main` in a ' +
+  'react page is a DOM intrinsic either way, because `react-runtime` never reads the registry. ' +
   'objectui#8775 measured the population and holds the decision: curate the family or a named ' +
   'subset and carry that consequence, or refuse on stated merits and replace this text with them.';
 
@@ -575,6 +597,26 @@ describe('PUBLIC_BLOCKS ↔ the declared layout containers (derived, objectui#68
     // regression this file caught, cannot pass this case either.
     expect(LAYOUT_VOCABULARY).toEqual(
       expect.arrayContaining(['box', 'flex', 'container', 'main', 'h1']),
+    );
+    // ⭐ The SECOND ACCESSOR PATH, and the reason the sample above is not the
+    // only guard. `propValues` is zod's OWN discriminator index, built when the
+    // union was constructed; `armLiterals` is this file's switch over `def`.
+    // Two readers, one schema — so they must agree as sets, and the day someone
+    // "simplifies" `armLiterals` back to a `.value`-only read (exactly the
+    // objectui#8499 regression) the two stop agreeing here rather than five
+    // sampled spellings later.
+    //
+    // ⚠️ Scope, stated so nobody over-reads it: this pins the READER, not the
+    // schema. Both paths read the same union, so a spelling genuinely deleted
+    // from an enum arm (`q`, say) leaves both sides equal and this case green;
+    // that direction is pinned against the REGISTRATION SOURCE elsewhere, which
+    // is where it belongs.
+    const zodPropValues = (
+      LayoutSchema as unknown as { _zod?: { propValues?: { type?: Set<unknown> } } }
+    )._zod?.propValues?.type;
+    expect(zodPropValues, "zod exposes no `propValues.type` index for this union").toBeDefined();
+    expect([...(zodPropValues ?? [])].filter((v) => typeof v === 'string').sort()).toEqual(
+      [...LAYOUT_VOCABULARY].sort(),
     );
   });
 
