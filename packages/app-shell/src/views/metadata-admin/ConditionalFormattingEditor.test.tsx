@@ -279,10 +279,15 @@ describe('ROW_PREDICATE_ROOTS ↔ evalRowPredicate runtime contract', () => {
    * "proved" `os` unbound. Calling the producer is what makes these readings
    * able to fail: if `buildExpressionScope` gains or loses a root, the closure
    * assertion says so instead of quietly agreeing with itself.
+   *
+   * ⭐ There is no `app` here, and it could not be put back even by accident:
+   * objectui#8155 removed `app` from `ExpressionScopeInput` as well as from the
+   * returned bag, so passing one is a COMPILE error (TS2353, "'app' does not
+   * exist in type 'ExpressionScopeInput'"). That is a third fence on the same
+   * fact, and the only one that holds without the suite being run.
    */
   const fullHostScope = buildExpressionScope({
     user: u,
-    app: { name: 'crm' },
     data: {},
     features: { beta: true },
   });

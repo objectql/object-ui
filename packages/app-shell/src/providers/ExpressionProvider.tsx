@@ -177,7 +177,10 @@ export function useExpressionContext(): ExpressionContextValue {
     // `app` is a readable context FIELD but not a CEL root (objectui#8155), so
     // handing this bag straight to the builder would smuggle back the very
     // binding the ruling removed.
-    const scope: ExpressionScopeInput = { user: {}, data: {}, features: {} };
+    // Left UNANNOTATED on purpose: annotating it `ExpressionScopeInput` widens
+    // every member to optional, and the spread below then fails to satisfy
+    // `ExpressionContextValue`, whose members are required.
+    const scope = { user: {}, data: {}, features: {} };
     return { ...scope, app: {}, evaluator: createExpressionEvaluator(scope) };
   }
   return ctx;
