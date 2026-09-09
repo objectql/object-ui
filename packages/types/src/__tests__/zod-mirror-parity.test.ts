@@ -3096,6 +3096,15 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
   'complex.zod.ts#KanbanSchema',
   'form.zod.ts#SelectOptionSchema',
   'layout.zod.ts#PageNodeSchema',
+  // objectui#8885: the three keys `ObjectChart.tsx` reads that neither published
+  // face declared are each the SPEC's own schema at the crossing —
+  // `SpecChartDrillDownSchema`, `SpecI18nLabelSchema`, and
+  // `SpecDashboardWidgetSchema.shape.compareTo` by reference (the producer's own
+  // declaration: `DashboardRenderer` forwards `widget.compareTo` verbatim). So a
+  // spec bump that moves the chart drill vocabulary, the i18n label union, or the
+  // widget's comparison directive moves ONE side of this pair, which is exactly
+  // what this list exists to make legible rather than mysterious.
+  'objectql.zod.ts#ObjectChartSchema',
   'objectql.zod.ts#ObjectGallerySchema',
   'objectql.zod.ts#ObjectGanttSchema',
   // objectui#7762: `exportOptions` is the spec's OBJECT ARM by reference — peeled out of

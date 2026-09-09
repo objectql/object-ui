@@ -34,6 +34,9 @@ import {
   UserActionsConfigSchema as SpecUserActionsConfigSchema,
   AriaPropsSchema as SpecAriaPropsSchema,
   NavigationConfigSchema as SpecNavigationConfigSchema,
+  ChartDrillDownSchema as SpecChartDrillDownSchema,
+  I18nLabelSchema as SpecI18nLabelSchema,
+  DashboardWidgetSchema as SpecDashboardWidgetSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
@@ -1258,6 +1261,23 @@ export const ObjectChartSchema = BaseSchema.extend({
     z.array(z.string()),
     z.record(z.string(), z.string()),
   ]).optional().describe('Positional palette (string[]) OR a value→color map ({ value: color }, kanban-style). Select/lookup option colors and explicit maps win over the palette per category.'),
+  // ── objectui#8885: three keys `ObjectChart.tsx` reads that neither published
+  // copy of this shape declared. Each is the SPEC's own schema at the crossing,
+  // never a local near-copy — see the TS twin in `../objectql.ts` for the
+  // per-key measurement. `xAxisKey` / `series` / `aggregate` / `filter` are read
+  // by the same file and belong to objectui#7946 (PR #8884); the census pin
+  // `../__tests__/object-chart-undeclared-keys-8885.test.ts` ledgers them by
+  // name rather than sweeping them in here.
+  drillDown: stripImportedDefaults(SpecChartDrillDownSchema).optional()
+    .describe('Segment drill config — @objectstack/spec ChartDrillDownSchema ({ enabled?, filter?, title?, target?: drawer | dialog | navigate, columns?, maxRows? }). Present = on; {} is enough. NOT the wider DrillDownConfig: a chart reads neither `mode` nor `report`.'),
+  title: stripImportedDefaults(SpecI18nLabelSchema).optional()
+    .describe('Chart heading, and the drill drawer heading fallback. @objectstack/spec I18nLabel — a plain string or an inline locale map, the union `normalizeChartSchema`’s `label()` resolves. Not a BaseSchema member.'),
+  // Strip-then-slot, the objectui#7779 idiom `ObjectViewSchema` above uses:
+  // the boundary is applied to the whole imported schema and the slot is taken
+  // off the RESULT, so the crossing is visible to the objectui#8317 census in
+  // the position it reads (`stripImportedDefaults(<binding>)`).
+  compareTo: stripImportedDefaults(SpecDashboardWidgetSchema).shape.compareTo
+    .describe('Period-over-period comparison directive, forwarded verbatim from the dashboard widget key of the same name — bound BY REFERENCE to `DashboardWidgetSchema.shape.compareTo` so the producer and this consumer cannot drift into two dialects.'),
 });
 
 /**

@@ -99,6 +99,9 @@ import type {
   NavigationConfig,
   GanttConfig as SpecGanttConfig,
   CalendarConfig as SpecCalendarConfig,
+  ChartDrillDown,
+  I18nLabel,
+  DashboardWidget as SpecDashboardWidget,
 } from '@objectstack/spec/ui';
 
 /**
@@ -3051,7 +3054,47 @@ export type KanbanConditionalFormattingRule =
   | SpecConditionalFormattingRule;
 
 /**
- * Object Chart Component Schema
+ * Object Chart Component Schema — the node `plugin-charts`' `ObjectChart`
+ * renders, registered as `object-chart`.
+ *
+ * ## The three keys objectui#8885 declared, and why each is bound to the spec
+ *
+ * `ObjectChart.tsx` reads `drillDown`, `title` and `compareTo` off `schema`,
+ * and until objectui#8885 neither published copy of this shape mentioned any of
+ * them — the objectui#6914 class (a key read behind a cast, declared on neither
+ * published face). They rode `BaseSchema`'s `[key: string]: any` /
+ * `.passthrough()` and arrived UNVALIDATED, while two independent declarations
+ * already pointed at `drillDown`: this component's registry `inputs` advertise
+ * it to the designer palette, and `@objectstack/spec` publishes
+ * `ChartDrillDownSchema` for exactly this carrier.
+ *
+ * ⛔ None of the three is re-declared locally. Each binds to the spec symbol
+ * that already owns it, per this file's standing rule ("Never Redefine Types.
+ * ALWAYS import them.") — a local near-copy is the fork `check:spec-symbols`
+ * exists to stop, and the one that would drift the day the protocol moves:
+ *
+ *   - `drillDown` → `ChartDrillDown` (`ChartDrillDownSchema`), which the spec
+ *     documents as the `ObjectChart` react-tier prop by name.
+ *   - `title` → `I18nLabel`, the union the spec's own `ChartConfigSchema.title`
+ *     carries and that this package's `normalizeChartSchema` already resolves.
+ *   - `compareTo` → `SpecDashboardWidget['compareTo']`, bound BY REFERENCE to
+ *     the producer's own declaration (see the member doc).
+ *
+ * ## The ceiling, stated rather than assumed (objectui#5155)
+ *
+ * `BaseSchema` still carries `[key: string]: any`, so declaring a key buys it
+ * its declared TYPE — `title: 42` is refused now — but does NOT buy rejection
+ * of a MISSPELLING: `drillDwn: {}` still compiles, exactly as it does on
+ * `ObjectGallerySchema` (objectui#6576). The counter-probe in
+ * `__tests__/object-chart-undeclared-keys-8885.test.ts` pins that honestly.
+ *
+ * ## Four keys are still undeclared here, deliberately
+ *
+ * `xAxisKey`, `series`, `aggregate` and `filter` are read by the same file and
+ * belong to objectui#7946, which ruled on them separately (PR #8884). They are
+ * ledgered BY NAME in this card's census pin — with an assertion that each is
+ * still read — rather than swept in here, so neither card's ruling is taken on
+ * the other's behalf.
  */
 export interface ObjectChartSchema extends BaseSchema {
   type: 'object-chart';
@@ -3072,6 +3115,70 @@ export interface ObjectChartSchema extends BaseSchema {
   dimensions?: string[];
   /** Dataset measure names */
   values?: string[];
+  /**
+   * AUTHORABLE — segment drill-down. Clicking a bar / slice / point opens the
+   * underlying records, filtered by the clicked category, in a drawer
+   * (default), a dialog, or the object's full list page. Absent means OFF; `{}`
+   * is enough to turn it on.
+   *
+   * ⛔ `ChartDrillDown` from `@objectstack/spec/ui`, NOT this repo's wider
+   * {@link DrillDownConfig}, and the difference is measured rather than
+   * stylistic. The spec type is the CHART subset — `enabled` / `filter` /
+   * `title` / `target` / `columns` / `maxRows`, all six of which
+   * `ObjectChart.tsx` reads — while `DrillDownConfig` additionally carries
+   * `mode` and `report` for the table / pivot / metric widgets, which this
+   * component reads NEITHER of. Declaring the wider type here would advertise
+   * two keys that are accepted and then dropped, which is the authoring bait
+   * objectui#3354 removed from `DrillDownConfig` itself.
+   *
+   * ⚠️ The `target: 'navigate'` arm is live on BOTH faces as of
+   * `@objectstack/spec` 17.4.0 (objectstack#5435 widened the union after
+   * objectui#3382 implemented the arm). A comment in `ObjectChart.tsx` and the
+   * `description` on this component's registry `inputs` both still say
+   * `'drawer' | 'dialog'`; they predate that release and are stale prose, not a
+   * narrower contract — see this card's acceptance notes.
+   */
+  drillDown?: ChartDrillDown;
+  /**
+   * AUTHORABLE — the chart's heading, and the drill drawer's heading fallback.
+   *
+   * Two read sites, and the union is the one they jointly require:
+   * `normalizeChartSchema` resolves it through `label()`, which accepts a plain
+   * string OR an inline locale map and picks a string out of it, and
+   * `ObjectChart.tsx` uses it as `resolveDrillTitle`'s fallback. `I18nLabel` is
+   * exactly that union and is what `@objectstack/spec`'s own
+   * `ChartConfigSchema.title` carries — and the spec's `REACT_BLOCKS` entry for
+   * `ObjectChart` lists `title` among its `dataProps`, so this is a key the
+   * platform's authoring surface already offers.
+   *
+   * ⚠️ NOT a `BaseSchema` member — `title` there belongs to `HTMLAttributes`,
+   * not to the node shape — so before objectui#8885 it rode the index signature
+   * as `any` and a `title: 42` reached `label()` unchecked.
+   */
+  title?: I18nLabel;
+  /**
+   * INTERNAL (relay-composed) — the period-over-period comparison directive.
+   * When present the chart runs a second, time-shifted query and overlays the
+   * previous window as `__comparison` series.
+   *
+   * Bound BY REFERENCE to `SpecDashboardWidget['compareTo']` because that is
+   * literally where the value comes from: `DashboardRenderer` composes this
+   * node with `compareTo: widget.compareTo`, forwarding the dashboard widget's
+   * own key verbatim. Binding to the producer's declaration is what keeps the
+   * two from drifting into a second dialect; the shape it resolves to is the
+   * converged `{ kind, dimension? }` (objectstack#5011), which the renderer
+   * side projects as `CompareToConfig` in `@object-ui/core` and the analytics
+   * contract publishes as `DatasetCompareTo`.
+   *
+   * INTERNAL rather than authorable: no producer in this repo puts it on an
+   * `object-chart` node an author wrote, this component's registry `inputs` do
+   * not advertise it, and `dimension` is deliberately never read on this path
+   * (the executor resolves it, so a renderer that guessed would trade a loud
+   * error for a quietly wrong window). Declaring it mints no new authorable
+   * vocabulary — the key is already authorable ON THE WIDGET — and buys the
+   * value check that `.passthrough()` was skipping.
+   */
+  compareTo?: SpecDashboardWidget['compareTo'];
 }
 
 /**
