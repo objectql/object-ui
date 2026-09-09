@@ -7,6 +7,18 @@ import type { DatasetCatalogEntry } from '../previews/useDatasetCatalog';
 
 afterEach(cleanup);
 
+// One fetch double at MODULE scope, never torn down (objectui#7439 / #6640).
+// `useDatasetSemantics` hydrates a bound dataset the catalog does not carry
+// with `client.get('dataset', name)`, and happy-dom resolves that relative URL
+// to a live socket on localhost:3000. The read is fire-and-forget — no barrier
+// in the test body awaits it — so an `afterEach` teardown would restore the
+// real fetch while the tree is still mounted. Installing it here means no test
+// in this file can ever end with the real fetch back in place.
+vi.stubGlobal(
+  'fetch',
+  vi.fn(async () => new Response('null', { status: 404, headers: { 'content-type': 'application/json' } })),
+);
+
 // ADR-0021 single-form: the catalog override short-circuits the dataset
 // fetches so the inspector renders with zero context / transport dependency.
 const catalog: DatasetCatalogEntry[] = [
@@ -192,5 +204,50 @@ describe('ReportDefaultInspector — dataset binding (9.0 single form)', () => {
       />,
     );
     expect(labelledInput('Label')).toBeDisabled();
+  });
+});
+
+/**
+ * objectui#8488 — one of the 42 call sites that never hand-rolled the rule.
+ *
+ * `datasetName` is offered against `datasetOptions`, so a dataset dropped from
+ * the catalog used to leave the binding BLANK — a report that reads as "no
+ * dataset bound" while `dataset: 'retired_dataset'` sits in the draft. This
+ * inspector wrote no repair of its own; it inherits `InspectorSelectField`'s.
+ *
+ * The pin reads the trigger's text, not `datasetOptions`: the bug's whole shape
+ * was a correct `value` prop that reached no pixels.
+ */
+describe('ReportDefaultInspector — a dataset the catalog no longer lists (objectui#8488)', () => {
+  const datasetTrigger = () => screen.getByRole('combobox', { name: 'Dataset' });
+
+  it('shows the stored dataset name, flagged, instead of a blank binding', () => {
+    render(
+      <ReportDefaultInspector
+        {...baseProps}
+        draft={{ ...datasetDraft, dataset: 'retired_dataset' }}
+        onPatch={vi.fn()}
+        readOnly={false}
+      />,
+    );
+    expect(
+      datasetTrigger().textContent,
+      'the binding names what it is bound to, even though the catalog dropped it',
+    ).toBe('retired_dataset (not found)');
+  });
+
+  it('still shows a catalogued dataset by its own label — the flag is not unconditional', () => {
+    render(
+      <ReportDefaultInspector
+        {...baseProps}
+        draft={{ ...datasetDraft }}
+        onPatch={vi.fn()}
+        readOnly={false}
+      />,
+    );
+    // `datasetOptions` labels a catalogued dataset `LABEL (NAME)`; the point of
+    // the case is the absence of the flag, not the label's own spelling.
+    expect(datasetTrigger().textContent).toBe('Sales metrics (sales_metrics)');
+    expect(screen.queryByText(/not found/), 'nothing is flagged').toBeNull();
   });
 });
