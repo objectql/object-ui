@@ -2092,7 +2092,7 @@ const MEMBER_PINS: Record<string, MemberPin> = {
   },
   'element:record_picker.filter': {
     file: 'packages/components/src/__tests__/record-picker-inputs-spec-parity.test.ts',
-    pins: 'The `object` arm is `FilterConditionSchema` — field keys plus `$and`/`$or`/`$not` — with the rule-ARRAY spelling every sibling `filter` uses rejected outright, and the description pinned to the renderer\'s own precedence read (`composed?.filter ?? props.filter`), objectui#3830.',
+    pins: 'The `array` arm is `ViewFilterRuleSchema[]` — the one filter orthography this map\'s array-declared `filter` doors share — with the MongoDB-style RECORD spelling (`{ status }`, `{ $and }`) refused by kind at `filter` and a bare tuple refused at `filter.0`, and the description pinned to the renderer\'s own precedence read (`composed?.filter ?? props.filter`). objectui#3830 declared the key; objectstack#14406 converged it off the record form and objectui#7663 moved this side onto the array arm.',
   },
   'element:text.content': {
     file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
