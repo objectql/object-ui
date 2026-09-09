@@ -116,7 +116,12 @@ export function AgentConnectSection() {
       });
       const json = await res.json().catch(() => ({}));
       const data = json?.data;
-      if (!res.ok || !data?.key) {
+      // Two failure modes, two sentences (objectui#8782). They used to share
+      // one `throw`, so a SUCCESSFUL response that simply carried no key was
+      // reported as `Request failed (200)` -- naming the one layer known to
+      // have worked, and sending the reader to the transport, which is the
+      // wrong layer. A wrong pointer costs more than no pointer.
+      if (!res.ok) {
         // objectui#7980 — the ADR-0112 failure envelope is read by the ONE
         // shared rule (`readEnvelopeFailureText`, pinned in app-shell's
         // `apiErrorEnvelope.test.ts`), not by a fourth local reading of it.
@@ -130,6 +135,23 @@ export function AgentConnectSection() {
         // prose (never an empty string), and that `null` is exactly the signal
         // to state this caller's own fallback below.
         throw new Error(readEnvelopeFailureText(json) ?? `Request failed (${res.status})`);
+      }
+      if (!data?.key) {
+        // Reachability of this arm, measured rather than assumed: the mint
+        // route's ONLY success is `201` and it always carries `data.key`
+        // (objectstack `packages/runtime/src/domains/keys.ts`, pinned in
+        // `http-dispatcher.keys.test.ts`), so this is not the route emitting a
+        // keyless success -- it cannot. This is where the `.catch(() => ({}))`
+        // three lines above lands every 2xx whose body is NOT that envelope:
+        // an SSO or proxy interstitial answering `200` with HTML, an empty
+        // body, a gateway page. Those are exactly the responses for which
+        // "request failed" misdirects hardest, so the status is deliberately
+        // absent from the sentence below -- quoting a 2xx here is what made
+        // the old message read as a transport failure that never happened.
+        throw new Error(
+          'The request succeeded but the response carried no API key. '
+            + 'Nothing failed in transit — inspect the response body of POST /api/v1/keys.',
+        );
       }
       setGenerated(data as GeneratedKey);
       setDialogOpen(true);
