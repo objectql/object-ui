@@ -80,7 +80,6 @@ export {
   ComponentMetaSchema,
   ComponentConfigSchema,
   HTMLAttributesSchema,
-  EventHandlersSchema,
   ClassNameStylePropsSchema,
 } from './base.zod.js';
 

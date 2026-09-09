@@ -718,9 +718,37 @@ export const ComponentConfigSchema = ComponentMetaSchema.extend({
 export const HTMLAttributesSchema = z.record(z.string(), z.any()).describe('HTML attributes');
 
 /**
- * Event Handlers
+ * Event handlers — NOTE, not a declaration. There is deliberately no
+ * event-handlers const here (objectui#6910).
+ *
+ * `EventHandlersSchema`, a `z.record(z.string(), z.function())`, stood at this
+ * spot until objectui#6910 retired it under ADR-0049 enforce-or-remove
+ * (maintainer ruling on objectui#6124, decision batch #8, reconfirmed in batch
+ * #25). It was a published export of `@object-ui/types/zod` that **no JSON
+ * document could ever satisfy** — every value it accepted had to be a function
+ * — and that nothing in this package composed. It could therefore neither
+ * admit a correct authoring nor refuse a wrong one: an author reading the
+ * published surface got no signal in either direction, which is exactly the
+ * shape ADR-0049 exists to remove.
+ *
+ * Why no JSON-authorable replacement can be written here, i.e. why this is a
+ * NOTE and not a narrower schema: on the JSON face handlers are not values at
+ * all. Events are declared on the node as `BaseSchema.events` — an event-name
+ * string keying `ActionSchema[]` — and actions are DATA dispatched by
+ * `@object-ui/core`, never functions (AGENTS.md commandment #4). The
+ * function-valued face is a TypeScript prop shape, declared as `EventHandlers`
+ * in `../base.ts`; a zod mirror of it would mirror something that never
+ * crosses the wire.
+ *
+ * ⚠️ Do not conclude from a clean sweep that no second one of these exists.
+ * Both standing instruments are structurally blind to this shape: the
+ * `z.function()` census matches the `key: z.function(` spelling and a record's
+ * VALUE type is not a key, and `../__tests__/zod-mirror-parity.test.ts`
+ * exempts index signatures by design ("no keys to compare"). This note, not a
+ * gate, is what records the absence.
+ *
+ * Precedent of the same shape: objectstack#12009 / PR #13413.
  */
-export const EventHandlersSchema = z.record(z.string(), z.function()).describe('Event handlers');
 
 /**
  * The two CSS passthrough attributes a node exposes: a Tailwind class string and
