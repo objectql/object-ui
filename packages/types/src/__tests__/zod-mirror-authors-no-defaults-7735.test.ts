@@ -51,13 +51,23 @@
  * `<type>.optional().default(v).describe(…)`, so none of them was carrying
  * optionality. `acceptSetUnchanged` re-states that as a live assertion.
  *
- * ## What this does NOT reach, measured rather than assumed
+ * ## What this did NOT reach — and no longer has to (objectui#8317)
  *
- * Removing all 41 does not make `safeValidateSchema` stop substituting. 57
- * `ZodDefault` nodes remain reachable from the published barrel afterwards, and
- * every one is inside a subschema imported from `@objectstack/spec`, so none of
- * them can be removed from this repository. The residue block below enumerates
- * them and says why its assertion is a floor and not a ratchet.
+ * Removing all 41 did not make `safeValidateSchema` stop substituting. 57
+ * `ZodDefault` nodes remained reachable from the published barrel afterwards,
+ * every one inside a subschema imported by reference from `@objectstack/spec`,
+ * and this file used to assert that residue as a floor: "real, recorded, and
+ * NOT this repository's to remove."
+ *
+ * ⭐ Decision batch #90 (2026-09-08, director seat under the maintainer's
+ * standing delegation, objectui#8317) overturned that last clause. Batch #69's
+ * principle holds for EVERY key `safeValidateSchema` answers, not only the 41
+ * this repository authored, so the 57 are stripped at this package's import
+ * boundary with `.removeDefault()` — `zod/imported-defaults.ts`, pinned by
+ * `imported-defaults-8317.test.ts`. ⛔ Option B (a 1546-site change on
+ * `@objectstack/spec`'s release train) was not taken; A is reversible into it.
+ * The residue block below now asserts ZERO, and says why that is a ratchet the
+ * boundary can hold when the old floor could not.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -214,48 +224,65 @@ describe('the zod mirror authors no defaults (objectui#7735)', () => {
      * The boundary of the ruling, stated as a live measurement rather than left
      * for the next reader to trip over.
      *
-     * `ZodDefault` nodes ARE still reachable from the published barrel — 57 of
-     * them at the head this landed on — and not one is authored here. Every one
-     * arrives inside a subschema imported from `@objectstack/spec`: `app`'s
-     * `active` / `isDefault` off `SpecAppSchema.shape`, `object-view`'s
+     * ⭐ ZERO since objectui#8317 (decision batch #90). `ZodDefault` nodes used
+     * to be reachable from the published barrel — 57 of them at the head #8299
+     * landed on, none authored here: every one arrived inside a subschema
+     * imported from `@objectstack/spec` (`app`'s `active` / `isDefault` off
+     * `SpecAppSchema.shape`, `object-view`'s
      * `navigation.{mode,preventNavigation,openNewTab,size}`, `list-view`'s
      * `sharing.type`, `kanban`'s `grouping.fields[].{order,collapsed}`,
-     * `page`'s whole `interfaceConfig` subtree, and the dashboard chart config.
-     * The derivation is the assertion above it: the mirror files contain zero
-     * `.default()` CALLS, so every surviving node was constructed elsewhere.
+     * `page`'s whole `interfaceConfig` subtree, and the dashboard chart
+     * config). Batch #90 ruled that a validator does not write values into an
+     * author's document on THOSE keys either, so they are stripped where the
+     * spec enters this package (`../zod/imported-defaults.ts`).
      *
-     * So `safeValidateSchema` still substitutes — on those keys, through those
-     * subtrees — and the "one authored document, two shapes" defect this card
-     * names survives there. That residue is real, it is recorded on
-     * objectui#7735, and it is NOT this repository's to remove: the values are
-     * written in `@objectstack/spec` and reach here by reference. Restating them
-     * locally to strip them would be the "narrower than the contract it
-     * implements" shape `complex.zod.ts` already records twice.
-     *
-     * Asserted as `> 0` rather than `=== 57`: the exact figure moves with every
-     * `@objectstack/spec` bump, and a count ratchet on another package's
-     * contents is a false-alarm generator. What must not silently change is the
-     * ATTRIBUTION — and that is what the call-site assertion above holds.
+     * ⚠️ This is now a RATCHET at zero, and it can be one where the old
+     * `> 0` floor could not. The floor was a count of another package's
+     * contents and moved with every `@objectstack/spec` bump, which is why it
+     * was written as an inequality. Zero does not move with a bump: a default
+     * added upstream tomorrow arrives through the same boundary and is stripped
+     * by the same walk. What this assertion catches is a NEW ENTRY POINT — an
+     * `@objectstack/spec` import that skips `stripImportedDefaults`, or a
+     * `.default()` written here — and both of those are exactly the regression
+     * batch #69 and batch #90 rule out.
      */
-    it('the residue that survives is entirely spec-derived, and it is not zero', () => {
-      const { nodes } = walk([AnyComponentSchema, ...exportedSchemas.map(([, v]) => v)]);
+    it('no `ZodDefault` is reachable from the published barrel at all', () => {
+      const { nodes, unreachable } = walk([AnyComponentSchema, ...exportedSchemas.map(([, v]) => v)]);
+      expect(unreachable).toEqual([]);
       const defaults = [...nodes].filter((n) => defOf(n)!.type === 'default');
       expect(mirrorFiles.flatMap(defaultCallSites)).toEqual([]);
       expect(
         defaults.length,
-        'if this reaches zero, `@objectstack/spec` stopped authoring defaults too — good news, ' +
-          'but re-read the docblock above and retire this assertion deliberately rather than ' +
-          'weakening it.',
-      ).toBeGreaterThan(0);
+        'a `ZodDefault` is reachable from `@object-ui/types/zod` again. Either a `.default()` was ' +
+          'written in a mirror file (objectui#7735) or an `@objectstack/spec` import bypassed ' +
+          '`stripImportedDefaults` at the boundary (objectui#8317). Route it through the boundary; ' +
+          '⛔ do not weaken this number.',
+      ).toBe(0);
     });
 
-    it('a spec-derived subtree still substitutes — the residue, made concrete', () => {
-      const result = safeValidateSchema({ type: 'object-view', objectName: 'account', navigation: {} });
-      expect(result.success).toBe(true);
-      const data = (result as { success: true; data: Record<string, Record<string, unknown>> }).data;
-      // Authored `navigation: {}`, parsed to a populated object. Nothing under
-      // `packages/types/src/zod` wrote those keys; `@objectstack/spec` did.
-      expect(Object.keys(data.navigation).length).toBeGreaterThan(0);
+    /**
+     * The reproducer that defined "done" on objectui#8317, both directions.
+     *
+     * ⚠️ The second direction is the one that makes the first meaningful. A
+     * mirror that had simply DROPPED these keys from its shape would satisfy
+     * "the author gets back what they wrote" for the empty document and quietly
+     * refuse — or silently pass through — the document that writes them. Only
+     * the pair distinguishes "stopped substituting" from "stopped declaring".
+     */
+    it('a spec-derived subtree no longer substitutes — and still round-trips what the author DID write', () => {
+      const authoredEmpty = { type: 'object-view', objectName: 'account', navigation: {} };
+      const empty = safeValidateSchema(authoredEmpty);
+      expect(empty.success).toBe(true);
+      expect((empty as { success: true; data: typeof authoredEmpty }).data).toEqual(authoredEmpty);
+
+      const authoredFull = {
+        type: 'object-view',
+        objectName: 'account',
+        navigation: { mode: 'page', preventNavigation: false, openNewTab: false, size: 'auto' },
+      };
+      const full = safeValidateSchema(authoredFull);
+      expect(full.success).toBe(true);
+      expect((full as { success: true; data: typeof authoredFull }).data).toEqual(authoredFull);
     });
   });
 

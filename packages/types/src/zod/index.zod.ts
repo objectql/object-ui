@@ -30,7 +30,29 @@
  *   console.error('Validation errors:', result.error);
  * }
  * ```
- * 
+ *
+ * ## ⭐ This mirror authors no default, imported subschemas included
+ *
+ * `result.data` is the document you handed in. This face VALIDATES; it does not
+ * write values into an author's document — not on the keys this package
+ * declares (objectui#7735, decision batch #69) and not on the keys it imports
+ * by reference from `@objectstack/spec` (objectui#8317, decision batch #90).
+ * An author who writes `navigation: {}` gets `navigation: {}` back, not
+ * `navigation: { mode: 'page', preventNavigation: false, openNewTab: false,
+ * size: 'auto' }`.
+ *
+ * ⇒ There is no key on this face whose presence in `result.data` means anything
+ * other than "the author wrote it", and no import graph to read to find out
+ * which keys those are. The authoritative default for a key is the RENDERER's
+ * own fallback, which is what actually runs; a `@default` JSDoc tag DESCRIBES
+ * that fallback and never installs one.
+ *
+ * ⛔ So: no `.default()` in `zod/*.zod.ts`, and every `@objectstack/spec` import
+ * re-bound through `zod/imported-defaults.ts`. Both halves are ratcheted at zero
+ * by `__tests__/zod-mirror-authors-no-defaults-7735.test.ts` and
+ * `__tests__/imported-defaults-8317.test.ts`. The accept set is unchanged by
+ * either: a key that was omissible stays omissible.
+ *
  * @packageDocumentation
  */
 

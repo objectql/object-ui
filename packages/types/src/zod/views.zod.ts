@@ -19,7 +19,30 @@
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { handlerKeyRefusal } from './tombstone.zod.js';
-import { ListViewSchema as SpecListViewSchema } from '@objectstack/spec/ui';
+import { ListViewSchema as ImportedSpecListViewSchema } from '@objectstack/spec/ui';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * ruled that a validator validates and does not write values into an author's
+ * document; batch #90 ruled that this holds for EVERY key `safeValidateSchema`
+ * answers, not only the sites this repository wrote. So every schema arriving
+ * here from `@objectstack/spec` is re-bound through `stripImportedDefaults`,
+ * which removes each reachable `ZodDefault` with `.removeDefault()` and keeps
+ * the key omissible. Keys, types, checks and the accept set are untouched, and
+ * a subtree carrying no default comes back reference-equal — so this is a no-op
+ * the day the spec adopts the same principle. ⛔ Never put an `Imported…`
+ * binding into a mirror's shape or on any parse path; that alias exists so the
+ * boundary cannot be bypassed by accident, and the ONE legitimate read of one
+ * is a value VOCABULARY (`SpecListViewTypeEnum` / `ViewKindEnum`, which unwrap
+ * the spec's own `.default()` to reach its enum and parse nothing). Rationale
+ * and pins: `./imported-defaults.ts`,
+ * `../__tests__/imported-defaults-8317.test.ts`.
+ */
+const SpecListViewSchema = stripImportedDefaults(ImportedSpecListViewSchema);
+
 
 /**
  * The spec's own list-view type vocabulary, unwrapped from its `.default('grid')`.
@@ -32,7 +55,14 @@ import { ListViewSchema as SpecListViewSchema } from '@objectstack/spec/ui';
  * cannot drift from each other, whereas two copies of its member list can, and
  * did.
  */
-const SpecListViewTypeEnum = SpecListViewSchema.shape.type.removeDefault();
+// ⛔ The one legitimate read of an `Imported…` binding (objectui#8317): a VALUE
+// VOCABULARY, not a parse path. `.removeDefault()` unwraps the spec's own
+// `.default('grid')` to reach its enum, and no document is parsed through this
+// binding, so the import boundary above is not bypassed. Reading it off the
+// boundary-bound `SpecListViewSchema` instead would not work: the strip changes
+// that member's RUNTIME wrapper (`ZodDefault` → `ZodOptional`) while its STATIC
+// type is unchanged by design, so `.removeDefault()` would typecheck and throw.
+const SpecListViewTypeEnum = ImportedSpecListViewSchema.shape.type.removeDefault();
 
 /**
  * View Type Schema — the zod face of {@link ViewType} (`../views.ts`).

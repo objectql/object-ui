@@ -18,27 +18,65 @@
 
 import { z } from 'zod';
 import {
-  ListViewSchema as SpecListViewSchema,
-  KanbanConfigSchema as SpecKanbanConfigSchema,
-  GanttConfigSchema as SpecGanttConfigSchema,
-  CalendarConfigSchema as SpecCalendarConfigSchema,
-  GalleryConfigSchema as SpecGalleryConfigSchema,
-  GroupingConfigSchema as SpecGroupingConfigSchema,
-  TimelineConfigSchema as SpecTimelineConfigSchema,
-  HttpMethodSubsetSchema as SpecHttpMethodSubsetSchema,
-  HttpRequestSchema as SpecHttpRequestSchema,
-  ViewDataSchema as SpecViewDataSchema,
-  ListColumnSchema as SpecListColumnSchema,
-  SelectionConfigSchema as SpecSelectionConfigSchema,
-  PaginationConfigSchema as SpecPaginationConfigSchema,
-  UserActionsConfigSchema as SpecUserActionsConfigSchema,
-  AriaPropsSchema as SpecAriaPropsSchema,
-  NavigationConfigSchema as SpecNavigationConfigSchema,
+  ListViewSchema as ImportedSpecListViewSchema,
+  KanbanConfigSchema as ImportedSpecKanbanConfigSchema,
+  GanttConfigSchema as ImportedSpecGanttConfigSchema,
+  CalendarConfigSchema as ImportedSpecCalendarConfigSchema,
+  GalleryConfigSchema as ImportedSpecGalleryConfigSchema,
+  GroupingConfigSchema as ImportedSpecGroupingConfigSchema,
+  TimelineConfigSchema as ImportedSpecTimelineConfigSchema,
+  HttpMethodSubsetSchema as ImportedSpecHttpMethodSubsetSchema,
+  HttpRequestSchema as ImportedSpecHttpRequestSchema,
+  ViewDataSchema as ImportedSpecViewDataSchema,
+  ListColumnSchema as ImportedSpecListColumnSchema,
+  SelectionConfigSchema as ImportedSpecSelectionConfigSchema,
+  PaginationConfigSchema as ImportedSpecPaginationConfigSchema,
+  UserActionsConfigSchema as ImportedSpecUserActionsConfigSchema,
+  AriaPropsSchema as ImportedSpecAriaPropsSchema,
+  NavigationConfigSchema as ImportedSpecNavigationConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { DrillDownConfigSchema } from './data-display.zod.js';
 import { ViewSwitcherSchema } from './views.zod.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * ruled that a validator validates and does not write values into an author's
+ * document; batch #90 ruled that this holds for EVERY key `safeValidateSchema`
+ * answers, not only the sites this repository wrote. So every schema arriving
+ * here from `@objectstack/spec` is re-bound through `stripImportedDefaults`,
+ * which removes each reachable `ZodDefault` with `.removeDefault()` and keeps
+ * the key omissible. Keys, types, checks and the accept set are untouched, and
+ * a subtree carrying no default comes back reference-equal — so this is a no-op
+ * the day the spec adopts the same principle. ⛔ Never put an `Imported…`
+ * binding into a mirror's shape or on any parse path; that alias exists so the
+ * boundary cannot be bypassed by accident, and the ONE legitimate read of one
+ * is a value VOCABULARY (`SpecListViewTypeEnum` / `ViewKindEnum`, which unwrap
+ * the spec's own `.default()` to reach its enum and parse nothing). Rationale
+ * and pins: `./imported-defaults.ts`,
+ * `../__tests__/imported-defaults-8317.test.ts`.
+ */
+const SpecListViewSchema = stripImportedDefaults(ImportedSpecListViewSchema);
+const SpecKanbanConfigSchema = stripImportedDefaults(ImportedSpecKanbanConfigSchema);
+const SpecGanttConfigSchema = stripImportedDefaults(ImportedSpecGanttConfigSchema);
+const SpecCalendarConfigSchema = stripImportedDefaults(ImportedSpecCalendarConfigSchema);
+const SpecGalleryConfigSchema = stripImportedDefaults(ImportedSpecGalleryConfigSchema);
+const SpecGroupingConfigSchema = stripImportedDefaults(ImportedSpecGroupingConfigSchema);
+const SpecTimelineConfigSchema = stripImportedDefaults(ImportedSpecTimelineConfigSchema);
+const SpecHttpMethodSubsetSchema = stripImportedDefaults(ImportedSpecHttpMethodSubsetSchema);
+const SpecHttpRequestSchema = stripImportedDefaults(ImportedSpecHttpRequestSchema);
+const SpecViewDataSchema = stripImportedDefaults(ImportedSpecViewDataSchema);
+const SpecListColumnSchema = stripImportedDefaults(ImportedSpecListColumnSchema);
+const SpecSelectionConfigSchema = stripImportedDefaults(ImportedSpecSelectionConfigSchema);
+const SpecPaginationConfigSchema = stripImportedDefaults(ImportedSpecPaginationConfigSchema);
+const SpecUserActionsConfigSchema = stripImportedDefaults(ImportedSpecUserActionsConfigSchema);
+const SpecAriaPropsSchema = stripImportedDefaults(ImportedSpecAriaPropsSchema);
+const SpecNavigationConfigSchema = stripImportedDefaults(ImportedSpecNavigationConfigSchema);
+
 
 /**
  * HTTP Method Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -539,7 +577,11 @@ const TimelineConfig = SpecTimelineConfigSchema.partial().extend({
 }).passthrough();
 
 // View-kind enum reused from spec (unwrap its `.default('grid')`) so it cannot drift.
-const ViewKindEnum = SpecListViewSchema.shape.type.removeDefault();
+// ⛔ Reads the IMPORTED binding on purpose (objectui#8317): a VALUE VOCABULARY is
+// not a parse path, and the boundary-bound `SpecListViewSchema` has already had
+// this `ZodDefault` replaced at runtime while its static type is unchanged, so
+// `.removeDefault()` on it would typecheck and throw. See `views.zod.ts`'s twin.
+const ViewKindEnum = ImportedSpecListViewSchema.shape.type.removeDefault();
 
 /**
  * User Actions — the spec's `UserActionsConfigSchema` plus the three toolbar

@@ -16,8 +16,16 @@
  * re-exports too until the spec retired its whole theme module — see the
  * retirement block below.) These tests pin:
  *
- *   1. Reference identity for every direct re-export. `toBe` — not structural
- *      equality — so a "faithful copy" fails too: a copy is a fork.
+ *   1. Identity for every direct re-export — `toBe`, not structural equality,
+ *      so a "faithful copy" fails too: a copy is a fork. ⭐ Since objectui#8317
+ *      (decision batch #90) the subject of that identity is the spec object AS
+ *      IT ENTERS THIS PACKAGE — `stripImportedDefaults(spec)` — not the raw
+ *      spec object. That call is the whole of the sanctioned difference: it
+ *      removes the imported `ZodDefault`s so this validator stops writing
+ *      values into an author's document, and changes nothing else. A subtree
+ *      with no default to strip comes back REFERENCE-EQUAL to the spec's own
+ *      object, and three pairs below are exactly that, which is what keeps this
+ *      assertion from degrading into "equals whatever the boundary produced".
  *   2. The one *derived* schema (`ListColumnSchema`): every spec field flows in,
  *      the local-extension set is exactly the sanctioned one, and the `summary`
  *      broadening keeps the spec enum as its first (by-reference) union arm.
@@ -49,6 +57,7 @@ import {
   PaginationConfigSchema,
 } from '../zod/objectql.zod.js';
 import { ChartTypeSchema } from '../zod/data-display.zod.js';
+import { stripImportedDefaults } from '../zod/imported-defaults.js';
 import { PageTypeSchema } from '../zod/layout.zod.js';
 
 describe('spec sub-schema re-exports are the spec objects (by reference)', () => {
@@ -85,7 +94,49 @@ describe('spec sub-schema re-exports are the spec objects (by reference)', () =>
 
   it.each(pairs.map(([name]) => [name] as const))('%s', (name) => {
     const [, oui, spec] = pairs.find(([n]) => n === name)!;
-    expect(oui, `${name} must be the spec schema itself, not a copy`).toBe(spec);
+    expect(
+      oui,
+      `${name} must be the spec schema as it enters this package — ` +
+        '`stripImportedDefaults(<spec schema>)` and nothing else. A local copy is a fork ' +
+        '(#2231); a copy with any OTHER edit is the same fork wearing the boundary\'s name.',
+    ).toBe(stripImportedDefaults(spec as never));
+  });
+
+  /**
+   * ⭐ The control that keeps the assertion above from being vacuous.
+   *
+   * `stripImportedDefaults` is the identity function on a subtree with nothing
+   * to strip (see its walker's identity property), so for a schema that carries
+   * no `ZodDefault` the assertion above degenerates into `toBe(spec)` — the
+   * pre-objectui#8317 pin, unchanged and still load-bearing. These three are
+   * that case, asserted directly so it is a MEASUREMENT rather than a claim in
+   * a docblock: if the boundary ever started cloning unconditionally, this goes
+   * red and the pin above would not.
+   */
+  it.each([
+    ['HttpMethodSchema', HttpMethodSchema, SpecHttpMethodSubsetSchema],
+    ['ChartTypeSchema', ChartTypeSchema, SpecChartTypeSchema],
+    ['PageTypeSchema', PageTypeSchema, SpecPageTypeSchema],
+  ] as const)('%s carries no imported default, so it is still the raw spec object', (name, oui, spec) => {
+    expect(oui, `${name} has nothing to strip and must stay reference-equal to the spec object`).toBe(spec);
+  });
+
+  /**
+   * …and the other half of the same control: the four that DID carry an
+   * imported default are NOT the raw spec object any more. That is the
+   * behaviour change objectui#8317 shipped, pinned so it cannot be undone by
+   * quietly reverting the boundary — and so a reader who lands on the
+   * `toBe(stripImportedDefaults(...))` line above can see that the call is
+   * doing something.
+   */
+  it.each([
+    ['HttpRequestSchema', HttpRequestSchema, SpecHttpRequestSchema],
+    ['ViewDataSchema', ViewDataSchema, SpecViewDataSchema],
+    ['SelectionConfigSchema', SelectionConfigSchema, SpecSelectionConfigSchema],
+    ['PaginationConfigSchema', PaginationConfigSchema, SpecPaginationConfigSchema],
+  ] as const)('%s carried an imported default, so it is the boundary derivation', (name, oui, spec) => {
+    expect(oui, `${name} still IS the raw spec object — the import boundary was bypassed`).not.toBe(spec);
+    expect(oui).toBe(stripImportedDefaults(spec as never));
   });
 });
 
@@ -147,9 +198,10 @@ describe('ListColumnSchema is the spec schema (the extension collapsed)', () => 
   it('is the spec schema itself, not a copy or an extension', () => {
     expect(
       ListColumnSchema,
-      'ListColumnSchema must be SpecListColumnSchema by reference — if a local field ' +
-        'is needed again, promote it into @objectstack/spec instead of re-extending here',
-    ).toBe(SpecListColumnSchema);
+      'ListColumnSchema must be SpecListColumnSchema as it enters this package — if a local ' +
+        'field is needed again, promote it into @objectstack/spec instead of re-extending here. ' +
+        'The `stripImportedDefaults` hop is objectui#8317 and is the only sanctioned difference.',
+    ).toBe(stripImportedDefaults(SpecListColumnSchema));
   });
 
   it('carries no objectui-only fields', () => {
@@ -209,11 +261,25 @@ describe('ListColumnSchema is the spec schema (the extension collapsed)', () => 
     expect(ListColumnSchema.shape.summary.safeParse('median').success).toBe(false);
   });
 
-  it('prefix parses the compound-cell form and defaults `type` to text', () => {
-    const parsed = ListColumnSchema.shape.prefix.parse({ field: 'status' });
-    // spec v17 made `type` a ZodDefault, so ObjectGrid's cell renderer always
-    // gets a value where the old objectui-local schema left it undefined.
-    expect(parsed).toEqual({ field: 'status', type: 'text' });
+  it('prefix parses the compound-cell form and no longer WRITES `type` for the author', () => {
+    // ⭐ INVERTED by objectui#8317 (decision batch #90). spec v17 made `type` a
+    // `ZodDefault`, and this pin used to assert the substitution: an author who
+    // wrote `{ field: 'status' }` got back `{ field: 'status', type: 'text' }`.
+    // That is precisely the "one authored document, two shapes" defect
+    // objectui#7735 was opened about, arriving through an imported subschema,
+    // and batch #90 ruled it out for imported keys as well as local ones. The
+    // author's document comes back as the author wrote it.
+    //
+    // ⛔ Not an accept-set change: the key stays omissible (that is what the
+    // boundary's re-optionalisation is for) and the value vocabulary is
+    // untouched — the two probes below are unchanged from the pre-#8317 pin.
+    // ⚠️ ObjectGrid's cell renderer is where the `'text'` fallback belongs, and
+    // batch #69 already ruled that the renderer's fallback is THE authoritative
+    // default; the mirror describing it is not the mirror writing it.
+    expect(ListColumnSchema.shape.prefix.parse({ field: 'status' })).toEqual({ field: 'status' });
+    // …and a document that DOES write it round-trips unchanged.
+    expect(ListColumnSchema.shape.prefix.parse({ field: 'status', type: 'text' }))
+      .toEqual({ field: 'status', type: 'text' });
     expect(ListColumnSchema.shape.prefix.safeParse({ field: 'status', type: 'badge' }).success).toBe(true);
     expect(ListColumnSchema.shape.prefix.safeParse({ field: 'status', type: 'pill' }).success).toBe(false);
   });

@@ -19,11 +19,36 @@
 import { z } from 'zod';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import {
-  PageSchema as SpecPageSchema,
-  PageTypeSchema as SpecPageTypeSchema,
-  PageVariableSchema as SpecPageVariableSchema,
+  PageSchema as ImportedSpecPageSchema,
+  PageTypeSchema as ImportedSpecPageTypeSchema,
+  PageVariableSchema as ImportedSpecPageVariableSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * ruled that a validator validates and does not write values into an author's
+ * document; batch #90 ruled that this holds for EVERY key `safeValidateSchema`
+ * answers, not only the sites this repository wrote. So every schema arriving
+ * here from `@objectstack/spec` is re-bound through `stripImportedDefaults`,
+ * which removes each reachable `ZodDefault` with `.removeDefault()` and keeps
+ * the key omissible. Keys, types, checks and the accept set are untouched, and
+ * a subtree carrying no default comes back reference-equal — so this is a no-op
+ * the day the spec adopts the same principle. ⛔ Never put an `Imported…`
+ * binding into a mirror's shape or on any parse path; that alias exists so the
+ * boundary cannot be bypassed by accident, and the ONE legitimate read of one
+ * is a value VOCABULARY (`SpecListViewTypeEnum` / `ViewKindEnum`, which unwrap
+ * the spec's own `.default()` to reach its enum and parse nothing). Rationale
+ * and pins: `./imported-defaults.ts`,
+ * `../__tests__/imported-defaults-8317.test.ts`.
+ */
+const SpecPageSchema = stripImportedDefaults(ImportedSpecPageSchema);
+const SpecPageTypeSchema = stripImportedDefaults(ImportedSpecPageTypeSchema);
+const SpecPageVariableSchema = stripImportedDefaults(ImportedSpecPageVariableSchema);
+
 
 /**
  * Div Schema - Basic HTML container
