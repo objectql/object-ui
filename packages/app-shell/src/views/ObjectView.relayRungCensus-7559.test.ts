@@ -66,6 +66,21 @@
  * ⇒ That is what turns "the absences are deliberate" from a whole-literal
  * assumption (the card's option (c)) into a per-key claim anyone can re-read.
  *
+ * ## Why the census, and not just a type on `viewDef` (measured)
+ *
+ * The card's option (a) was to give `viewDef` the view-entry type it actually
+ * carries. That was measured before this file was written: annotating it
+ * `NamedListView & { id: string }` and running `tsc --noEmit` over the package
+ * produces 22 diagnostics, and NOT ONE of them is a missing rung. Every one is
+ * the opposite direction — a key the relay READS that the declared view type
+ * does not carry (`rowColor`, `appearance`, `chart`, `tree`, `map`, `name`,
+ * `editRecordsInline`). That is the sibling finding objectui#7483 owns.
+ *
+ * ⇒ (a) cannot deliver this card's headline. A type on the read side says what
+ * a value IS; nothing about it REQUIRES the literal to write a key it never
+ * mentions, so an absent rung stays absent and silent. (a) is necessary for
+ * other reasons and not sufficient for this one. Hence (b), here.
+ *
  * ## What this file does NOT do
  *
  * ⛔ It does not fill in a missing rung. Each absent rung is its own card
