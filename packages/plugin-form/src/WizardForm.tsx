@@ -534,7 +534,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   /**
    * The host shell's global predicate scope (`ExpressionProvider` →
    * `PredicateScopeProvider`) — `current_user` plus the ADR-0068 `user` /
-   * `ctx.user` / `os.user` aliases, `app`, `data`, `features`. Empty `{}` when
+   * `ctx.user` / `os.user` aliases, `data`, `features`. Empty `{}` when
    * no provider is mounted, which is the same "nothing to bind" the renderer
    * sees (objectui#6110).
    *

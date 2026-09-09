@@ -76,7 +76,6 @@ const APP_SCOPE = {
   user: { id: 'u1', email_verified: true },
   ctx: { user: { id: 'u1' } },
   os: { user: { id: 'u1' } },
-  app: {},
   data: {},
   features: { multiOrgEnabled: true },
 };

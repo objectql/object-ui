@@ -522,8 +522,9 @@ support table below.
 A tab may carry a `visibleWhen` predicate — the same slot, vocabulary and
 engine as the field-level rule (`string | { dialect?, source }`, a CEL
 predicate over the live record, evaluated by `@objectstack/formula` with the
-host predicate scope bound, so it can read `current_user` / `app` / `data` /
-`features` exactly as a field rule can). Like every conditional rule in this
+host predicate scope bound, so it can read `current_user` / `data` /
+`features` exactly as a field rule can — there is no `app` root, objectui#8155).
+Like every conditional rule in this
 system it **fails open**: a predicate that cannot be evaluated leaves the tab
 visible rather than hiding data behind a broken expression.
 

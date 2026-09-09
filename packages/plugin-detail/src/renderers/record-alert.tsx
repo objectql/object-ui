@@ -43,7 +43,7 @@
  *
  *   Merged UNDER the row is whatever the host put in the ambient predicate
  *   scope (`PredicateScopeProvider`; app-shell's `ExpressionProvider` supplies
- *   `current_user` / `user` / `ctx.user` / `os.user` / `app` / `data` /
+ *   `current_user` / `user` / `ctx.user` / `os.user` / `data` /
  *   `features`). The row wins, so a host-supplied `record` / `data` cannot
  *   shadow it. `objectName` is NOT in the predicate scope — it is read from
  *   `useRecordContext()` for the metadata lookup and the dismiss key only.

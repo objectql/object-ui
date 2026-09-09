@@ -464,7 +464,7 @@ describe('record:alert — the `visible` verdict, real predicate pipeline (objec
 
   it('the ambient predicate scope reaches the banner — a `features.*` gate resolves both ways', () => {
     // The renderer passes only `{ record }`; everything else the header
-    // docblock promises (`features`, `user`, `app`, …) arrives through the
+    // docblock promises (`features`, `user`, …) arrives through the
     // ambient `PredicateScopeProvider` that host shells mount, merged UNDER the
     // local context by `useCondition`. Stubbing the predicate entry hid this
     // path entirely — a deployment-level gate could stop resolving with the

@@ -246,7 +246,8 @@ describe('evalRowPredicate', () => {
  * the marker that routes dialects — something no author selects deliberately.
  *
  * No host injects a `record` key today (`ExpressionProvider` binds
- * `current_user`/`user`/`ctx`/`os`/`app`/`data`/`features`), so this is a pin
+ * `current_user`/`user`/`ctx`/`os`/`data`/`features` — `app` was unbound by
+ * objectui#8155), so this is a pin
  * against a plausible future addition — `ctx.record` already exists — not a
  * live bug repro. It is one test on purpose: the two paths' precedence is a
  * single contract, and pinning them apart is what let them drift.

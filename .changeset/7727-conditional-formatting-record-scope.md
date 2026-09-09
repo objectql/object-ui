@@ -60,13 +60,34 @@ consumer aligns to it, rather than the engine growing a root to match this consu
 population cannot be measured from this repository.** In-tree usage is zero — swept
 across `packages/`, `apps/`, `examples/` and `content/` with a firing control — but
 metadata authored in real deployments lives outside this tree and no sweep here can
-see it. Any predicate that reads `app.*` — a conditional-formatting condition, an
-action `visible` / `disabled`, a field `visibleWhen` — stops resolving and, because
-unresolvable visibility predicates **fail open**, will start reading as "yes" rather
-than erroring. That is the accepted cost of the ruling, not an oversight. There is no
-replacement root: `app` was never in the protocol. If you need a "current app" value in
-a predicate, that is a spec/engine vocabulary widening to be filed (the producer-side
-card, objectstack#16420, stays open as the record to reopen).
+see it. Any predicate that reads `app.*` stops resolving. There is no replacement
+root: `app` was never in the protocol. If you need a "current app" value in a
+predicate, that is a spec/engine vocabulary widening to be filed fresh — the
+producer-side card objectstack#16420 was closed `not_planned` by the same ruling
+(2026-09-07), so there is no open record waiting for it.
+
+**What a stale `app.*` predicate does now depends on the surface — the direction is
+NOT uniform, and two of them fail the safe way.** Measured per surface on the merged
+head, each with a resolvable control predicate firing in the same run:
+
+| Surface | Entry point | A stale `app.*` predicate now |
+|---|---|---|
+| Conditional-formatting `condition` | `resolveConditionalFormatting` → `evalRowPredicate` (`fallback: false`) | **fails CLOSED** — the rule silently stops matching, no style is applied |
+| Row/header action `visible` / `disabled` | `evalRowPredicate` (`fallback: false`) | **fails CLOSED** — the action is hidden / left enabled |
+| Action `visible` on `action-button` / `action-menu` / `action-bar` | `useCondition(…, { throwOnError: true })` | **fails CLOSED** — hidden, with a one-time console warning |
+| Action `visible` on `action-icon` / `action-group` | `useCondition` (default) | **fails OPEN** — the action is shown |
+| Field `visibleWhen` (form field rules) | `resolveFieldRuleState` → `evalFieldPredicate` (fallback `true`) | **fails OPEN** — the field is shown |
+| Field `visibleWhen` (app-shell object field) and nav / area `visible` | `isObjectFieldVisible` / `evaluateVisibility` | **fails OPEN** — shown, with a console diagnostic |
+| Field `readonlyWhen` / `requiredWhen` | `resolveFieldRuleState` (fallback `false`) | **fails CLOSED** — not readonly, not required |
+
+So the cost is not one shape: on the fail-OPEN surfaces a gate that used to hide
+something starts showing it, and on the fail-CLOSED surfaces a rule that used to fire
+silently stops. Both are accepted costs of the ruling, not oversights — but they need
+opposite checks after upgrading, which is why they are listed apart rather than
+summarised. Every faulting predicate warns on the console; the app-shell diagnostic
+names the roots this tier really binds, and objectui#8155's follow-up removed `app`
+from that list so it no longer sends an author back to the root that is the reason
+(`packages/react/src/utils/visibilityDiagnostic.ts`).
 
 `ExpressionProvider` still accepts an `app` prop and still publishes `app` on its React
 **context value**, which components read as a plain value (`DashboardView` does). Only

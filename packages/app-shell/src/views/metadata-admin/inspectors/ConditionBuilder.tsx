@@ -121,8 +121,11 @@ export interface ConditionSubjectVocabulary {
  *    bound through `evalFieldPredicate`'s `scope` extra.
  *
  * NOT included, on purpose: `data`, `os`, `app`, `features`, `input`, `vars`,
- * `page`. Those are real roots at some surfaces, but this builder never offers
- * them, and over-capturing there fails in the WRONG direction — `data.csv` is
+ * `page`. All but `app` are real roots at some surface — `app` is a root at
+ * none since objectui#8155 unbound it, and it stays on this list because the
+ * list is what this builder does not capture, not what exists. This builder
+ * never offers any of them, and over-capturing there fails in the WRONG
+ * direction — `data.csv` is
  * a plausible literal, and `data` IS bound, so reading it as a reference would
  * produce another silently-false predicate instead of a loud one. Which roots
  * a mounting surface actually binds is caller-supplied vocabulary

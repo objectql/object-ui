@@ -631,7 +631,8 @@ export interface ActionParamDef {
   placeholder?: string;
   /**
    * Visibility predicate (CEL) evaluated against the same scope as action
-   * `visible` (`current_user` / `app` / `data` / `features`). When it evaluates
+   * `visible` (`current_user` / `data` / `features` — ⛔ not `app`, unbound by
+   * objectui#8155). When it evaluates
    * false the param dialog omits this param — used to hide a param the backend
    * only accepts under an opt-in capability (e.g. `create_user.phoneNumber`
    * gated on `features.phoneNumber`). Absent = always visible.

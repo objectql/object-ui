@@ -1265,8 +1265,10 @@ ComponentRegistry.register('form',
 
     // Global predicate scope (from the host shell's ExpressionProvider) — carries
     // `current_user` (plus the ADR-0068 D1 `user` / `ctx.user` / `os.user` aliases,
-    // `app`, `data`, `features`) so a `visibleWhen` can gate on role/context in
+    // `data`, `features`) so a `visibleWhen` can gate on role/context in
     // addition to sibling field values. Empty object when no provider is mounted.
+    // ⛔ No `app` root: objectui#8155 unbound it (the engine's `SCOPE_ROOTS`
+    // never declared one).
     //
     // ⛔ Declared HERE, above `readonlyFieldNames`, and not at its historical spot
     // ~75 lines down (#6010). It used to sit below, which is exactly why the

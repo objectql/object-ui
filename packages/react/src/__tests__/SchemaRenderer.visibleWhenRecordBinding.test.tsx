@@ -83,7 +83,6 @@ const cel = (source: string) => ({ dialect: 'cel', source });
 const APP_SCOPE = {
   current_user: { id: 'u1', email_verified: true },
   user: { id: 'u1', email_verified: true },
-  app: {},
   data: {},
   features: {},
 };

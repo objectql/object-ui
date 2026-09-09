@@ -113,7 +113,7 @@ const UNBOUND_ROOT = cel("'sales_manager' in no_such_root.positions");
  */
 function hostScope(positions: string[]) {
   const user = { id: 'u1', name: 'Kim', positions };
-  return { current_user: user, user, ctx: { user }, os: { user }, app: {}, data: {}, features: {} };
+  return { current_user: user, user, ctx: { user }, os: { user }, data: {}, features: {} };
 }
 
 const DENIED = hostScope(['sales']);
