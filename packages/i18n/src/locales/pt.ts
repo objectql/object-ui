@@ -1467,6 +1467,9 @@ const pt = {
     importMappingsUnavailable: "Não foi possível carregar os mapeamentos de importação salvos de {{object}}",
     importMappingsRefused: "O servidor recusou esta solicitação, portanto esta lista está vazia porque não pôde ser lida, não porque nada esteja registrado. Entre novamente ou peça acesso a um administrador.",
     importMappingsUnreadable: "Esta lista está vazia porque não pôde ser lida, não porque nada esteja registrado. Tente novamente e relate o problema se ele persistir.",
+    savedViewsUnavailable: "Não foi possível carregar as exibições salvas de {{object}}",
+    savedViewsRefused: "O servidor recusou esta solicitação, portanto esta lista está vazia porque não pôde ser lida, não porque este objeto não tenha exibições salvas. Entre novamente ou peça acesso a um administrador.",
+    savedViewsUnreadable: "Esta lista está vazia porque não pôde ser lida, não porque este objeto não tenha exibições salvas. Tente novamente e relate o problema se ele persistir.",
     settingsHub: {
       title: "Configurações",
       subtitle: "Configure seu workspace, integrações e sinalizadores de recursos.",

@@ -137,3 +137,114 @@ describe('emitMetadataReadWarning (objectui#7741)', () => {
     expect(options.duration).toBe(10_000);
   });
 });
+
+/**
+ * The SECOND emitter on this channel (objectui#8151).
+ *
+ * `listViews` carried the same swallow one adapter method over, and adding it
+ * to `MetadataReadWarningEvent`'s `operation` union is the widening
+ * objectui#7741 kept that union single-member FOR. This block is that widening
+ * arriving at its consumer: the pins below are about which SENTENCE a views
+ * failure gets, and — just as load-bearing — about the mapping sentences not
+ * moving while it happened.
+ */
+const VIEWS_REFUSED: MetadataReadWarningEvent = {
+  operation: 'listViews',
+  kind: 'view',
+  objectName: 'crm_lead',
+  reason: 'refused',
+  code: 'UNAUTHENTICATED',
+  status: 401,
+  message: 'authentication required',
+};
+
+describe('emitMetadataReadWarning — the listViews emitter (objectui#8151)', () => {
+  it('⭐ denies the reading the empty list invites: not "this object has no saved views"', () => {
+    // The user's actual question in front of a view switcher is "where did my
+    // views go?" — so the sentence has to answer THAT, not the import wizard's
+    // question about whether anything is registered.
+    const s = sink();
+
+    emitMetadataReadWarning(VIEWS_REFUSED, t, s);
+
+    const [title, options] = s.warning.mock.calls[0];
+    expect(title).toBe('Saved views for crm_lead could not be loaded');
+    expect(options.description).toContain('could not be read');
+    expect(options.description).toContain('no saved views');
+    expect(options.description).toContain('Sign in again');
+  });
+
+  it('⛔ never renders the import-mapping wording for a views failure', () => {
+    // The exact runtime lie the closed `operation` union existed to prevent:
+    // before this card the title was one hard-coded `importMappingsUnavailable`,
+    // so a second emitter would have toasted "Saved import mappings for
+    // crm_lead could not be loaded" with nothing failing to compile.
+    const s = sink();
+
+    emitMetadataReadWarning(VIEWS_REFUSED, t, s);
+
+    const [title, options] = s.warning.mock.calls[0];
+    expect(title).not.toContain('import');
+    expect(String(options.description)).not.toContain('registered');
+  });
+
+  it('says retry-and-report on an unreadable views answer', () => {
+    const s = sink();
+
+    emitMetadataReadWarning({ ...VIEWS_REFUSED, reason: 'unreadable', code: undefined, status: 500 }, t, s);
+
+    const [, options] = s.warning.mock.calls[0];
+    expect(options.description).toContain('no saved views');
+    expect(options.description).toContain('Try again');
+    expect(options.description).not.toContain('Sign in again');
+  });
+
+  it("carries the server's own words on this arm too", () => {
+    const s = sink();
+
+    emitMetadataReadWarning(VIEWS_REFUSED, t, s);
+
+    const [, options] = s.warning.mock.calls[0];
+    expect(options.description).toContain('UNAUTHENTICATED');
+    expect(options.description).toContain('HTTP 401');
+  });
+
+  it('refuses an unhandled operation rather than rendering another read’s sentence', () => {
+    // Same discipline as the unhandled-reason pin, one level up. Unreachable
+    // for a type-checked caller; reachable for a JS one.
+    const s = sink();
+
+    expect(() =>
+      emitMetadataReadWarning(
+        {
+          ...VIEWS_REFUSED,
+          operation: 'listSomethingElse' as unknown as MetadataReadWarningEvent['operation'],
+        },
+        t,
+        s,
+      ),
+    ).toThrow(/no title for operation/);
+  });
+
+  it('⭐ THE LIT CONTROL — the import-mapping copy is byte-identical to what objectui#7741 shipped', () => {
+    // A widening that quietly reworded the sibling's toast would pass every
+    // pin above. These three strings are the ones objectui#7741 put in `en`,
+    // asserted whole rather than by substring.
+    const s = sink();
+
+    emitMetadataReadWarning(REFUSED, t, s);
+
+    const [title, options] = s.warning.mock.calls[0];
+    expect(title).toBe('Saved import mappings for crm_plant_cost could not be loaded');
+    expect(String(options.description).split('\n')[0]).toBe(
+      'The server refused this request, so this list is empty because it could not be read — not because nothing is registered. Sign in again, or ask an administrator for access.',
+    );
+
+    const s2 = sink();
+    emitMetadataReadWarning({ ...REFUSED, reason: 'unreadable', code: undefined, status: undefined, message: undefined }, t, s2);
+    const [, options2] = s2.warning.mock.calls[0];
+    expect(options2.description).toBe(
+      'This list is empty because it could not be read, not because nothing is registered. Try again, and report this if it keeps happening.',
+    );
+  });
+});

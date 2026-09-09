@@ -28,13 +28,25 @@
  * misreading. Promoting the log level would not have changed any of it. This
  * module is the half that makes the failure visible where the decision is made.
  *
+ * ## The same surface, a second read (objectui#8151)
+ *
+ * `listViews` carried the identical swallow, and its cost is the higher one: an
+ * empty view list is an object's VIEW SWITCHER, so a user whose token lapsed
+ * mid-session was shown an object that appears to have no saved views at all —
+ * including views they created. It is the second emitter on this channel, and
+ * every string below is chosen by WHICH read failed rather than shared, because
+ * a hedged sentence about "a list" would put the ambiguity back in the copy
+ * after the event removed it from the data.
+ *
  * ## What it deliberately does NOT say
  *
- * Nothing about the supported case. A server that does not serve the `mapping`
- * kind never reaches here — the adapter classifies that arm as `not-served` and
- * emits no event — so an older deployment keeps its quiet, empty, selector-less
- * wizard and earns no toast. Turning a real deployment shape into a visible
- * fault is the failure this surface must not commit.
+ * Nothing about the supported case. The adapter classifies that arm as
+ * `not-served` and emits no event at all, so a deployment in a real, supported
+ * shape earns no toast — turning one into a visible fault is the failure this
+ * surface must not commit. ⚠️ WHICH failures are in that arm is decided per
+ * read and is not the same set twice: a server that does not serve the
+ * `mapping` kind is quiet, while on `view` only a host with no metadata door at
+ * all is (`classifyImportMappingsFailure` / `classifyViewsFailure`).
  *
  * ## Why the server's own words are appended untranslated
  *
@@ -103,7 +115,8 @@ export interface MetadataReadWarningSink {
 const READ_WARNING_TOAST_MS = 10_000;
 
 /**
- * The remedy sentence, chosen by WHICH loud verdict this was.
+ * The remedy sentence for a failed `listImportMappings`, chosen by WHICH loud
+ * verdict this was.
  *
  * An exhaustive `switch` with a `never` check rather than a ternary, for the
  * reason `saveAdvisoryToast.advisoryTitle` records: a ternary answers "is it
@@ -117,8 +130,11 @@ const READ_WARNING_TOAST_MS = 10_000;
  * caller wraps this in a try/catch that swallows: the failure mode is therefore
  * "no toast", never "a toast naming the wrong remedy".
  */
-function remedy(ev: MetadataReadWarningEvent, t: TranslateFn): string {
-  switch (ev.reason) {
+function importMappingsRemedy(
+  reason: MetadataReadWarningEvent['reason'],
+  t: TranslateFn,
+): string {
+  switch (reason) {
     case 'refused':
       return t('console.importMappingsRefused', {
         defaultValue:
@@ -130,9 +146,104 @@ function remedy(ev: MetadataReadWarningEvent, t: TranslateFn): string {
           'This list is empty because it could not be read, not because nothing is registered. Try again, and report this if it keeps happening.',
       });
     default: {
-      const unhandled: never = ev.reason;
+      const unhandled: never = reason;
       throw new Error(
         `metadataReadWarningToast: no remedy for reason ${JSON.stringify(unhandled)}`,
+      );
+    }
+  }
+}
+
+/**
+ * The remedy sentence for a failed `listViews` (objectui#8151).
+ *
+ * Same two verdicts, same `never` discipline — a DIFFERENT second clause. The
+ * whole point of the sentence is to deny the wrong reading the empty list
+ * invites, and the wrong reading differs per list: "nothing is registered" is
+ * what an absent saved-mapping selector says, while an empty `listViews` says
+ * *this object has no saved views* — including the ones the user created
+ * themselves, which is what makes it the sharper lie of the two.
+ */
+function savedViewsRemedy(
+  reason: MetadataReadWarningEvent['reason'],
+  t: TranslateFn,
+): string {
+  switch (reason) {
+    case 'refused':
+      return t('console.savedViewsRefused', {
+        defaultValue:
+          'The server refused this request, so this list is empty because it could not be read — not because this object has no saved views. Sign in again, or ask an administrator for access.',
+      });
+    case 'unreadable':
+      return t('console.savedViewsUnreadable', {
+        defaultValue:
+          'This list is empty because it could not be read, not because this object has no saved views. Try again, and report this if it keeps happening.',
+      });
+    default: {
+      const unhandled: never = reason;
+      throw new Error(
+        `metadataReadWarningToast: no remedy for reason ${JSON.stringify(unhandled)}`,
+      );
+    }
+  }
+}
+
+/**
+ * Which read failed decides BOTH strings (objectui#8151).
+ *
+ * `operation` — the adapter method — is the discriminant, not `kind`: it is
+ * what names the list the user is standing in front of, and the two fields are
+ * independent unions on the published event, so only one of them can be the
+ * authority here. Exhaustive with a `never` check for the reason the per-reason
+ * switches are: this file is the consumer objectui#7741 kept `operation` a
+ * closed union FOR, so a third emitter must fail to compile here rather than
+ * silently render some other read's sentence.
+ *
+ * ⛔ There is no shared "generic" wording either branch falls back to. A toast
+ * that hedges about WHICH list could not be read would re-introduce, in copy,
+ * exactly the ambiguity the event was added to remove.
+ */
+function remedy(ev: MetadataReadWarningEvent, t: TranslateFn): string {
+  switch (ev.operation) {
+    case 'listImportMappings':
+      return importMappingsRemedy(ev.reason, t);
+    case 'listViews':
+      return savedViewsRemedy(ev.reason, t);
+    default: {
+      const unhandled: never = ev.operation;
+      throw new Error(
+        `metadataReadWarningToast: no remedy for operation ${JSON.stringify(unhandled)}`,
+      );
+    }
+  }
+}
+
+/**
+ * The headline, chosen by the same discriminant and held to the same rule as
+ * {@link remedy} (objectui#8151).
+ *
+ * Before this card the title was one hard-coded `t('console.importMappingsUnavailable')`.
+ * That is the shape a second emitter would have turned into a runtime lie —
+ * *"Saved import mappings for account could not be loaded"* on a failed VIEW
+ * read — with nothing failing to compile, which is precisely what the closed
+ * `operation` union exists to prevent.
+ */
+function title(ev: MetadataReadWarningEvent, t: TranslateFn): string {
+  switch (ev.operation) {
+    case 'listImportMappings':
+      return t('console.importMappingsUnavailable', {
+        object: ev.objectName,
+        defaultValue: 'Saved import mappings for {{object}} could not be loaded',
+      });
+    case 'listViews':
+      return t('console.savedViewsUnavailable', {
+        object: ev.objectName,
+        defaultValue: 'Saved views for {{object}} could not be loaded',
+      });
+    default: {
+      const unhandled: never = ev.operation;
+      throw new Error(
+        `metadataReadWarningToast: no title for operation ${JSON.stringify(unhandled)}`,
       );
     }
   }
@@ -160,19 +271,16 @@ function serverDetail(ev: MetadataReadWarningEvent): string | undefined {
  * empty result anyway.
  *
  * The title names the object, because that is the scope the empty list is about
- * and the wizard the user is standing in is open on exactly one object.
+ * and the surface the user is standing in — the import wizard, or one object's
+ * view switcher — is open on exactly one object.
  */
 export function emitMetadataReadWarning(
   ev: MetadataReadWarningEvent,
   t: TranslateFn,
   sink: MetadataReadWarningSink,
 ): void {
-  const title = t('console.importMappingsUnavailable', {
-    object: ev.objectName,
-    defaultValue: 'Saved import mappings for {{object}} could not be loaded',
-  });
   const detail = serverDetail(ev);
-  sink.warning(title, {
+  sink.warning(title(ev, t), {
     description: detail ? `${remedy(ev, t)}\n${detail}` : remedy(ev, t),
     duration: READ_WARNING_TOAST_MS,
   });

@@ -1472,6 +1472,9 @@ const es = {
     importMappingsUnavailable: "No se pudieron cargar las asignaciones de importación guardadas de {{object}}",
     importMappingsRefused: "El servidor rechazó esta solicitud, por lo que la lista está vacía porque no se pudo leer, no porque no haya nada registrado. Vuelve a iniciar sesión o pide acceso a un administrador.",
     importMappingsUnreadable: "Esta lista está vacía porque no se pudo leer, no porque no haya nada registrado. Inténtalo de nuevo e informa del problema si continúa.",
+    savedViewsUnavailable: "No se pudieron cargar las vistas guardadas de {{object}}",
+    savedViewsRefused: "El servidor rechazó esta solicitud, por lo que la lista está vacía porque no se pudo leer, no porque este objeto no tenga vistas guardadas. Vuelve a iniciar sesión o pide acceso a un administrador.",
+    savedViewsUnreadable: "Esta lista está vacía porque no se pudo leer, no porque este objeto no tenga vistas guardadas. Inténtalo de nuevo e informa del problema si continúa.",
     settingsHub: {
       title: "Configuración",
       subtitle: "Configure su espacio de trabajo, las integraciones y los indicadores de funciones.",
