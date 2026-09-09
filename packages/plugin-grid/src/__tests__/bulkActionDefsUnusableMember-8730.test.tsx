@@ -183,18 +183,21 @@ function renderedBulkActionIds(): string[] {
   );
 }
 
+/** Just enough of a spy to read its call log, without importing vitest's generics. */
+type ConsoleSpy = { mock: { calls: unknown[][] } };
+
 /** The diagnostic channel: `console.warn` lines this key owns. */
-function bulkDefWarnings(warn: ReturnType<typeof vi.spyOn>): string[] {
+function bulkDefWarnings(warn: ConsoleSpy): string[] {
   return warn.mock.calls
-    .map((args) => String(args[0]))
-    .filter((line) => line.includes('bulkActionDefs'));
+    .map((args: unknown[]) => String(args[0]))
+    .filter((line: string) => line.includes('bulkActionDefs'));
 }
 
 /** React's duplicate-key complaint — the second symptom of an undefined `name`. */
-function duplicateKeyErrors(error: ReturnType<typeof vi.spyOn>): string[] {
+function duplicateKeyErrors(error: ConsoleSpy): string[] {
   return error.mock.calls
-    .map((args) => args.map((a: unknown) => String(a)).join(' '))
-    .filter((line) => line.includes('unique "key" prop'));
+    .map((args: unknown[]) => args.map((a: unknown) => String(a)).join(' '))
+    .filter((line: string) => line.includes('unique "key" prop'));
 }
 
 describe('object-grid `bulkActionDefs`: an unusable member is skipped (objectui#8730)', () => {
