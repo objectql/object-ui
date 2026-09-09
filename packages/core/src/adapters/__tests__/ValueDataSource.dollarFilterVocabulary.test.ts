@@ -43,6 +43,16 @@
  * | the bug — `ValueDataSource.ts` restored to its pre-card bytes | 38 | 24 | 62 |
  * | the caricature — `matchesFilter` returns `false` unconditionally | 54 | 8 | 62 |
  *
+ * ⚠️ The two counts above are objectui#8447's run against objectui#8447's file,
+ * and the denominator has since moved: objectui#8513 rewrote §4 when it made
+ * `$and` / `$or` EXECUTE, so this file now holds 66 cases rather than 62. The
+ * table is kept as the record of that run — it is what justified the shape of
+ * §1-§3 and §5, which #8513 did not touch — and it is ⛔ NOT re-derived here,
+ * because re-running an old card's ablation against a new file would replace a
+ * true historical measurement with a number that describes neither card. #8513
+ * ablated its own change instead; that run is recorded in
+ * `ValueDataSource.filterLogicConformance-8513.test.ts`.
+ *
  * The eight survivors of the caricature are named rather than counted, because
  * which ones survive is the finding: the two `{}` cases and the AST-group case
  * never reach `matchesFilter` at all, the `FILTER_OPERATORS` parity guard reads
@@ -358,35 +368,92 @@ describe('objectui#8447 — what the matcher cannot execute, it refuses', () => 
 });
 
 // ---------------------------------------------------------------------------
-// 4. Combinators — refused as their own case, NOT implemented
+// 4. Combinators — `$and` / `$or` executed, `$not` still refused (objectui#8513)
 // ---------------------------------------------------------------------------
 
-describe('objectui#8447 — `$and` / `$or` / `$not` are refused, and say so', () => {
-  it('`$not` moves results: it matched EVERY row before this card', async () => {
-    // The one combinator that was fail-OPEN. Its value is an OBJECT
-    // (`FilterConditionSchema`), so it entered the operator branch, its inner
-    // FIELD names were read as operator names, and each hit `default: break`.
+/**
+ * objectui#8513 moved TWO of these three and deliberately left the third.
+ *
+ * The heading is one word — "combinators" — over three different behaviours,
+ * which is why this block asserts each separately rather than looping. Before
+ * objectui#8447 they failed in OPPOSITE directions: `$and` / `$or` carry an
+ * array, fell to the simple-equality branch and excluded EVERY row; `$not`
+ * carries an object, entered the operator branch and matched every row. #8447
+ * made all three loud refusals. #8513 executes the first two — their semantics
+ * were ruled upstream (objectstack#5322, merged as objectstack#5365) — and
+ * leaves `$not` refused, because this repo's own `convertFiltersToAST` still
+ * throws for it on an AST-shaped narrowing that #8513 does not decide.
+ *
+ * The row sets below are non-empty PROPER subsets wherever the semantics allow
+ * one, for the reason in this file's header: an expectation of `[]` is also
+ * what the caricature answers.
+ */
+describe('objectui#8513 — `$and` / `$or` execute; `$not` stays refused', () => {
+  it('`$or` selects the union of its branches, and says nothing', async () => {
+    const warn = spyWarn();
+    expect(await selectedIds({ $or: [{ role: 'user' }, { age: 30 }] })).toEqual(['a', 'b']);
+    // A group that EXECUTES is not a refusal, so nothing is logged. This is the
+    // half that fails if the arm is added but still routed through
+    // `refuseFilterNode`.
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('`$and` selects the intersection of its branches, and says nothing', async () => {
+    const warn = spyWarn();
+    expect(await selectedIds({ $and: [{ role: 'admin' }, { age: { $gt: 25 } }] })).toEqual(['a']);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('a group ANDs with its sibling keys, in either key order', async () => {
+    // `{ status, $or }` is "status AND the group" — the group is one ENTRY of
+    // the condition object, not a replacement for it. Both orders, because a
+    // loop that `return`ed on the group would pass only one of them.
+    expect(await selectedIds({ role: 'admin', $or: [{ age: 30 }, { age: 25 }] })).toEqual(['a']);
+    expect(await selectedIds({ $or: [{ age: 30 }, { age: 25 }], role: 'admin' })).toEqual(['a']);
+  });
+
+  it('groups nest, and a nested group is evaluated by the same recursion', async () => {
+    expect(
+      await selectedIds({ $and: [{ $or: [{ role: 'user' }, { age: 20 }] }, { age: { $lt: 26 } }] }),
+    ).toEqual(['b', 'c']);
+  });
+
+  it('`$not` is STILL refused, and its message names it rather than the group arm', async () => {
     const warn = spyWarn();
     expect(await selectedIds({ $not: { role: 'admin' } })).toEqual([]);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toContain('$not');
+    const message = String(warn.mock.calls[0]?.[0]);
+    expect(message).toContain('$not');
+    // The three cases must not be flattened into one: the `$not` refusal has to
+    // be distinguishable from the generic unknown-`$`-key arm, and it must not
+    // claim the AST dialect executes it — `convertFiltersToAST` throws too.
+    expect(message).toContain('objectstack#5146');
+    expect(message).toContain("['and', 'or']");
   });
 
-  it.each(['$and', '$or'])(
-    '`%s` keeps excluding every row, but no longer in silence',
-    async (op) => {
-      // Their value is an ARRAY, so they fell to the simple-equality branch and
-      // were already fail-CLOSED. The rows do not move here; the silence does.
-      const warn = spyWarn();
-      expect(await selectedIds({ [op]: [{ role: 'admin' }] })).toEqual([]);
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(String(warn.mock.calls[0]?.[0])).toContain(op);
-    },
-  );
+  it('an unknown `$` key is refused, and is NOT reported as a combinator', async () => {
+    const warn = spyWarn();
+    expect(await selectedIds({ $nor: [{ role: 'admin' }] })).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain('$nor');
+  });
 
-  it('the AST array dialect is the door that DOES execute a group', async () => {
-    // The refusal names this as the alternative, so it has to be true.
+  it('a malformed group is refused rather than guessed at', async () => {
+    // The spec declares `$and?: FilterCondition[]`. A non-array, and a member
+    // that is not a condition object, are both refused — excluded and logged,
+    // the direction every other refusal in this file takes.
+    const warn = spyWarn();
+    expect(await selectedIds({ $and: { role: 'admin' } })).toEqual([]);
+    expect(await selectedIds({ $or: ['admin'] })).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('the AST array dialect still executes a group, and agrees with the object one', async () => {
+    // The two arms of `find()`'s `if` now answer the same question — the
+    // objective objectui#8447 set and the reason this card is not just "add an
+    // arm". Same rows, same order, both dialects.
     expect(await selectedIds(['or', ['role', '=', 'user'], ['age', '>', 28]])).toEqual(['a', 'b']);
+    expect(await selectedIds({ $or: [{ role: 'user' }, { age: { $gt: 28 } }] })).toEqual(['a', 'b']);
   });
 });
 

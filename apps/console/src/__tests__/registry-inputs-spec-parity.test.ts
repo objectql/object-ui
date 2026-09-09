@@ -1969,6 +1969,31 @@ const MULTI_KIND_MEMBER_CONTRACTS: Record<string, string> = {
 // demonstration the paragraph above claims: FOUR new array keys at once could
 // not be absorbed by room, because there is none to absorb them with.
 //
+// ⚠️ AND THE TRANSITION HAS STARTED SPENDING ITSELF DOWN. objectui#8071's
+// first slice converted FOUR keys from exemption to pin — `object-form.fields`,
+// `object-grid.exportOptions`, `object-grid.bulkActions` and
+// `object-grid.bulkActionDefs` — the four the card singled out because a
+// near-miss contract test already existed for each. Measured over this file's
+// own ledger, before and after: 90 array/object-armed inputs, 28 pinned, 62
+// exempt -> 90, 32 pinned, 58 exempt. The population does not move (a pin and
+// an exemption are the two halves of one partition), and
+// `MEMBER_PIN_EXEMPTION_CEILING` moves WITH the list, 62 -> 58 — see its own
+// docblock for why a ceiling that does not follow the count down is a budget
+// rather than a ratchet.
+//
+// ⛔ What those near-miss tests were NOT. Two of the three the card named cover
+// a NEIGHBOURING key rather than the one they were credited with.
+// `sectionFields.spec-parity.test.ts` pins `sections[].fields`, whose member is
+// the spec `FormFieldSchema` object keyed on `field`, while the top-level
+// `object-form.fields` reads BARE NAMES and drops that very object in silence;
+// `bulk-action-spec-parity.test.ts` pins the `BulkActionDef` TYPE against the
+// spec and never touches either key's member read. So three of these four pins
+// are new behavioural files rather than one added assertion, and the fourth
+// (`exportOptions`) grew a third direction on an existing scanner. The locator
+// would have accepted the first file on its STRINGS alone — it already contains
+// both `object-form` and `fields` — which is the concrete reason `MEMBER_PINS`
+// is reviewed rather than computed.
+//
 // 58 is the transition case, and this file already owns the pattern for it —
 // `OFF_SPEC_EXEMPTIONS` / `UNPUBLISHED_EXEMPTIONS` / `OFF_SPEC_ARM_EXEMPTIONS`
 // are explicit, reasoned, issue-backed, and go RED once stale. This is the same
@@ -2100,6 +2125,22 @@ const MEMBER_PINS: Record<string, MemberPin> = {
   'object-calendar.staticData': {
     file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.recordSourceMembers-8314.test.tsx',
     pins: 'The members are read EXACTLY as `data`\'s are (same record keys, same per-member unscheduled treatment), plus the two POSITION claims its description makes and no other direction of this gate can see: it is rung 2 of the shared record-source ladder, so an authored `data` wins and this key contributes nothing, and it is read ABOVE `objectName`, so a calendar carrying both draws the inline rows and never queries the object. Both negatives are proven through the same wait a CONTROL row shows a real query completing in, so "no query" can never read as a race. The spec row is `z.array(z.unknown())` — unconstrained members, read site is the whole contract (objectui#8314).',
+  },
+  'object-form.fields': {
+    file: 'packages/plugin-form/src/__tests__/objectFormFieldsMembers-8071.test.tsx',
+    pins: 'Members are BARE FIELD NAMES resolved against the object schema — authored order preserved (against a control with no `fields`, whose order differs), a name the object does not declare dropped rather than rendered as an untyped stub, and the `{ name }` object spelling recorded as the read site\'s tolerance rather than a second contract. The sharp row is the one no other file can make: `object-form` carries a SECOND surface spelled `fields` (`sections[].fields`), whose canonical member is the spec `FormFieldSchema` object keyed on `field` — and that exact entry as a member of the TOP-LEVEL key resolves to no name and is dropped in SILENCE (no throw, no warning), with the same entry inside a section rendering as the live control so the negative cannot come from an object that never renders that field. Asserted through the real `ObjectForm`, because the sink is its own `fieldsToShow` loop rather than the `normalizeSectionField` chokepoint the sibling key uses. The spec row is `z.array(z.unknown())` and the registration declares no `of`, so the read site is the whole member contract (objectui#8071).',
+  },
+  'object-grid.bulkActionDefs': {
+    file: 'packages/plugin-grid/src/__tests__/bulkActionMembers-8071.test.tsx',
+    pins: 'Members are FULL `BulkActionDef` OBJECTS, left as authored and never resolved against `objectDef.actions` — proven with a def naming an action the object does NOT declare, which still renders carrying its authored label. The negative is the pair\'s sharper half and is NOT silent: a bare-name member (the sibling key\'s vocabulary, which nothing on either declared side refuses) reaches `BulkActionBar` with no `name` and `formatActionLabel(undefined)` THROWS during render, taking the whole selection bar down — pinned as current behaviour, filed as objectui#8730, and it reds when that lands. The spec row is `z.array(z.unknown())`, so the read site is the whole member contract (objectui#8071).',
+  },
+  'object-grid.bulkActions': {
+    file: 'packages/plugin-grid/src/__tests__/bulkActionMembers-8071.test.tsx',
+    pins: 'Members are BARE ACTION NAMES resolved against `objectDef.actions` and PROMOTED — read off a button carrying the object action\'s own label, which is deliberately not the humanized form of the name, so a renderer treating the member as a display string could not pass. Two companions make it a reading rather than a claim: a name matching no declared action still reaches the bar BY NAME (the `registerHandler` path), and an object member — the `page:header.actions` hole (objectstack#11592) transposed onto this key — is skipped by `resolveBulkActions`\' `typeof name !== \'string\'` guard with no diagnostic at all. `selection` is declared explicitly on every row, because the grid derives multi-select from these very keys and a negative row would otherwise lose its selection UI for the reason under test. The spec row is `z.array(z.unknown())` (objectui#8071).',
+  },
+  'object-grid.exportOptions': {
+    file: 'packages/plugin-grid/src/__tests__/ObjectGrid.exportOptionsKeys.test.ts',
+    pins: 'The member KEY SET the renderer reads off `schema.exportOptions` (and off the alias bound to it), scanned out of `ObjectGrid.tsx` with comments and string literals stripped, against the `object-grid` REGISTRATION\'s own member enumeration — which is this block\'s only statement of member shape, since the registration declares `type: \'object\'` with no `of` and the spec row is `z.unknown()`. Two directions: the registration may advertise NO member key the renderer ignores (the declaration-side form of the objectstack#11592 hole), and the reverse gap is asserted as an EXACT named set — `streaming`, read at two sites to choose server-streamed vs client-assembled export and absent from the enumeration, filed as objectui#8731 — so a second undocumented key cannot join it and landing the fix reds the row. Carries objectui#4535\'s read-subset-of-declared-type direction as before (objectui#8071).',
   },
   'object-grid.data': {
     file: 'packages/plugin-grid/src/__tests__/gridDataInputContract.test.ts',
@@ -2244,7 +2285,6 @@ const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
   // object-form
   'object-form.customFields': AWAITING_A_PIN,
   'object-form.dataSource': AWAITING_A_PIN,
-  'object-form.fields': AWAITING_A_PIN,
   'object-form.initialData': AWAITING_A_PIN,
   'object-form.initialValues': AWAITING_A_PIN,
   'object-form.mobile': AWAITING_A_PIN,
@@ -2254,12 +2294,9 @@ const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
   // object-grid
   'object-grid.aggregations': AWAITING_A_PIN,
   'object-grid.batchActions': AWAITING_A_PIN,
-  'object-grid.bulkActionDefs': AWAITING_A_PIN,
-  'object-grid.bulkActions': AWAITING_A_PIN,
   'object-grid.columns': AWAITING_A_PIN,
   'object-grid.conditionalFormatting': AWAITING_A_PIN,
   'object-grid.dataSource': AWAITING_A_PIN,
-  'object-grid.exportOptions': AWAITING_A_PIN,
   'object-grid.filter': AWAITING_A_PIN,
   'object-grid.grouping': AWAITING_A_PIN,
   'object-grid.navigation': AWAITING_A_PIN,
@@ -2380,8 +2417,24 @@ const NEWLY_JUDGED_UNPINNED_MEMBERS = [
  * if `states the size of the population it judges` and
  * `no spec-carried block is registered but unloaded` ever stop holding, this
  * paragraph stops being true and the number owes a re-derivation, not a bump.
+ *
+ * ## 62 -> 58, and why the number MOVES WITH the list rather than trailing it
+ *
+ * objectui#8071's first slice converted four keys to pins — `object-form.fields`
+ * and `object-grid`'s `exportOptions` / `bulkActions` / `bulkActionDefs` — and
+ * deleted their four entries. A ceiling left at 62 would then have held FOUR
+ * unused slots, and unused slots are exactly the thing this constant exists to
+ * deny: the next genuinely new array-typed key could have been greened with an
+ * exemption entry and no pin, which is the "voluntary" state the ratchet was
+ * built to end. So the ceiling follows the list down in the same change that
+ * shortens it. That is what "may only ever go DOWN" has to mean to be worth
+ * anything — a number nobody lowers is a budget, not a ratchet.
+ *
+ * ⇒ The rule for every future slice of objectui#8071: delete the entry, register
+ * the pin, and set this constant to the new count. Not to the new count plus
+ * room.
  */
-const MEMBER_PIN_EXEMPTION_CEILING = 62;
+const MEMBER_PIN_EXEMPTION_CEILING = 58;
 
 /**
  * Every test file a member pin can live in, as LAZY `?raw` loaders.
@@ -2398,7 +2451,7 @@ const MEMBER_PIN_EXEMPTION_CEILING = 62;
  * LAZY on purpose. `eager: true` would inline the raw text of every test file in
  * the repo — 2,000+ files, ~3 MB — into this module on every run of a gate that
  * already loads the whole registration graph. Lazy hands back loaders, so the
- * cost is the glob itself plus one read per REGISTERED pin (21 today).
+ * cost is the glob itself plus one read per REGISTERED pin (32 today).
  */
 const PIN_SOURCES = import.meta.glob(
   [
@@ -3734,7 +3787,7 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
   it('the member-pin exemption list only ratchets DOWN', () => {
     // The other half. A new array-typed key must be answered with a pin, not
-    // with a 63rd entry carrying the same reason as its neighbours — that move
+    // with a 59th entry carrying the same reason as its neighbours — that move
     // is what made the discipline voluntary in the first place, one layer in.
     expect(Object.keys(MEMBER_PIN_EXEMPTIONS).length).toBeLessThanOrEqual(
       MEMBER_PIN_EXEMPTION_CEILING,
