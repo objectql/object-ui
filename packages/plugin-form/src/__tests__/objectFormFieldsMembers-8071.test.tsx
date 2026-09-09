@@ -32,8 +32,18 @@
  * `FormFieldSchema` object, whose identity key is `field` (see
  * `sectionFields.ts`, and `sectionFields.spec-parity.test.ts` for its key set).
  * That same object as a member of the TOP-LEVEL `fields` resolves to no name
- * and is dropped in silence — no throw, no console warning, no empty-state.
+ * and is dropped from render — no throw, no empty-state.
  *
+ * Until objectui#8738 route 1 that drop was also SILENT — no console warning
+ * either. The maintainer ruling at issuecomment-5603577602 required a named
+ * `console.warn` naming the skipped key and the vocabulary difference (same
+ * voice/dedupe discipline as `sectionFields.ts`'s `warnOnMixedVocabulary`,
+ * see `warnUnresolvedTopLevelField`). Row 4 below now pins that the warning
+ * fires; the block after row 6 pins both its legs (fires for an unresolvable
+ * member, does not fire for a legal one) with entries distinct from row 4's,
+ * since the warning's dedupe Set is module-scoped for the whole file run.
+ *
+
  * ⛔ NOT a restatement of the declaration: the declaration says `array` and
  * stops. Every row below is a render whose outcome would change if the read
  * site changed — the ablation objectui#8071 ran on this file removed the
@@ -107,15 +117,24 @@ describe('object-form `fields` members are BARE FIELD NAMES (objectui#8071)', ()
     expect(await renderedFieldLabels({ fields: ['status', 'not_a_field'] })).toEqual(['Status']);
   });
 
-  it('4. the spec SECTION-field object is NOT a member of this key, and is dropped silently', async () => {
+  it('4. the spec SECTION-field object is NOT a member of this key — dropped from render, and (route 1) now WARNED', async () => {
     // `{ field }` is the spec `FormFieldSchema` identity key — legal in
     // `sections[].fields`, meaningless here. The renderer reads `.name` off a
-    // non-string member, finds nothing, and skips it without a word.
+    // non-string member, finds nothing, and skips it — but since objectui#8738
+    // route 1 (ruling: issuecomment-5603577602), no longer without a word: a
+    // named `console.warn` fires, naming the skipped shape and the vocabulary
+    // difference. The render outcome is UNCHANGED from before route 1 (still
+    // no throw, still an empty result — the ruling makes the failure audible,
+    // it does not make the wrong spelling work); only the silence is gone.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       expect(await renderedFieldLabels({ fields: [{ field: 'note' }] })).toEqual([]);
-      expect(warn).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      const [message] = warn.mock.calls[0];
+      expect(String(message)).toContain("{ field: 'note' }");
+      expect(String(message)).toContain('sections[].fields');
+      expect(String(message)).toContain('FormFieldSchema');
       expect(error).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
@@ -145,5 +164,37 @@ describe('object-form `fields` members are BARE FIELD NAMES (objectui#8071)', ()
 
   it('6. tolerates the `{ name }` spelling — recorded as drift, not a second contract', async () => {
     expect(await renderedFieldLabels({ fields: [{ name: 'note' }] })).toEqual(['Note']);
+  });
+});
+
+describe('object-form top-level `fields` WARNS on an unresolvable member (route 1, objectui#8738)', () => {
+  // Route 1 adds an observable where there was none, so it owes a pin of its
+  // own with BOTH legs: fires for the case that used to vanish, and does NOT
+  // fire for a legal bare name — without the second leg, the first leg would
+  // still pass on a warning that fires unconditionally on every render.
+  //
+  // Deliberately uses a DIFFERENT entry (`sent_at`, not row 4's `note`):
+  // `warnUnresolvedTopLevelField`'s dedupe Set is keyed by object name +
+  // skipped shape and module-scoped for this whole file's run, so reusing row
+  // 4's exact shape here would observe the dedupe, not the firing.
+  it('fires once for a member that resolves to no name', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await renderedFieldLabels({ fields: [{ field: 'sent_at' }] })).toEqual([]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain("{ field: 'sent_at' }");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does NOT fire for a legal bare field name — the firing control', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await renderedFieldLabels({ fields: ['status'] })).toEqual(['Status']);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
