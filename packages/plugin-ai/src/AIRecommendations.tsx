@@ -21,7 +21,20 @@ export interface AIRecommendationsProps {
 
 /**
  * AIRecommendations - AI-powered recommendation component
- * Displays intelligent recommendations based on context and user behavior.
+ *
+ * Renders EVERY item in `schema.recommendations`, in both the `list` and the
+ * `grid` layout, and the count badge in the header reports that same length.
+ * There is no cap: the caller decides how many items to hand over, and slicing
+ * — if it is wanted — happens before the array reaches this component.
+ *
+ * That sentence replaces a promise this component never honoured.
+ * `AIRecommendationsSchema.maxResults` was declared as *"Maximum number of
+ * results to display"*, offered in the designer, and read by nothing: a node
+ * carrying `maxResults: 5` against a 50-item list rendered 50 rows with no
+ * diagnostic. The key is retired (objectui#8178, ADR-0049, director decision
+ * batch #78) rather than implemented, because nothing pulled on it; it is a
+ * `?: never` tombstone on the schema now, and the behaviour stated here is
+ * pinned by `AIRecommendations.rendersEveryItem-8178.test.tsx`.
  */
 export const AIRecommendations: React.FC<AIRecommendationsProps> = ({ schema, onSelect, onDismiss }) => {
   const {
