@@ -71,7 +71,17 @@ const CASES: Record<string, Case> = {
     // `type` collides semantically (spec = page kind, objectui = component
     // discriminator, kind lives on `pageType`); `regions` is a local fork.
     omitted: ['type', 'regions'],
-    local: ['title', 'pageType', 'body', 'children'],
+    // `actions` is the odd one out and is listed HERE deliberately rather than
+    // exempted: it is not a local CAPABILITY, it is a local REFUSAL. The spec
+    // does not declare it, no renderer reads it, and objectui#7926 (maintainer
+    // ruling 2026-09-09, batch #107 item 2, option A) ruled that `page` grows no
+    // reader — so the key is DECLARED as an ADR-0049 tombstone precisely so an
+    // authored value is refused by name instead of being kept in silence by
+    // `BaseSchema`'s `.passthrough()`. That makes it an objectui-only key on
+    // this shape, and this ledger is the right place for the decision to be
+    // visible. `../__tests__/page-actions-refusal-7926.test.ts` owns the
+    // behaviour; this row owns the fact that the key exists at all.
+    local: ['title', 'pageType', 'body', 'children', 'actions'],
   },
   App: {
     spec: SpecAppSchema,
