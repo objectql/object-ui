@@ -144,6 +144,19 @@ function coerceByType(value: any, type?: string): any {
  * `isEmpty` / `isNotEmpty` / `isNull` / `exists` and their kin are not on this
  * list: they read no value at all, so an empty box is their normal resting
  * state rather than an unfinished row.
+ *
+ * ⚠️ This is a SECOND "is this row finished" rule, beside `isFilterValueComplete`
+ * in `@object-ui/components`' `filter-builder.tsx`, and the divergence is
+ * deliberate rather than a copy that drifted. That helper answers the VALUE
+ * question for every operator its dropdown offers, so `equals ''` is unfinished
+ * to it; here `equals ''` is a REAL predicate that has to keep being emitted
+ * ("the field is the empty string" is a filter an admin can mean), and the only
+ * rows that must not reach storage are the ones whose comparand is free text
+ * the spec declares as a refusal. Composing the two — `TEXT_COMPARAND_OPERATORS
+ * .has(op) && !isFilterValueComplete(op, value)` — is the same answer on this
+ * set today; it is not adopted because it would make this drop depend on a
+ * helper marked `@internal` in another package, whose vocabulary is the
+ * dropdown's rather than the spec's.
  */
 const TEXT_COMPARAND_OPERATORS: ReadonlySet<string> = new Set([
   'contains',
@@ -252,6 +265,32 @@ function filterGroupToMongo(group: BuilderGroup, typeOf: (f: string) => string |
 
 function arraysEqual(a: any, b: any[]): boolean {
   return Array.isArray(a) && a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+/**
+ * A criteria in its comparable form: the JSON of what is (or would be) stored,
+ * with "no criteria at all" collapsed to `''` so `{}`, `null` and an empty box
+ * are one key rather than three.
+ *
+ * This is how the builder's rows are told apart from an OUTSIDE change to the
+ * stored value (objectui#8748) — see the `localGroup` state below. It compares
+ * the STORED shape and not the rows, because the rows carry ids and unfinished
+ * cells the stored shape never had.
+ *
+ * The `try` is defensive only: both inputs come from `JSON.parse` or from
+ * `filterGroupToMongo` over such values, so neither can be cyclic. The sentinel
+ * is a string `JSON.stringify` cannot produce, so an unserialisable criteria
+ * compares equal to nothing at all — including itself — rather than passing for
+ * "empty".
+ */
+function criteriaKey(mongo: any): string {
+  if (mongo == null) return '';
+  if (typeof mongo === 'object' && !Array.isArray(mongo) && Object.keys(mongo).length === 0) return '';
+  try {
+    return JSON.stringify(mongo) ?? '';
+  } catch {
+    return '[unserialisable criteria]';
+  }
 }
 
 /**
@@ -449,7 +488,45 @@ export function FilterConditionField({
     return (f: string) => map.get(f);
   }, [fields]);
 
+  /**
+   * The builder's ROWS, held here — not projected from the stored criteria.
+   *
+   * objectui#8748. This widget is a controlled round-trip: it emits
+   * `filterGroupToMongo(rows)` and reads the rows back out of the value it just
+   * emitted. That was survivable only while every row round-tripped. Since the
+   * same change makes `condToMongo` DROP a text row whose value box is still
+   * empty, a projected row deletes itself: switching a row's operator to any of
+   * `contains` / `containsCaseInsensitive` / `notContains` / `startsWith` /
+   * `endsWith` emits no fragment, the criteria goes back to empty, and
+   * `FilterBuilder` — which re-seeds its internal rows whenever the incoming
+   * `value` differs from them — drops the row before a comparand can be typed.
+   * Measured: those five operators were unreachable through this UI, except by
+   * typing the value under `equals` first.
+   *
+   * So the rows are state and the stored criteria is what they EMIT. The drop
+   * stays where it belongs — at emission — and an unfinished row stays on
+   * screen, which is also what the `criteriaRequired` hint below is for.
+   *
+   * Re-seeded only by an OUTSIDE change: an incoming criteria that is no longer
+   * what these rows emit (a different record, the raw-JSON editor, a form
+   * reset). A parent that ignores what this widget emits is that same case by
+   * construction — the stored value stays authoritative — which is the one
+   * behaviour this keeps from the projection it replaces.
+   */
+  const [localGroup, setLocalGroup] = React.useState<BuilderGroup>(() => group ?? EMPTY_GROUP);
+
+  const storedKey = parsed.ok ? criteriaKey(parsed.mongo) : null;
+  const localKey = criteriaKey(filterGroupToMongo(localGroup, typeOf));
+
+  React.useEffect(() => {
+    // `group === null` is a criteria the builder cannot represent: raw-JSON
+    // mode owns the value and there are no rows to seed.
+    if (group === null || storedKey === null) return;
+    if (storedKey !== localKey) setLocalGroup(group);
+  }, [group, storedKey, localKey]);
+
   const handleBuilderChange = (g: BuilderGroup) => {
+    setLocalGroup(g);
     const mongo = filterGroupToMongo(g, typeOf);
     onChange((mongo == null ? '' : JSON.stringify(mongo)) as any);
   };
@@ -507,7 +584,7 @@ export function FilterConditionField({
       ) : (
         <FilterBuilder
           fields={fields ?? []}
-          value={(group ?? EMPTY_GROUP) as any}
+          value={localGroup as any}
           onChange={handleBuilderChange as any}
           extraOperators={FILTER_CONDITION_EXTRA_OPERATORS}
         />

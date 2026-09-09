@@ -191,6 +191,27 @@ function refuseArrayComparand(
  * from "every row" to "no rows", which this file's own `$exists` arm names as
  * the one outcome worse than the bug.
  */
+/**
+ * A comparand as it appears INSIDE a refusal message.
+ *
+ * `JSON.stringify` alone is not safe here even though it is what the message
+ * wants: it THROWS on a BigInt and on a cyclic object, and this is an
+ * exclude-and-log face — a refusal that throws while explaining itself would
+ * turn the one path that stays quiet about a bad filter into the one path that
+ * takes the caller down. No JSON-sourced filter can carry either shape, so this
+ * is about the in-memory callers who hand `find()` a literal.
+ *
+ * `?? String(target)` keeps `undefined` and a symbol readable — `JSON.stringify`
+ * returns `undefined` for both — which is the idiom this file already used.
+ */
+function describeComparand(target: unknown): string {
+  try {
+    return JSON.stringify(target) ?? String(target);
+  } catch {
+    return String(target);
+  }
+}
+
 function refuseTextComparand(
   refusals: Set<string>,
   field: string,
@@ -212,7 +233,7 @@ function refuseTextComparand(
   return refuseFilterNode(
     refusals,
     `filter comparand for field '${field}' on operator '${operator}' is `
-    + `${target === null ? 'null' : typeof target} (${JSON.stringify(target) ?? String(target)}), `
+    + `${target === null ? 'null' : typeof target} (${describeComparand(target)}), `
     + `not a string. Coercing it would answer a query nobody wrote. ${declared}. `
     + `Write the comparand as a string`,
   );
@@ -306,7 +327,7 @@ function resolveFieldReference(
     refuseFilterNode(
       refusals,
       `filter comparand for field '${field}' carries a non-string $field `
-      + `(${JSON.stringify(path) ?? String(path)}); a field reference declares `
+      + `(${describeComparand(path)}); a field reference declares `
       + `$field as a string, so this is not one on any path`,
     );
     return REFUSED_COMPARAND;

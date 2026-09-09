@@ -349,6 +349,24 @@ describe('objectui#8748 — a non-string `icontains` comparand is refused in bot
     expect(refusals[0]).toContain('$icontains');
   });
 
+  it('a comparand JSON cannot serialise is refused, not thrown on', async () => {
+    // The refusal message quotes the comparand, and `JSON.stringify` THROWS on
+    // a BigInt (`TypeError: Do not know how to serialize a BigInt`) and on a
+    // cyclic object. This face's whole contract is exclude-and-log, so a
+    // refusal that threw while explaining itself would turn the quiet path into
+    // the loud one — for the in-memory callers who hand `find()` a literal,
+    // which is the only way either shape gets here (a JSON-sourced filter
+    // carries neither).
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    for (const comparand of [BigInt(10), cyclic]) {
+      const { ids, refusals } = await selectionAndRefusals({ score: { $icontains: comparand } });
+      expect(ids, 'refused like any other non-string comparand').toEqual([]);
+      expect(refusals).toHaveLength(1);
+      expect(refusals[0]).toContain('$icontains');
+    }
+  });
+
   it('the type gate on the stored VALUE is unchanged — the class guard', async () => {
     // objectstack#14079's rule is about the operand on the DATA side and this
     // card does not touch it. Re-pinned beside the comparand door so a future

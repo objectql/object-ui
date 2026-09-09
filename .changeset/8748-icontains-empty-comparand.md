@@ -40,3 +40,16 @@ comparand and are untouched, as is `equals ''`, which is a real predicate.
 **Migration.** An author who wrote an empty or numeric `$icontains` comparand was getting
 either every row or a coerced answer; they now get no rows and a console line naming the
 operator. Write a non-empty string comparand, or drop the condition.
+
+The producer half moves **stored criteria** as well, for the four sibling operators it
+covers: a builder row left on `contains ''` / `startsWith ''` / `endsWith ''` used to
+store `{ field: { $contains: '' } }` and friends — which the server evaluates as "the
+value is a string" — and `notContains ''` stored its complement, "the value is not a
+string". All four now store no fragment at all, so a rule whose only row was one of them
+saves as empty criteria and is refused on save (objectstack#3896) instead of quietly
+sharing by storage class. Rules already stored keep their fragment and keep evaluating as
+they did; only what the builder WRITES from now on changes.
+
+⚠️ The builder ROW is unaffected by the drop: it is held as local state and stays on
+screen with its value box empty, so the five text operators stay reachable — the criteria
+is what the rows emit, not what they are.
