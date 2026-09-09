@@ -3900,13 +3900,43 @@ function ToolRunningTimer({ offlineLabel }: { offlineLabel: string }) {
 }
 
 const BUILD_GROUP_ORDER = ['object', 'view', 'dashboard', 'app', 'seed'];
-const BUILD_GROUP_LABEL: Record<string, string> = {
-  object: 'Objects',
-  view: 'Views',
-  dashboard: 'Dashboards',
-  app: 'App',
-  seed: 'Sample data',
-};
+
+/**
+ * The build tree's per-type row headings, through the pack (objectui#7388).
+ *
+ * These were a module-level English `Record`, so every row of an otherwise
+ * localized panel read "Objects / Views / Dashboards / App / Sample data" in
+ * English — the same island the header strings were in, and the more visible
+ * half of it (one per row, on every build).
+ *
+ * The lookup stays a STATIC switch rather than `t('chatbot.build.group.' + type)`:
+ * a computed key is invisible to `check-i18n-call-site-keys`, which is the gate
+ * that proves each key exists in the `en` pack. The `default` arm keeps the old
+ * `?? type` behaviour verbatim — an unknown artifact type renders its raw type,
+ * which is honest, and never a raw i18n key.
+ */
+function useBuildGroupLabel(): (type: string) => string {
+  const { t } = useObjectTranslation();
+  return React.useCallback(
+    (type: string) => {
+      switch (type) {
+        case 'object':
+          return t('chatbot.build.group.object', { defaultValue: 'Objects' });
+        case 'view':
+          return t('chatbot.build.group.view', { defaultValue: 'Views' });
+        case 'dashboard':
+          return t('chatbot.build.group.dashboard', { defaultValue: 'Dashboards' });
+        case 'app':
+          return t('chatbot.build.group.app', { defaultValue: 'App' });
+        case 'seed':
+          return t('chatbot.build.group.seed', { defaultValue: 'Sample data' });
+        default:
+          return type;
+      }
+    },
+    [t],
+  );
+}
 
 /**
  * Live "Designing…" panel for an in-flight blueprint DESIGN (`propose_blueprint`).
@@ -4051,7 +4081,16 @@ function BuildProgressPanel({
   offlineLabel?: string;
 }) {
   const { phase, appLabel, items, done, total, seq } = progress;
+  // objectui#7388 — every string this panel OWNS goes through the pack. The
+  // labels it receives as props (`openBuiltAppLabel`, the connection cues, …)
+  // are already localized by the host; these were the island left behind.
+  const { t } = useObjectTranslation();
+  const groupLabelOf = useBuildGroupLabel();
   const isDone = phase === 'done';
+  // The unnamed-build stand-in is itself a translated noun phrase, so it can be
+  // interpolated into the two header frames the same way a real app label is —
+  // one hole per frame, which is what `check-i18n-call-site-keys` checks.
+  const appName = appLabel ?? t('chatbot.build.appFallback', { defaultValue: 'your app' });
   // Real activity key: bumps whenever the server streams another build-progress
   // part. Prefer the server's monotonic `seq` (it also advances on the keep-alive
   // heartbeats during long, quiet seed-generation awaits, where the content
@@ -4080,9 +4119,15 @@ function BuildProgressPanel({
         ) : (
           <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
         )}
-        <span>{isDone ? `Built ${appLabel ?? 'your app'}` : `Building ${appLabel ?? 'your app'}…`}</span>
+        <span>
+          {isDone
+            ? t('chatbot.build.built', { app: appName, defaultValue: 'Built {{app}}' })
+            : t('chatbot.build.building', { app: appName, defaultValue: 'Building {{app}}…' })}
+        </span>
         {!isDone && phase === 'data' ? (
-          <span className="text-xs font-normal text-muted-foreground">adding sample data</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {t('chatbot.build.addingSampleData', { defaultValue: 'adding sample data' })}
+          </span>
         ) : null}
         {!isDone ? (
           <span className="ml-auto">
@@ -4109,7 +4154,7 @@ function BuildProgressPanel({
             <li key={type} className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
               <span className="min-w-0 text-muted-foreground">
-                <span className="font-medium text-foreground">{BUILD_GROUP_LABEL[type] ?? type}</span>{' '}
+                <span className="font-medium text-foreground">{groupLabelOf(type)}</span>{' '}
                 {entries.slice(0, 6).map((entry, i) => {
                   // Deep-link the artifact to its direct-edit home (Studio
                   // pillar) once the build is done — the host decides which
@@ -4136,7 +4181,12 @@ function BuildProgressPanel({
                     </React.Fragment>
                   );
                 })}
-                {entries.length > 6 ? ` +${entries.length - 6} more` : ''}
+                {entries.length > 6
+                  ? ` ${t('chatbot.build.moreArtifacts', {
+                      n: entries.length - 6,
+                      defaultValue: '+{{n}} more',
+                    })}`
+                  : ''}
               </span>
             </li>
           );

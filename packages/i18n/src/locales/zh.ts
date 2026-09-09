@@ -3138,6 +3138,20 @@ const zh = {
       countDashboards_one: '{{count}} 个仪表板',
       countSeedData: '示例数据',
     },
+    build: {
+      building: '正在构建{{app}}…',
+      built: '已构建{{app}}',
+      appFallback: '你的应用',
+      addingSampleData: '正在添加示例数据',
+      group: {
+        object: '对象',
+        view: '视图',
+        dashboard: '仪表板',
+        app: '应用',
+        seed: '示例数据',
+      },
+      moreArtifacts: '+{{n}} 个',
+    },
   },
   chatbotError: {
     title: '响应失败',

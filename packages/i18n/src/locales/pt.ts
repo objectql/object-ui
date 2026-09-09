@@ -3000,6 +3000,20 @@ const pt = {
       countDashboards_one: "{{count}} painel",
       countSeedData: "dados de exemplo",
     },
+    build: {
+      building: "Criando {{app}}…",
+      built: "Criação de {{app}} concluída",
+      appFallback: "seu aplicativo",
+      addingSampleData: "adicionando dados de exemplo",
+      group: {
+        object: "Objetos",
+        view: "Visões",
+        dashboard: "Painéis",
+        app: "Aplicativo",
+        seed: "Dados de exemplo",
+      },
+      moreArtifacts: "+{{n}} mais",
+    },
   },
   chatbotError: {
     title: "Falha na resposta",

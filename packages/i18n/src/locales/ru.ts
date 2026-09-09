@@ -3014,6 +3014,20 @@ const ru = {
       countDashboards_one: "{{count}} дашборд",
       countSeedData: "демоданные",
     },
+    build: {
+      building: "Создание {{app}}…",
+      built: "Создание {{app}} завершено",
+      appFallback: "вашего приложения",
+      addingSampleData: "добавление демоданных",
+      group: {
+        object: "Объекты",
+        view: "Представления",
+        dashboard: "Дашборды",
+        app: "Приложение",
+        seed: "Демоданные",
+      },
+      moreArtifacts: "ещё {{n}}",
+    },
   },
   chatbotError: {
     title: "Ошибка ответа",
