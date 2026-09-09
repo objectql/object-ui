@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import { I18nLabelSchema as ImportedI18nLabelSchema } from '@objectstack/spec/ui';
+import { I18nLabelSchema } from '@objectstack/spec/ui';
 import { retirementTombstone } from './tombstone.zod.js';
 import { ExpressionWireSchema } from './expression.zod.js';
 import type { SchemaNode } from '../base.js';
@@ -27,22 +27,31 @@ import { stripImportedDefaults } from './imported-defaults.js';
  * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
  *
  * **This mirror authors no default, imported subschemas included.** Batch #69
- * ruled that a validator validates and does not write values into an author's
- * document; batch #90 ruled that this holds for EVERY key `safeValidateSchema`
- * answers, not only the sites this repository wrote. So every schema arriving
- * here from `@objectstack/spec` is re-bound through `stripImportedDefaults`,
- * which removes each reachable `ZodDefault` with `.removeDefault()` and keeps
- * the key omissible. Keys, types, checks and the accept set are untouched, and
- * a subtree carrying no default comes back reference-equal — so this is a no-op
- * the day the spec adopts the same principle. ⛔ Never put an `Imported…`
- * binding into a mirror's shape or on any parse path; that alias exists so the
- * boundary cannot be bypassed by accident, and the ONE legitimate read of one
- * is a value VOCABULARY (`SpecListViewTypeEnum` / `ViewKindEnum`, which unwrap
- * the spec's own `.default()` to reach its enum and parse nothing). Rationale
- * and pins: `./imported-defaults.ts`,
- * `../__tests__/imported-defaults-8317.test.ts`.
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
  */
-const I18nLabelSchema = stripImportedDefaults(ImportedI18nLabelSchema);
 
 
 /**
@@ -291,14 +300,14 @@ const BaseSchemaCore = z.object({
    * relies on. Mirrors `BaseSchema.label: string | I18nLabel` (`../base.ts`),
    * widened by #4580's revised Q1-A ruling.
    */
-  label: I18nLabelSchema.optional().describe('Display label (plain string or inline locale map)'),
+  label: stripImportedDefaults(I18nLabelSchema).optional().describe('Display label (plain string or inline locale map)'),
 
   /**
    * Description text.
    *
    * Same vocabulary and same resolver as `label` above — see `BaseSchema.description`.
    */
-  description: I18nLabelSchema.optional().describe('Description text (plain string or inline locale map)'),
+  description: stripImportedDefaults(I18nLabelSchema).optional().describe('Description text (plain string or inline locale map)'),
 
   /**
    * Placeholder text

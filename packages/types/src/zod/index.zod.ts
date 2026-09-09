@@ -47,9 +47,10 @@
  * own fallback, which is what actually runs; a `@default` JSDoc tag DESCRIBES
  * that fallback and never installs one.
  *
- * ⛔ So: no `.default()` in `zod/*.zod.ts`, and every `@objectstack/spec` import
- * re-bound through `zod/imported-defaults.ts`. Both halves are ratcheted at zero
- * by `__tests__/zod-mirror-authors-no-defaults-7735.test.ts` and
+ * ⛔ So: no `.default()` in `zod/*.zod.ts`, and every `@objectstack/spec` schema
+ * crossing into a mirror shape wrapped in `stripImportedDefaults`
+ * (`zod/imported-defaults.ts`). Both halves are ratcheted at zero by
+ * `__tests__/zod-mirror-authors-no-defaults-7735.test.ts` and
  * `__tests__/imported-defaults-8317.test.ts`. The accept set is unchanged by
  * either: a key that was omissible stays omissible.
  *

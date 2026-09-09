@@ -18,9 +18,9 @@
 
 import { z } from 'zod';
 import {
-  AppSchema as ImportedSpecAppSchema,
-  AppContextSelectorSchema as ImportedSpecAppContextSelectorSchema,
-  NavigationAreaSchema as ImportedSpecNavigationAreaSchema,
+  AppSchema as SpecAppSchema,
+  AppContextSelectorSchema as SpecAppContextSelectorSchema,
+  NavigationAreaSchema as SpecNavigationAreaSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 import { handlerKeyRefusal } from './tombstone.zod.js';
@@ -31,24 +31,31 @@ import { stripImportedDefaults } from './imported-defaults.js';
  * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
  *
  * **This mirror authors no default, imported subschemas included.** Batch #69
- * ruled that a validator validates and does not write values into an author's
- * document; batch #90 ruled that this holds for EVERY key `safeValidateSchema`
- * answers, not only the sites this repository wrote. So every schema arriving
- * here from `@objectstack/spec` is re-bound through `stripImportedDefaults`,
- * which removes each reachable `ZodDefault` with `.removeDefault()` and keeps
- * the key omissible. Keys, types, checks and the accept set are untouched, and
- * a subtree carrying no default comes back reference-equal — so this is a no-op
- * the day the spec adopts the same principle. ⛔ Never put an `Imported…`
- * binding into a mirror's shape or on any parse path; that alias exists so the
- * boundary cannot be bypassed by accident, and the ONE legitimate read of one
- * is a value VOCABULARY (`SpecListViewTypeEnum` / `ViewKindEnum`, which unwrap
- * the spec's own `.default()` to reach its enum and parse nothing). Rationale
- * and pins: `./imported-defaults.ts`,
- * `../__tests__/imported-defaults-8317.test.ts`.
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
  */
-const SpecAppSchema = stripImportedDefaults(ImportedSpecAppSchema);
-const SpecAppContextSelectorSchema = stripImportedDefaults(ImportedSpecAppContextSelectorSchema);
-const SpecNavigationAreaSchema = stripImportedDefaults(ImportedSpecNavigationAreaSchema);
 
 
 // ============================================================================
@@ -208,13 +215,13 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => NavigationItemO
  *
  * Drift guard: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
-export const NavigationAreaSchema = specFieldsExcept(SpecNavigationAreaSchema.shape, [
+export const NavigationAreaSchema = specFieldsExcept(stripImportedDefaults(SpecNavigationAreaSchema).shape, [
   'id',
   'label',
   'navigation',
 ] as const).extend({
-  id: SpecNavigationAreaSchema.shape.id.describe('Unique identifier'),
-  label: SpecNavigationAreaSchema.shape.label.describe('Display label'),
+  id: stripImportedDefaults(SpecNavigationAreaSchema).shape.id.describe('Unique identifier'),
+  label: stripImportedDefaults(SpecNavigationAreaSchema).shape.label.describe('Display label'),
   navigation: z.array(NavigationItemSchema).describe('Navigation items within area'),
 });
 
@@ -298,7 +305,7 @@ export const AppActionSchema = z.object({
  *
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
-export const AppContextSelectorSchema = SpecAppContextSelectorSchema.extend({
+export const AppContextSelectorSchema = stripImportedDefaults(SpecAppContextSelectorSchema).extend({
   label: z.union([z.string(), z.record(z.string(), z.any())])
     .describe('Dropdown label — plain string or objectui i18n label envelope'),
 });
@@ -328,7 +335,7 @@ export const AppContextSelectorSchema = SpecAppContextSelectorSchema.extend({
  * `.partial()` guarantees no *future* spec field can become required and
  * silently invalidate stored objectui apps.
  */
-const SpecAppFields = specFieldsExcept(SpecAppSchema.shape, [
+const SpecAppFields = specFieldsExcept(stripImportedDefaults(SpecAppSchema).shape, [
   'name',
   'label',
   'description',

@@ -19,11 +19,11 @@
 import { z } from 'zod';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import {
-  ChartTypeSchema as ImportedSpecChartTypeSchema,
-  DashboardSchema as ImportedSpecDashboardSchema,
-  DashboardWidgetSchema as ImportedSpecDashboardWidgetSchema,
-  GlobalFilterSchema as ImportedSpecGlobalFilterSchema,
-  GroupingConfigSchema as ImportedSpecGroupingConfigSchema,
+  ChartTypeSchema as SpecChartTypeSchema,
+  DashboardSchema as SpecDashboardSchema,
+  DashboardWidgetSchema as SpecDashboardWidgetSchema,
+  GlobalFilterSchema as SpecGlobalFilterSchema,
+  GroupingConfigSchema as SpecGroupingConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
 import { KanbanConditionalFormattingRuleSchema } from './objectql.zod.js';
@@ -38,26 +38,31 @@ import { stripImportedDefaults } from './imported-defaults.js';
  * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
  *
  * **This mirror authors no default, imported subschemas included.** Batch #69
- * ruled that a validator validates and does not write values into an author's
- * document; batch #90 ruled that this holds for EVERY key `safeValidateSchema`
- * answers, not only the sites this repository wrote. So every schema arriving
- * here from `@objectstack/spec` is re-bound through `stripImportedDefaults`,
- * which removes each reachable `ZodDefault` with `.removeDefault()` and keeps
- * the key omissible. Keys, types, checks and the accept set are untouched, and
- * a subtree carrying no default comes back reference-equal — so this is a no-op
- * the day the spec adopts the same principle. ⛔ Never put an `Imported…`
- * binding into a mirror's shape or on any parse path; that alias exists so the
- * boundary cannot be bypassed by accident, and the ONE legitimate read of one
- * is a value VOCABULARY (`SpecListViewTypeEnum` / `ViewKindEnum`, which unwrap
- * the spec's own `.default()` to reach its enum and parse nothing). Rationale
- * and pins: `./imported-defaults.ts`,
- * `../__tests__/imported-defaults-8317.test.ts`.
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
  */
-const SpecChartTypeSchema = stripImportedDefaults(ImportedSpecChartTypeSchema);
-const SpecDashboardSchema = stripImportedDefaults(ImportedSpecDashboardSchema);
-const SpecDashboardWidgetSchema = stripImportedDefaults(ImportedSpecDashboardWidgetSchema);
-const SpecGlobalFilterSchema = stripImportedDefaults(ImportedSpecGlobalFilterSchema);
-const SpecGroupingConfigSchema = stripImportedDefaults(ImportedSpecGroupingConfigSchema);
 
 
 /**
@@ -185,7 +190,7 @@ export const KanbanSchema = BaseSchema.extend({
   conditionalFormatting: z.array(KanbanConditionalFormattingRuleSchema).optional().describe('Card conditional formatting rules'),
   cardTemplates: z.array(CardTemplateSchema).optional().describe('Predefined card templates for quick-add'),
   columnWidths: ColumnWidthConfigSchema.optional().describe('Custom column width configuration'),
-  grouping: SpecGroupingConfigSchema.optional().describe('Grouping configuration from ListView; its first field is the swimlaneField fallback'),
+  grouping: stripImportedDefaults(SpecGroupingConfigSchema).optional().describe('Grouping configuration from ListView; its first field is the swimlaneField fallback'),
   draggable: retiredDeclarativeKanbanKey('draggable', 'board', 'Drag-and-drop is always on; delete the key.'),
   onColumnAdd: handlerKeyRefusal('onColumnAdd', 'retired', 'Column add handler'),
   onCardAdd: handlerKeyRefusal('onCardAdd', 'retired', 'Card add handler'),
@@ -780,7 +785,7 @@ export const DashboardWidgetLayoutSchema = z.object({
  * node loses no authored key while a widget refuses undeclared ones.
  */
 export const DashboardWidgetTypeSchema = z.enum([
-  ...SpecChartTypeSchema.options,
+  ...stripImportedDefaults(SpecChartTypeSchema).options,
   ...DASHBOARD_WIDGET_TYPE_EXTENSIONS,
   ...DASHBOARD_COMPONENT_WIDGET_TYPES,
 ]);
@@ -835,7 +840,7 @@ export const DashboardWidgetTypeSchema = z.enum([
  *
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
-export const DashboardWidgetSchema = specFieldsExcept(SpecDashboardWidgetSchema.shape, [
+export const DashboardWidgetSchema = specFieldsExcept(stripImportedDefaults(SpecDashboardWidgetSchema).shape, [
   'id',
   'type',
 ] as const).extend({
@@ -950,7 +955,7 @@ const DashboardWidgetSlotComponentSchema = BaseSchema.extend({
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
 export const GlobalFilterSchema = z.object({
-  ...SpecGlobalFilterSchema.shape,
+  ...stripImportedDefaults(SpecGlobalFilterSchema).shape,
   options: z.array(z.union([
     z.string(),
     z.object({
@@ -972,7 +977,7 @@ export const GlobalFilterSchema = z.object({
   const specOwned: Record<string, unknown> = { ...filter };
   delete specOwned.options;
   delete specOwned.optionsFrom;
-  const result = SpecGlobalFilterSchema.safeParse(specOwned);
+  const result = stripImportedDefaults(SpecGlobalFilterSchema).safeParse(specOwned);
   if (result.success) return;
   for (const issue of result.error.issues) ctx.addIssue({ ...issue });
 });
@@ -999,7 +1004,7 @@ export const GlobalFilterSchema = z.object({
  * `.partial()` guarantees no *future* spec field can become required and
  * silently invalidate stored objectui dashboards.
  */
-const SpecDashboardFields = specFieldsExcept(SpecDashboardSchema.shape, [
+const SpecDashboardFields = specFieldsExcept(stripImportedDefaults(SpecDashboardSchema).shape, [
   'name',
   'label',
   'description',

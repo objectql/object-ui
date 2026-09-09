@@ -295,8 +295,15 @@ const walk = (schema: z.ZodType): z.ZodType => {
  * afterwards: a mirror member re-exporting one of these re-exports this
  * package's derivation, not the spec object itself. That is exactly what batch
  * #90 ruled. A schema with nothing to strip comes back REFERENCE-EQUAL — see
- * the identity property in the walker — so applying this at a boundary that is
+ * the identity property in the walker — so applying this at a crossing that is
  * already clean changes nothing at all.
+ *
+ * ⚠️ Memoised across every call, so writing this at each crossing costs one
+ * walk per spec schema, not one per call site. `stripImportedDefaults(X)` is
+ * the SAME object every time, which is what lets the mirrors spell it inline
+ * instead of parking it in a local `const` — and inline is required, not
+ * stylistic: `check:spec-symbols` reads exactly one hop, so a mirror export
+ * under a spec-owned name has to show the spec binding in its own initializer.
  *
  * ⚠️ The STATIC type is deliberately unchanged — strictly, `T` in and `T` out —
  * following `../strict-authoring-face.ts`, whose derivation makes the same

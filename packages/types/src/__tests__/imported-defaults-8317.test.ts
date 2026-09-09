@@ -43,6 +43,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import type { z } from 'zod';
 import {
   AppSchema as SpecAppSchema,
@@ -367,49 +368,122 @@ describe('the import boundary strips every imported default (objectui#8317)', ()
 
   /**
    * THE BOUNDARY CANNOT BE BYPASSED — a source census, because this is the only
-   * assertion that can see an import written TOMORROW. Every binding a mirror
-   * takes from `@objectstack/spec` must arrive under an `Imported…` alias and
-   * be re-bound through `stripImportedDefaults`.
+   * assertion that can see an import written TOMORROW. Every VALUE read of an
+   * `@objectstack/spec` binding inside a mirror must be the direct argument of
+   * `stripImportedDefaults(…)`.
+   *
+   * Two kinds of read are declared exceptions, and they are enumerated here
+   * rather than pattern-matched, so adding a third is an edit to this list:
+   *
+   *  - a value VOCABULARY — `SpecListViewTypeEnum` / `ViewKindEnum`, which
+   *    unwrap the spec's own `.default('grid')` to reach its enum. A set of
+   *    values cannot write a key into a parsed document. ⚠️ They read the RAW
+   *    binding on purpose: `stripImportedDefaults` leaves the STATIC type
+   *    unchanged, so `.removeDefault()` on the stripped member would typecheck
+   *    and throw.
+   *  - a TYPE position, where there is no runtime schema to strip and the
+   *    declared type is unchanged by the strip anyway.
    */
-  describe('every `@objectstack/spec` import in the mirrors goes through the boundary', () => {
-    const SPEC_IMPORT = /import\s*\{([^}]*)\}\s*from\s*'@objectstack\/spec[^']*';/gs;
+  describe('every `@objectstack/spec` value read in the mirrors goes through the boundary', () => {
+    /** `<file>:<enclosing const>` for each read that is allowed to stay raw. */
+    const VOCABULARY_EXCEPTIONS = new Set([
+      'views.zod.ts:SpecListViewTypeEnum',
+      'objectql.zod.ts:ViewKindEnum',
+    ]);
+
+    const isSpecModule = (m: string): boolean =>
+      m === '@objectstack/spec' || m.startsWith('@objectstack/spec/');
+
+    interface Read { file: string; line: number; name: string; owner: string | null; wrapped: boolean; kind: 'value' | 'type' }
+
     const mirrorFiles = readdirSync(MIRROR_DIR).filter((f) => f.endsWith('.zod.ts')).sort();
-
-    const census = mirrorFiles.flatMap((file) => {
+    const reads: Read[] = [];
+    for (const file of mirrorFiles) {
       const text = readFileSync(join(MIRROR_DIR, file), 'utf8');
-      const rows: { file: string; local: string; bound: boolean }[] = [];
-      for (const m of text.matchAll(SPEC_IMPORT)) {
-        for (const raw of m[1].split(',').map((n) => n.trim()).filter(Boolean)) {
-          const local = raw.includes(' as ') ? raw.split(' as ')[1].trim() : raw;
-          const bare = local.replace(/^Imported/, '');
-          rows.push({
-            file,
-            local: bare,
-            bound: local.startsWith('Imported') && text.includes(`const ${bare} = stripImportedDefaults(${local});`),
-          });
-        }
+      const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      const aliases = new Set<string>();
+      const importRanges: [number, number][] = [];
+      for (const stmt of sf.statements) {
+        if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) continue;
+        if (!isSpecModule(stmt.moduleSpecifier.text)) continue;
+        importRanges.push([stmt.getStart(sf), stmt.getEnd()]);
+        const named = stmt.importClause?.namedBindings;
+        if (named && ts.isNamedImports(named)) for (const el of named.elements) aliases.add(el.name.text);
       }
-      return rows;
+      if (aliases.size === 0) continue;
+      const owningConst = (n: ts.Node): string | null => {
+        for (let p: ts.Node | undefined = n.parent; p; p = p.parent) {
+          if (ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) return p.name.text;
+        }
+        return null;
+      };
+      const inTypePosition = (n: ts.Node): boolean => {
+        for (let p: ts.Node | undefined = n.parent; p; p = p.parent) {
+          if (ts.isTypeNode(p) || ts.isTypeQueryNode(p) || ts.isTypeAliasDeclaration(p)) return true;
+        }
+        return false;
+      };
+      const visit = (n: ts.Node): void => {
+        if (ts.isIdentifier(n) && aliases.has(n.text)) {
+          const pos = n.getStart(sf);
+          const inImport = importRanges.some(([a, b]) => pos >= a && pos < b);
+          if (!inImport) {
+            const parent = n.parent;
+            const wrapped =
+              !!parent && ts.isCallExpression(parent) &&
+              ts.isIdentifier(parent.expression) && parent.expression.text === 'stripImportedDefaults' &&
+              parent.arguments.length === 1 && parent.arguments[0] === n;
+            reads.push({
+              file,
+              line: sf.getLineAndCharacterOfPosition(pos).line + 1,
+              name: n.text,
+              owner: owningConst(n),
+              wrapped,
+              kind: inTypePosition(n) ? 'type' : 'value',
+            });
+          }
+        }
+        ts.forEachChild(n, visit);
+      };
+      visit(sf);
+    }
+
+    it('the census found the reads it is meant to police', () => {
+      expect(reads.length, 'no `@objectstack/spec` read found in any mirror — the census is vacuous').toBeGreaterThan(40);
+      expect(new Set(reads.map((r) => r.file)).size).toBeGreaterThan(4);
+      expect(reads.filter((r) => r.wrapped).length, 'the census can see no wrapped read at all').toBeGreaterThan(40);
     });
 
-    it('the census found the imports it is meant to police', () => {
-      expect(census.length, 'no `@objectstack/spec` import found in any mirror — the census is vacuous').toBeGreaterThan(20);
-      expect(new Set(census.map((r) => r.file)).size).toBeGreaterThan(4);
-    });
-
-    it('no import bypasses `stripImportedDefaults`', () => {
+    it('no value read bypasses `stripImportedDefaults`', () => {
+      const offenders = reads
+        .filter((r) => r.kind === 'value' && !r.wrapped)
+        .filter((r) => !VOCABULARY_EXCEPTIONS.has(`${r.file}:${r.owner}`));
       expect(
-        census.filter((r) => !r.bound).map((r) => `${r.file}#${r.local}`),
-        'an `@objectstack/spec` schema enters this package without the objectui#8317 import boundary. ' +
-          'Alias it `Imported<Name>` and add `const <Name> = stripImportedDefaults(Imported<Name>);` — ' +
-          '⛔ do not exempt it: a validator does not write values into an author\'s document, imported ' +
-          'subschemas included (decision batch #90).',
+        offenders.map((r) => `${r.file}:${r.line} ${r.name} (in \`${r.owner ?? '<top level>'}\`)`),
+        'an `@objectstack/spec` schema crosses into a mirror without the objectui#8317 import ' +
+          'boundary. Wrap it: `stripImportedDefaults(<binding>)`. ⛔ Do not exempt it — a validator ' +
+          'does not write values into an author\'s document, imported subschemas included ' +
+          '(decision batch #90). A read that genuinely is not a crossing (a value vocabulary) goes ' +
+          'in `VOCABULARY_EXCEPTIONS` above, with the reason.',
       ).toEqual([]);
+    });
+
+    it('every declared exception still exists, and still reads a RAW binding', () => {
+      // An exception nobody uses is a hole waiting for a name collision. Both of
+      // these must be live, and both must be UNWRAPPED — if one were wrapped,
+      // `.removeDefault()` would typecheck and throw, and this list would be
+      // silently protecting nothing.
+      for (const key of VOCABULARY_EXCEPTIONS) {
+        const [file, owner] = key.split(':');
+        const matching = reads.filter((r) => r.file === file && r.owner === owner && r.kind === 'value');
+        expect(matching.length, `declared exception ${key} matches no read — delete it`).toBeGreaterThan(0);
+        for (const r of matching) expect(r.wrapped, `${key} is wrapped; the exception is dead`).toBe(false);
+      }
     });
 
     it('every symbol the mirrors import is covered by the differential above', () => {
       const differential = new Set(IMPORTED.map(([n]) => n));
-      const missing = [...new Set(census.map((r) => r.local.replace(/^Spec/, '')))]
+      const missing = [...new Set(reads.map((r) => r.name.replace(/^Spec/, '')))]
         .filter((n) => !differential.has(n));
       expect(
         missing,
