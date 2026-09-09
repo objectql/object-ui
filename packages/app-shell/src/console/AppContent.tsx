@@ -656,13 +656,14 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // `positions` — so `'sales' in current_user.positions`, the gate the server
   // enforces on write, faulted here rather than hiding the field.
   const expressionEvaluator = useMemo(
+    // ⛔ No `app`: objectui#8155 removed it from the predicate scope, because
+    // neither ADR-0068 nor the engine's `SCOPE_ROOTS` declares such a root.
     () => createExpressionEvaluator({
       user: buildExpressionUser(user),
-      app: activeApp || {},
       data: editingRecord || {},
       features,
     }),
-    [user, activeApp, editingRecord, features],
+    [user, editingRecord, features],
   );
 
   // objectui#5619 — `isWorkspaceAdminResolved` belongs in this readiness gate

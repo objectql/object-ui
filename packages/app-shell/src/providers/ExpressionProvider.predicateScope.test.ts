@@ -70,10 +70,19 @@ describe('objectui#6493 — buildExpressionScope binds one user object under all
     expect(scope.os.user).toBe(user);
   });
 
-  it('binds app, data and features, and defaults every root to an empty object', () => {
+  it('binds data and features — and NOT `app` — defaulting every root to an empty object', () => {
     const scope = buildExpressionScope();
+    // ⛔ No `app` (objectui#8155, ruled 2026-09-07). Neither ADR-0068 nor
+    // `@objectstack/formula`'s SCOPE_ROOTS declares such a root, so binding it
+    // made this tier the only place it existed: advertised by the
+    // conditional-formatting editor and refused by the linter judging the very
+    // same field, with no spelling that did both.
+    //
+    // `toStrictEqual` is what makes this a fence rather than a sample — a root
+    // added BACK reddens here just as loudly as one removed, and `app`
+    // returning to this bag is the drift the ruling is guarding against.
     expect(scope).toStrictEqual({
-      current_user: {}, user: {}, ctx: { user: {} }, os: { user: {} }, app: {}, data: {}, features: {},
+      current_user: {}, user: {}, ctx: { user: {} }, os: { user: {} }, data: {}, features: {},
     });
     // The identity above holds for the defaults too — the hand-written fallback
     // in `useExpressionContext` used to mint three separate empty objects.

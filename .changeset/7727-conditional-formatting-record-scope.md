@@ -2,8 +2,9 @@
 '@object-ui/app-shell': minor
 ---
 
-Lint conditional-formatting conditions in the `record` scope, and stop advertising
-`data` (objectui#7727).
+Lint conditional-formatting conditions in the `record` scope, stop advertising `data`
+(objectui#7727), and align the predicate scope's root vocabulary to the engine's —
+`app` is removed, `os` is advertised (objectui#8155).
 
 **Breaking for authors, deliberately.** A bare field reference in a list/grid/kanban
 `conditionalFormatting` condition — `status == 'overdue'` — used to lint clean in
@@ -28,7 +29,7 @@ linted it green, because it authored in the `flattened` scope — where any bare
 identifier is legal. That is declared-but-unenforced in the direction that costs an
 author a silently dead formatting rule.
 
-Three changes, all on `ConditionalFormattingEditor`:
+On `ConditionalFormattingEditor`:
 
 - its `CelPredicateField` authors in `scope="record"`, the scope the field conditional
   rules `visibleWhen` / `readonlyWhen` / `requiredWhen` already use;
@@ -40,6 +41,48 @@ Three changes, all on `ConditionalFormattingEditor`:
   package can import it, and nothing you depend on changes shape;
 - the docblock and inline comment that described the old three-way binding are
   rewritten to the one binding that survives.
+
+## The `app` root is removed from the predicate scope (objectui#8155)
+
+Ruled 2026-09-07. `app` was the mirror of the bug above, one level up: app-shell
+*bound* it, this editor *advertised* it, and the engine that lints the very same field
+*refused* it — ADR-0068 declares `current_user` with the `user` / `ctx.user` aliases
+and nothing named `app`, and `@objectstack/formula`'s `SCOPE_ROOTS` has no `app`
+either. So `app.name == 'crm'` raised a blocking error whose suggested remedy,
+`record.app`, was nonsense, and there was **no** spelling that both linted clean and
+resolved. The ruling is that the engine's `SCOPE_ROOTS` is the contract and this
+consumer aligns to it, rather than the engine growing a root to match this consumer.
+
+`buildExpressionScope` (`providers/ExpressionProvider.tsx`) therefore no longer binds
+`app`, and `ROW_PREDICATE_ROOTS` no longer advertises it.
+
+⚠️ **This is breaking for anyone whose saved metadata spells `app.*`, and that
+population cannot be measured from this repository.** In-tree usage is zero — swept
+across `packages/`, `apps/`, `examples/` and `content/` with a firing control — but
+metadata authored in real deployments lives outside this tree and no sweep here can
+see it. Any predicate that reads `app.*` — a conditional-formatting condition, an
+action `visible` / `disabled`, a field `visibleWhen` — stops resolving and, because
+unresolvable visibility predicates **fail open**, will start reading as "yes" rather
+than erroring. That is the accepted cost of the ruling, not an oversight. There is no
+replacement root: `app` was never in the protocol. If you need a "current app" value in
+a predicate, that is a spec/engine vocabulary widening to be filed (the producer-side
+card, objectstack#16420, stays open as the record to reopen).
+
+`ExpressionProvider` still accepts an `app` prop and still publishes `app` on its React
+**context value**, which components read as a plain value (`DashboardView` does). Only
+the **expression scope** loses it — those are two different things, and only the second
+was ever a CEL root.
+
+## `os` is now advertised (same ruling, opposite direction)
+
+`os` was the exact mirror: **bound** by `buildExpressionScope`, **accepted** by the
+engine, and merely never offered — the one root an author could legitimately write but
+would never be shown. It is also the spec's canonical identity spelling
+(`os.user.id`) and the measured in-tree one: authored predicates spell
+`record.owner == os.user.id` across `packages/core`, `packages/components` and
+`packages/plugin-grid`, including a conditional-formatting `condition`. It joins
+`ROW_PREDICATE_ROOTS`. This is additive — nothing that linted clean before stops doing
+so.
 
 **Autocomplete moves with the scope.** Under `scope="record"`, `CelPredicateField`
 builds its bare-position catalog with `fields: []`, so typing `sta` at the start of a
@@ -54,7 +97,7 @@ The `flattened` default at the shared authoring seam is **untouched**: RLS predi
 and flow conditions are not row surfaces (objectui#5738 stand-down 3) and stay
 flattened.
 
-**What this does NOT close — two halves are left open, both filed.**
+**What this does NOT close — one half is left open, and it is filed.**
 
 - **The `data.*` half.** Dropping `'data'` from `ROW_PREDICATE_ROOTS` stops
   *recommending* it; it does not stop the lint *accepting* it.
@@ -63,9 +106,6 @@ flattened.
   rather than the row — constant-false, silently. Pinned here as a characterization
   test, tracked as objectui#8166. This changeset closes the **bare-field** half of the
   retirement only.
-- **The `app` root.** `app` is bound at runtime by app-shell's predicate scope and
-  advertised by this editor, but `SCOPE_ROOTS` has no `app`, so under `scope="record"`
-  the lint now refuses it. Measured, pinned, and filed as objectui#8155.
 
 ⛔ And this editor is **not** the last authoring site still on the flattened default —
 `ConditionBuilder` reaches it by passing no `scope` at all, which is why a grep for the

@@ -159,20 +159,21 @@ describe('ConditionalFormattingEditor · CEL authoring scope (#2571 follow-up)',
     expect(ta.getAttribute('aria-invalid')).not.toBe('true');
   });
 
-  it('lints the host roots the ENGINE KNOWS clean in the record scope', async () => {
-    // Four of the five advertised host roots survive the narrowing. Deliberately
-    // NOT "all advertised host roots": the fifth, `app`, does not — see the
-    // known-gap pin below. Saying "advertised" here while the next test proves
-    // `app` is refused would make this comment contradict its own neighbour.
-    // What these four have in common is not that this editor advertises them,
-    // it is that `@objectstack/formula`'s `SCOPE_ROOTS` lists them.
-    render(
-      <Harness
-        initial={[
-          { condition: "features.beta && current_user.id != '' && user.id != '' && ctx.user.id != ''", style: {} },
-        ]}
-      />,
-    );
+  it('lints EVERY advertised root clean in the record scope — the aligned state', async () => {
+    // Before objectui#8155 this could only claim FOUR of five advertised roots:
+    // `app` was advertised and REFUSED, so a comment saying "every advertised
+    // root" would have contradicted its own neighbour. The ruling removed `app`
+    // and added `os`, so what this editor advertises is now a subset of what
+    // `@objectstack/formula`'s SCOPE_ROOTS accepts, and the honest assertion is
+    // the total one.
+    //
+    // DERIVED from the advertised list rather than retyped: a root added here
+    // without the engine knowing it reddens on this line, which is the whole
+    // failure mode objectui#8155 was filed for.
+    const condition = ROW_PREDICATE_ROOTS.map((r) =>
+      r === 'record' ? "record.status != ''" : `size(${r}) >= 0`,
+    ).join(' && ');
+    render(<Harness initial={[{ condition, style: {} }]} />);
     expect(await screen.findByText('perm.cel.valid', {}, { timeout: 3000 })).toBeTruthy();
   });
 
@@ -195,27 +196,29 @@ describe('ConditionalFormattingEditor · CEL authoring scope (#2571 follow-up)',
     expect(ta.getAttribute('aria-invalid')).not.toBe('true');
   });
 
-  it('KNOWN GAP — an `app.*` condition is advertised yet the record-scope lint refuses it', async () => {
-    // NOT desired behaviour. Pinned so the one regression the scope flip
-    // introduces cannot go silent, and so this test REDDENS the day it is
-    // fixed and objectui#8155 can be closed.
+  it('ALIGNED (objectui#8155) — `app` is neither advertised nor bound, and the lint refuses it', async () => {
+    // This pin used to assert a CONTRADICTION on purpose: the editor advertised
+    // `app` while its own linter refused it, offering the nonsense remedy
+    // `record.app` and no spelling an author could use instead. The 2026-09-07
+    // ruling took option B — objectui aligns to the engine's root vocabulary,
+    // rather than the engine growing a root to match this consumer — so the
+    // contradiction no longer exists and this pin asserts the ALIGNED state.
     //
-    // `app` IS bound at runtime: app-shell's `buildExpressionScope`
-    // (ExpressionProvider, #1583/ADR-0068) puts it in the predicate scope that
-    // `ObjectGrid` / `ListView` hand to `resolveConditionalFormatting`, and
-    // ROW_PREDICATE_ROOTS advertises it for that reason. But
-    // `@objectstack/formula`'s `SCOPE_ROOTS` (17.2.0) has no `app`, so under
-    // `scope="record"` the engine reads it as a bare field reference and
-    // errors with the nonsense fix `record.app`. Under the previous
-    // `scope="flattened"` it was clean, because flattened accepts ANY bare
-    // identifier. Full measurement and the two candidate fixes: objectui#8155.
-    //
-    // ⚠️ Reads on objectui#8155 OPTION A only — adding `app` to the engine's
-    // `SCOPE_ROOTS`. Under option B (app stops being bound and leaves
-    // ROW_PREDICATE_ROOTS) this test would still pass, so it is not a complete
-    // tripwire for that card; the closure assertion in the contract suite
-    // below is what catches option B, because it reads the advertised list
-    // against `buildExpressionScope` itself.
+    // ⭐ Deliberately THREE-sided, because the defect was a DISAGREEMENT
+    // between two producers and a one-sided pin would be half a pin. Each
+    // producer drifting back ON ITS OWN must redden here:
+    //   - `app` back in ROW_PREDICATE_ROOTS   -> the first expect fails
+    //   - `app` back in buildExpressionScope  -> the second expect fails
+    //   - the engine growing an `app` root    -> the DOM assertion fails
+    // The closure assertion in the contract suite below catches the pair
+    // moving TOGETHER; it cannot see either half moving alone, which is
+    // exactly the state objectui#8155 was filed about.
+    expect(ROW_PREDICATE_ROOTS).not.toContain('app');
+    expect(Object.keys(buildExpressionScope({ user: { id: 'u1' } }))).not.toContain('app');
+
+    // The third side. The refusal itself is unchanged — what changed is that it
+    // is now CORRECT: nothing advertises `app`, nothing binds it, and the
+    // engine does not know it, so an author is never lured into writing it.
     render(<Harness initial={[{ condition: "app.name == 'crm'", style: {} }]} />);
     const ta = document.getElementById('cf-condition-0') as HTMLTextAreaElement;
     await waitFor(() => expect(ta.getAttribute('aria-invalid')).toBe('true'), { timeout: 3000 });
@@ -284,12 +287,17 @@ describe('ROW_PREDICATE_ROOTS ↔ evalRowPredicate runtime contract', () => {
     features: { beta: true },
   });
   /**
-   * Roots the host binds that this editor deliberately does NOT advertise.
-   * `data` is retired on row surfaces (objectui#5741); `os` is an alias bag
-   * withheld by curation (objectui#8156). Both get their own pins below,
-   * against `fullHostScope`, which does carry them.
+   * The ONE root the host binds that this editor deliberately does not
+   * advertise: `data`, retired on row surfaces (objectui#5741). It gets its own
+   * pin below, against `fullHostScope`, which does carry it.
+   *
+   * `os` used to sit here too. objectui#8155 ruled it back onto the advertised
+   * list in the same patch that removed `app`: it is bound here, ACCEPTED by
+   * the engine, and the measured in-tree identity spelling
+   * (`record.owner == os.user.id`), so withholding it was curation with
+   * nothing behind it.
    */
-  const CURATED_EXCLUSIONS = ['os', 'data'];
+  const CURATED_EXCLUSIONS = ['data'];
   /**
    * The same bag with those two removed. Probes for the ADVERTISED roots run
    * against this one, so no probe can pass off a host binding as a row binding.
@@ -362,9 +370,9 @@ describe('ROW_PREDICATE_ROOTS ↔ evalRowPredicate runtime contract', () => {
   });
 
   it('the engine-default extras stay unadvertised because they are NOT bound', () => {
-    // `os` is NOT in this list any more: it is unadvertised but genuinely
-    // bound, so asserting it here would be the same hand-model artefact as the
-    // old `data` probe, in the opposite direction. See the pin below.
+    // `os` is NOT in this list: it is genuinely bound, and since objectui#8155
+    // it is advertised too, so asserting it here would be the same hand-model
+    // artefact as the old `data` probe, in the opposite direction.
     for (const root of ['previous', 'input', 'vars']) {
       expect(ROW_PREDICATE_ROOTS).not.toContain(root);
       expect(
@@ -374,20 +382,23 @@ describe('ROW_PREDICATE_ROOTS ↔ evalRowPredicate runtime contract', () => {
     }
   });
 
-  it('`os` is unadvertised by CURATION, not because it is unbound', () => {
+  it('`os` is ADVERTISED — bound here, and known to the engine (objectui#8155)', () => {
+    // The mirror image of the `app` case, settled the other way by the same
+    // ruling: `app` was advertised-but-refused, `os` was accepted-and-bound but
+    // never offered — the one root an author could legitimately write and would
+    // never be shown.
+    //
     // The bag here is `buildExpressionScope`'s own output, NOT a scope with
     // `os` handed in by this test: injecting it would only have proved that
     // `evalRowPredicate` forwards `scope`, which `size(zzz) >= 0` with `zzz`
     // injected proves just as well. Reading the producer is what makes this a
-    // statement about app-shell. Held apart from the extras above so that list
-    // keeps meaning "not bound". Whether `os` SHOULD be advertised is
-    // objectui#8156, not this card.
-    expect(CURATED_EXCLUSIONS).toContain('os');
+    // statement about app-shell.
     expect(Object.keys(fullHostScope)).toContain('os');
-    expect(ROW_PREDICATE_ROOTS).not.toContain('os');
-    expect(evalRowPredicate('size(os) >= 0', row, { fallback: false, scope: fullHostScope })).toBe(true);
+    expect(ROW_PREDICATE_ROOTS).toContain('os');
+    expect(CURATED_EXCLUSIONS).not.toContain('os');
+    expect(evalRowPredicate('size(os) >= 0', row, { fallback: false, scope: hostScope })).toBe(true);
     // The control that makes the line above a reading: a root the host bag does
     // NOT carry is unbound against the very same scope.
-    expect(evalRowPredicate('size(zzz) >= 0', row, { fallback: false, scope: fullHostScope })).toBe(false);
+    expect(evalRowPredicate('size(zzz) >= 0', row, { fallback: false, scope: hostScope })).toBe(false);
   });
 });

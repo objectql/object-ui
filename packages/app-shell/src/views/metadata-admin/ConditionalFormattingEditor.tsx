@@ -37,7 +37,7 @@ import type { CelLintIssue } from './celAuthoring.js';
  * `evalRowPredicate` (ADR-0058 — list rows, grid rows, kanban cards), which
  * binds the row ONE way — as the `record` namespace — plus the host shell's
  * global predicate scope (`ExpressionProvider`, #1583/ADR-0068:
- * `current_user` / `user` / `ctx` / `app` / `features`).
+ * `current_user` / `user` / `ctx` / `os` / `features`).
  *
  * ## What changed, and why this list lost a member (objectui#7727)
  *
@@ -55,19 +55,44 @@ import type { CelLintIssue } from './celAuthoring.js';
  * `rowPredicateCanon.ts` describes, and it is why "does `data` resolve?" is
  * not a test of whether `data` names the row.
  *
- * The engine's default advertisement adds `previous` / `input` / `os` /
- * `vars`. `previous` / `input` / `vars` are NOT bound for row predicates at
- * all; `os` IS bound by the app-shell host scope but is deliberately not
- * advertised here. Suggesting an unbound root would author a condition that
- * silently never matches, so this override pins the truthful catalog
- * (#2571 follow-up).
+ * The engine's default advertisement adds `previous` / `input` / `vars`, none
+ * of which are bound for row predicates at all. Suggesting an unbound root
+ * would author a condition that silently never matches, so this override pins
+ * the truthful catalog (#2571 follow-up).
+ *
+ * ## The two roots objectui#8155 settled, in opposite directions
+ *
+ * They were mirror images, and the ruling (2026-09-07) is that the engine's
+ * `SCOPE_ROOTS` is the contract this list aligns to — in BOTH directions.
+ *
+ * - ⛔ `app` is GONE. It was advertised here and bound by
+ *   `buildExpressionScope`, but the engine refuses it: ADR-0068 declares no
+ *   such root and `@objectstack/formula`'s `SCOPE_ROOTS` has no `app`, so the
+ *   record-scope lint read `app.name` as a bare field and errored with the
+ *   nonsense remedy `record.app`. This editor was advertising a root its own
+ *   linter rejected. `buildExpressionScope` stopped binding it in the same
+ *   patch, so all three surfaces now agree that `app` does not exist here.
+ * - ✅ `os` is ADDED. The mirror case: bound by `buildExpressionScope`,
+ *   ACCEPTED by the engine, and merely unadvertised — so it was the one root
+ *   an author could legitimately write but was never offered. It is also the
+ *   spec's canonical identity spelling (`os.user.id`, ADR-0068 / the
+ *   `@objectstack/spec` expression docs) and the measured one: in-tree
+ *   authored predicates spell `record.owner == os.user.id` across
+ *   `packages/core`, `packages/components` and `packages/plugin-grid`,
+ *   including a conditional-formatting `condition` in
+ *   `core/src/evaluator/__tests__/listConditional.test.ts`. Withholding a root
+ *   that is bound, accepted AND used was curation with nothing behind it.
+ *
+ * `data` is deliberately still absent, and that is NOT the same case: the
+ * engine accepts it but the row is not reachable through it. That half is
+ * objectui#8166.
  */
 export const ROW_PREDICATE_ROOTS = [
   'record',
   'current_user',
   'user',
   'features',
-  'app',
+  'os',
   'ctx',
 ];
 
