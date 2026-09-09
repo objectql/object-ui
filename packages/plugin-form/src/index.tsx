@@ -102,6 +102,48 @@ export type { DerivedDetail, InlineMode, ChildObjectSchemaLike } from './deriveM
 export { omitServerResolvedDefaults, isRequiredInForm } from './schemaDefaults';
 
 /**
+ * The `form.sections[].group` RESOLVER, published for the third form-section
+ * consumer (objectui#8641).
+ *
+ * `resolveSectionGroupReferences` replaces every `{ group: 'x' }` section with
+ * the section that group declares, and returns its input UNCHANGED — the same
+ * array reference — when no section uses the reference form. It is a pure
+ * function over plain data: no React, no registry, no container.
+ *
+ * ## Why it is published rather than copied
+ *
+ * `apps/console`'s `FormPage` has its OWN section builder (`buildSections`),
+ * on none of this package's code path, and it read `sec.fields ?? []` — so a
+ * spec-legal `{ group }` section produced a section with no label and no
+ * fields, measured in the DOM as an empty bordered card with zero inputs on
+ * both the internal `/forms/:name` and public `/f/:slug` routes. That is the
+ * silent-drop class objectui#7051 closed HERE, arriving at a renderer #7051's
+ * fix could not reach.
+ *
+ * The standing constraint of objectui#7051 / objectstack#13855 is that no
+ * assembly rule may be re-implemented on the objectui side — not declared
+ * order, not the empty-group drop, not the ungrouped trailing bucket, not the
+ * collapse / `visibleWhen` passthrough. Every one of those comes from
+ * `deriveFieldGroupLayout` (ADR-0085 §5) through this package's ONE adapter,
+ * `deriveFieldGroupSections`, which this resolver calls. A consumer that
+ * reached for `deriveFieldGroupLayout` directly would have to re-spell the
+ * `collapse` enum -> `{ collapsible, collapsed }` mapping and the `visibleWhen`
+ * passthrough to land on a section shape, which is that constraint's exact
+ * prohibition. So the importable resolver is the only arm that keeps one
+ * assembler and one behaviour for all three consumers.
+ *
+ * This is the same surface decision as objectui#6059's create-payload pair,
+ * for the same file, and it is deliberately as small: the resolver and the
+ * options type its signature requires (objectui#7324's rule — a consumer must
+ * be able to NAME what it passes; a type adds no runtime surface).
+ * `hasSectionGroupReference` stays module-private because the resolver already
+ * answers it by returning its input unchanged, and `resetSectionGroupReports`
+ * stays private because it is this package's own test seam.
+ */
+export { resolveSectionGroupReferences } from './sectionGroups';
+export type { ResolveSectionGroupsOptions } from './sectionGroups';
+
+/**
  * The parameter types those published signatures require, so a consumer can
  * NAME what it must pass (objectui#7324).
  *

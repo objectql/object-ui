@@ -60,8 +60,10 @@ whoever else claims it.
 ### Public exports
 
 The package entry exports these — components, their prop/schema types, the
-layout helpers, and the two create-payload rules a second form renderer needs
-(see [`required` + a runtime default](#required-or-requiredwhen--a-runtime-default)).
+layout helpers, the two create-payload rules a second form renderer needs
+(see [`required` + a runtime default](#required-or-requiredwhen--a-runtime-default))
+and the section-group resolver a third one needs
+(see [Resolving `sections[].group` outside this package](#resolving-sectionsgroup-outside-this-package)).
 There is no aggregate map among them:
 
 ```typescript
@@ -94,6 +96,7 @@ import {
   resolveInlineMode,
   omitServerResolvedDefaults,
   isRequiredInForm,
+  resolveSectionGroupReferences,
 } from '@object-ui/plugin-form';
 
 import type {
@@ -124,6 +127,7 @@ import type {
   InlineMode,
   ChildObjectSchemaLike,
   FieldDefaultsSchemaLike,
+  ResolveSectionGroupsOptions,
 } from '@object-ui/plugin-form';
 ```
 
@@ -370,6 +374,50 @@ resolved downstream against the live record, so it is suppressed inside the one
 evaluator that resolves it — `resolveFieldRuleState`, reading
 `isServerOwnedValue`. Display and validation share that single verdict, so a
 field can never lose its asterisk while still refusing the submit.
+
+### Resolving `sections[].group` outside this package
+
+A form section declares its members exactly one way: it enumerates `fields`, or
+it points `group` at one of the object's declared `fieldGroups` and inherits that
+group's members **and** its presentation (`@objectstack/spec` 17.3.0,
+objectstack#13855, ADR-0085 §5). `ObjectForm` resolves the reference once, above
+its routing fork, so all six layouts inherit it.
+
+A host with its **own** section builder resolves it with the same function
+instead of deriving sections itself (objectui#8641):
+
+```typescript
+declare const objectDef: unknown;   // `{ fields, fieldGroups }`, or null while loading
+
+import {
+  resolveSectionGroupReferences,
+  type ResolveSectionGroupsOptions,
+} from '@object-ui/plugin-form';
+
+const sections = resolveSectionGroupReferences(authoredSections, {
+  objectName: 'ticket',
+  formType: 'simple',
+  objectDef,
+});
+```
+
+Every `{ group: 'x' }` section comes back as the section that group declares —
+label, members, description and collapse state — and everything else comes back
+**untouched**: with no reference in the list the input array is returned by
+identity, so the call cannot perturb an existing form and is safe inside a
+`useMemo`. A reference that resolves to nothing yields an empty section (never a
+dropped one — a `sections` array that empties out stops being a sectioned form at
+all) and is reported once, naming the object and the key.
+
+⛔ Nothing about the assembly belongs to the caller. Declared order, the
+empty-group drop, the ungrouped trailing bucket and the collapse / `visibleWhen`
+passthrough all come from `deriveFieldGroupLayout` through this package's single
+adapter onto the section shape — the same code path the no-sections field-group
+fallback uses, so a group authored by reference and one derived by the fallback
+are the same section by construction. A host reaching for `deriveFieldGroupLayout`
+directly would have to re-spell the `collapse` enum onto its own boolean pair and
+pass `visibleWhen` through by hand, which is the duplication this export exists to
+prevent.
 
 ### Column width of a sectioned form
 
