@@ -12,7 +12,10 @@
  *  1. the DECLARED set, from the installed `@objectstack/spec` schema — the
  *     same source the platform's save gate parses with;
  *  2. the CONSUMED set, extracted from `DatasetWidget.tsx` source text — the
- *     one component every spec-legal (dataset-bound) widget renders through;
+ *     one component every spec-legal (dataset-bound) widget renders through.
+ *     Since objectui#7293 that set is the declared five PLUS `description`:
+ *     the metric branch renders the sub-caption, so the accepted set and the
+ *     measured read set finally coincide;
  *  3. the sub-caption convention read site in `DashboardRenderer.tsx`, the
  *     evidence for the single accepted key the spec does not declare;
  *  4. a repo tripwire for NEW files that start reading `widget.options`.
@@ -54,6 +57,13 @@ import {
   UNCONSUMED_WIDGET_OPTION,
 } from '../dashboard-widget-options.js';
 
+/**
+ * The one accepted key `DashboardWidgetOptionsSchema` does not declare — the
+ * sub-caption convention (objectui#4032 item 4, objectstack#8056 `subCaption`).
+ * Named once here so leg 1 and leg 2 cannot drift apart about which key it is.
+ */
+const SUBCAPTION_KEY = 'description';
+
 /** Repo root, located by marker file — never by counting `..` segments. */
 const repoRoot = (() => {
   let dir = dirname(fileURLToPath(import.meta.url));
@@ -90,7 +100,7 @@ describe('leg 1 — the spec side of the pin', () => {
     const extras = CONSUMED_WIDGET_OPTION_KEYS.filter((k) => !declaredKeys.includes(k));
     // `description` is the sub-caption convention key (leg 3). Any OTHER
     // undeclared entry needs its own documented read-site evidence first.
-    expect(extras).toEqual(['description']);
+    expect(extras).toEqual([SUBCAPTION_KEY]);
   });
 
   it('`dataset` is required — the fact the census scopes itself by', () => {
@@ -131,14 +141,38 @@ describe('leg 2 — the renderer side: DatasetWidget source census', () => {
     expect(src, 'computed access into the options bag').not.toMatch(/\boptions\[/);
   });
 
-  it('the extracted read set equals the declared set — both directions', () => {
+  it('the extracted read set is the declared set plus the sub-caption key', () => {
     const extracted = new Set<string>();
     for (const m of src.matchAll(/\boptions\.([A-Za-z_$][\w$]*)/g)) extracted.add(m[1]!);
     // Instrument control: a zero here is a broken instrument, not a reading —
     // `limit` is known-present at a `options.limit` read site.
     expect(extracted.size).toBeGreaterThan(0);
     expect([...extracted]).toContain('limit');
-    expect([...extracted].sort()).toEqual(declaredKeys);
+    // Until objectui#7293 this equalled `declaredKeys` alone, and `description`
+    // was accepted on the strength of a read site in a DIFFERENT file (leg 3).
+    // The metric branch now reads it here too, so the sub-caption key is a
+    // first-class member of this census rather than an exception to it.
+    expect([...extracted].sort()).toEqual([...declaredKeys, SUBCAPTION_KEY].sort());
+  });
+
+  it('every accepted key now has a read site in the file the census measures', () => {
+    // The fact objectui#7293 delivers, stated as its own assertion: the
+    // accepted set is no longer larger than what this file reads. Losing the
+    // sub-caption read makes THIS red rather than silently re-opening the gap.
+    const extracted = new Set<string>();
+    for (const m of src.matchAll(/\boptions\.([A-Za-z_$][\w$]*)/g)) extracted.add(m[1]!);
+    expect([...extracted].sort()).toEqual([...CONSUMED_WIDGET_OPTION_KEYS].sort());
+  });
+
+  it('`format` and `thresholds` are still not read on the dataset-bound path', () => {
+    // The module header's BOUNDED closure claim (objectui#6186), which used to
+    // ride implicitly on the `=== declaredKeys` equality above. Stated
+    // explicitly so that widening the expected set can never quietly widen
+    // this claim with it.
+    const extracted = new Set<string>();
+    for (const m of src.matchAll(/\boptions\.([A-Za-z_$][\w$]*)/g)) extracted.add(m[1]!);
+    expect([...extracted]).not.toContain('format');
+    expect([...extracted]).not.toContain('thresholds');
   });
 });
 
