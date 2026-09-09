@@ -341,13 +341,17 @@ describe('objectui#6041 · WRITE — the save carries `reference`, never `refere
   });
 
   it('refuses every unusable target state, and PUTs none of them', async () => {
-    // objectui#7714, all four states plus `null`. The whitespace row is this
-    // page being deliberately STRICTER than the contract: measured on 17.3.0,
-    // `reference: '   '` parses green at field level and through `ObjectSchema`
-    // (upstream objectstack#16126). The refusal is this writer's own, declared
-    // in `MetadataFieldsPage.tsx`, and it does not depend on which spec is
-    // installed — which is why it is asserted here and the spec's verdict is
-    // not (at this repo's 17.2.0 pin the spec accepts every one of these).
+    // objectui#7714, all four states plus `null`. The whitespace row USED to be
+    // this page being stricter than the contract; objectstack#16920 applies the
+    // spec's emptiness test to the trimmed value, so upstream now refuses the
+    // same shape under the same `custom` issue and the divergence is retired
+    // (objectui#8621). It is still asserted HERE rather than against the spec,
+    // for the reason that outlives the divergence: this refusal is the page's
+    // own, raised at editor time before the PUT, and it does not depend on
+    // which spec is installed. That independence is also what keeps this row
+    // green across the pin bump — this repo's pin is `@objectstack/spec` 17.3.0
+    // (`pnpm-lock.yaml`), which predates objectstack#16920 and still parses
+    // `reference: '   '` green at field level and through `ObjectSchema`.
     //
     // One render, re-driven per state: `renderPage` per iteration would leave
     // several mounted pages in the document and `getByTestId` would then find
