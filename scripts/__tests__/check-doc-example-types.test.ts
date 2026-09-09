@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,6 +19,7 @@ import {
   funnelLines,
   judge,
   ledgerKey,
+  builtTwinSpecifier,
   listExampleSources,
   preludeFor,
 } from '../check-doc-example-types.mjs';
@@ -130,23 +132,76 @@ describe('the exported owner is read from the AST, never from the text', () => {
 
 describe('the documented symbol import is injected only when all three conditions hold', () => {
   const block = { symbol: 'useThing', package: '@object-ui/x', body: 'const r = useThing();' };
+  const fromRoot = new Map([['@object-ui/x useThing', '@object-ui/x']]);
 
   it('injects when the block references the symbol and does not import it', () => {
-    expect(preludeFor(block, new Set())).toBe("import { useThing } from '@object-ui/x';\n");
+    expect(preludeFor(block, fromRoot)).toBe("import { useThing } from '@object-ui/x';\n");
   });
 
   it('does NOT inject when the block never references the symbol', () => {
-    expect(preludeFor({ ...block, body: 'const r = 1;' }, new Set())).toBe('');
+    expect(preludeFor({ ...block, body: 'const r = 1;' }, fromRoot)).toBe('');
   });
 
   it('does NOT inject when the block already imports the symbol itself', () => {
     expect(
-      preludeFor({ ...block, body: "import { useThing } from 'somewhere';\nuseThing();" }, new Set()),
+      preludeFor({ ...block, body: "import { useThing } from 'somewhere';\nuseThing();" }, fromRoot),
     ).toBe('');
   });
 
-  it('does NOT inject when the package entry does not export the symbol — the gate never blames an example for this transformation', () => {
-    expect(preludeFor(block, new Set(['@object-ui/x useThing']))).toBe('');
+  it('does NOT inject when NO probed specifier could import the symbol — the gate never blames an example for this transformation', () => {
+    expect(preludeFor(block, new Map())).toBe('');
+  });
+
+  it('injects the specifier the probe RESOLVED, not the package name — objectui#8743', () => {
+    const twin = '/repo/packages/x/dist/internal/thing.js';
+    expect(preludeFor(block, new Map([['@object-ui/x useThing', twin]]))).toBe(
+      `import { useThing } from '${twin}';\n`,
+    );
+  });
+});
+
+// ── instrument: the second injection candidate (objectui#8743) ───────────────
+
+describe("candidate 2: the documented symbol's own built declaration", () => {
+  const roots: string[] = [];
+  const fixture = (files: Record<string, string>) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-example-twin-'));
+    roots.push(root);
+    for (const [rel, body] of Object.entries(files)) {
+      const abs = path.join(root, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, body);
+    }
+    return root;
+  };
+  afterAll(() => {
+    for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('is the dist twin of the source file when that per-file declaration exists', () => {
+    const root = fixture({ 'packages/types/dist/zod/imported-defaults.d.ts': 'export {};\n' });
+    expect(builtTwinSpecifier('packages/types/src/zod/imported-defaults.ts', root)).toBe(
+      path.join(root, 'packages/types/dist/zod/imported-defaults.js'),
+    );
+  });
+
+  it('is null when the build BUNDLES its declarations, so there is no per-file twin', () => {
+    const root = fixture({ 'packages/data-objectstack/dist/index.d.ts': 'export {};\n' });
+    expect(builtTwinSpecifier('packages/data-objectstack/src/cache/MetadataCache.ts', root)).toBe(
+      null,
+    );
+  });
+
+  it('is null for a path that is not `packages/NAME/src/...`', () => {
+    const root = fixture({ 'apps/console/dist/main.d.ts': 'export {};\n' });
+    expect(builtTwinSpecifier('apps/console/src/main.ts', root)).toBe(null);
+  });
+
+  it('is an ABSOLUTE specifier, which THE BOUND never refuses', () => {
+    const root = fixture({ 'packages/types/dist/a.d.ts': 'export {};\n' });
+    const twin = builtTwinSpecifier('packages/types/src/a.ts', root);
+    expect(twin).not.toBe(null);
+    expect(path.isAbsolute(twin as string)).toBe(true);
   });
 });
 
