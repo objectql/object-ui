@@ -1092,9 +1092,12 @@ const readWorkflow = (file: string): string => fs.readFileSync(path.join(workflo
 
 /**
  * A workflow's YAML with whole-line comments removed. Load-bearing, not
- * cosmetic: `live-e2e.yml`'s header discusses `continue-on-error` for eight
- * lines and `changeset-guard.yml`'s explains why `.changeset/**` is filtered the
- * way it is, so a scan that counted comments would report properties from prose.
+ * cosmetic: `live-e2e.yml`'s header argues at length about `continue-on-error`
+ * — more so since objectui#8084 took the flag off its job and wrote the
+ * measurement into the header — and `changeset-guard.yml`'s explains why
+ * `.changeset/**` is filtered the way it is, so a scan that counted comments
+ * would report properties from prose. ⛔ No line count is stated here on
+ * purpose: a hand-written count of prose lines is a claim nothing asserts.
  */
 function withoutComments(yaml: string): string {
   return yaml
@@ -1163,6 +1166,20 @@ function pullRequestPaths(file: string): string[] {
   return listEntries(trigger.slice(at));
 }
 
+/**
+ * The `paths-ignore:` globs a workflow's `pull_request` trigger declares — the
+ * exclusion half of the same structural property. A context the filter keeps
+ * from being created is a context a required check waits on forever, exactly as
+ * for `paths:`; `ci.yml` keeps its own `paths-ignore` on the push trigger ONLY
+ * for that reason (objectui#3523).
+ */
+function pullRequestPathsIgnore(file: string): string[] {
+  const trigger = nestedBlock(topLevelBlock(withoutComments(readWorkflow(file)), 'on'), 'pull_request');
+  const at = trigger.search(/^ {4}paths-ignore:\s*$/m);
+  if (at === -1) return [];
+  return listEntries(trigger.slice(at));
+}
+
 interface StructuralBlock {
   /** The property, named the way a failure message should name it. */
   readonly property: string;
@@ -1223,25 +1240,28 @@ const STRUCTURAL_BLOCKS = new Map<string, StructuralBlock>([
   [
     'live-e2e.yml',
     {
-      property: '`continue-on-error: true` on the `live-e2e` job',
+      property: '`paths-ignore:` on the `pull_request` trigger',
       broken() {
-        const job = nestedBlock(topLevelBlock(withoutComments(readWorkflow('live-e2e.yml')), 'jobs'), 'live-e2e');
-        if (job === '') return 'the `live-e2e` job is gone from live-e2e.yml';
-        return /^\s*continue-on-error:\s*true\s*$/m.test(job)
+        const ignored = pullRequestPathsIgnore('live-e2e.yml');
+        return ignored.length > 0
           ? null
-          : 'the `live-e2e` job no longer carries `continue-on-error: true`, so a failing spec ' +
-              'now fails the run — the lane has been promoted';
+          : 'its `pull_request` trigger no longer declares `paths-ignore:`, so Live E2E now ' +
+              'reports on every pull request and the page is denying a guardrail that exists';
       },
-      quotes() {
-        const job = nestedBlock(topLevelBlock(withoutComments(readWorkflow('live-e2e.yml')), 'jobs'), 'live-e2e');
-        return [(job.match(/^\s*(continue-on-error:\s*true)\s*$/m)?.[1] ?? '').replace(/\s+/g, ' ')];
-      },
+      quotes: () => pullRequestPathsIgnore('live-e2e.yml'),
       whenItBreaks:
-        'THIS ONE IS SCHEDULED, and its red is the point of this pin rather than an accident: ' +
-        "live-e2e.yml's header says `continue-on-error` comes off once the lane has run clean " +
-        'long enough to trust. When it does, DELETE the `live-e2e.yml` line from the bullet and ' +
-        'this entry from STRUCTURAL_BLOCKS — the lane is requirable now and the page must stop ' +
-        'saying it can never be. Do not soften the wording and do not relax this check.',
+        'THIS LINE HAS ALREADY OUTLIVED ONE PROPERTY, which is the thing to read before editing ' +
+        'it again. It used to quote `continue-on-error: true` on the job, on the reasoning that ' +
+        'a job which cannot fail cannot gate anything. objectui#8084 measured that reasoning ' +
+        'false in both halves: the flag left the JOB and its CHECK RUN red — job 101442890465 ' +
+        'and check run `Live E2E (informational)` both reported `failure` on run 34017174769 — ' +
+        'so it never made the context unrequirable; it only inverted the aggregate, which is the ' +
+        'defect that card was filed for. Taking it off therefore did NOT promote the lane, and ' +
+        'this entry was re-pointed rather than deleted: the `paths-ignore:` filter quoted here is ' +
+        'what still keeps the context from being created on a docs-only pull request, and a ' +
+        'required check cannot survive a context that is never created. Retire this entry when ' +
+        'live-e2e.yml carries no such property at all — never because one was replaced by ' +
+        'another, and never by softening the line in place.',
     },
   ],
   [
@@ -1987,5 +2007,125 @@ describe('ci-cd-pipeline.md + live-e2e.yml — the Playwright report claim (#823
         'who does not know that will write a check against artefact contents that can only ever ' +
         'be read on a red run. objectui#8084 did exactly that. Say it on the page.',
     ).toContain('failure()');
+  });
+});
+
+/**
+ * objectui#8084 defect ② — the lane's RUN conclusion asserted the negation of its JOB's.
+ *
+ * Measured on the 2026-09-06 nightly, while `live-e2e.yml`'s job carried
+ * `continue-on-error: true`:
+ *
+ *     step 7 `Start ObjectStack backend`    failure
+ *     job 101442890465                      failure
+ *     check run `Live E2E (informational)`  failure
+ *     check suite 92170955546               success
+ *     workflow run 34017174769              success
+ *
+ * The flag moved neither the job nor its check run — the two readings a merge gate and a
+ * reviewer consult — and inverted only the aggregate. This is worse than an omission: any
+ * monitor, digest or agent reading run-level conclusions was told `success` while the live
+ * E2E had not executed at all, which is why the backend outage carded as that issue's defect
+ * ① ran a full day unseen. An outage detector that reports the negation of what it detects.
+ *
+ * ⛔ The repair is NOT to make the lane blocking, and this pin does not ask for that: what
+ * makes the lane non-blocking is that it is not in the required-check set and declares no
+ * `merge_group` trigger, neither of which `continue-on-error` had anything to do with. The
+ * two are compatible; conflating them is the trap the card names.
+ *
+ * ## Why this is scoped to the job's OWN keys, and why the control below is not optional
+ *
+ * The entry this replaces in STRUCTURAL_BLOCKS asked `/^\s*continue-on-error:\s*true\s*$/m`
+ * of the whole job block and promised, in writing, to go red the day the flag came off the
+ * job. It could not: objectui#7048 later split both caches into bounded `save` STEPS that
+ * each carry `continue-on-error: true` at step level, and `\s*` matches their indentation
+ * just as happily. Two step-level flags kept that assertion green for a property that no
+ * longer existed — an assertion that cannot fail, which is this card's own defect one level
+ * down.
+ *
+ * So the matcher here is anchored to four spaces, the indentation of a job's own keys, and
+ * the discrimination is EXERCISED rather than assumed: the control asserts that step-level
+ * flags really are present in this job and really are not matched. If those saves are ever
+ * removed, the control goes red and says so, rather than leaving a matcher that discriminates
+ * against nothing.
+ */
+describe('live-e2e.yml — the run conclusion may not contradict the job (#8084)', () => {
+  const liveJob = nestedBlock(topLevelBlock(withoutComments(readWorkflow('live-e2e.yml')), 'jobs'), 'live-e2e');
+  const jobOwnKeys = liveJob.split('\n').filter((line) => /^ {4}[a-z]/i.test(line));
+  const section = sectionForWorkflow('live-e2e.yml');
+
+  it('has a job block and a page section to read — neither may be empty', () => {
+    // The vacuity legs. A renamed job or heading would make every assertion below pass while
+    // reading an empty string, which is the failure shape this whole file exists against.
+    expect(
+      liveJob,
+      'the `live-e2e` job is gone from live-e2e.yml (or `jobs:` no longer parses), so the ' +
+        'assertions below would compare nothing. Re-point them at wherever the lane now lives.',
+    ).not.toBe('');
+
+    expect(
+      jobOwnKeys.map((line) => line.trim().split(':')[0]),
+      "the job-level key scan found no four-space keys at all, so 'no continue-on-error here' " +
+        'would be true of every possible file. Re-derive it from the current indentation.',
+    ).toContain('timeout-minutes');
+
+    expect(
+      section,
+      'No heading on this page names `live-e2e.yml`, so the page half of this claim reads an ' +
+        'empty string and passes vacuously.',
+    ).not.toBe('');
+  });
+
+  it('discriminates job level from step level — the control, exercised not assumed', () => {
+    // Without this, the assertion below is indistinguishable from one that would also pass on
+    // the broken file: the two cache saves are the exact lines that kept the old pin green.
+    const anywhereInJob = liveJob.split('\n').filter((line) => /^\s*continue-on-error:\s*true\s*$/.test(line));
+
+    expect(
+      anywhereInJob.length,
+      'live-e2e.yml no longer carries any step-level `continue-on-error: true` (the two bounded ' +
+        'cache saves objectui#7048 added). Those lines are what made a whole-job regex unable ' +
+        'to notice the job-level flag leaving. With them gone the control below no longer ' +
+        'proves the matcher discriminates — either restore a control, or state here that the ' +
+        'distinction has stopped mattering.',
+    ).toBeGreaterThan(0);
+
+    expect(
+      anywhereInJob.filter((line) => /^ {4}\S/.test(line)),
+      'a four-space `continue-on-error: true` slipped through the step-level filter, which ' +
+        'means the two matchers no longer disagree and the control is measuring nothing.',
+    ).toEqual([]);
+  });
+
+  it('declares no `continue-on-error` on the job itself', () => {
+    const jobLevel = jobOwnKeys.filter((line) => /^ {4}continue-on-error\s*:/.test(line));
+
+    expect(
+      jobLevel,
+      'The `live-e2e` job has `continue-on-error` back on it:\n' +
+        jobLevel.map((l) => `  ${l.trim()}`).join('\n') +
+        '\n\nThat flag does not make this lane advisory — it is advisory because it is not a ' +
+        'required check and declares no `merge_group` trigger. What it does is make the ' +
+        'workflow-run and check-suite conclusions report `success` while the job and its check ' +
+        'run report `failure`, so every run-level reader is told the negation of what happened ' +
+        '(objectui#8084, measured on run 34017174769). If the lane must stop failing runs, fix ' +
+        'the lane or narrow what it asserts; ⛔ do not restore the flag that made the aggregate ' +
+        'disagree with its own job. Step-level `continue-on-error:` on the cache saves is a ' +
+        'different thing and stays.',
+    ).toEqual([]);
+  });
+
+  it('says on the page that the two conclusions agree', () => {
+    // The map -> page direction, so the sentence cannot be dropped while this stays green.
+    for (const phrase of ['continue-on-error', 'run conclusion']) {
+      expect(
+        section,
+        `The Live E2E section of content/docs/guide/ci-cd-pipeline.md no longer mentions ` +
+          `"${phrase}". That section is where a reader learns this lane is advisory AND honest ` +
+          `— that its run conclusion agrees with its job — and unpinned prose about this exact ` +
+          `property is what objectui#8084 was filed about. Say it there, or retire this pin ` +
+          `with it.`,
+      ).toContain(phrase);
+    }
   });
 });

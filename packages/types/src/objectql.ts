@@ -1089,9 +1089,41 @@ export interface ObjectFormSection {
   pane?: 'primary' | 'secondary';
 
   /**
-   * Field names or inline field configurations for this section
+   * Field names or inline field configurations for this section.
+   *
+   * OPTIONAL since objectui#7051, and optional ONLY in the sense that
+   * {@link group} is the other way to declare the same fact —
+   * `@objectstack/spec`'s `FormSectionSchema` refuses a section carrying
+   * neither ("A section must declare its members exactly one way") and refuses
+   * one carrying both. It was required here while no form-section renderer
+   * read `group`, so this type refused the exact shape the spec declares and a
+   * TypeScript author could not write the group-reference form at all.
    */
-  fields: (string | FormField)[];
+  fields?: (string | FormField)[];
+
+  /**
+   * Reference a declared field GROUP instead of enumerating members
+   * (`@objectstack/spec` 17.3.0, objectstack#13855, ADR-0085 §5).
+   *
+   * `{ group: 'contact_info' }` inherits the object's `fieldGroups` entry with
+   * that key: its members (every field pointing at it, in declaration order)
+   * and its own presentation (label, description, collapse) both, assembled by
+   * `deriveFieldGroupLayout` — the single assembler this repo never
+   * re-implements.
+   *
+   * Mutually exclusive with {@link fields}, and refused beside every key the
+   * group itself declares (`name`, `label`, `description`, `collapsible`,
+   * `collapsed`, `visibleWhen`) — the spec grants no override semantics, so a
+   * restated key would be a second writable spelling of one fact. What a
+   * section keeps beside `group` is how THIS form lays it out: `columns` and
+   * `pane`. Refused outright on a wizard step (`formType: 'wizard'`), which
+   * has no slot for a group's `collapse` or `visibleWhen`.
+   *
+   * The aliases `fieldGroup` / `groupKey` are NOT accepted spellings: the spec
+   * refuses them as unrecognized keys with a "did you mean `group`" hint, so
+   * they are deliberately absent here too.
+   */
+  group?: string;
 
   /**
    * Conditional visibility for the SECTION HEADER, as an authored predicate.

@@ -1083,6 +1083,7 @@ const de = {
     showEmptyFields: "{{count}} leere Felder anzeigen",
     hideEmptyFields: "Leere Felder ausblenden",
     noValue: "Kein Wert",
+    unresolvedReference: "Nicht aufgelöste Referenz: {{value}} wurde keinem Benutzer zugeordnet",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -2761,6 +2762,13 @@ const de = {
     badgeTotal: "{{total}} insgesamt",
     badgeNotifications: "{{unread}} Benachrichtigungen",
     badgeApprovals: "{{approvals}} ausstehende Genehmigungen",
+    arrivalMany: "{{count}} neue Nachrichten",
+    arrivalRepeats: "{{count}} neue Nachrichten zu diesem Thema",
+    arrivalOpen: "Ansehen",
+    toastEnabled: "Hinweise in der App",
+    desktopEnabled: "Desktop-Benachrichtigungen",
+    desktopBlocked: "Blockiert. Erlauben Sie Benachrichtigungen für diese Website in den Browsereinstellungen.",
+    desktopUnsupported: "Dieser Browser unterstützt keine Desktop-Benachrichtigungen.",
     emptyUnread: "Alles gelesen",
     filterUnread: "Ungelesen",
     filterAll: "Alle",

@@ -86,6 +86,7 @@ const DECLARED_KEYS = [
   'columns',
   'pane',
   'fields',
+  'group',
   'visibleWhen',
 ] as const;
 
@@ -143,6 +144,10 @@ describe('objectui#7200 — `ObjectFormSection` does not declare the retired sec
       columns: true,
       pane: true,
       fields: true,
+      // objectui#7051 — the group-reference form (`@objectstack/spec` 17.3.0,
+      // objectstack#13855). Added to the census, not to the retired list: the
+      // spec DECLARES it on `FormSectionSchema`, and `ObjectForm` resolves it.
+      group: true,
       visibleWhen: true,
     };
     expect(Object.keys(census).sort()).toEqual([...DECLARED_KEYS].sort());

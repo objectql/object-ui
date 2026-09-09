@@ -10,14 +10,35 @@
 # lazily-loaded widget's suspension unwound to the host's route boundary and
 # tore down the flow dialog; zero unit test could see it).
 #
-# ⚠️ INFORMATIONAL, NON-REQUIRED lane — `continue-on-error: true` keeps a
-# failure here from failing the workflow run, so it never blocks a merge and
-# never ejects unrelated PRs from the queue (objectstack#4850 is the prior
-# art for why a new lane must prove itself outside the merge gate first).
-# Do NOT add this job to required checks, and do not remove
-# `continue-on-error`, until the lane has run clean for long enough to trust
-# (watch the nightly schedule). Failures still surface: red step + job summary
-# + the `live-e2e-artifacts` upload. That upload carries `test-results/` (the
+# ⚠️ INFORMATIONAL, NON-REQUIRED lane. What keeps it non-blocking is what it
+# is NOT wired into, and ⛔ never a `continue-on-error:` on the job:
+#   - it is not in the required-check set — ⛔ do not add this job to required
+#     checks until the nightly record proves the lane stable; and
+#   - it declares no `merge_group` trigger, so a queue build never waits on it
+#     and it cannot eject an unrelated pull request from the queue.
+# (objectstack#4850 is the prior art for why a new lane must prove itself
+# outside the merge gate first.)
+#
+# ⛔ Do NOT re-add `continue-on-error: true` to this job (objectui#8084). It
+# bought none of the non-blocking above, and it cost this lane the one reading
+# a monitor, a digest or an agent takes cheaply. Measured on the 2026-09-06
+# nightly, while the job still carried the flag:
+#
+#     step 7 `Start ObjectStack backend`    failure
+#     job 101442890465                      failure
+#     check run `Live E2E (informational)`  failure   <- the flag did not move it
+#     check suite 92170955546               success   <- asserts the negation
+#     workflow run 34017174769              success   <- asserts the negation
+#
+# The flag moved neither the job nor its check run — the two readings a merge
+# gate and a reviewer actually consult — and inverted only the aggregate. So an
+# outage detector reported `success` for a day while the E2E had not executed
+# at all, which is how the backend outage carded as objectui#8084's defect ①
+# ran unseen. Without the flag the run conclusion simply agrees with the job it
+# contains, and the lane stays exactly as advisory as it was.
+#
+# Failures surface as a red step, a red job, a red run, a job summary and the
+# `live-e2e-artifacts` upload. That upload carries `test-results/` (the
 # failure screenshots and videos `use.screenshot` / `use.video` write) and the
 # two server logs — it does NOT carry a Playwright HTML report, because
 # `playwright.live.config.ts` declares `reporter: [['list']]` and the `list`
@@ -61,8 +82,10 @@ jobs:
     name: Live E2E (informational)
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # Non-blocking by construction — see the header comment before touching.
-    continue-on-error: true
+    # ⛔ There is deliberately no `continue-on-error:` here, and ⛔ nothing may
+    # add one back: it never made this job or its check run any less red, it
+    # only made the workflow-run conclusion contradict them (objectui#8084).
+    # The header carries the measurement.
 
     # ⚠️ Do NOT add a `runner.*` expression to this job-level `env:` block.
     # The `runner` context does not exist yet when job-level env is evaluated

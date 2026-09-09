@@ -34,10 +34,30 @@
  * ⚠️ The refusal case is ALSO satisfied by an `extractRecords` that returns
  * `[]` for everything — an implementation strictly worse than the bug. The
  * `data` and bare-array cases refuse it: same rows, same mount.
+ *
+ * ## The two things this file's wait used to STAND ON without saying so (objectui#8709)
+ *
+ * This is the family's only ABSENCE-shaped wait, and an absence carries two
+ * unstated preconditions. Both are now assertions in `markersThrough`, and both
+ * were measured failing first:
+ *
+ *   1. **The panel was ever on screen.** An absence nothing entered is
+ *      satisfied by a mount that never started. With the component mutated to
+ *      `return null` unconditionally the refusal case PASSED — "render nothing,
+ *      ever" is strictly worse than the bug and cleared the old bar.
+ *   2. **`setData` and `setLoading(false)` commit TOGETHER.** The panel is a
+ *      settle signal, not a rows signal; it is only a usable proxy for "the
+ *      rows are on screen" because the two `setState` calls land in one commit.
+ *      With `setData` deferred by 50ms and the `records` arm restored to
+ *      `extractRecords`, the refusal case read zero markers and PASSED while
+ *      the settled map plotted two.
+ *
+ * ⭐ Neither gate subsumes the other: (1) alone still lets a split commit
+ * through, and (2) alone still passes a component that renders nothing.
  */
 
 import React from 'react';
-import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { act, render, screen, waitFor, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // The MapLibre canvas, replaced by DOM the test can count. Copied from
@@ -72,6 +92,17 @@ const schema: any = {
   data: { provider: 'object', object: 'store' },
 };
 
+/**
+ * The window held open AFTER the loading panel clears, to prove no markers
+ * arrive behind it.
+ *
+ * ⚠️ 50ms, not 0ms. RTL's `asyncWrapper` drains one macrotask before it
+ * returns, so a commit scheduled with `setTimeout(…, 0)` lands INSIDE that
+ * drain window — a 0ms window cannot tell a deferred commit from a
+ * same-commit one, and reports "stable" for both (measured on objectui#8664).
+ */
+const POST_SETTLE_MS = 50;
+
 /** How one case wraps its rows on the way back out of `find()`. */
 type Envelope = (rows: unknown[]) => unknown;
 
@@ -105,6 +136,17 @@ async function markersThrough(envelope: Envelope): Promise<number> {
     })),
   };
   render(<ObjectMap schema={schema} dataSource={ds} enableClustering={false} />);
+  // ① The transition's START, observed — the half an ABSENCE-shaped wait cannot
+  // supply for itself. "The panel has cleared" and "nothing was ever rendered"
+  // are the SAME DOM, so without this line the wait below is satisfied by a
+  // mount that never started. MEASURED, not argued: with `ObjectMap` mutated to
+  // `return null` unconditionally — an implementation strictly worse than the
+  // bug — the refusal case below still PASSED (objectui#8709 leg B). It does
+  // not survive this line.
+  expect(
+    screen.getByText('Loading map...'),
+    'the loading panel must be on screen BEFORE the absence wait — an absence nothing entered is satisfied by never having started',
+  ).toBeInTheDocument();
   await waitFor(() => expect(find).toHaveBeenCalled());
   // `find`'s OWN answer, settled — a pure read of the mock's call record that
   // touches no DOM. Without it "no markers" is satisfied by the mount's
@@ -114,7 +156,29 @@ async function markersThrough(envelope: Envelope): Promise<number> {
   // rather than a rows signal, which is exactly what makes it usable as the
   // one wait shared by the live cases and the refusal case.
   await waitFor(() => expect(screen.queryByText('Loading map...')).toBeNull());
-  return screen.queryAllByTestId('map-marker').length;
+  const atPanelClear = screen.queryAllByTestId('map-marker').length;
+  // ② The unstated precondition the line above STANDS ON, now pinned:
+  // `setData(capped.rows)` and `setLoading(false)` reach the DOM in ONE commit.
+  // React 18 batches them today because they sit in one `await` continuation —
+  // true, load-bearing, and asserted by nothing else in this repo. The day they
+  // split (a transition, an async boundary, a `startTransition`) the panel
+  // clears over an EMPTY `data` and the count read above is the INTERMEDIATE
+  // state. MEASURED: with `setData` deferred by 50ms and the `records` arm
+  // restored to `extractRecords`, the refusal case read zero markers and PASSED
+  // while the settled map plotted two — the bug went undetected (leg A).
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, POST_SETTLE_MS));
+  });
+  // A dependency landing mid-window (`objectSchema`, `perms`) re-runs the fetch
+  // effect and re-raises the panel, so re-settle before re-reading: the claim is
+  // about the SETTLED count, not about a moment inside a refetch.
+  await waitFor(() => expect(screen.queryByText('Loading map...')).toBeNull());
+  const settled = screen.queryAllByTestId('map-marker').length;
+  expect(
+    settled,
+    'markers must not arrive AFTER the loading panel clears — the count read at the transition must already be the settled one',
+  ).toBe(atPanelClear);
+  return settled;
 }
 
 afterEach(() => {

@@ -22,6 +22,15 @@
  * the other name, while its `FieldGroup` is the Studio field-editor's group
  * config. Renaming to the spec's own name was the fix.
  *
+ * Later collisions are APPENDED to `RENAMES` under their own card rather than
+ * folded into the census above: twenty-eight / twenty / eight is a measurement
+ * of the batch-3 burn-down at the time it was taken, and re-counting it here
+ * whenever a new symbol arrives would make it unreproducible.
+ * `BrowserNotificationPreferences` (objectui#7011) is the first such arrival —
+ * `hooks/notificationPreferences.ts` holds the two per-browser announcement
+ * switches, which is a different layer from the spec's account-level delivery
+ * routing; the measurement that decided rename-over-derive is in that file.
+ *
  * A rename only stays a fix for as long as the new name is genuinely free. If
  * the spec later ships a `FlowDesignerNode`, this package would quietly be back
  * where it started — a local declaration under a spec export's name, read by
@@ -165,6 +174,11 @@ const RENAMES: Array<[local: string, formerly: string, specMeaning: string]> = [
   ['FlowDesignerEdge', 'FlowEdge', 'a COMPLETE authored flow edge (id required, condition needs `dialect`)'],
   ['PackageManifestRow', 'PackageManifest', 'the full authored package manifest (~40 keys)'],
   ['InstalledPackageRow', 'InstalledPackage', 'the full install record (installedAt, upgradeHistory, …)'],
+  [
+    'BrowserNotificationPreferences',
+    'NotificationPreferences',
+    "the ACCOUNT's server-persisted delivery routing — `email` / `push` / `inApp` / `digest` / `channels`, moved by the `getNotificationPreferences` API pair",
+  ],
 ];
 
 /**

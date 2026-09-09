@@ -4,7 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { propertyChainProbe, sweep, textFootprint } from '../check-i18n-dead-keys.mjs';
+import {
+  DESIGNER_TABLE,
+  collectDesignerKeys,
+  propertyChainProbe,
+  sweep,
+  sweepDesignerTable,
+  textFootprint,
+} from '../check-i18n-dead-keys.mjs';
 
 /**
  * objectui#4658 — the behaviour test for `scripts/check-i18n-dead-keys.mjs`,
@@ -476,5 +483,232 @@ describe('the script is wired for discovery, not for enforcement', () => {
         /check-i18n-dead-keys\.mjs/,
       );
     }
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * objectui#8388 — the SECOND corpus: the metadata-admin designer's module-local
+ * `ENGINE_STRINGS_EN` / `ENGINE_STRINGS_ZH` table.
+ *
+ * Same synthetic-fixture discipline as the pack suite above, and one extra
+ * constraint it does not have: ⛔ no assertion here may spell a key that the
+ * REAL table actually declares. `textFootprint()` greps the whole repository,
+ * so a test file naming a real candidate becomes a textual hit for it and
+ * silently demotes that key from CONFIRMED to NEEDS-REVIEW in the real report —
+ * the report these tests exist to keep trustworthy. Every key below therefore
+ * lives under a namespace segment the real table has no entry for. (This is not
+ * hypothetical: a scratch probe placed inside the repo during this card's own
+ * development demoted all four of objectui#8547's dead keys, and the reading
+ * only came back right once the probe was moved out of the scanned tree.)
+ *
+ * There is deliberately NO real-repo assertion here that names a key or pins a
+ * candidate COUNT. Both would turn a report-only instrument into an enforcing
+ * one through the back door: the count moves whenever anyone adds a string, and
+ * the four keys this card's positive control uses are themselves scheduled for
+ * deletion by objectui#8547 — a pin on either would red an unrelated PR. The
+ * real-repo readings are taken by running the script, and they live in the PR
+ * body and the issue report, which is what a report-only shape means.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** The fixture table, written to the exact path `DESIGNER_TABLE` names.
+ *  `engine.fx.*` / `designer.fx.*` are chosen so no assertion in this file
+ *  spells a key the real table declares — see the block comment above. */
+const DESIGNER_TABLE_FIXTURE = `
+/**
+ * Fixture module docblock that QUOTES a key in prose: t('engine.fx.quotedInDoc').
+ * A whole-file grep would read this sentence as a reader; the AST walk must not.
+ */
+const ENGINE_STRINGS_EN: Record<string, string> = {
+  'engine.fx.spelled': 'Spelled at a call site',
+  'engine.fx.quotedInDoc': 'Only this file mentions it, and only in a comment',
+  'engine.fx.builtHead.alpha': 'Reached by a template head',
+  'engine.fx.builtHead.beta': 'Reached by the same template head',
+  'engine.fx.prefix': 'A strict prefix of the next key',
+  'engine.fx.prefix.longer': 'The longer sibling, spelled at a call site',
+  'engine.fx.mentionedInTest': 'Only a test file spells this',
+  'engine.fx.dead': 'Nothing reads this at all',
+  'designer.fx.dead': 'Nothing reads this either',
+};
+
+const ENGINE_STRINGS_ZH: Record<string, string> = {
+  'engine.fx.spelled': '调用点拼写',
+  'engine.fx.quotedInDoc': '仅注释提及',
+  'engine.fx.builtHead.alpha': '模板头可达',
+  'engine.fx.builtHead.beta': '同一模板头',
+  'engine.fx.prefix': '更长键的前缀',
+  'engine.fx.prefix.longer': '更长的兄弟键',
+  'engine.fx.mentionedInTest': '仅测试提及',
+  'engine.fx.dead': '无人读取',
+  'designer.fx.dead': '也无人读取',
+  'engine.fx.zhOnly': '只有中文表里有',
+};
+
+function pickTable(locale?: string) {
+  return { strings: locale === 'zh-CN' ? ENGINE_STRINGS_ZH : ENGINE_STRINGS_EN };
+}
+
+export function t(key: string, locale?: string): string {
+  return pickTable(locale).strings[key] ?? key;
+}
+
+/** The in-module reader shape no call-site walker can see: a template-built key
+ *  indexed straight into the table, with no t() call anywhere near it. */
+export function translateZhOnly(kind: string, locale?: string): string | undefined {
+  return pickTable(locale).strings[\`engine.fx.zhOnly\${kind}\`];
+}
+`;
+
+/** A shipped consumer: one literal call site, one template-built family, and
+ *  the LONGER sibling of a key that is a strict prefix of it. */
+const DESIGNER_CONSUMER = `
+import { t } from './i18n';
+export function Panel({ variant, locale }: { variant: string; locale?: string }) {
+  return [
+    t('engine.fx.spelled', locale),
+    t(\`engine.fx.builtHead.\${variant}\`, locale),
+    t('engine.fx.prefix.longer', locale),
+  ];
+}
+`;
+
+/** A test file — out of the AST walk's population, in the text net's. */
+const DESIGNER_TEST_MENTION = `
+it('renders', () => {
+  expect(labels).toContain('engine.fx.mentionedInTest');
+});
+`;
+
+function designerRoot(overrides: Record<string, string> = {}): string {
+  return repoWith({
+    [DESIGNER_TABLE]: DESIGNER_TABLE_FIXTURE,
+    'packages/app-shell/src/views/metadata-admin/Panel.tsx': DESIGNER_CONSUMER,
+    'packages/app-shell/src/views/metadata-admin/__tests__/Panel.test.tsx': DESIGNER_TEST_MENTION,
+    ...overrides,
+  });
+}
+
+const keysOf = (entries: Array<{ key: string }>): string[] => entries.map((e) => e.key);
+
+describe('collectDesignerKeys()', () => {
+  it('reads both tables and unions them, so a zh-only key is still in the corpus', () => {
+    const { tables, corpus } = collectDesignerKeys(designerRoot());
+    expect(tables.get('ENGINE_STRINGS_EN')!.size).toBe(9);
+    expect(tables.get('ENGINE_STRINGS_ZH')!.size).toBe(10);
+    expect(corpus.size).toBe(10);
+    expect(corpus.has('engine.fx.zhOnly')).toBe(true);
+  });
+
+  it('throws when a table constant is missing, rather than sweeping an empty corpus', () => {
+    const root = repoWith({
+      [DESIGNER_TABLE]: "const ENGINE_STRINGS_EN: Record<string, string> = { 'engine.fx.dead': 'x' };\n",
+    });
+    // A silent empty ZH table would make every en key read as "en-only" and
+    // every zh key vanish from the corpus — a stale extractor must be loud.
+    expect(() => collectDesignerKeys(root)).toThrow(/ENGINE_STRINGS_ZH/);
+  });
+});
+
+describe('sweepDesignerTable()', () => {
+  it('excludes a key spelled as a literal at a call site', () => {
+    const result = sweepDesignerTable(designerRoot());
+    expect(keysOf(result.confirmed)).not.toContain('engine.fx.spelled');
+    expect(keysOf(result.needsReview)).not.toContain('engine.fx.spelled');
+  });
+
+  it('excludes every key a dynamic template head can reach — the negative control', () => {
+    const result = sweepDesignerTable(designerRoot());
+    const listed = [...keysOf(result.confirmed), ...keysOf(result.needsReview)];
+    expect(listed).not.toContain('engine.fx.builtHead.alpha');
+    expect(listed).not.toContain('engine.fx.builtHead.beta');
+    // …and the head is REPORTED with the count of keys it alone holds live, so
+    // a family that silently stops being template-built is visible as a row
+    // falling to zero rather than as a longer candidate list.
+    expect(result.dynamicHeads.has('engine.fx.builtHead.')).toBe(true);
+    expect(result.headHeldCounts.get('engine.fx.builtHead.')).toBe(2);
+  });
+
+  it('reads template heads inside the table module itself, where there is no t() call at all', () => {
+    // `translateZhOnly` indexes `pickTable(locale).strings[...]` directly. Every
+    // call-site walker in this repo is blind to that shape by construction, and
+    // it is how the real table's flow-node and enum families are reached.
+    const result = sweepDesignerTable(designerRoot());
+    expect(result.dynamicHeads.has('engine.fx.zhOnly')).toBe(true);
+    expect([...keysOf(result.confirmed), ...keysOf(result.needsReview)]).not.toContain('engine.fx.zhOnly');
+  });
+
+  it('lists a key nothing reads as CONFIRMED — the positive control', () => {
+    const result = sweepDesignerTable(designerRoot());
+    expect(keysOf(result.confirmed)).toContain('engine.fx.dead');
+    expect(keysOf(result.confirmed)).toContain('designer.fx.dead');
+  });
+
+  it('reports which table(s) declare each candidate', () => {
+    const result = sweepDesignerTable(designerRoot());
+    const dead = result.confirmed.find((c) => c.key === 'engine.fx.dead');
+    expect(dead?.tables).toEqual(['ENGINE_STRINGS_EN', 'ENGINE_STRINGS_ZH']);
+  });
+
+  it('does not count the table module’s own docblock as a reader', () => {
+    // The definition file is excluded from the text net wholesale, precisely so
+    // a key quoted in the module header cannot masquerade as a call site.
+    const result = sweepDesignerTable(designerRoot());
+    expect(keysOf(result.confirmed)).toContain('engine.fx.quotedInDoc');
+  });
+
+  it('does not count a definition line as a reference', () => {
+    // Both tables spell every key. If the reader walk descended into the table
+    // initializers, the candidate list would always be empty.
+    const result = sweepDesignerTable(designerRoot());
+    expect(result.candidateCount).toBeGreaterThan(0);
+  });
+
+  it('keeps a candidate that is a strict PREFIX of a live sibling in CONFIRMED', () => {
+    // `engine.fx.prefix.longer` is spelled at a call site; `engine.fx.prefix` is
+    // not. A plain substring grep reads the sibling's line as a hit for the
+    // shorter key and demotes it, sending a human to a line that never mentions
+    // their key. The key-boundary check is what stops that.
+    const result = sweepDesignerTable(designerRoot());
+    expect(keysOf(result.confirmed)).toContain('engine.fx.prefix');
+    expect(keysOf(result.needsReview)).not.toContain('engine.fx.prefix');
+  });
+
+  it('demotes a key that only a TEST file spells to NEEDS-REVIEW, with the file named', () => {
+    const result = sweepDesignerTable(designerRoot());
+    const entry = result.needsReview.find((c) => c.key === 'engine.fx.mentionedInTest');
+    expect(entry, 'a test-only mention must land in NEEDS-REVIEW, not CONFIRMED').toBeDefined();
+    expect(entry!.hits.join(' ')).toContain('__tests__/Panel.test.tsx');
+  });
+
+  it('reports a head too wide to apply instead of silently marking a namespace live', () => {
+    const result = sweepDesignerTable(
+      designerRoot({
+        'packages/app-shell/src/views/metadata-admin/Wide.tsx':
+          "import { t } from './i18n';\nexport const w = (x: string) => t(`engine.${x}`);\n",
+      }),
+    );
+    expect(result.wideHeads).toContain('engine.');
+    // …and it must NOT have been applied: the dead keys are still listed.
+    expect(keysOf(result.confirmed)).toContain('engine.fx.dead');
+  });
+});
+
+describe('textFootprint() key-boundary option', () => {
+  it('is off by default, so the pack sweep’s measured behaviour is unchanged', () => {
+    const root = repoWith({ 'packages/x/src/a.ts': "export const k = 'ns.group.leaf.detail';\n" });
+    expect(textFootprint(root, ['ns.group.leaf']).get('ns.group.leaf')).toEqual(['packages/x/src/a.ts']);
+  });
+
+  it('rejects a match that continues into a longer key when enabled', () => {
+    const root = repoWith({ 'packages/x/src/a.ts': "export const k = 'ns.group.leaf.detail';\n" });
+    expect(
+      textFootprint(root, ['ns.group.leaf'], { propertyChain: false, keyBoundary: true }).get('ns.group.leaf'),
+    ).toEqual([]);
+  });
+
+  it('still matches the whole key when enabled', () => {
+    const root = repoWith({ 'packages/x/src/a.ts': "export const k = 'ns.group.leaf';\n" });
+    expect(
+      textFootprint(root, ['ns.group.leaf'], { propertyChain: false, keyBoundary: true }).get('ns.group.leaf'),
+    ).toEqual(['packages/x/src/a.ts']);
   });
 });

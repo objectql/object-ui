@@ -1239,6 +1239,7 @@ const en = {
     showEmptyFields: 'Show {{count}} empty fields',
     hideEmptyFields: 'Hide empty fields',
     noValue: 'No value',
+    unresolvedReference: 'Unresolved reference: {{value}} was not resolved to a user',
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -3150,6 +3151,15 @@ const en = {
     badgeTotal: '{{total}} total',
     badgeNotifications: '{{unread}} notifications',
     badgeApprovals: '{{approvals}} pending approvals',
+    // objectui#7011 — the arrival announcement (toast / desktop notification)
+    // and the two switches that govern it.
+    arrivalMany: '{{count}} new messages',
+    arrivalRepeats: '{{count}} new messages on this topic',
+    arrivalOpen: 'View',
+    toastEnabled: 'In-app alerts',
+    desktopEnabled: 'Desktop notifications',
+    desktopBlocked: 'Blocked. Allow notifications for this site in your browser settings.',
+    desktopUnsupported: 'This browser does not support desktop notifications.',
   },
   publicForm: {
     submit: 'Submit',

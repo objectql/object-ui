@@ -15,7 +15,7 @@ import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeL
 import { valueSchemaFor } from '@objectstack/spec/data';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
-import { Check, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
+import { Check, Copy, Phone as PhoneIcon, MapPin, CircleQuestionMark } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
 import { useRelatedRecordActions } from '@object-ui/react';
@@ -2218,6 +2218,91 @@ export function FormulaCellRenderer({ value }: CellRendererProps): React.ReactEl
 }
 
 /**
+ * A `user` reference this screen did NOT resolve to a person (objectui#8434).
+ *
+ * ## Why a primitive here is never "the ID or username"
+ *
+ * `user` is a lookup specialised to `sys_user`: `@objectstack/spec` puts it in
+ * `REFERENCE_VALUE_TYPES`, whose stored form is a record id and whose expanded
+ * form is the related record OBJECT. So the object branches below are the
+ * resolved case, and a primitive reaching this renderer means exactly one
+ * thing — nothing on this screen turned that reference into a person.
+ *
+ * The branch this replaces printed it as bare text, byte-identical to what a
+ * `text` cell prints. Measured on the merged tree: `'Ada Lovelace'` (a name
+ * written into the column), `'u_1'` and an opaque ULID all rendered as
+ * `<span class="block max-w-full truncate" title="…">…</span>` — while an
+ * expanded object rendered avatar + name. The ONLY difference between "we
+ * resolved this person" and "we resolved nothing" was the ABSENCE of the
+ * avatar, and a user who has never seen the avatar has no reason to read
+ * absence as a failure. A subtractive signal is not a signal.
+ *
+ * ## Why the sentence says "unresolved" and not "not found"
+ *
+ * Measured, not assumed: this branch has TWO populations and cannot tell them
+ * apart.
+ *
+ *   1. a `sys_user` id that arrived UNEXPANDED — the legitimate stored form.
+ *      `packages/core/src/utils/expand-fields.ts` names it in those words:
+ *      "a `user` column that is NOT requested for expansion comes back as a
+ *      raw user id" (objectui#2032). The record exists.
+ *   2. a string that is not a resolvable reference at all — a person's name
+ *      written into the column (cloud#2074), which the save path refuses with
+ *      `reference_not_found`.
+ *
+ * Both arrive as the same primitive, so a "not found" claim would be FALSE for
+ * (1) — the same class of defect this card repairs, aimed the other way. What
+ * is true of both is epistemic: this screen did not resolve it. The affordance
+ * says that and nothing more.
+ *
+ * ⛔ The raw value stays VISIBLE and un-elided. It is the only clue for
+ * diagnosing an existing dirty row, so this is deliberately NOT
+ * `LookupCellRenderer`'s muted em-dash for opaque ids — that treatment buys
+ * tidiness by destroying the evidence.
+ *
+ * ⚠️ No `pointer-events-none` here, unlike `EmptyValue`: that utility stops the
+ * span being a hit target, so a `title` on it never renders a tooltip
+ * (objectui#8506). The stated sentence has to be reachable by hovering.
+ */
+function UnresolvedUserReference({
+  value,
+  className,
+}: {
+  value: unknown;
+  className?: string;
+}): React.ReactElement {
+  const t = useFieldTranslate();
+  const raw = String(value);
+  // The key is written as a LITERAL at both sites on purpose:
+  // `check:i18n-keys` judges a literal key against the `en` pack and checks
+  // that the arguments here are exactly the holes that value has, and it
+  // downgrades a key read from a constant to report-only. A shared constant
+  // would have bought tidiness at the cost of the gate.
+  const translated = t?.('detail.unresolvedReference', { value: raw });
+  // Same provider-less rule `useFieldLabel` documents: i18next echoes the key
+  // when nothing resolves it, and the English fallback applies then. That
+  // fallback is held byte-equal to the `en` pack's value by a pin, since this
+  // shape is invisible to the inline-`defaultValue` half of `check:i18n-keys`.
+  const hint =
+    !translated || translated === 'detail.unresolvedReference'
+      ? `Unresolved reference: ${raw} was not resolved to a user`
+      : translated;
+  return (
+    <span
+      data-slot="unresolved-reference"
+      className={cn(
+        'inline-flex min-w-0 max-w-full items-center gap-1 text-muted-foreground',
+        className,
+      )}
+      title={hint}
+    >
+      <CircleQuestionMark className="size-3.5 shrink-0" aria-hidden="true" />
+      <span className="truncate">{raw}</span>
+    </span>
+  );
+}
+
+/**
  * User/Owner field cell renderer (with avatars)
  */
 export function UserCellRenderer({ value }: CellRendererProps): React.ReactElement {
@@ -2225,18 +2310,26 @@ export function UserCellRenderer({ value }: CellRendererProps): React.ReactEleme
   // branch below and rendered an empty stack (objectui#8481).
   if (!value || isEmptyMultiValue(value)) return <EmptyValue />;
 
-  // Primitive value: just display the ID/username as text
+  // A primitive is an UNRESOLVED reference, not "the ID/username" (objectui#8434).
+  // The comment that stood here stated the branch's premise, and the premise was
+  // wrong: printing the raw string as displayable text renders "resolution
+  // failed" as "resolution succeeded". See `UnresolvedUserReference` for the two
+  // populations that reach here and why the sentence is epistemic.
   if (typeof value !== 'object') {
-    return <TruncatedText text={String(value)} />;
+    return <UnresolvedUserReference value={value} />;
   }
   
   if (Array.isArray(value)) {
     return (
       <div className="flex -space-x-2">
         {value.slice(0, 3).map((user, idx) => {
-          // Primitive user in array
+          // The same ruling as the scalar branch above, one input-shape over
+          // (objectui#8434): an entry that is not an expanded record is a
+          // reference this screen did not resolve, and it said so by drawing
+          // nothing. A multi-value `user` field must not be honest on its
+          // single-value shape and silent on this one.
           if (typeof user !== 'object' || user === null) {
-            return <TruncatedText key={idx} text={String(user)} className="text-sm" />;
+            return <UnresolvedUserReference key={idx} value={user} className="text-sm" />;
           }
           // An entry carrying nothing names no person (objectui#8596) — the
           // same ruling as the scalar branch below, one input-shape over.

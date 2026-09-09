@@ -41,6 +41,7 @@ import {
   enrichDetailField,
   isComputedFieldType,
   isInlineExcludedDetailFieldType,
+  isMaskedDetailFieldType,
 } from './fieldEnrichment';
 
 /**
@@ -324,6 +325,12 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     // The container family rode the same fallback with an object-shaped value.
     // Read as the same narrow-only UNION as `isComputedFieldType` (#3355).
     const isInlineExcluded = isInlineExcludedDetailFieldType(field.type, objectDefField?.type);
+    // Types whose CELL is drawn as a mask (`password` / `secret`). Read the two
+    // types SEPARATELY for the same narrow-only union as the gates above
+    // (objectui#3355). Consumed by the copy affordance below — the mask and the
+    // clipboard are the READ direction of the same refusal, and `isInlineExcluded`
+    // (objectui#4221) already holds the WRITE direction of it.
+    const isMaskedField = isMaskedDetailFieldType(field.type, objectDefField?.type);
     const fieldEditable = !isReadonly && !isComputedField && !isSystemField && !isInlineExcluded;
     const canInlineEditField = fieldEditable && !!onEnterInlineEdit;
 
@@ -383,10 +390,28 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     // tests were raw and agreed by coincidence; fixing only the affordance
     // would have put a copy button next to an em-dash that copies spaces.
     const canCopy = hasCellValue(value);
+    // ⭐ A MASKED row offers no copy affordance at all (objectui#8440, maintainer
+    // ruling 2026-09-08 option A). The cell deliberately refuses to render the
+    // value; the affordance on the same row handed the RAW credential to the
+    // clipboard — silently, with no error and no visible sign, which is worse
+    // than not masking at all because the reader believes the value is
+    // protected. ⛔ The refusal is NOT spelled into `canCopy`: that name is one
+    // of the readers of `hasCellValue` (objectui#8376) that MUST agree on which
+    // rows are EMPTY, and a masked row is not an empty one — it is a row whose
+    // value this surface declines to hand over. Narrowing there would move the
+    // emptiness answer for every reader of it.
+    //
+    // ⛔ Nor is it spelled into `handleCopyField`: option B — copying the
+    // bullets — was considered and refused as a second silent wrong answer, so
+    // there is nothing for the handler to write. Withdrawing the affordance is
+    // the whole fix, and it is withdrawn at EVERY site that reaches the handler
+    // (the desktop row, its Enter/Space, its hover button, and the mobile
+    // grouped-inset row's click and Enter/Space).
+    const copyOffered = canCopy && !isMaskedField;
     // An editable field surfaces the pencil (edit) affordance instead of the
     // copy affordance, and reserves single-click for text selection — so
     // click-to-copy only applies to non-editable fields.
-    const copyInteractive = canCopy && !canInlineEditField;
+    const copyInteractive = copyOffered && !canInlineEditField;
     const isCopied = copiedField === field.name;
     const fieldLabelText = fieldLabel(objectName || '', field.name, field.label || field.name);
 
@@ -400,14 +425,14 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
           key={field.name}
           className={cn(
             "flex items-baseline justify-between gap-4 py-2.5 min-h-[44px] group",
-            canCopy && "cursor-pointer active:bg-muted/40 transition-colors",
+            copyOffered && "cursor-pointer active:bg-muted/40 transition-colors",
           )}
-          onClick={canCopy ? () => handleCopyField(field.name, value) : undefined}
-          onKeyDown={canCopy ? (e: React.KeyboardEvent) => {
+          onClick={copyOffered ? () => handleCopyField(field.name, value) : undefined}
+          onKeyDown={copyOffered ? (e: React.KeyboardEvent) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCopyField(field.name, value); }
           } : undefined}
-          role={canCopy ? 'button' : undefined}
-          tabIndex={canCopy ? 0 : undefined}
+          role={copyOffered ? 'button' : undefined}
+          tabIndex={copyOffered ? 0 : undefined}
         >
           <span className="text-[15px] text-muted-foreground shrink-0">{fieldLabelText}</span>
           <span className="text-[15px] text-foreground text-right break-words min-w-0 leading-snug">{displayValue}</span>
@@ -499,7 +524,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          ) : canCopy ? (
+          ) : copyOffered ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

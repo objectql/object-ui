@@ -1083,6 +1083,7 @@ const ko = {
     showEmptyFields: "{{count}}개의 빈 필드 표시",
     hideEmptyFields: "빈 필드 숨기기",
     noValue: "값 없음",
+    unresolvedReference: "확인되지 않은 참조: {{value}}을(를) 사용자로 확인하지 못했습니다",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -2760,6 +2761,13 @@ const ko = {
     badgeTotal: "총 {{total}}건",
     badgeNotifications: "알림 {{unread}}건",
     badgeApprovals: "승인 대기 {{approvals}}건",
+    arrivalMany: "새 메시지 {{count}}건",
+    arrivalRepeats: "이 주제의 새 메시지 {{count}}건",
+    arrivalOpen: "보기",
+    toastEnabled: "앱 내 알림",
+    desktopEnabled: "데스크톱 알림",
+    desktopBlocked: "차단됨. 브라우저 설정에서 이 사이트의 알림을 허용하세요.",
+    desktopUnsupported: "이 브라우저는 데스크톱 알림을 지원하지 않습니다.",
     emptyUnread: "모두 읽음",
     filterUnread: "읽지 않음",
     filterAll: "전체",

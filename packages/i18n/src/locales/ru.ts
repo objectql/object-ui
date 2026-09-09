@@ -1093,6 +1093,7 @@ const ru = {
     showEmptyFields: "Показать {{count}} пустых полей",
     hideEmptyFields: "Скрыть пустые поля",
     noValue: "Нет значения",
+    unresolvedReference: "Неразрешённая ссылка: {{value}} не удалось сопоставить с пользователем",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -2774,6 +2775,13 @@ const ru = {
     badgeTotal: "Всего: {{total}}",
     badgeNotifications: "{{unread}} уведомлений",
     badgeApprovals: "{{approvals}} ожидающих утверждений",
+    arrivalMany: "Новых сообщений: {{count}}",
+    arrivalRepeats: "Новых сообщений по этой теме: {{count}}",
+    arrivalOpen: "Открыть",
+    toastEnabled: "Оповещения в приложении",
+    desktopEnabled: "Уведомления на рабочем столе",
+    desktopBlocked: "Заблокировано. Разрешите уведомления для этого сайта в настройках браузера.",
+    desktopUnsupported: "Этот браузер не поддерживает уведомления на рабочем столе.",
     emptyUnread: "Всё прочитано",
     filterUnread: "Непрочитанные",
     filterAll: "Все",
