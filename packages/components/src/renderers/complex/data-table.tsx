@@ -14,7 +14,7 @@ import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { describeIgnoredBind, describeNonArrayData } from './dataTableBindDiagnostic';
 import { ComponentRegistry, compareSortValues, evalRowPredicate, formatDate, formatDateTime, getSortValue } from '@object-ui/core';
 import type { DataTableSchema, TableSortItem, TableColumnType } from '@object-ui/types';
-import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
+import { SchemaRenderer, toRenderableSchema, useRowPredicate, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { 
   Table, 
@@ -2156,10 +2156,48 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         `type` is missing or unregistered now gets the
                         platform's uniform "unknown component type" report
                         instead of rendering as silent nothing here — one
-                        answer for malformed metadata, not a private one. */}
-                    {schema.emptyAction && typeof schema.emptyAction === 'object' && (
-                      <SchemaRenderer schema={schema.emptyAction} />
-                    )}
+                        answer for malformed metadata, not a private one.
+
+                        No object-only guard either (objectui#8331), ruled one
+                        slot over together with the declaration: objectui#7105
+                        (director seat, decision batch #69, 2026-09-07) settled
+                        the identical shape on `EmptySchema.action` as RELAX THE
+                        RENDERER, do not narrow the declaration. `emptyAction`
+                        is declared `SchemaNode` on BOTH published faces, and a
+                        `typeof === 'object'` test made this slot narrower than
+                        the thing it declares: a bare string was silently
+                        DROPPED instead of rendering as its own text.
+
+                        The truthiness leg STAYS and the `&&` chain became a
+                        ternary. Both are load-bearing, and together they make
+                        this slot behave exactly as handing the raw node to
+                        `SchemaRenderer` would - the "one answer, not a private
+                        one" rule above, extended to the non-object members of
+                        the union:
+
+                        - `toRenderableSchema` is the repo's permanent bridge
+                          onto `SchemaRendererProps['schema']`, which declares
+                          no `number` / `boolean` (objectui#4548 ruling Q2). It
+                          maps those two onto their `String` form, which is
+                          behaviour-preserving for the TRUTHY ones - that is
+                          what the renderer's own defensive branch produces -
+                          but NOT for `0` / `false`, which `SchemaRenderer`
+                          renders as nothing (pinned, objectui#4548). Gating on
+                          truthiness keeps those two away from the bridge, so
+                          they keep the platform's answer instead of arriving as
+                          the text "0" and "false". Do not "tidy" the leg into a
+                          nullish test.
+                        - The ternary replaces an `&&` chain that LEAKED: with
+                          `emptyAction: 0` the chain evaluated to the number `0`
+                          itself, which React renders as a stray "0" inside the
+                          empty state. That is the numeric-falsy JSX trap, not a
+                          decision; a ternary yields `null` instead.
+
+                        Both legs are pinned in
+                        `__tests__/data-table-empty-action-primitive-node.test.tsx`. */}
+                    {schema.emptyAction ? (
+                      <SchemaRenderer schema={toRenderableSchema(schema.emptyAction)} />
+                    ) : null}
                   </div>
                 </TableCell>
               </TableRow>
