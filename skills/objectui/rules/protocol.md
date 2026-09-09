@@ -280,7 +280,7 @@ form-supported type (`select`, `lookup`, `date`, `file`, `image`, `richtext`,
   options, lookup config, `multiple`/`accept`/`maxSize` from the object field;
   inline properties override.
 - `required` blocks submit; `visible` is a CEL predicate
-  (`features` / `current_user` / `app` / `data`) that hides the param.
+  (`data` / `features` / `current_user`) that hides the param.
 
 **❌ DO NOT** invent param-only type spellings — use spec `FieldType` values.
 **❌ DO NOT** add bespoke per-type render branches to `ActionParamDialog`;
