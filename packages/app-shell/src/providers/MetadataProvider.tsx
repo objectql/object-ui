@@ -786,6 +786,23 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
       const promise = fetchItem
         .then((res: unknown) => {
           const item = extractItem(res);
+          // objectui#7650 — the BY-NAME serve path needs the same
+          // canonicalization the LIST path applies in `ensureType` above.
+          //
+          // `extractItem` only unwraps the `{ item }` envelope; it normalizes
+          // nothing. So an object def fetched by name reached readers carrying
+          // whichever single spelling its producer stored, while the very same
+          // def arriving through `ensureType` carried both. Which one a reader
+          // got depended on cache order, not on the document — a cold
+          // `useMetadataItem('object', name)` took this path, a warm one hit
+          // the list-populated `byName` entry above and saw the stamped def.
+          //
+          // This is a serve path, not an ingestion path in miniature: the
+          // published `useMetadataItem` hook is exported from
+          // `@object-ui/app-shell`, so the raw def reaches out-of-repo
+          // consumers too. Idempotent and in place, so a def the list pass
+          // already stamped is untouched.
+          if (type === 'object' && item) normalizeSchemaReferenceKeys(item);
           if (item) entry.byName.set(name, item);
           debug(`fetched item type=${type} name=${name} in ${Date.now() - started}ms`);
           pending!.delete(name);

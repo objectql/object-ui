@@ -50,14 +50,23 @@
  * ## ⛔ WHAT THIS WARNING DOES NOT COVER — state it, do not overclaim it
  *
  * This warning fires ONLY where this file runs, and this file runs at exactly
- * two production call sites, both of them ingestion choke points:
+ * three production call sites, all of them ingestion choke points:
  *
- *   packages/app-shell/src/providers/MetadataProvider.tsx  (metadata type `object`)
+ *   packages/app-shell/src/providers/MetadataProvider.tsx  (`ensureType`, metadata type `object`)
+ *   packages/app-shell/src/providers/MetadataProvider.tsx  (`getItem`,    metadata type `object`)
  *   packages/data-objectstack/src/index.ts                 (ObjectStackAdapter.getObjectSchema)
  *
- * Both of those STAMP the def, so a def that triggers this warning is also a
- * def that still resolves. ⇒ The warning fires precisely where nothing is
- * broken.
+ * All three STAMP the def, so a def that triggers this warning is also a def
+ * that still resolves. ⇒ The warning fires precisely where nothing is broken.
+ *
+ * ⚠️ The third of those is new in objectui#7650 and the count above used to
+ * read TWO. The old count was true about where this file RAN and false about
+ * the serve surface it was cited for: `MetadataProvider` normalized on its
+ * LIST path only, so an object def fetched BY NAME — the published
+ * `useMetadataItem` hook, and any cold-cache read behind it — was served with
+ * whichever single spelling the producer stored. ⛔ Do not re-derive this list
+ * by grepping for the call: derive it from the serve paths that hand an object
+ * schema to a reader, and check each one calls in.
  *
  * ⚠️ The BREAK surface is the complement of that: `getObjectSchema` is a
  * required member of the published `DataSource` interface and the readers call
