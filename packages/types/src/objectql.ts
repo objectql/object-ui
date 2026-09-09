@@ -2811,11 +2811,13 @@ export interface ObjectCalendarSchema extends BaseSchema {
    * this key is its fifth member, not a new dialect. And under `BaseSchema`'s
    * index signature the value was already `any`, so declaring only NARROWS.
    *
-   * ⭐ Nor is it a new precedent: {@link CalendarViewSchema} — the sibling
-   * `calendar-view` element, drawn by the SAME renderer (`plugin-calendar`
-   * registers `ObjectCalendarRenderer` under both type names) — has shipped all
-   * five of these keys declared, `allDayField` included. This interface was the
-   * odd one out, not the pioneer, and the pin keeps the two from forking.
+   * ⭐ Nor is it a new precedent: {@link CalendarViewSchema} — a sibling
+   * calendar interface in the same plugin, whose OWN renderer
+   * (`plugin-calendar/src/calendar-view-renderer.tsx`) reads the same five flat
+   * keys — has shipped all five declared, `allDayField` included, on both
+   * faces. Two interfaces, two renderers, one flat vocabulary: this interface
+   * was the odd one out, not the pioneer, and the pin keeps that shared
+   * vocabulary from drifting apart.
    */
   allDayField?: string;
   /**

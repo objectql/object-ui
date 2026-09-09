@@ -139,9 +139,10 @@ export type _ControlKeyFallsThrough = Expect<IsAny<TsObjectCalendarSchema['swatc
 // objectui#7927's ceiling, pinned rather than claimed away.
 export type _MisspellingStillAdmitted = Expect<IsAny<TsObjectCalendarSchema['colourField']>>;
 
-// The SIBLING element, drawn by the same renderer, already declares all five.
-// A member that fell back to the index signature reads as `any` and fails these,
-// so these five lines are what would catch the two interfaces forking again.
+// The SIBLING interface in the same plugin — served by its OWN renderer, which
+// reads the same five flat keys — already declares all five. A member that fell
+// back to the index signature reads as `any` and fails these, so these five
+// lines are what would catch the shared flat vocabulary drifting apart.
 type Declared<T, K extends keyof T> = Equal<IsAny<T[K]>, false>;
 const siblingPins: [
   Expect<Declared<TsCalendarViewSchema, 'titleField'>>,
@@ -183,6 +184,24 @@ function shapeKeys(schema: unknown): string[] {
   return Object.keys((schema as { shape: Record<string, unknown> }).shape);
 }
 
+/**
+ * ⚠️ `ComponentPropsMap` entries are read through `Record<string, any>` on
+ * purpose — here, and again at the `unrecognized_keys` census below. Both raise
+ * an `@typescript-eslint/no-explicit-any` WARNING, never an error (eslint over
+ * this file: exit 0, 0 errors, exactly these 2 warnings), and both are KEPT.
+ * `_def` is a zod INTERNAL for which the spec publishes no type, so a
+ * hand-written shape for it would be a local ASSERTION about a third-party
+ * runtime that nothing re-checks — it would go stale in silence, which is the
+ * exact failure mode this file exists to catch. The sibling instrument file
+ * these were borrowed from (`kanban-calendar-filter-sort-8174.test.ts`) carries
+ * three of the same warnings for the same reason.
+ *
+ * ⛔ An `eslint-disable` is not the remedy — THIS COMMENT is, because it records
+ * WHY. A directive only silences, and `eslint.config.js` sets
+ * `reportUnusedDisableDirectives: 'error'` on every linted path, so a directive
+ * left behind after the cast is ever retyped stops being a silencer and becomes
+ * a hard error.
+ */
 function specShapeKeys(type: string): string[] {
   const entry = (ComponentPropsMap as unknown as Record<string, any>)[type];
   const def = entry._def;
@@ -276,13 +295,18 @@ describe('objectui#8466 — the spec refuses ALL FIVE flat keys, which is why de
   });
 });
 
-/* ── The sibling element: one renderer, two interfaces, one flat vocabulary ── */
+/* ── The sibling interface: two renderers, one flat vocabulary ────────────── */
 
 describe('objectui#8466 — `calendar-view` already declared all five, and the two must not fork', () => {
   it('ONE renderer serves both `object-calendar` and `calendar`', () => {
-    // `ObjectCalendarRenderer` is registered twice. That is what makes a fork
-    // between the two interfaces a real defect rather than a tidiness point:
-    // the same `getCalendarConfig` reads the same five keys off both.
+    // `ObjectCalendarRenderer` is registered twice — under `object-calendar`
+    // and under `calendar`, and the same `getCalendarConfig` reads the same five
+    // keys off both. ⛔ NOT under `calendar-view`: that element has its OWN
+    // renderer (`calendar-view-renderer.tsx`, which imports neither
+    // `ObjectCalendarRenderer` nor `getCalendarConfig`) and reads the five flat
+    // keys off `schema` itself. So the flat vocabulary spans THREE registered
+    // type names across TWO renderers, which is what makes a drift between the
+    // two interfaces a real defect rather than a tidiness point.
     const src = readRepo(CALENDAR_REGISTRATION);
     expect(src).toContain("ComponentRegistry.register('object-calendar', ObjectCalendarRenderer");
     expect(src).toContain("ComponentRegistry.register('calendar', ObjectCalendarRenderer");
@@ -290,9 +314,9 @@ describe('objectui#8466 — `calendar-view` already declared all five, and the t
 
   it('the sibling `CalendarViewSchema` declares all five — including the two this card adds', () => {
     // Measured, and the reason declaring `allDayField` is not a new precedent:
-    // this package has ALREADY shipped it declared on a published interface, on
-    // the element the same renderer draws. `ObjectCalendarSchema` was the odd
-    // one out, not the pioneer.
+    // this package has ALREADY shipped it declared on a published interface, for
+    // a sibling renderer that reads exactly the same five flat keys.
+    // `ObjectCalendarSchema` was the odd one out, not the pioneer.
     const declaredOnSibling: Record<(typeof FLAT_KEYS)[number], true> = {
       titleField: true,
       startDateField: true,

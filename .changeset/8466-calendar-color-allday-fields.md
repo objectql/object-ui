@@ -32,12 +32,12 @@ objectui's own lane, kept deliberately: the mirror's `.passthrough()` names this
 very key as its reason. Under an index signature and a `.passthrough()` that
 already admit any value, a declaration cannot widen anything — it only narrows.
 
-Nor is `allDayField` a new precedent here: `CalendarViewSchema` — the sibling
-`calendar-view` element, drawn by the SAME renderer, since `plugin-calendar`
-registers `ObjectCalendarRenderer` under both type names — has shipped all five
-of these keys declared, `allDayField` included. `ObjectCalendarSchema` was the
-odd one out, and the accompanying pin keeps the two interfaces from forking
-again.
+Nor is `allDayField` a new precedent here: `CalendarViewSchema` — a sibling
+calendar interface in the same plugin, whose renderer reads the same five flat
+keys — has shipped all five of these keys declared, `allDayField` included, on
+both faces. Two interfaces, two renderers, ONE flat vocabulary:
+`ObjectCalendarSchema` was the odd one out, and the accompanying pin keeps that
+shared vocabulary from drifting apart.
 
 Both members are optional on both faces, so no node that omits them changes
 verdict, and nothing that validated before is refused now. What does change
