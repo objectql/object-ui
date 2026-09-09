@@ -191,6 +191,14 @@ describe('objectui#8499 — the family arms are compared against their registrat
   // ⭐ THE COMPARISON INSTRUMENT. The two faces diverged by construction because
   // nothing compared them. This does, for the two families this card armed: the
   // arm's literal set must EQUAL the array the registration site loops over.
+  //
+  // ⚠️ WHAT THESE THREE LEGS ARE NOT, stated so the count is not overclaimed:
+  // they are NOT controls for union membership. They read `SemanticElementSchema`
+  // and `HtmlElementSchema` directly, so removing those arms from
+  // `AnyComponentSchema` leaves them green — they survive that ablation by
+  // design, because the property they hold is declaration-vs-registration parity,
+  // a different one from "the union accepts this spelling". The union's own
+  // firing controls are the `UNREGISTERED` refusals above.
   it('`SemanticElementSchema` names exactly the tags `semantic.tsx` registers', () => {
     const tags = sourceArray(read(SEMANTIC_RENDERER), 'const tags = ');
     expect(tags.length, 'the source read went vacuous — check the declaration name').toBe(7);
@@ -203,12 +211,29 @@ describe('objectui#8499 — the family arms are compared against their registrat
     expect([...literalsOf(HtmlElementSchema)].sort()).toEqual([...tags].sort());
   });
 
-  it('detects a tag that is registered and unarmed', () => {
-    // The firing control for the two equalities above: they must not be able to
-    // pass while a registered tag is missing from the arm.
-    const armed = new Set(literalsOf(SemanticElementSchema));
-    const registeredPlusOne = [...armed, 'hgroup'];
-    expect([...armed].sort()).not.toEqual([...registeredPlusOne].sort());
+  it('detects a registered-but-unarmed tag, and fails closed on an unreadable source', () => {
+    // ⚠️ What this control must NOT be, and was: comparing `[...armed]` against
+    // `[...armed, 'hgroup']`. That is set algebra — an array differs from itself
+    // plus an element whatever the schema says, so it passed without ever
+    // touching a registration. Both halves below run the REAL instrument.
+    //
+    // A real mismatch, from a real registration site: `html-elements.tsx`
+    // registers 37 tags and `SemanticElementSchema` arms none of them, so the
+    // equality the two legs above perform must come out false here.
+    const htmlTags = sourceArray(read(HTML_RENDERER), 'const TAGS = ');
+    const semanticArmed = [...literalsOf(SemanticElementSchema)].sort();
+    expect(htmlTags.length, 'the registration read went vacuous').toBe(37);
+    expect(semanticArmed.length, 'the arm read went vacuous').toBe(7);
+    expect(semanticArmed).not.toEqual([...htmlTags].sort());
+
+    // And the reader must be able to come back EMPTY rather than fabricate a
+    // pass — which is what makes the `toBe(7)` / `toBe(37)` guards above real
+    // guards. A declaration name that is not in the file throws rather than
+    // quietly yielding [], so the non-vacuity checks cannot be satisfied by a
+    // reader that has stopped reading.
+    expect(() => sourceArray(read(SEMANTIC_RENDERER), 'const notADeclaration = ')).toThrow(
+      /declaration not found/,
+    );
   });
 });
 

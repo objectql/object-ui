@@ -47,8 +47,8 @@ a `type` nothing registers (`stat-card`, `metric-card`, `h1ZZ`) is refused at th
 and at every node slot exactly as before.
 
 **Every one of these types becomes legal at EVERY node slot** — measured: 249
-arm-level node slots plus ~30 on nested schemas, all spelled with the one
-`SchemaNodeSchema`. A slot-constrained shape is not expressible by adding arms: a
+arm-level node slots before this change and 257 after, plus 36 on nested schemas,
+all spelled with the one `SchemaNodeSchema`. A slot-constrained shape is not expressible by adding arms: a
 discriminated union selects its arm from the authored literal alone, so a slot has no
 say. That is a per-slot vocabulary programme, not a variant of this change.
 

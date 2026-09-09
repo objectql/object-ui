@@ -397,9 +397,11 @@ describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
  *
  * Scope, stated plainly: this covers the CONTAINER half of the layout
  * vocabulary. The non-container arms (`span`, `separator`, `scroll-area`,
- * `resizable`, `page`, and the deprecated `div`) are outside it because
- * curating any of them is an unruled question of its own, and a ledger is a
- * forcing function, not a place to park four of those at once.
+ * `resizable`, `page`, the deprecated `div`, and — since objectui#8499 armed
+ * them — the 37 flow/inline HTML tags of `HtmlElementSchema`, not one of which
+ * declares containment) are outside it because curating any of them is an
+ * unruled question of its own, and a ledger is a forcing function, not a place
+ * to park four of those at once.
  *
  * ── THE MEASUREMENT THIS CARD WAS DISPATCHED TO MAKE, RECORDED ──────────────
  *
@@ -443,16 +445,39 @@ describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
 /**
  * The JSON layout vocabulary, read from the zod union's own arms.
  *
- * A discriminated union member declares its `type` literal to Zod, so the arm
- * list IS the vocabulary. Filtering to real strings is deliberate: a zod release
- * that moved this accessor would otherwise yield a population of `undefined` and
- * make every assertion below vacuously true, which is why the first case
- * compares the resolved count against the raw arm count.
+ * A discriminated union member declares its `type` to Zod, so the arm list IS
+ * the vocabulary — but an arm declares it in one of TWO shapes, and reading only
+ * the first is what objectui#8499 broke here. A `z.literal` arm carries one
+ * spelling on `.value`; a `z.enum` arm carries a whole registered family on
+ * `.options` — `SemanticElementSchema`'s seven sectioning tags, and
+ * `HtmlElementSchema`'s 37 flow/inline tags. A `.value`-only read resolved
+ * neither, and the anti-vacuity case below reported it as 19 arms yielding 17
+ * literals, which is precisely the job that case exists to do.
+ *
+ * The switch is on zod's own `def.type` discriminator, NOT on which accessor
+ * happens to be present. A fallback chain (`.value`, else `.options`, else …)
+ * would paper over exactly the accessor drift the first case is meant to
+ * report: an arm whose declaration is neither shape resolves NOTHING here, and
+ * the count comparison below turns that silence into a failure.
  */
 const LAYOUT_UNION_ARMS = (LayoutSchema as unknown as { options: unknown[] }).options;
-const LAYOUT_VOCABULARY: string[] = LAYOUT_UNION_ARMS.map(
-  (arm) => (arm as { shape?: { type?: { value?: unknown } } }).shape?.type?.value,
-).filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+type TypeDeclaration = { def?: { type?: string }; value?: unknown; options?: unknown[] };
+
+/** Every `type` spelling ONE arm can take: a literal's single value, or an enum's whole set. */
+const armLiterals = (arm: unknown): string[] => {
+  const declared = (arm as { shape?: { type?: TypeDeclaration } }).shape?.type;
+  const isSpelling = (value: unknown): value is string =>
+    typeof value === 'string' && value.length > 0;
+  if (declared?.def?.type === 'literal') {
+    return isSpelling(declared.value) ? [declared.value] : [];
+  }
+  if (declared?.def?.type === 'enum') return (declared.options ?? []).filter(isSpelling);
+  return [];
+};
+
+const LAYOUT_ARM_LITERALS: string[][] = LAYOUT_UNION_ARMS.map(armLiterals);
+const LAYOUT_VOCABULARY: string[] = LAYOUT_ARM_LITERALS.flat();
 
 /** …of those, the ones the registry DECLARES it renders a child list for. */
 const DECLARED_LAYOUT_CONTAINERS = LAYOUT_VOCABULARY.filter(
@@ -480,7 +505,38 @@ const specCarried = (type: string): boolean =>
  * below by ABSENCE — which is the property `box` needed and did not have. An
  * entry here is the deliberate, reviewable alternative to curating, never a
  * silent one, and it must name an issue that resolves it.
+ *
+ * ⭐ The seven sectioning tags arrived here BY ABSENCE — the mechanism working,
+ * not failing. They have declared `isContainer: true` since objectui#6764;
+ * objectui#8499 armed them as `SemanticElementSchema`, and becoming arms of the
+ * layout union is what first pulled already-declared containers into the
+ * intersection this file derives. ⛔ The alternative on offer — housing that arm
+ * outside `LayoutSchema` — was refused deliberately: it would have removed seven
+ * genuine layout containers from this population without changing anything about
+ * what they are, which is a gate that stops looking rather than a gate that
+ * passes. Ledgering them is the reviewable option; objectui#8775 holds the
+ * decision itself, which is NOT this card's to take.
  */
+
+/**
+ * The seven are ONE registration — a single loop factory in
+ * `renderers/layout/semantic.tsx` over one `tags` array — so they share one
+ * reason rather than seven paraphrases of it.
+ */
+const SECTIONING_TAG_UNRULED =
+  'NOT YET RULED, either way — and promoting it is not a roster edit. One of the seven HTML ' +
+  'sectioning tags the single loop factory in `renderers/layout/semantic.tsx` registers with ' +
+  '`category: layout` and `isContainer: true` (objectui#6764). objectui#8499 armed them as ' +
+  '`SemanticElementSchema`, which is what first brought already-declared containers into the ' +
+  'population this file derives — none of them is newly a container, and none is newly ' +
+  'authorable. ⚠️ Curating one does NOT merely widen: `renderers/layout/react-page.tsx` drops ' +
+  'containers from the `kind:react` JSX scope by iterating `getPublicConfigs()`, and this tag ' +
+  'being absent from `PUBLIC_BLOCKS` is exactly why there is no injected identifier there for ' +
+  'the flag to remove — so curating it would DELETE the tag from every react page unless that ' +
+  'premise moves in the same change (pinned by `container-declaration-census.test.tsx`). ' +
+  'objectui#8775 measured the population and holds the decision: curate the family or a named ' +
+  'subset and carry that consequence, or refuse on stated merits and replace this text with them.';
+
 const UNCURATED_LAYOUT_CONTAINERS: Record<string, string> = {
   'aspect-ratio':
     'NOT YET RULED, either way — and that is the entry, stated honestly rather than dressed as merits. ' +
@@ -490,18 +546,36 @@ const UNCURATED_LAYOUT_CONTAINERS: Record<string, string> = {
     '`PUBLIC_BLOCKS`, so the react-page scope builder never saw this tag"), never a reason. objectui#6879 ' +
     'measured the population and filed the decision as objectui#8628 — curate it, or refuse it on stated ' +
     'merits and replace this text with them. Until then it stays visible here instead of invisible in a gap.',
+  article: SECTIONING_TAG_UNRULED,
+  aside: SECTIONING_TAG_UNRULED,
+  footer: SECTIONING_TAG_UNRULED,
+  header: SECTIONING_TAG_UNRULED,
+  main: SECTIONING_TAG_UNRULED,
+  nav: SECTIONING_TAG_UNRULED,
+  section: SECTIONING_TAG_UNRULED,
 };
 
 describe('PUBLIC_BLOCKS ↔ the declared layout containers (derived, objectui#6879)', () => {
   it('reads the vocabulary off the union rather than restating it', () => {
-    // The anti-vacuity case, and it comes first. Every arm must resolve a real
-    // `type` literal: a population of `undefined`s would make the ledger pin
-    // below pass while asserting nothing at all.
+    // The anti-vacuity case, and it comes first. EVERY arm must resolve at least
+    // one real `type` spelling: an arm that resolved none would make the ledger
+    // pin below pass while asserting nothing at all about that arm.
+    //
+    // ⚠️ Counting literals against arms — what this line did before
+    // objectui#8499 — is NOT the same assertion and cannot be restored: a single
+    // enum arm contributes 37 spellings, so the two numbers are no longer meant
+    // to match. What still holds one-for-one is that no arm contributes ZERO.
     expect(LAYOUT_UNION_ARMS.length).toBeGreaterThan(0);
-    expect(LAYOUT_VOCABULARY).toHaveLength(LAYOUT_UNION_ARMS.length);
-    // And it must be the vocabulary we think it is — the minted type this card
-    // is about, plus two of its long-standing siblings.
-    expect(LAYOUT_VOCABULARY).toEqual(expect.arrayContaining(['box', 'flex', 'container']));
+    expect(LAYOUT_ARM_LITERALS.filter((literals) => literals.length > 0)).toHaveLength(
+      LAYOUT_UNION_ARMS.length,
+    );
+    // And it must be the vocabulary we think it is: the type this card was built
+    // around, two of its long-standing siblings, and one spelling out of EACH
+    // enum arm — so a reader that silently stopped resolving enums, which is the
+    // regression this file caught, cannot pass this case either.
+    expect(LAYOUT_VOCABULARY).toEqual(
+      expect.arrayContaining(['box', 'flex', 'container', 'main', 'h1']),
+    );
   });
 
   it('derives a non-empty container population holding the objectui#6764 control set', () => {

@@ -521,7 +521,7 @@ export const SemanticElementSchema = BaseSchema.extend({
  *
  * ⚠️ One arm over the whole set, deliberately, and it is a real cost: `h1`
  * becomes legal at EVERY node slot, including slots where it is absurd (a
- * `data-table`'s `emptyAction`, a `header-bar`'s `logo`). That is not new laxity
+ * `header-bar`'s `logo`, a `dialog`'s `trigger`). That is not new laxity
  * — every one of the 107 pre-existing arms is already legal at every one of the
  * 249 declared node slots, because there is exactly ONE node-slot vocabulary in
  * this face ({@link SchemaNodeSchema}) and a discriminated union selects its arm
