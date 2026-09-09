@@ -187,3 +187,56 @@ export function aliasKeyRefusal(alias: string, canonical: string, surface: strin
     `Unrecognized key(s) on ${surface}: \`${alias}\`. Did you mean \`${alias}\` → \`${canonical}\`? ${detail}`;
   return z.never({ error: guidance }).optional().describe(guidance);
 }
+
+/**
+ * Declare a RETIRED NODE TYPE arm: a component `type` literal the vocabulary no
+ * longer serves, kept in the discriminated union ONLY so an authored document
+ * naming it is refused BY NAME and pointed at the surviving spelling
+ * (objectui#8802, maintainer ruling 2026-09-09).
+ *
+ * ## Why an arm rather than a deletion — and why that is not the passthrough rule
+ *
+ * The family's other three retirements in that batch (`gantt` objectui#8008,
+ * `kanban-ui` / `kanban-enhanced` objectui#8257) are registration-only: no
+ * schema face ever declared them, so unregistering IS the retirement. This
+ * helper exists for the fourth case, where a face DID declare the literal.
+ *
+ * ⚠️ Two different mechanisms, and conflating them is how a retirement ships as
+ * a silent accept:
+ *
+ *   - a dropped MEMBER key is KEPT, not refused — {@link retirementTombstone}'s
+ *     whole reason, because `BaseSchemaCore` ends `.passthrough()`;
+ *   - a dropped TYPE LITERAL on a DISCRIMINATED union IS refused, because
+ *     `AnyComponentSchema` selects one arm from the authored literal and an
+ *     unclaimed literal matches none.
+ *
+ * ⇒ Deleting the arm would already refuse. What it would NOT do is say why, or
+ * what to write instead: the union answers a missed discriminator with its own
+ * `Invalid input`, naming no remedy. Measured on zod 4.4.3: an arm carrying the
+ * literal plus a failing check reports `custom` at `path: ['type']` with this
+ * guidance, while the same document against a union without the arm reports
+ * `invalid_union` / "No matching discriminator" and nothing else.
+ *
+ * ⛔ Not {@link retirementTombstone}: that helper's `z.never()` sits at a MEMBER
+ * position inside an arm. A discriminated union needs the arm itself to claim
+ * the literal (`propValues`), so the refusal has to be a check on the object,
+ * not a member type.
+ *
+ * Same discipline as its three siblings in this file: ONE string feeds BOTH
+ * author-facing channels — the parse-time issue message and the `.describe()`
+ * metadata — so they cannot drift apart.
+ *
+ * @param type     the retired literal, spelled into the message so the issue is
+ *                 addressed even when read without its path
+ * @param guidance why it retired and what to author instead
+ */
+export function retiredNodeType(type: string, guidance: string) {
+  const text = `\`${type}\` is a RETIRED node type (ADR-0049). ${guidance}`;
+  return z
+    .object({ type: z.literal(type) })
+    .catchall(z.unknown())
+    .check((ctx) => {
+      ctx.issues.push({ code: 'custom', message: text, input: ctx.value, path: ['type'] });
+    })
+    .describe(text);
+}

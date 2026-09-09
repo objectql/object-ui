@@ -6,6 +6,19 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+/**
+ * The plugin's registration surface — what importing this package puts in the
+ * registry.
+ *
+ * ⚠️ Every assertion in this file used to be about the `kanban-ui` entry: that
+ * it resolved, its label and category, its four declared `inputs`, and the
+ * `defaultProps` board it shipped. That entry RETIRED (objectui#8257,
+ * maintainer ruling 2026-09-09), together with `kanban-enhanced` and — from
+ * objectui#8802 — the bare `kanban` key. `object-kanban` is the one surviving
+ * registration, so the same questions are asked of it. The retirement itself is
+ * pinned in `__tests__/kanban-family-registry-keys-retired-8257.test.ts`.
+ */
+
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 // Import all renderers to register them. This was a `beforeAll(async () => {
@@ -18,97 +31,45 @@ import { ComponentRegistry } from '@object-ui/core';
 import './index';
 
 describe('Plugin Kanban', () => {
-  describe('kanban component', () => {
+  describe('object-kanban component', () => {
     it('should be registered in ComponentRegistry', () => {
-      const kanbanRenderer = ComponentRegistry.get('kanban-ui');
-      expect(kanbanRenderer).toBeDefined();
+      expect(ComponentRegistry.get('object-kanban')).toBeDefined();
+      // Firing control on the same call: a name nothing registers is undefined,
+      // so the line above is a reading rather than a getter that always answers.
+      expect(ComponentRegistry.get('zzz-not-a-type')).toBeUndefined();
     });
 
     it('should have proper metadata', () => {
-      const config = ComponentRegistry.getConfig('kanban-ui');
+      const config = ComponentRegistry.getConfig('object-kanban');
       expect(config).toBeDefined();
-      expect(config?.label).toBe('Kanban Board');
-      expect(config?.icon).toBe('LayoutDashboard');
-      expect(config?.category).toBe('plugin');
-      expect(config?.inputs).toBeDefined();
-      expect(config?.defaultProps).toBeDefined();
+      expect(config?.label).toBe('Object Kanban');
+      expect(config?.category).toBe('view');
+      expect(config?.namespace).toBe('plugin-kanban');
     });
 
     it('should have expected inputs', () => {
-      const config = ComponentRegistry.getConfig('kanban-ui');
-      const inputNames = config?.inputs?.map((input: any) => input.name) || [];
-      
-      expect(inputNames).toContain('columns');
-      expect(inputNames).toContain('onCardMove');
-      expect(inputNames).toContain('className');
+      const config = ComponentRegistry.getConfig('object-kanban');
+      const names = (config?.inputs ?? []).map((i) => i.name);
+      expect(names).toEqual(
+        expect.arrayContaining(['objectName', 'groupBy', 'columns', 'cardTitle', 'conditionalFormatting']),
+      );
     });
 
-    it('should have columns as required input', () => {
-      const config = ComponentRegistry.getConfig('kanban-ui');
-      const columnsInput = config?.inputs?.find((input: any) => input.name === 'columns');
-      
-      expect(columnsInput).toBeDefined();
-      expect(columnsInput?.required).toBe(true);
-      expect(columnsInput?.type).toBe('array');
-      expect(columnsInput?.description).toBeDefined();
+    it('should have objectName as required input', () => {
+      const config = ComponentRegistry.getConfig('object-kanban');
+      const objectName = (config?.inputs ?? []).find((i) => i.name === 'objectName');
+      expect(objectName).toBeDefined();
+      expect(objectName?.required).toBe(true);
+      // Control: not every declared input is required, so `true` above is a
+      // reading of this entry and not of a shape that marks everything.
+      expect((config?.inputs ?? []).find((i) => i.name === 'columns')?.required).toBeFalsy();
     });
 
-    it('should have onCardMove as code input', () => {
-      const config = ComponentRegistry.getConfig('kanban-ui');
-      const onCardMoveInput = config?.inputs?.find((input: any) => input.name === 'onCardMove');
-      
-      expect(onCardMoveInput).toBeDefined();
-      expect(onCardMoveInput?.type).toBe('code');
-      expect(onCardMoveInput?.description).toBeDefined();
-    });
-
-    it('should have sensible default props', () => {
-      const config = ComponentRegistry.getConfig('kanban-ui');
-      const defaults = config?.defaultProps;
-      
-      expect(defaults).toBeDefined();
-      expect(defaults?.columns).toBeDefined();
-      expect(Array.isArray(defaults?.columns)).toBe(true);
-      expect(defaults?.columns.length).toBeGreaterThan(0);
-      expect(defaults?.className).toBe('w-full');
-    });
-
-    it('should have default columns with proper structure', () => {
-      const config = ComponentRegistry.getConfig('kanban-ui');
-      const defaults = config?.defaultProps;
-      const columns = defaults?.columns || [];
-      
-      // Verify at least 3 columns exist (todo, in-progress, done)
-      expect(columns.length).toBeGreaterThanOrEqual(3);
-      
-      // Verify each column has required properties
-      columns.forEach((column: any) => {
-        expect(column.id).toBeDefined();
-        expect(column.title).toBeDefined();
-        expect(column.cards).toBeDefined();
-        expect(Array.isArray(column.cards)).toBe(true);
-      });
-      
-      // Verify at least one column has cards
-      const hasCards = columns.some((column: any) => column.cards.length > 0);
-      expect(hasCards).toBe(true);
-    });
-
-    it('should have cards with proper structure', () => {
-      const config = ComponentRegistry.getConfig('kanban-ui');
-      const defaults = config?.defaultProps;
-      const columns = defaults?.columns || [];
-      
-      // Find a column with cards
-      const columnWithCards = columns.find((column: any) => column.cards.length > 0);
-      expect(columnWithCards).toBeDefined();
-      
-      const card = columnWithCards.cards[0];
-      expect(card.id).toBeDefined();
-      expect(card.title).toBeDefined();
-      expect(card.description).toBeDefined();
-      expect(card.badges).toBeDefined();
-      expect(Array.isArray(card.badges)).toBe(true);
+    it('every declared input carries a type', () => {
+      const config = ComponentRegistry.getConfig('object-kanban');
+      const inputs = config?.inputs ?? [];
+      expect(inputs.length).toBeGreaterThan(0);
+      expect(inputs.filter((i) => !i.type)).toEqual([]);
     });
   });
 });

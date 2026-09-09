@@ -76,7 +76,8 @@ Object.entries(kanbanComponents).forEach(([type, component]) => {
 The plugin exports TypeScript types for full type safety:
 
 ```typescript
-import type { KanbanSchema, KanbanCard, KanbanColumn } from '@object-ui/plugin-kanban';
+import type { KanbanCard, KanbanColumn } from '@object-ui/plugin-kanban';
+import type { ObjectKanbanSchema } from '@object-ui/types';
 
 const card: KanbanCard = {
   id: 'task-1',
@@ -94,8 +95,13 @@ const column: KanbanColumn = {
   limit: 5
 };
 
-const schema: KanbanSchema = {
-  type: 'kanban',
+// ⚠️ `object-kanban`: the bare `kanban` node type key and its `KanbanSchema`
+// arm RETIRED in objectui#8802. `groupBy` and one of `bind` / `data` /
+// `objectName` are what the surviving face requires of every board.
+const schema: ObjectKanbanSchema = {
+  type: 'object-kanban',
+  groupBy: 'status',
+  data: [],
   columns: [column]
 };
 ```
@@ -103,25 +109,33 @@ const schema: KanbanSchema = {
 ## Schema API
 
 ```typescript
-import type { KanbanSchema } from '@object-ui/plugin-kanban';
+import type { ObjectKanbanSchema } from '@object-ui/types';
 
 declare const columns: KanbanColumn[];
 
-// The board document. `type` is the only required member — `columns`,
-// `onCardMove` and `className` are all optional. The annotation is the type
-// this package ships, so each member below is compiled against it rather than
-// read as prose: a `columns` array of the wrong shape, or an `onCardMove`
-// whose parameters drift from the shipped signature, fails here. An unknown
-// key does not — `KanbanSchema` extends `BaseSchema`, whose index signature
-// deliberately accepts type-specific extensions, so the compiler is not what
-// catches a misspelt board key.
-const board: KanbanSchema = {
-  type: 'kanban',
+// The board document. `type` and `groupBy` are required, and so is ONE record
+// source — `bind`, `data` or `objectName`. `columns` and `className` are
+// optional.
+//
+// ⚠️ `onCardMove` is NOT a document key: it is a React prop the host supplies
+// (JSON has no function value), which is why it is spelled with explicit
+// parameter types below rather than inferred from the annotation. The
+// annotation is the type this package's renderer consumes; an unknown key does
+// not fail it — `ObjectKanbanSchema` extends `BaseSchema`, whose index
+// signature deliberately accepts type-specific extensions, so the compiler is
+// not what catches a misspelt board key.
+const board: ObjectKanbanSchema = {
+  type: 'object-kanban',
+  groupBy: 'status',                  // required — the field that makes the lanes
+  data: [],                           // one record source is required
   columns,                            // Array of columns
-  onCardMove: (cardId, fromColumnId, toColumnId, newIndex) => {
-    // see "Example with Callbacks" below
-  },
   className: 'h-full',                // Tailwind classes
+};
+
+// Supplied by the React host, never authored in JSON:
+const onCardMove = (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => {
+  // see "Example with Callbacks" below
+  void [cardId, fromColumnId, toColumnId, newIndex];
 };
 
 // Column structure
@@ -197,17 +211,22 @@ pnpm build
 ## Example with Callbacks
 
 ```typescript
-import type { KanbanColumn, KanbanSchema } from '@object-ui/plugin-kanban';
+import type { KanbanColumn } from '@object-ui/plugin-kanban';
+import type { ObjectKanbanSchema } from '@object-ui/types';
 
 declare const columns: KanbanColumn[];
 
-const schema: KanbanSchema = {
-  type: 'kanban',
+const schema: ObjectKanbanSchema = {
+  type: 'object-kanban',
+  groupBy: 'status',
+  data: [],
   columns,
-  onCardMove: (cardId, fromColumnId, toColumnId, newIndex) => {
-    console.log(`Card ${cardId} moved from ${fromColumnId} to ${toColumnId} at index ${newIndex}`);
-    // Update your backend or state here
-  }
+};
+
+// The host supplies the handler as a React prop — JSON has no function value.
+const onCardMove = (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => {
+  console.log(`Card ${cardId} moved from ${fromColumnId} to ${toColumnId} at index ${newIndex}`);
+  // Update your backend or state here
 };
 ```
 

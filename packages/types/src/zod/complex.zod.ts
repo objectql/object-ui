@@ -17,17 +17,14 @@
  */
 
 import { z } from 'zod';
-import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
+import { handlerKeyRefusal, retiredNodeType, retirementTombstone } from './tombstone.zod.js';
 import {
   ChartTypeSchema as SpecChartTypeSchema,
   DashboardSchema as SpecDashboardSchema,
   DashboardWidgetSchema as SpecDashboardWidgetSchema,
   GlobalFilterSchema as SpecGlobalFilterSchema,
-  GroupingConfigSchema as SpecGroupingConfigSchema,
-  NavigationConfigSchema as SpecNavigationConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
-import { KanbanConditionalFormattingRuleSchema } from './objectql.zod.js';
 import { DASHBOARD_COLOR_VARIANTS, DASHBOARD_WIDGET_TYPES } from '../designer.js';
 import {
   DASHBOARD_COMPONENT_WIDGET_TYPES,
@@ -89,35 +86,12 @@ const retiredDeclarativeKanbanKey = (key: string, where: string, remedy: string)
       `an object-bound board, or \`columns[].cards[]\` for a static one. ${remedy}`,
   );
 
-/**
- * The ZERO-READ members this arm declared, named once so every refusal below
- * says the same thing (objectui#7742, ADR-0049, maintainer decision batch #70,
- * 2026-09-07: 「同意」).
- *
- * ⛔ Deliberately NOT {@link retiredDeclarativeKanbanKey}. That helper's message
- * says the key "belonged to the retired `DeclarativeKanbanSchema` dialect",
- * which is TRUE of `draggable` and the column `color` and FALSE of these three:
- * they were members of the PLUGIN dialect objectui#7664 ruled authoritative,
- * carried over member-for-member, and retired one card later for a different
- * reason — declared on both faces, read by no registered board. Sharing the
- * older message would hand the author a false history of their own document.
- *
- * The zeros are readings, not a dead grep: measured over
- * `packages/plugin-kanban/src` with every file including tests, `allowCollapse`
- * / `cardTemplates` / `columnWidths` returned 0 hits / 0 files while `groupBy`
- * (85/27), `cardTitle` (18/9) and `coverImageField` (17/3) fired as controls on
- * the same instrument.
- *
- * Refused BY NAME rather than dropped, for the reason this file states twice
- * already: {@link BaseSchema} is `.passthrough()`, so a dropped key is KEPT,
- * not refused.
- */
-const retiredZeroReadKanbanKey = (key: string, taught: string, remedy: string) =>
-  retirementTombstone(
-    `\`${key}\` is RETIRED (objectui#7742, ADR-0049) — the \`kanban\` arm declared ` +
-      'it on both faces and NO registered board ever read it, so a document that set ' +
-      `it validated green and changed nothing. ${taught} ${remedy}`,
-  );
+// ⛔ `retiredZeroReadKanbanKey` RETIRED with its only three call sites
+// (objectui#8802): `allowCollapse` / `cardTemplates` / `columnWidths` were
+// tombstones on the `kanban` arm, and the arm itself is gone. The batch #70
+// refusals it carried were arm-scoped by construction — a `type: "kanban"`
+// document is now refused whole, and a `type: "object-kanban"` one is judged by
+// `objectql.zod.ts#ObjectKanbanSchema` exactly as it always was.
 
 /**
  * Kanban Card Schema — mirrors {@link KanbanCard} in `../complex.ts` key for key.
@@ -185,68 +159,35 @@ export const ColumnWidthConfigSchema = z.object({
 });
 
 /**
- * Kanban Schema — the `'kanban'` arm of {@link ComplexSchema}, mirroring
- * {@link KanbanSchema} in `../complex.ts` key for key: the shape
- * `@object-ui/plugin-kanban`'s registered renderers read (objectui#7664).
+ * ⛔ The `'kanban'` arm is RETIRED (objectui#8802, maintainer ruling 2026-09-09)
+ * — this is its NAMED REFUSAL, the half a deletion would not have given.
  *
- * `onCardMove` / `onCardClick` / `onQuickAdd` are RUNTIME SLOTS (objectui#6124):
- * `KanbanRenderer` forwards all three off `schema.*` in one block, so the
- * TypeScript twin keeps them callable and this mirror refuses them by name.
- * ⛔ None of the three may be dropped instead of refused — `BaseSchema` is
- * `.passthrough()`, so a dropped key is KEPT rather than refused (the first cut
- * of objectui#7664 dropped `onCardClick` and turned a refused document into an
- * accepted one). `onColumnAdd` / `onCardAdd` are the two
- * retired handler keys carried over from the declarative face so the successor
- * arm keeps refusing the spelling; `draggable` is that face's own retired key.
- * `conditionalFormatting` and `grouping` are the same schemas the `object-kanban`
- * and `object-gallery` arms use (`objectql.zod.ts`, `@objectstack/spec`).
+ * {@link KanbanSchema}'s member-by-member mirror of `../complex.ts` went with
+ * the TypeScript interface. What stays is an arm claiming the literal, so
+ * `AnyComponentSchema`'s discriminator still routes a `type: "kanban"` document
+ * HERE and the author reads why the spelling went and what to write instead —
+ * rather than the union's own remedy-free `Invalid input`.
+ *
+ * ⚠️ Read `retiredNodeType`'s own docblock before changing this: the reason an
+ * arm is needed at all is NOT `BaseSchema`'s `.passthrough()` (that rule governs
+ * dropped MEMBER keys), it is that the union's generic discriminator message
+ * names no remedy.
+ *
+ * The keys this arm alone declared — `columns`, `cardTitle`, `swimlaneField`,
+ * `grouping`, `conditionalFormatting`, `navigation` — were never on the
+ * `object-kanban` face (`objectql.zod.ts#ObjectKanbanSchema`) and are not being
+ * removed from it: an `object-kanban` document is judged exactly as it was.
+ *
+ * Pinned in `../__tests__/bare-kanban-node-key-retired-8802.test.ts`.
  */
-export const KanbanSchema = BaseSchema.extend({
-  type: z.literal('kanban'),
-  objectName: z.string().optional().describe('Object name to fetch data from'),
-  groupBy: z.string().optional().describe('Field to group records by (maps to column IDs)'),
-  swimlaneField: z.string().optional().describe('Field for swimlane rows (2D grouping)'),
-  cardTitle: z.string().optional().describe('Field to use as the card title'),
-  cardFields: z.array(z.string()).optional().describe('Fields to display on the card'),
-  data: z.array(z.any()).optional().describe('Static data or bound data (raw rows)'),
-  limit: z.number().optional().describe('Row cap for the fetch (defaults to 100)'),
-  columns: z.array(KanbanColumnSchema).optional().describe('Columns to display, each carrying its cards'),
-  onCardMove: handlerKeyRefusal('onCardMove', 'runtime-slot', 'Card move handler'),
-  onCardClick: handlerKeyRefusal('onCardClick', 'runtime-slot', 'Card click handler'),
-  className: z.string().optional().describe('CSS class name'),
-  quickAdd: z.boolean().optional().describe('Enable the Quick Add button at the bottom of each column'),
-  onQuickAdd: handlerKeyRefusal('onQuickAdd', 'runtime-slot', 'Quick Add handler'),
-  coverImageField: z.string().optional().describe('Field name to use as cover image on cards'),
-  allowCollapse: retiredZeroReadKanbanKey(
-    'allowCollapse',
-    'The capability exists on another channel:',
-    'the enhanced board collapses a lane off that lane\'s own `collapsed` key, so write `columns[].collapsed`.',
-  ),
-  conditionalFormatting: z.array(KanbanConditionalFormattingRuleSchema).optional().describe('Card conditional formatting rules'),
-  cardTemplates: retiredZeroReadKanbanKey(
-    'cardTemplates',
-    'The capability exists on another channel:',
-    '`CardTemplates` takes its `templates` as a COMPONENT PROP, not off the board node; there is no authorable spelling for it.',
-  ),
-  columnWidths: retiredZeroReadKanbanKey(
-    'columnWidths',
-    'The capability exists on another channel:',
-    '`useColumnWidths` takes its `ColumnWidthConfig` as a HOOK OPTION, not off the board node; there is no authorable spelling for it. (The grid surface has an unrelated key of the same name — that one is untouched.)',
-  ),
-  grouping: stripImportedDefaults(SpecGroupingConfigSchema).optional().describe('Grouping configuration from ListView; its first field is the swimlaneField fallback'),
-  navigation: stripImportedDefaults(SpecNavigationConfigSchema).optional().describe('Record navigation behaviour on card click (drawer/dialog/page)'),
-  titleField: retirementTombstone(
-    '`titleField` is RETIRED on the `kanban` arm (objectui#7742, ADR-0049) — one arm, one ' +
-      'spelling. Write `cardTitle`, which selects the same record field and which this arm ' +
-      'has always declared. ⛔ This is NOT an inertness retirement: `ObjectKanban` still ' +
-      'reads the key, because the SIBLING `object-kanban` arm declares it and keeps it ' +
-      '(objectui#7322 item ②). A `type: "object-kanban"` document naming `titleField` is ' +
-      'still accepted; a `type: "kanban"` one is not.',
-  ),
-  draggable: retiredDeclarativeKanbanKey('draggable', 'board', 'Drag-and-drop is always on; delete the key.'),
-  onColumnAdd: handlerKeyRefusal('onColumnAdd', 'retired', 'Column add handler'),
-  onCardAdd: handlerKeyRefusal('onCardAdd', 'retired', 'Card add handler'),
-});
+export const RetiredKanbanNodeSchema = retiredNodeType(
+  'kanban',
+  'Author `object-kanban` instead — the same board, the same renderer, and the ' +
+    'spelling every stored kanban view already renders through (`ObjectView` maps a ' +
+    'stored `kanban` view type onto the `object-kanban` node type). ⚠️ The STORED ' +
+    '`NamedListView.type` value `"kanban"` is a DIFFERENT layer and is unaffected — ' +
+    'do not rewrite it.',
+);
 
 /**
  * Calendar View Mode — the registered renderer's rendered set.
@@ -1180,7 +1121,7 @@ export const DashboardConfigSchema = z.object({
  * Complex Schema Union - All complex component schemas
  */
 export const ComplexSchema = z.discriminatedUnion('type', [
-  KanbanSchema,
+  RetiredKanbanNodeSchema,
   CalendarViewSchema,
   FilterBuilderSchema,
   CarouselSchema,

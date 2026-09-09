@@ -315,7 +315,7 @@ export default App
 
 ```json
 {
-  "type": "kanban",
+  "type": "object-kanban",
   "objectName": "tasks",
   "groupBy": "status",
   "titleField": "title",

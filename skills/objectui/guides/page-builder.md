@@ -254,7 +254,7 @@ renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
 <!-- os:check -->
 ```json
 {
-  "type": "kanban",
+  "type": "object-kanban",
   "objectName": "tasks",
   "groupBy": "status",
   "bind": "tasks"
@@ -265,7 +265,7 @@ renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
 <!-- os:check -->
 ```json
 {
-  "type": "gantt",
+  "type": "object-gantt",
   "objectName": "project_task",
   "gantt": {
     "titleField": "name",

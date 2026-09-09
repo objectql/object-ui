@@ -38,11 +38,13 @@ This package publishes a stylesheet. Import it after the base sheets, or the boa
 ```tsx
 // Import once in your app entry point
 import '@object-ui/plugin-kanban'
-import type { KanbanSchema } from '@object-ui/plugin-kanban'
+import type { ObjectKanbanSchema } from '@object-ui/types'
 
 // Use in schemas
-const schema: KanbanSchema = {
-  type: 'kanban',
+const schema: ObjectKanbanSchema = {
+  type: 'object-kanban',
+  groupBy: 'status',
+  data: [],
   columns: [
     {
       id: 'todo',
@@ -57,7 +59,7 @@ const schema: KanbanSchema = {
       cards: []
     }
   ],
-  onCardMove: (cardId, fromCol, toCol, index) => {
+  onCardMove: (cardId: string, fromCol: string, toCol: string, index: number) => {
     console.log(`Card ${cardId} moved`)
   }
 }
@@ -75,7 +77,9 @@ const schema: KanbanSchema = {
 
 ```plaintext
 {
-  type: 'kanban',
+  type: 'object-kanban',
+  groupBy: 'status',
+  data: [],
   columns?: KanbanColumn[],
   onCardMove?: (cardId, fromColumnId, toColumnId, newIndex) => void,
   className?: string
@@ -181,10 +185,12 @@ The `dataSource` binding sets it too — its own `limit`, or the
 ### Project Task Board
 
 ```tsx
-import type { KanbanSchema } from '@object-ui/plugin-kanban'
+import type { ObjectKanbanSchema } from '@object-ui/types'
 
-const taskBoard: KanbanSchema = {
-  type: 'kanban',
+const taskBoard: ObjectKanbanSchema = {
+  type: 'object-kanban',
+  groupBy: 'status',
+  data: [],
   columns: [
     {
       id: 'backlog',
@@ -227,7 +233,7 @@ const taskBoard: KanbanSchema = {
       cards: []
     }
   ],
-  onCardMove: (cardId, fromCol, toCol, index) => {
+  onCardMove: (cardId: string, fromCol: string, toCol: string, index: number) => {
     // Update backend/state
     console.log(`Moved ${cardId} from ${fromCol} to ${toCol}`)
   }
@@ -237,10 +243,12 @@ const taskBoard: KanbanSchema = {
 ### Support Ticket Board
 
 ```tsx
-import type { KanbanSchema } from '@object-ui/plugin-kanban'
+import type { ObjectKanbanSchema } from '@object-ui/types'
 
-const ticketBoard: KanbanSchema = {
-  type: 'kanban',
+const ticketBoard: ObjectKanbanSchema = {
+  type: 'object-kanban',
+  groupBy: 'status',
+  data: [],
   columns: [
     {
       id: 'new',
@@ -276,10 +284,12 @@ const ticketBoard: KanbanSchema = {
 ### Sales Pipeline
 
 ```tsx
-import type { KanbanSchema } from '@object-ui/plugin-kanban'
+import type { ObjectKanbanSchema } from '@object-ui/types'
 
-const salesPipeline: KanbanSchema = {
-  type: 'kanban',
+const salesPipeline: ObjectKanbanSchema = {
+  type: 'object-kanban',
+  groupBy: 'status',
+  data: [],
   columns: [
     {
       id: 'leads',
@@ -365,7 +375,8 @@ Handle card movements to update your backend or state:
 
 ```tsx
 import { useState } from 'react'
-import type { KanbanColumn, KanbanSchema } from '@object-ui/plugin-kanban'
+import type { KanbanColumn } from '@object-ui/plugin-kanban'
+import type { ObjectKanbanSchema } from '@object-ui/types'
 
 declare function updateCardColumn(cardId: string, toColumnId: string, newIndex: number): Promise<void>
 declare function moveCard(columns: KanbanColumn[], cardId: string, toColumnId: string, newIndex: number): KanbanColumn[]
@@ -373,12 +384,14 @@ declare function moveCard(columns: KanbanColumn[], cardId: string, toColumnId: s
 export function useBoard(initialColumns: KanbanColumn[]) {
   const [columns, setColumns] = useState<KanbanColumn[]>(initialColumns)
 
-  const schema: KanbanSchema = {
-    type: 'kanban',
+  const schema: ObjectKanbanSchema = {
+    type: 'object-kanban',
+    groupBy: 'status',
+    data: [],
     columns,
     // `onCardMove` returns void, so the callback cannot be awaited by the board:
     // start the write and update local state without blocking the drop.
-    onCardMove: (cardId, fromColumnId, toColumnId, newIndex) => {
+    onCardMove: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => {
       // Update database
       void updateCardColumn(cardId, toColumnId, newIndex)
 
@@ -410,7 +423,7 @@ The kanban board includes:
 ## TypeScript Support
 
 ```plaintext
-import type { KanbanSchema, KanbanCard, KanbanColumn } from '@object-ui/plugin-kanban'
+import type { ObjectKanbanSchema, KanbanCard, KanbanColumn } from '@object-ui/plugin-kanban'
 
 const column: KanbanColumn = {
   id: 'todo',
@@ -419,8 +432,10 @@ const column: KanbanColumn = {
   limit: 5
 }
 
-const kanbanSchema: KanbanSchema = {
-  type: 'kanban',
+const kanbanSchema: ObjectKanbanSchema = {
+  type: 'object-kanban',
+  groupBy: 'status',
+  data: [],
   columns: [column]
 }
 ```

@@ -84,8 +84,12 @@ const CARD = { id: 'c1', title: 'Painted card', owner: { _id: 'u1', name: 'Ann' 
 /** The catalogue that makes `owner` collapsible. `lookup` is an expandable type. */
 const FIELD_CATALOGUE = { owner: { type: 'lookup' } };
 
+  // ⚠️ `object-kanban`, not the bare `kanban`: that node type key RETIRED
+  // (objectui#8802). The value is inert on this path — `KanbanRendererProps`
+  // types `schema.type` as `string` and nothing reads it — but a fixture that
+  // spells a retired key teaches it, and this file is read as an example.
 const BOARD = {
-  type: 'kanban',
+  type: 'object-kanban',
   columns: [{ id: 'todo', title: 'To Do', cards: [CARD] }],
   conditionalFormatting: RULE,
 } as const;

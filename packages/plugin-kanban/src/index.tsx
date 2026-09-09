@@ -108,7 +108,8 @@ export function bucketCardsIntoColumns(
 }
 
 // Export types for external use
-export type { KanbanSchema, KanbanCard, KanbanColumn, CardTemplate, ColumnWidthConfig, InlineFieldDefinition } from './types';
+// ⛔ `KanbanSchema` RETIRED with the bare `kanban` node type key (objectui#8802).
+export type { KanbanCard, KanbanColumn, CardTemplate, ColumnWidthConfig, InlineFieldDefinition } from './types';
 export { ObjectKanban };
 export type { ObjectKanbanComponentProps } from './ObjectKanban';
 
@@ -135,7 +136,6 @@ export type { UseQuickAddReorderOptions, UseQuickAddReorderReturn } from './useQ
 
 // 🚀 Lazy load the implementation files
 const LazyKanban = React.lazy(() => import('./KanbanImpl'));
-const LazyKanbanEnhanced = React.lazy(() => import('./KanbanEnhanced'));
 
 export interface KanbanRendererProps {
   schema: {
@@ -248,163 +248,94 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema, objectFi
   );
 };
 
-// Register the component with the ComponentRegistry
-ComponentRegistry.register(
-  'kanban-ui',
-  KanbanRenderer,
-  {
-    namespace: 'plugin-kanban',
-    label: 'Kanban Board',
-    icon: 'LayoutDashboard',
-    category: 'plugin',
-    inputs: [
-      { 
-        name: 'columns', 
-        type: 'array', 
-        description: 'Array of { id, title, cards, limit, className }',
-        required: true
-      },
-      { 
-        name: 'onCardMove', 
-        type: 'code',
-        description: 'Callback when a card is moved'      },
-      { 
-        name: 'className', 
-        type: 'string'      }
-    ],
-    defaultProps: {
-      columns: [
-        {
-          id: 'todo',
-          title: 'To Do',
-          cards: [
-            {
-              id: 'card-1',
-              title: 'Task 1',
-              description: 'This is the first task',
-              badges: [
-                { label: 'High Priority', variant: 'destructive' },
-                { label: 'Feature', variant: 'default' }
-              ]
-            },
-            {
-              id: 'card-2',
-              title: 'Task 2',
-              description: 'This is the second task',
-              badges: [
-                { label: 'Bug', variant: 'destructive' }
-              ]
-            }
-          ]
-        },
-        {
-          id: 'in-progress',
-          title: 'In Progress',
-          limit: 3,
-          cards: [
-            {
-              id: 'card-3',
-              title: 'Task 3',
-              description: 'Currently working on this',
-              badges: [
-                { label: 'In Progress', variant: 'default' }
-              ]
-            }
-          ]
-        },
-        {
-          id: 'done',
-          title: 'Done',
-          cards: [
-            {
-              id: 'card-4',
-              title: 'Task 4',
-              description: 'This task is completed',
-              badges: [
-                { label: 'Completed', variant: 'outline' }
-              ]
-            },
-            {
-              id: 'card-5',
-              title: 'Task 5',
-              description: 'Another completed task',
-              badges: [
-                { label: 'Completed', variant: 'outline' }
-              ]
-            }
-          ]
-        }
-      ],
-      className: 'w-full'
-    }
-  }
-);
+/**
+ * ⛔ The `kanban-ui` node type key is RETIRED (objectui#8257, maintainer ruling
+ * 2026-09-09), together with `kanban-enhanced` below. `KanbanRenderer` itself
+ * stays exported and stays in use — `ObjectKanban` renders it — it is only the
+ * REGISTRY KEY that is gone.
+ *
+ * ## The measurement the ruling was taken on
+ *
+ * Exact node-type spellings, whole repo: `kanban-ui` was authored 0 times in
+ * JSON and 0 times in TS/TSX as a registry-resolved node, against a firing
+ * control of 2 JSON / 128 TS occurrences for the live sibling `object-grid` and
+ * a silent control (`zzz-not-a-type`, 0). ⇒ a registered type key no document
+ * in this repository has ever authored. Declaring an arm for it would have
+ * committed the repo to a validation face for a spelling with no writers — the
+ * opposite of what ADR-0049 enforce-or-remove asks.
+ *
+ * ## Why unregistering is the whole retirement
+ *
+ * ⚠️ `BaseSchema` closes with `[key: string]: any` and `BaseSchemaCore` ends
+ * `.passthrough()`, so a dropped MEMBER KEY is KEPT, not refused (objectui#7664).
+ * That hazard needs a schema face to arise on, and this key never had one:
+ * measured whole-repo, `@object-ui/types` declares `kanban-ui` as a component
+ * node type ZERO times (firing control: `object-kanban`, 2 — `objectql.ts` and
+ * its Zod mirror). There is no arm to convert into a named refusal.
+ * ⇒ Registration-only retirement.
+ *
+ * ## ⭐ What this closes as a side effect — objectui#8818
+ *
+ * `SchemaRenderer` strips a fixed, enumerated metadata list and spreads the
+ * REST as React props. `objectFields` is not on that list, and `KanbanRenderer`
+ * — registered here for `kanban-ui` — declares `objectFields` as a real prop
+ * (objectui#7742). So an AUTHORED `objectFields` reached the predicate layer
+ * verbatim on this entry, with no schema face declaring or judging it.
+ * Retiring this registration closes that path: nothing resolves `kanban-ui` any
+ * more, so no authored node reaches `KanbanRenderer` through the registry.
+ *
+ * ⚠️ This closes the ENTRY, ⛔ not the CLASS. `SchemaRenderer` still spreads
+ * every unstripped key; if another renderer ever declares an `objectFields`
+ * prop the hole returns. objectui#8818's option (a) — stripping at the
+ * `SchemaRenderer` boundary — is the one that would close the class, and it is
+ * still open.
+ *
+ * Pinned in `src/__tests__/kanban-family-registry-keys-retired-8257.test.ts`.
+ */
 
-// Standard Export Protocol - for manual integration
+/**
+ * Standard Export Protocol — for manual integration.
+ *
+ * ⛔ The `kanban`, `kanban-enhanced` and `kanban-ui` keys are RETIRED
+ * (objectui#8802 / objectui#8257, maintainer rulings 2026-09-09), so this map
+ * publishes the one surviving spelling. A host that mounted the retired keys
+ * from here was re-teaching them under its own registry; `object-kanban` is the
+ * key to mount.
+ */
 export const kanbanComponents = {
-  'kanban': KanbanRenderer,
-  'kanban-enhanced': LazyKanbanEnhanced,
   'object-kanban': ObjectKanban,
 };
 
-// Register enhanced Kanban
-ComponentRegistry.register(
-  'kanban-enhanced',
-  ({ schema }: { schema: any }) => {
-    const processedColumns = React.useMemo(() => {
-      const { columns = [], data, groupBy } = schema;
-      if (data && groupBy && Array.isArray(data)) {
-        const groups = data.reduce((acc, item) => {
-          const key = item[groupBy];
-          if (!acc[key]) acc[key] = [];
-          acc[key].push(item);
-          return acc;
-        }, {} as Record<string, any[]>);
-        return columns.map((col: any) => ({
-          ...col,
-          cards: [...(col.cards || []), ...(groups[col.id] || [])]
-        }));
-      }
-      return columns;
-    }, [schema]);
-
-    return (
-      <Suspense fallback={<Skeleton className="w-full h-[600px]" />}>
-        <LazyKanbanEnhanced
-          columns={processedColumns}
-          onCardMove={schema.onCardMove}
-          onColumnToggle={schema.onColumnToggle}
-          enableVirtualScrolling={schema.enableVirtualScrolling}
-          virtualScrollThreshold={schema.virtualScrollThreshold}
-          className={schema.className}
-          quickAdd={schema.quickAdd}
-          onQuickAdd={schema.onQuickAdd}
-          conditionalFormatting={schema.conditionalFormatting}
-        />
-      </Suspense>
-    );
-  },
-  {
-    namespace: 'plugin-kanban',
-    label: 'Kanban Board (Enhanced)',
-    icon: 'LayoutGrid',
-    category: 'plugin',
-    inputs: [
-      { name: 'columns', type: 'array', required: true },
-      { name: 'enableVirtualScrolling', type: 'boolean' },
-      { name: 'virtualScrollThreshold', type: 'number' },
-      { name: 'onCardMove', type: 'code' },
-      { name: 'onColumnToggle', type: 'code' },
-      { name: 'className', type: 'string' }
-    ],
-    defaultProps: {
-      columns: [],
-      enableVirtualScrolling: false,
-      virtualScrollThreshold: 50,
-      className: 'w-full'
-    }
-  }
-);
+/**
+ * ⛔ The `kanban-enhanced` node type key is RETIRED (objectui#8257, maintainer
+ * ruling 2026-09-09) — the card's own subject.
+ *
+ * ## What went, and what went with it
+ *
+ * The registration read `onColumnToggle`, `enableVirtualScrolling` and
+ * `virtualScrollThreshold` off `schema` and declared them as `inputs`, while
+ * `@object-ui/types` declared no `kanban-enhanced` arm at all: the type was
+ * dispatched by the registry and validated by nothing but `BaseSchema`'s
+ * passthrough. ⇒ Re-measured on this branch and CONFIRMED rather than assumed:
+ * with the registration gone those three keys have NO authorable surface left
+ * anywhere in the repo — 0 declarations on any schema face, 0 remaining
+ * `inputs` entries, 0 read sites (firing control on the same instrument:
+ * `groupBy`, which keeps 1 declaration + read sites on the surviving
+ * `object-kanban` face). objectui#8257's question is resolved by the removal of
+ * its subject, not by an answer.
+ *
+ * ## The measurement the ruling was taken on
+ *
+ * `kanban-enhanced` was authored 0 times in JSON and 0 times in TS/TSX, against
+ * the same firing control (`object-grid`, 2 JSON / 128 TS) and silent control
+ * (`zzz-not-a-type`, 0) the `kanban-ui` note above cites.
+ *
+ * `KanbanEnhanced` itself is untouched and still importable from
+ * `@object-ui/plugin-kanban/KanbanEnhanced`; what is gone is the registry key
+ * and the `React.lazy` wrapper that existed only to serve it.
+ *
+ * Pinned in `src/__tests__/kanban-family-registry-keys-retired-8257.test.ts`.
+ */
 
 /**
  * What `ObjectKanban` reads for its own query: `objectName`, `filter` and
@@ -586,15 +517,40 @@ ComponentRegistry.register(
     inputs: [...OBJECT_KANBAN_INPUTS],
   }
 );
-ComponentRegistry.register(
-  'kanban',
-  ObjectKanbanRenderer,
-  {
-    namespace: 'view',
-    label: 'Kanban Board',
-    category: 'view',
-    // Same renderer as `object-kanban`, therefore the same declared surface —
-    // now SHARED rather than hand-copied (objectui#8201).
-    inputs: [...OBJECT_KANBAN_INPUTS],
-  }
-);
+/**
+ * ⛔ The bare `kanban` node type key is RETIRED (objectui#8802, maintainer
+ * ruling 2026-09-09: 「从我们的业务需求角度，我应该只需要 `object-kanban`」).
+ * `object-kanban` above is the one spelling this plugin serves.
+ *
+ * ## What this dissolves rather than patches
+ *
+ * The two published faces of this key returned OPPOSITE verdicts on the same
+ * document: the registry `inputs` above (shared into both registrations by
+ * objectui#8201) declared `titleField`, while the `kanban` Zod arm refused it
+ * BY NAME after batch #70. With the key gone there is no arm left to disagree
+ * with — objectui#8802's four options are all moot.
+ *
+ * ## ⚠️ Unlike its `gantt` / `kanban-ui` / `kanban-enhanced` siblings, this one
+ * had a DECLARED FACE, so unregistering is only half of it
+ *
+ * `@object-ui/types` declared `KanbanSchema` with `type: 'kanban'` and mirrored
+ * it in `zod/complex.zod.ts`. A plain deletion there would have been the
+ * objectui#7664 failure: `BaseSchema` is `.passthrough()`, so a document naming
+ * a dropped spelling validates GREEN and renders nothing. The Zod arm is
+ * therefore a NAMED REFUSAL (`retiredNodeType()`, `zod/tombstone.zod.ts`)
+ * pointing the author at `object-kanban`, and the TS face leaves `ComplexSchema`
+ * and `SchemaRegistry` so `tsc` refuses the literal at the authoring site.
+ *
+ * ## ⛔ Two layers, and only one of them moved
+ *
+ * `kanban` is ALSO a STORED `NamedListView.type` — the value `CreateViewDialog`
+ * writes and every tenant's database holds. That layer is untouched:
+ * `packages/plugin-view/src/ObjectView.tsx`'s `switch (viewType)` already emits
+ * `object-kanban` for a stored `kanban` view, as it emits `object-*` for all
+ * twelve view types. ⇒ Every kanban view any user ever created through the
+ * console already renders through the surviving spelling; this retirement moves
+ * zero stored documents.
+ *
+ * Pinned in `src/__tests__/kanban-family-registry-keys-retired-8257.test.ts`
+ * and `@object-ui/types`' `__tests__/bare-kanban-node-key-retired-8802.test.ts`.
+ */

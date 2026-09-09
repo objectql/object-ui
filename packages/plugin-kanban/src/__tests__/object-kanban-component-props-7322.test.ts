@@ -12,8 +12,8 @@
  *
  * ## The defect this pins closed
  *
- * `ObjectKanbanRenderer` is registered under two keys — `'object-kanban'` and
- * `'kanban'` — and the two keys have different declared node types
+ * `ObjectKanbanRenderer` used to be registered under two keys —
+ * `'object-kanban'` and `'kanban'` — with different declared node types
  * (`ObjectKanbanSchema`, `type: 'object-kanban'`; `KanbanSchema`,
  * `type: 'kanban'`). The prop named `KanbanSchema` alone, so no
  * `object-kanban` node was assignable to the component that renders it. The
@@ -21,6 +21,17 @@
  * fixtures that mount an `object-kanban` board escaped the prop with
  * `as never`, and the `titleField` read inside `ObjectKanban.tsx` was spelled
  * `(schema as any).titleField` because the named arm does not declare it.
+ *
+ * ## ⭐ What objectui#8802 changed, and why this pin got STRONGER rather than weaker
+ *
+ * The bare `kanban` node key RETIRED (maintainer ruling 2026-09-09) and
+ * `KanbanSchema` retired with it, so the component is registered under ONE key
+ * again and the prop names ONE arm again. ⛔ That is not a revert of item ②:
+ * the invariant this file pins is "the prop union EQUALS the registered key
+ * set", and it is that invariant — not the number two — that keeps the two
+ * halves from drifting. The derivation below is what makes the difference
+ * legible: it reads the registrations off disk, so a retirement has to move
+ * BOTH sides or this file names the survivor that was left behind.
  *
  * ## Why the derivation, and not a list of two strings
  *
@@ -48,7 +59,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ComponentRegistry } from '@object-ui/core';
-import type { KanbanSchema, ObjectKanbanSchema, ObjectGridSchema } from '@object-ui/types';
+import type { ObjectKanbanSchema, ObjectGridSchema } from '@object-ui/types';
 import type { ObjectKanbanComponentProps } from '../ObjectKanban';
 import { ObjectKanbanRenderer } from '../index';
 import '../index';
@@ -67,13 +78,9 @@ type Prop = ObjectKanbanComponentProps['schema'];
 // while checking nothing — and `any` is precisely what this member would have
 // been widened to by the lazy fix.
 type _PropIsNotAny = Assert<Equal<IsAny<Prop>, false>>;
-type _KanbanArmIsReal = Assert<Equal<IsAny<KanbanSchema>, false>>;
 type _ObjectKanbanArmIsReal = Assert<Equal<IsAny<ObjectKanbanSchema>, false>>;
 
-// 1. Both registered node types are accepted. The second leg is the one this
-//    card added; the first is what objectui#7664 already required and must not
-//    regress.
-type _AcceptsTheKanbanNode = Assert<KanbanSchema extends Prop ? true : false>;
+// 1. The registered node type is accepted.
 type _AcceptsTheObjectKanbanNode = Assert<ObjectKanbanSchema extends Prop ? true : false>;
 
 // 2. And nothing else. `ObjectGridSchema` is the control: a sibling
@@ -83,10 +90,16 @@ type _AcceptsTheObjectKanbanNode = Assert<ObjectKanbanSchema extends Prop ? true
 //    `any`) rather than to the two declared arms.
 type _RejectsAnUnregisteredNode = Assert<Equal<ObjectGridSchema extends Prop ? true : false, false>>;
 
-// 3. The discriminant carries exactly the two registered keys. This is the
+// 3. The discriminant carries exactly the registered key set. This is the
 //    claim suite 2 checks the other half of: here, what the TYPE says; there,
-//    what `index.tsx` actually registers.
-type _DiscriminantIsTheTwoKeys = Assert<Equal<Prop['type'], 'kanban' | 'object-kanban'>>;
+//    what `index.tsx` actually registers. ⚠️ It read `'kanban' | 'object-kanban'`
+//    until objectui#8802 retired the bare key; the equality — not the arity —
+//    is the invariant.
+type _DiscriminantIsTheRegisteredKeys = Assert<Equal<Prop['type'], 'object-kanban'>>;
+// Non-vacuity for the line above: the RETIRED literal is no longer admitted.
+// Without this leg an accidental widening back to `string` would still satisfy
+// nothing visible here.
+type _RetiredKanbanLiteralIsRefused = Assert<Equal<{ type: 'kanban' } extends Prop ? true : false, false>>;
 
 /* -------------------------------------------------------------------------- */
 /* Suite 2 — runtime, derived from the read site.                              */
@@ -108,13 +121,14 @@ describe('ObjectKanbanComponentProps.schema names every registered node type (ob
     expect(true).toBe(true);
   });
 
-  it('index.tsx registers ObjectKanbanRenderer under exactly the two keys the prop union names', () => {
-    // Red when a third registration is added, or an existing key is renamed,
-    // without moving `ObjectKanbanComponentProps['schema']` to match. The
-    // literals here are the union's arms restated: `KanbanSchema['type']` is
-    // `'kanban'` and `ObjectKanbanSchema['type']` is `'object-kanban'`, which
-    // suite 1's `_DiscriminantIsTheTwoKeys` holds to the prop.
-    expect(registeredKeys()).toEqual(['kanban', 'object-kanban']);
+  it('index.tsx registers ObjectKanbanRenderer under exactly the keys the prop union names', () => {
+    // Red when a registration is added, or an existing key is renamed, without
+    // moving `ObjectKanbanComponentProps['schema']` to match. The literal here
+    // is the union restated: `ObjectKanbanSchema['type']` is `'object-kanban'`,
+    // which suite 1's `_DiscriminantIsTheRegisteredKeys` holds to the prop.
+    // ⚠️ It read `['kanban', 'object-kanban']` until objectui#8802 retired the
+    // bare key — and this line is what forced the prop to follow.
+    expect(registeredKeys()).toEqual(['object-kanban']);
   });
 
   it('the extraction is lit — it finds the reader it claims to read, and no other renderer', () => {
@@ -122,13 +136,22 @@ describe('ObjectKanbanComponentProps.schema names every registered node type (ob
     // return `[]` and a same-shaped `toEqual` against `[]` would pass forever.
     const keys = registeredKeys();
     expect(keys.length).toBeGreaterThan(0);
-    // `'kanban-ui'` and `'kanban-enhanced'` are registered in the same file to
-    // OTHER renderers — the control that the pattern discriminates on the
-    // component, not merely on the word `register`.
+    // ⚠️ The control this leg used to run — `'kanban-ui'` / `'kanban-enhanced'`
+    // registered in the same file to OTHER renderers — RETIRED with those keys
+    // (objectui#8257). `KanbanRenderer` is still declared in the same file and
+    // is still NOT this renderer, so the discrimination the control existed to
+    // prove is asserted directly instead: the extraction must not pick up a
+    // `register(` call for a different component, and the retired keys must not
+    // resolve at all.
     expect(keys).not.toContain('kanban-ui');
     expect(keys).not.toContain('kanban-enhanced');
-    expect(ComponentRegistry.has('kanban-ui')).toBe(true);
-    expect(ComponentRegistry.has('kanban-enhanced')).toBe(true);
+    expect(ComponentRegistry.has('kanban-ui')).toBe(false);
+    expect(ComponentRegistry.has('kanban-enhanced')).toBe(false);
+    expect(ComponentRegistry.has('kanban')).toBe(false);
+    // Firing control for the three `false`s above — the same call answers
+    // `true` for the surviving key, so they are readings and not a registry
+    // that answers `false` to everything.
+    expect(ComponentRegistry.has('object-kanban')).toBe(true);
   });
 
   it('every extracted key resolves to that renderer in the live registry', () => {

@@ -54,6 +54,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 // Registers `object-kanban` and `kanban-ui`.
+import { KanbanRenderer } from '../index';
 import '../index';
 
 /**
@@ -276,18 +277,20 @@ describe('objectui#8827 — reverse: a genuinely empty board STILL announces', (
     expect(find).not.toHaveBeenCalled();
   });
 
-  it('exit 5 — the schema-only `kanban-ui` entry has NO provider and DEFAULTS to settled', async () => {
+  it('exit 5 — the schema-only `KanbanRenderer` path has NO provider and DEFAULTS to settled', async () => {
     // No `ObjectKanban` on this path, so nothing supplies the signal. Its rows
     // arrive whole from their author and are settled by construction; the
     // context default is what says so. A default of `false` would leave every
     // authored board that happens to be empty silent forever.
-    render(
-      <SchemaRenderer
-        schema={
-          { type: 'kanban-ui', groupBy: 'status', columns: LANES, data: [] } as never
-        }
-      />,
-    );
+    //
+    // ⚠️ Driven by rendering `KanbanRenderer` DIRECTLY. It used to be reached
+    // through the `kanban-ui` registry key, which RETIRED (objectui#8257) —
+    // ⛔ and re-pointing this leg at `object-kanban` would have destroyed it
+    // rather than moved it: that key resolves to `ObjectKanbanRenderer`, which
+    // DOES mount `ObjectKanban` and therefore DOES supply the provider, so the
+    // "no provider" premise would be false and the assertion would pass for the
+    // wrong reason. The component is unchanged; only the lookup is gone.
+    render(<KanbanRenderer schema={{ type: 'object-kanban', groupBy: 'status', columns: LANES, data: [] } as never} />);
 
     await waitFor(() => expect(emptyState()).not.toBeNull());
     expect(emptyState()!.textContent).toContain('No cards');

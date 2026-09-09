@@ -18,7 +18,7 @@ import {
   FormSchema,
   CardSchema,
   DataTableSchema,
-  KanbanSchema,
+  ObjectKanbanSchema,
 } from '../src/zod/index.zod';
 
 // The failure accessor below is `error.issues`. Zod 4 removed the `.errors`
@@ -131,42 +131,21 @@ if (!dataTableResult.success) {
   console.error('DataTable errors:', dataTableResult.error.issues);
 }
 
-// Example 6: Validate a Kanban component — the dialect `@object-ui/plugin-kanban`
-// renders (objectui#7664): an object-bound board, plus static columns whose
-// cards carry `badges`.
+// Example 6: Validate a Kanban component.
+//
+// ⚠️ Spelled `object-kanban`, not the bare `kanban` this example used to author:
+// the bare node type key RETIRED (objectui#8802, maintainer ruling 2026-09-09)
+// and `KanbanSchema` retired with it. `ObjectKanbanSchema` is the surviving
+// face, and `groupBy` is REQUIRED on it.
 const kanbanExample = {
-  type: 'kanban' as const,
+  type: 'object-kanban' as const,
   objectName: 'tasks',
   groupBy: 'status',
-  cardTitle: 'title',
+  titleField: 'title',
   cardFields: ['assignee', 'due_date'],
-  columns: [
-    {
-      id: 'todo',
-      title: 'To Do',
-      cards: [
-        {
-          id: '1',
-          title: 'Task 1',
-          description: 'Do something',
-          badges: [{ label: 'High', variant: 'destructive' as const }],
-        },
-      ],
-    },
-    {
-      id: 'in-progress',
-      title: 'In Progress',
-      cards: [],
-    },
-    {
-      id: 'done',
-      title: 'Done',
-      cards: [],
-    },
-  ],
 };
 
-const kanbanResult = KanbanSchema.safeParse(kanbanExample);
+const kanbanResult = ObjectKanbanSchema.safeParse(kanbanExample);
 console.log('Kanban validation:', kanbanResult.success ? 'PASSED ✓' : 'FAILED ✗');
 if (!kanbanResult.success) {
   console.error('Kanban errors:', kanbanResult.error.issues);

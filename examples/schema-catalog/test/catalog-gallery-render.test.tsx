@@ -623,7 +623,11 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
       'chatbot',
       'code-editor',
       'object-gantt',
-      'kanban',
+      // ⚠️ `'kanban'` until objectui#8802 retired the bare node type key
+      // (maintainer ruling 2026-09-09); `object-kanban` is the surviving key
+      // that this package's registration now publishes, and it is what the
+      // census needs from `@object-ui/plugin-kanban`.
+      'object-kanban',
       'object-map',
       'markdown',
       'timeline',

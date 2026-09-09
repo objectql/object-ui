@@ -253,12 +253,18 @@ const describeRow = (r: DocRow): string => `${r.page}:${r.line} ${r.owner}.${r.k
 
 /** Runtime-slot rows measured present on this tree — the blanket-sweep control. */
 const CONTROL = [
-  // objectui#7664: the page documents the plugin dialect under `KanbanSchema`
+  // ⛔ objectui#8802 removed the three `KanbanSchema` rows that sat here. The
+  // bare `kanban` node type key retired (maintainer ruling 2026-09-09), the arm
+  // retired with it, and `content/docs/api/schema-reference.md`'s
+  // `### KanbanSchema` section is now `### ObjectKanbanSchema` — which documents
+  // no handler keys at all, because the surviving face declares none. The three
+  // are still FORWARDED by `KanbanRenderer`; that they are now declared nowhere
+  // is measured and recorded in
+  // `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx`, and
+  // reported rather than repaired.
+  // (was: objectui#7664, the page documenting the plugin dialect under `KanbanSchema`)
   // now, whose three runtime slots are `onCardMove` / `onCardClick` /
   // `onQuickAdd` — the three `KanbanRenderer` forwards off `schema.*`.
-  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onCardMove' },
-  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onCardClick' },
-  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onQuickAdd' },
   { page: 'components/basic/pagination.mdx', owner: 'PaginationSchema', key: 'onPageChange' },
   { page: 'components/data-display/tree-view.mdx', owner: 'TreeViewSchema', key: 'onNodeClick' },
   { page: 'components/form/button.mdx', owner: 'ButtonSchema', key: 'onClick' },
@@ -276,13 +282,22 @@ describe('the retired population is measured off the shipped tree (objectui#7340
     // (`ActionCallback`, deleted), the third meaning of `onSuccess` — but the
     // same `on*?: never` shape this name-shaped census reads, so the move is
     // recorded here too (maintainer ruling option 1, 2026-09-05).
+    //
+    // ⭐ 28 → 26, `complex.ts` 4 → 2: objectui#8802 retired the bare `kanban`
+    // node type key and its `KanbanSchema` arm, taking that arm's two `?: never`
+    // handler tombstones (`onColumnAdd`, `onCardAdd`) out of the shipped tree.
+    // ⛔ A shrink here is normally the failure this census exists to catch — a
+    // key dropped from a LIVE interface stops being refused and, under
+    // `.passthrough()`, is KEPT. What separates this one is that the whole ARM
+    // went: a `{ "type": "kanban" }` document is refused BY NAME before any
+    // member is examined (`./bare-kanban-node-key-retired-8802.test.ts`).
     const split: Record<string, number> = {};
     for (const m of RETIRED) split[m.file] = (split[m.file] ?? 0) + 1;
     expect({ total: RETIRED.length, split }).toEqual({
-      total: 28,
+      total: 26,
       split: {
         'app.ts': 1,
-        'complex.ts': 4,
+        'complex.ts': 2,
         'crud.ts': 3,
         'data-display.ts': 4,
         'feedback.ts': 1,
@@ -303,11 +318,14 @@ describe('the retired population is measured off the shipped tree (objectui#7340
   });
 
   it('names the keys no shipped interface declares callable', () => {
+    // ⛔ `onCardAdd` and `onColumnAdd` left this list with the retired `kanban`
+    // arm (objectui#8802): no shipped interface declares either name at all any
+    // more, so the census — which reads NAMES off the shipped tree — has nothing
+    // to classify. They are not "live again": the document that could have
+    // carried them is refused at its `type`.
     expect(UNAMBIGUOUSLY_RETIRED_NAMES).toEqual([
-      'onCardAdd',
       'onClose',
       'onCollapsedChange',
-      'onColumnAdd',
       'onConfirm',
       'onExpandChange',
       // objectui#7068: the legacy `ActionSchema.onFailure` callback object — no

@@ -147,7 +147,12 @@ describe('SchemaRegistry declares all three chatbot registrations (objectui#7704
     // If the parse collapsed, or the interface were renamed, every assertion
     // below would pass vacuously on an empty list. These are the controls.
     expect(keys.length).toBeGreaterThan(60);
-    expect(keys).toContain('kanban');
+    // ⚠️ The lit control was `'kanban'` until objectui#8802 retired that key
+    // from the map with the bare node type. `'carousel'` is its replacement:
+    // another `// Complex` group entry, declared in the same block, so the
+    // control still proves the parse reached this group rather than merely
+    // returning a long list.
+    expect(keys).toContain('carousel');
     expect(keys).toContain('chatbot');
     expect(valueOf('chatbot')).toBe('ChatbotSchema');
   });
@@ -161,7 +166,7 @@ describe('SchemaRegistry declares all three chatbot registrations (objectui#7704
 
   it('they sit with the family, under the `// Complex` group', () => {
     const at = keys.indexOf('chatbot');
-    expect(at).toBeGreaterThan(keys.indexOf('kanban'));
+    expect(at).toBeGreaterThan(keys.indexOf('carousel'));
     expect(keys[at + 1]).toBe('chatbot-enhanced');
     expect(keys[at + 2]).toBe('chatbot-floating');
   });

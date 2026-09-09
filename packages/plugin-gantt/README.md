@@ -19,7 +19,7 @@ Gantt chart plugin for Object UI - Visualize project timelines and task dependen
 ### Create / Edit / Delete / View
 
 When used through `ObjectGantt` (the wiring the framework uses for the
-`gantt` view type) the full CRUD lifecycle is wired automatically:
+`gantt` stored view type) the full CRUD lifecycle is wired automatically:
 
 - **Create** — click the toolbar "+ New Task" button. A small dialog opens
   pre-filled with start/end (today → +7 days). On submit the component calls
@@ -65,7 +65,7 @@ When used through `ObjectGantt` (the wiring the framework uses for the
 ### Drag-and-drop rescheduling
 
 When the renderer is used through `ObjectGantt` (the standard wiring used by
-the framework's `gantt` view type) drag is enabled automatically: each bar
+the framework's `gantt` stored view type) drag is enabled automatically: each bar
 shows a grab cursor; the body drags the entire task, and the two thin edge
 zones (≈6px) resize start or end. Pointer motion snaps to whole days using
 the current column width. On release `ObjectGantt` issues an optimistic local
@@ -114,7 +114,7 @@ import '@object-ui/plugin-gantt';
 // The gantt is RECORD-DRIVEN: it names a data source and the fields to read.
 // It does not take a task array — see "Schema API" below.
 const schema = {
-  type: 'gantt',
+  type: 'object-gantt',
   objectName: 'project_tasks',
   titleField: 'name',
   startDateField: 'start_date',
@@ -134,11 +134,21 @@ claim these schema types:
 | Schema `type` | Namespaced key | Renderer |
 | --- | --- | --- |
 | `object-gantt` | `plugin-gantt:object-gantt` | `ObjectGanttRenderer` |
-| `gantt` | `view:gantt` | `ObjectGanttRenderer` |
 
-Both spellings resolve — `register` stores the namespaced key *and* a bare-`type`
-fallback. Both keys declare the same two inputs: `objectName` (required) and the
-`gantt` configuration object.
+Both spellings of the surviving key resolve — `register` stores the namespaced key
+*and* a bare-`type` fallback. It declares two inputs: `objectName` (required) and
+the `gantt` configuration object.
+
+> **The bare `gantt` key is retired** (objectui#8008, ruled 2026-09-09). This
+> table used to carry a second row, `gantt` / `view:gantt`, on the same renderer.
+> The registry accepted both spellings while the published declaration admitted
+> only one — `ObjectGanttSchema.type` is the literal `'object-gantt'` — so an
+> author who annotated their node could not write the key the registry took.
+> `object-gantt` is now the one spelling.
+>
+> ⚠️ The **stored view type** `"gantt"` — what a saved `listViews[].type` holds —
+> is a **different layer and is unchanged**. `ObjectView` maps a stored `gantt`
+> view onto the `object-gantt` node type, so no saved view moves.
 
 `ObjectGanttRenderer` is a thin wrapper: it pulls `dataSource` off the renderer
 context and hands the schema to `ObjectGantt`.
@@ -150,7 +160,7 @@ The package exports components, helpers and their types — not a registry map:
 ```typescript
 import {
   ObjectGantt, // ObjectQL-integrated gantt: loads records, writes back edits
-  ObjectGanttRenderer, // the registered renderer for `object-gantt` / `gantt`
+  ObjectGanttRenderer, // the registered renderer for `object-gantt`
   GanttView, // the standalone timeline component
   QuickFilterBar, // the toolbar's quick-filter dropdowns
   ResourceWorkload, // resource × period workload grid
@@ -356,7 +366,7 @@ pulses it — useful in deep or long trees.
 
 ```json
 {
-  "type": "gantt",
+  "type": "object-gantt",
   "objectName": "project_task",
   "gantt": {
     "titleField": "name",

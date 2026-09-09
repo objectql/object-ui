@@ -30,7 +30,6 @@ import {
 import { getBadgeColorClasses, getBadgeHexAppearance, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { usePermissions } from '@object-ui/permissions';
 import { KanbanRenderer, KANBAN_UNCOLUMNED_ID } from './index';
-import type { KanbanSchema } from './types';
 import {
   collectRequiredWhenPromptFields,
   type RequiredWhenPromptField,
@@ -144,59 +143,39 @@ export function resolveKanbanCardFields(
  */
 export interface ObjectKanbanComponentProps {
   /**
-   * The board node. A UNION of the two declared node types this component is
-   * registered for (objectui#7322 item ②) — `KanbanSchema` (`type: 'kanban'`)
-   * and `ObjectKanbanSchema` (`type: 'object-kanban'`).
+   * The board node — `ObjectKanbanSchema` (`type: 'object-kanban'`), the ONE
+   * declared node type this component is now registered for.
    *
-   * ## Why a union and not either type alone
+   * ## Why it is one arm again
    *
-   * `index.tsx` registers ONE component under TWO keys —
-   * `ComponentRegistry.register('object-kanban', ObjectKanbanRenderer, …)` and
-   * `ComponentRegistry.register('kanban', ObjectKanbanRenderer, …)`, and
-   * `kanban-plugin-dialect-authoritative-7664.test.ts` pins that they resolve to
-   * the same renderer. The two keys have DIFFERENT declared node types, and the
-   * discriminants are disjoint literals, so naming one of them makes the prop
-   * lie about the other half of the nodes this component serves. That is the
-   * defect this member carried: it named `KanbanSchema` alone, so no
-   * `object-kanban` node was assignable to it, and every in-package test that
-   * mounts one had to escape the prop with `as never`.
+   * objectui#7322 item ② widened this to a two-arm union because `index.tsx`
+   * registered ONE renderer under TWO keys with DIFFERENT declared node types,
+   * so naming either alone made the prop lie about half the nodes the component
+   * served. That note closed with a standing condition: *"⛔ Do not narrow this
+   * back to one arm without first removing a registration."*
    *
-   * ## The read set that settled it (measured on `origin/main` `21d7989fb`)
+   * ⇒ The registration WAS removed. objectui#8802 retired the bare `kanban`
+   * node type key (maintainer ruling 2026-09-09) and `KanbanSchema` retired
+   * with it, so the union's second arm no longer names anything the registry
+   * dispatches here. The condition is met, and this is the narrowing it
+   * authorised.
    *
-   * `ObjectKanban` reads thirteen keys off `schema`. Neither declaration covers
-   * them; the two TOGETHER cover twelve:
+   * ## What that costs, measured rather than waved past
    *
-   * | key | `BaseSchema` | `KanbanSchema` | `ObjectKanbanSchema` |
-   * |---|---|---|---|
-   * | `objectName`, `groupBy`, `limit`, `cardFields` | — | yes | yes |
-   * | `columns`, `cardTitle`, `swimlaneField`, `grouping` | — | yes | — |
-   * | `titleField` | — | — | yes |
-   * | `data`, `bind`, `className` | yes | — / yes | — |
-   * | `filter` | — | — | — |
+   * `ObjectKanban` reads thirteen keys off `schema`. `ObjectKanbanSchema`
+   * declares `objectName`, `groupBy`, `limit`, `cardFields`, `titleField`; the
+   * retired arm was the only declaration of `columns`, `cardTitle`,
+   * `swimlaneField` and `grouping`. Those four now resolve through
+   * {@link BaseSchema}'s `[key: string]: any` — as `filter` always has, and as
+   * every one of them ALREADY did on an `object-kanban` document, which was
+   * never judged by the `kanban` arm. ⇒ No `object-kanban` node changes
+   * meaning; what changed is that `kanban` nodes no longer exist.
    *
-   * So each arm is load-bearing: dropping `ObjectKanbanSchema` loses the
-   * `titleField` read at `:350` / `:1024` (which is why that read was spelled
-   * `(schema as any).titleField` before this card), and dropping `KanbanSchema`
-   * loses four reads AND the `'kanban'` registration. `filter` (`:310`,
-   * `$filter` on the fetch) is declared by NEITHER face and still rides
-   * {@link BaseSchema}'s `[key: string]: any` — measured, filed, and NOT fixed
-   * here: this card moves the prop, not the two published schema faces.
-   *
-   * ## What the union does and does not claim
-   *
-   * It claims exactly the accept set the registry dispatches to this component,
-   * no wider: a node of some third type is still turned away. Every key above
-   * that only one arm declares reads as `any` on the union (through the other
-   * arm's index signature) — the same resolution it had before, so no read
-   * changes meaning. Widening a member of an exported prop type is additive:
-   * every caller that passed a `KanbanSchema` still compiles.
-   *
-   * ⛔ Do not narrow this back to one arm without first removing a
-   * registration. `__tests__/object-kanban-component-props-7322.test.ts`
-   * derives the registered key set from `index.tsx` off disk and goes red if
-   * the two ever stop agreeing.
+   * `__tests__/object-kanban-component-props-7322.test.ts` derives the
+   * registered key set from `index.tsx` off disk and goes red if the prop and
+   * the registrations ever stop agreeing.
    */
-  schema: KanbanSchema | ObjectKanbanSchema;
+  schema: ObjectKanbanSchema;
   dataSource?: DataSource;
   className?: string; // Allow override
   /** Pre-fetched records passed by a parent (e.g. ListView). When provided, skips internal data fetching. */
@@ -991,9 +970,15 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
   // CLOSED, not open — do not re-open it as a cleanup. If bucket-vocabulary
   // unification ever becomes a product direction that is a fresh ruling,
   // with visual-regression evidence across all four surfaces in one stroke.
-  // `navigation` is DECLARED on `KanbanSchema` since objectui#7742 (gantt
-  // precedent objectui#5903), so this read is typed rather than cast. It stayed
-  // `(schema as any)` for exactly as long as no schema face named the key.
+  // ⚠️ `navigation` was DECLARED on `KanbanSchema` by objectui#7742 (gantt
+  // precedent objectui#5903). That arm RETIRED with the bare `kanban` node key
+  // (objectui#8802), and the surviving `ObjectKanbanSchema` face never declared
+  // the key — so on an `object-kanban` document this read has ALWAYS ridden
+  // `BaseSchema`'s `[key: string]: any`, exactly as `filter` does. ⛔ Nothing
+  // about an `object-kanban` board changed here; what went is the only face
+  // that ever declared the key, and it only ever judged `kanban` documents.
+  // The designer face still declares it — `OBJECT_KANBAN_INPUTS` (`index.tsx`).
+  // Reported on the retirement PR as a follow-up for the `object-kanban` face.
   const navConfig = schema.navigation ?? { mode: 'drawer' };
   // When this kanban is embedded in an ObjectView, the parent provides
   // `onRowClick`/`onCardClick` and owns the unified record-detail overlay.

@@ -70,10 +70,17 @@ import { manifestFromConfigs, validateTree } from '@object-ui/sdui-parser';
 import { bucketCardsIntoColumns } from '../index';
 import '../index';
 
-/** The two tags this one renderer is published under. */
+/**
+ * The tag this one renderer is published under.
+ *
+ * ⚠️ It was a LIST OF TWO — `object-kanban` and `view:kanban` — until
+ * objectui#8802 retired the bare `kanban` node type key (maintainer ruling
+ * 2026-09-09). The `it.each` shape is deliberately KEPT over the one survivor:
+ * the rows below are per-(tag, key), and collapsing them to bare `it`s would
+ * make re-adding a tag a rewrite rather than a one-line edit.
+ */
 const KANBAN_TAGS = [
   { label: 'object-kanban', type: 'object-kanban', namespace: 'plugin-kanban' },
-  { label: 'view:kanban', type: 'kanban', namespace: 'view' },
 ] as const;
 
 /**
@@ -155,15 +162,20 @@ describe('objectui#8201 — object-kanban publishes the scalar keys it reads', (
     expect(refusedByName({ objectName: 'task', bogusProp: 'x' })).toContain('bogusProp');
   });
 
-  it('both tags publish ONE shared list, so a hand-copy cannot drift', () => {
-    const [a, b] = KANBAN_TAGS.map(
-      ({ type, namespace }) => (ComponentRegistry.getConfig(type, namespace) as any)?.inputs,
-    );
-    expect(a, 'object-kanban declares no inputs at all').toBeTruthy();
-    expect(a.map((i: any) => i.name)).toEqual(b.map((i: any) => i.name));
-    expect(a.map((i: any) => i.name)).toEqual(
+  it('⛔ the RETIRED `view:kanban` tag resolves to nothing, and the survivor still declares the list', () => {
+    // ⭐ This was "both tags publish ONE shared list, so a hand-copy cannot
+    // drift" (objectui#8201's row 5). Its second operand RETIRED with the bare
+    // `kanban` node type key (objectui#8802), so the sharing claim has nothing
+    // left to compare — and the honest replacement is the retirement itself,
+    // asserted with the surviving list as its firing control.
+    const survivor = (ComponentRegistry.getConfig('object-kanban', 'plugin-kanban') as any)?.inputs;
+    expect(survivor, 'object-kanban declares no inputs at all').toBeTruthy();
+    expect(survivor.map((i: any) => i.name)).toEqual(
       expect.arrayContaining(DECLARED_SCALAR_KEYS.map(({ key }) => key)),
     );
+    // The retired tag: gone from the registry under BOTH spellings it had.
+    expect(ComponentRegistry.getConfig('kanban', 'view')).toBeFalsy();
+    expect(ComponentRegistry.has('kanban')).toBe(false);
   });
 
   it('honoured — `groupBy` buckets records into the lane its value names', () => {
