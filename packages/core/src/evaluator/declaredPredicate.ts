@@ -25,8 +25,16 @@ import { toPredicateInput } from './predicateInput.js';
  * return true`), `evalRowPredicate` (`listConditional.ts`) — brought to the one
  * place that answers "is there a condition at all?", so the two halves cannot
  * disagree about the same blank.
+ *
+ * Exported since objectui#8069 for its second consumer, `evalFieldPredicate`
+ * (`evaluator/fieldRules.ts`), which is the entry this docblock's list did NOT
+ * name because it did not apply the rule: it trimmed the STRING spelling only,
+ * so `{ dialect: 'cel', source: '   ' }` went to the engine and came back as a
+ * parse fault while `'   '` returned the caller's fallback in silence. Reusing
+ * this definition rather than writing a fourth `trim()` is the whole point of
+ * the paragraph above.
  */
-function isBlankPredicateText(value: unknown): boolean {
+export function isBlankPredicateText(value: unknown): boolean {
   if (typeof value === 'string') return value.trim() === '';
   if (value !== null && typeof value === 'object') {
     const source = (value as { source?: unknown }).source;

@@ -248,11 +248,15 @@ describe('failure diagnostics — loud fail-open (objectstack#5149, appeal 2)', 
     expect(String(warn.mock.calls[0][0])).toContain(JSON.stringify(pred));
   });
 
-  it('does not warn for a healthy, absent, or blank predicate', () => {
+  // A BLANK predicate used to be listed here too — it was the negative
+  // baseline objectui#8069 measured, and it is now loud; the case moved to the
+  // blank-predicate describe below rather than being edited in place, because
+  // what it pinned is the branch that card removes. An ABSENT predicate keeps
+  // its silence: nothing was authored, so there is nothing to report.
+  it('does not warn for a healthy or absent predicate', () => {
     expect(evalFieldPredicate("record.ok_5149 == 'y'", { ok_5149: 'y' }, false)).toBe(true);
     expect(evalFieldPredicate(undefined, {}, true)).toBe(true);
     expect(evalFieldPredicate(null, {}, false)).toBe(false);
-    expect(evalFieldPredicate('   ', {}, true)).toBe(true);
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -354,5 +358,189 @@ describe('failure diagnostics — loud fail-open (objectstack#5149, appeal 2)', 
     }
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0][0])).toContain('[throw] engine exploded');
+  });
+});
+
+/**
+ * objectui#8069, deliverable 1. The three fault directions are now named
+ * constants; these pin the VALUES through the public surface, so a future edit
+ * that moves one goes red here instead of shipping. ⛔ They are not an
+ * endorsement of the direction — that is the card's open question. Each case
+ * pairs the FAULTED verdict with the ABSENT one to keep visible the fact the
+ * card turns on: the two questions have equal answers today, and only because
+ * one was copied from the other.
+ */
+describe('fault directions — what a BROKEN rule decides (objectui#8069)', () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+
+  const broken = 'unbound_direction_8069 ==';
+
+  it('a faulted visibleWhen SHOWS the field — same verdict as no visibleWhen at all', () => {
+    expect(resolveFieldRuleState({ visibleWhen: broken }, {}, {}).visible).toBe(true);
+    expect(resolveFieldRuleState({}, {}, {}).visible).toBe(true);
+  });
+
+  it('a faulted readonlyWhen leaves the field EDITABLE — same verdict as no readonlyWhen', () => {
+    expect(resolveFieldRuleState({ readonlyWhen: broken }, {}, {}).readonly).toBe(false);
+    expect(resolveFieldRuleState({}, {}, {}).readonly).toBe(false);
+  });
+
+  it('a faulted requiredWhen demands NOTHING — same verdict as no requiredWhen', () => {
+    expect(resolveFieldRuleState({ requiredWhen: broken }, {}, {}).required).toBe(false);
+    expect(resolveFieldRuleState({}, {}, {}).required).toBe(false);
+  });
+
+  it('all three compose from ONE broken predicate: shows more, locks less, demands less', () => {
+    // The card's thesis in one assertion — the three faults do not cancel.
+    expect(
+      resolveFieldRuleState(
+        { visibleWhen: broken, readonlyWhen: broken, requiredWhen: broken },
+        {},
+        {},
+      ),
+    ).toEqual({ visible: true, readonly: false, required: false });
+  });
+});
+
+/**
+ * objectui#8069, deliverable 2. A predicate the author DECLARED and left blank
+ * is a third state: the key is present, so it is not "no rule", and nothing
+ * evaluates, so no engine fault is raised. It used to return the permissive
+ * fallback before any warning could fire — silent, which is the one thing
+ * objectui#4051 / objectstack#5149 ruled out. The VERDICT is deliberately
+ * unchanged; only the silence is.
+ *
+ * Every case below uses a UNIQUE context locator: for this class the locator
+ * joins the once-per-predicate dedupe key (a blank predicate has no
+ * distinguishing text), so a reused locator would spend its warning earlier.
+ */
+describe('blank predicate — declared but empty (objectui#8069)', () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+
+  it('a whitespace-only bare string warns instead of defaulting in silence', () => {
+    expect(
+      evalFieldPredicate('   ', {}, true, undefined, undefined, { context: 'blank_ws_8069' }),
+    ).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const msg = String(warn.mock.calls[0][0]);
+    expect(msg).toContain('[blank]');
+    expect(msg).toContain('blank_ws_8069');
+  });
+
+  it('the empty-string spelling warns too', () => {
+    expect(evalFieldPredicate('', {}, true, undefined, undefined, { context: 'blank_empty_8069' })).toBe(
+      true,
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('[blank]');
+  });
+
+  it('the ENVELOPE spelling reports the same reason, not the engine parse fault it used to', () => {
+    // Before: `{ source: '' }` reached the engine and came back
+    // "AST-only evaluation not yet supported; persist `source`", and
+    // `{ source: '   ' }` came back "Unexpected token: EOF" — two different
+    // reasons for one author mistake, neither of them naming it.
+    expect(
+      evalFieldPredicate({ dialect: 'cel', source: '  ' }, {}, true, undefined, undefined, {
+        context: 'blank_envelope_8069',
+      }),
+    ).toBe(true);
+    const msg = String(warn.mock.calls[0][0]);
+    expect(msg).toContain('[blank]');
+    expect(msg).not.toContain('AST-only');
+    expect(msg).not.toContain('Unexpected token');
+  });
+
+  it('the VERDICT is unchanged — a blank predicate still returns the caller\'s fallback either way', () => {
+    expect(
+      evalFieldPredicate('   ', {}, true, undefined, undefined, { context: 'blank_verdict_t_8069' }),
+    ).toBe(true);
+    expect(
+      evalFieldPredicate('   ', {}, false, undefined, undefined, { context: 'blank_verdict_f_8069' }),
+    ).toBe(false);
+  });
+
+  it('`onFault` carries the blank reason, so a caller that silenced the warning is not silenced', () => {
+    // The fault-probing callers (`evalCel`, `ExpressionEvaluator` under
+    // `throwOnError`) pass `warn: false` and print their own line; without the
+    // passback a blank predicate would stay silent for exactly those surfaces.
+    const reasons: string[] = [];
+    evalFieldPredicate('   ', {}, true, undefined, undefined, {
+      warn: false,
+      onFault: (r) => reasons.push(r),
+    });
+    expect(warn).not.toHaveBeenCalled();
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain('[blank]');
+  });
+
+  it('two blank predicates at DIFFERENT locators each warn — text alone would silence the second', () => {
+    evalFieldPredicate('', {}, true, undefined, undefined, { context: 'blank_site_A_8069' });
+    evalFieldPredicate('', {}, true, undefined, undefined, { context: 'blank_site_B_8069' });
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('the SAME blank predicate at the same locator still warns once across re-renders', () => {
+    const diag = { context: 'blank_rerender_8069' };
+    evalFieldPredicate('   ', {}, true, undefined, undefined, diag);
+    evalFieldPredicate('   ', {}, true, undefined, undefined, diag);
+    evalFieldPredicate('   ', {}, true, undefined, undefined, diag);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  // ── controls: a control that reds when the subject reds is not a control ──
+
+  it('control — an ABSENT predicate stays silent and keeps its verdict', () => {
+    expect(evalFieldPredicate(undefined, {}, true, undefined, undefined, { context: 'absent_8069' })).toBe(
+      true,
+    );
+    expect(evalFieldPredicate(null, {}, false, undefined, undefined, { context: 'absent_8069' })).toBe(
+      false,
+    );
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('control — a HEALTHY predicate is silent and its verdict ignores the fallback', () => {
+    const pred = "record.state_8069 == 'paid'";
+    expect(evalFieldPredicate(pred, { state_8069: 'paid' }, false)).toBe(true);
+    expect(evalFieldPredicate(pred, { state_8069: 'paid' }, true)).toBe(true);
+    expect(evalFieldPredicate(pred, { state_8069: 'draft' }, true)).toBe(false);
+    expect(evalFieldPredicate(pred, { state_8069: 'draft' }, false)).toBe(false);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('control — a genuinely BROKEN predicate still warns with the engine reason, not [blank]', () => {
+    const pred = 'still_faults_8069 ==';
+    expect(evalFieldPredicate(pred, {}, true)).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const msg = String(warn.mock.calls[0][0]);
+    expect(msg).toContain('Reason: [');
+    expect(msg).not.toContain('[blank]');
+  });
+
+  it('resolveFieldRuleState: a blank visibleWhen is reported with its field locator, verdict unchanged', () => {
+    const state = resolveFieldRuleState(
+      { visibleWhen: '   ' },
+      { status: 'x' },
+      {},
+      undefined,
+      undefined,
+      "field 'amount_8069'",
+    );
+    // The `!= null` guard lets `''` / `'   '` through — that is how the blank
+    // reached the permissive fallback in the first place.
+    expect(state.visible).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const msg = String(warn.mock.calls[0][0]);
+    expect(msg).toContain("visibleWhen of field 'amount_8069'");
+    expect(msg).toContain('[blank]');
   });
 });
