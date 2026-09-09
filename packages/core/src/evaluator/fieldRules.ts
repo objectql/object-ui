@@ -62,9 +62,22 @@
  * logs `treating the field as LOCKED` instead). The *default* stays
  * fail-open on purpose — flipping it is a shipped-behavior change tracked
  * separately in objectstack#5149 (appeal 1, undecided).
+ *
+ * A predicate the author DECLARED and left BLANK is loud too, since
+ * objectui#8069 — and it did not used to be. It is a third state, not a
+ * spelling of either neighbour: the key is present (so it is not "no rule")
+ * and nothing evaluates (so no engine fault is raised), and it used to return
+ * the caller's permissive fallback before any warning could fire. `''` and
+ * `'   '` are authorable — `ExpressionWireSchema` is a bare `z.string()`, and
+ * `resolveFieldRuleState`'s own guard is `!= null` — so the one state an author
+ * reaches by *starting* a rule and not finishing it was the one state that said
+ * nothing at all. Both spellings now report `[blank]` through the same single
+ * site as every other fault; the VERDICT is unchanged for every input.
  */
 import { ExpressionEngine } from '@objectstack/formula';
 import type { Expression } from '@objectstack/spec';
+
+import { isBlankPredicateText } from './declaredPredicate.js';
 
 /** A field-rule predicate as authored in metadata. */
 export type FieldRulePredicate = string | { dialect?: string; source: string };
@@ -110,11 +123,28 @@ export interface FieldPredicateDiagnostic {
 const warnedPredicates = new Set<string>();
 
 /**
+ * The `reason` reported for a predicate the author DECLARED and left blank.
+ *
+ * Tagged like an engine reason (`[parse]`, `[type]`, `[throw]`) because it
+ * travels the same two channels — the built-in warning and the `onFault`
+ * passback — and a caller that routes on the tag must be able to tell this
+ * apart from a predicate that faulted with text in it: the fix for a blank one
+ * is to finish it or delete the key, never to debug its syntax.
+ */
+const BLANK_PREDICATE_REASON = '[blank] the predicate is declared but empty — nothing to evaluate';
+
+/**
  * One-time warning for a predicate that could not be evaluated. Deduped per
  * predicate TEXT (dialect + source): a broken predicate is re-evaluated on
  * every render/keystroke, and the point is one loud line, not a scrolling
  * wall. The dedupe key is JSON-encoded — never a control-character separator
  * (objectstack#5450 made a sibling of this file binary to grep that way).
+ *
+ * ⚠️ One class joins the LOCATOR to that key: a BLANK predicate. The text is
+ * what identifies the authoring site for every other fault — it carries the
+ * typo — but every blank predicate in an app shares the key `""`, so text
+ * alone would let the first blank rule silence every other author's. Non-blank
+ * keys are unchanged (objectui#8069).
  */
 function warnPredicateFailure(
   expr: Expression,
@@ -122,7 +152,9 @@ function warnPredicateFailure(
   reason: string,
   context?: string,
 ): void {
-  const key = JSON.stringify([expr.dialect, expr.source]);
+  const key = expr.source.trim()
+    ? JSON.stringify([expr.dialect, expr.source])
+    : JSON.stringify([expr.dialect, expr.source, context ?? '']);
   if (warnedPredicates.has(key)) return;
   warnedPredicates.add(key);
   console.warn(
@@ -174,10 +206,16 @@ function warnPredicateFailure(
  *
  * @param pred      The `visibleWhen` / `readonlyWhen` / `requiredWhen` predicate.
  * @param record    The live form values (overlays prior persisted record).
- * @param fallback  Value to return when the predicate is absent or fails to
- *                  evaluate. Pick the *safe* default for the caller:
- *                  `false` for readonly/required (don't lock/block on error),
- *                  `true` for visibility (don't hide on error).
+ * @param fallback  Value to return when the predicate is ABSENT (`null` /
+ *                  `undefined`), and — separately — the value returned when a
+ *                  present predicate cannot be evaluated. ⚠️ Those are two
+ *                  questions this one parameter answers with one value; a
+ *                  caller that wants different answers must branch before the
+ *                  call, as {@link resolveFieldRuleState} does. The historic
+ *                  advice is to pick the *safe* default (`false` for
+ *                  readonly/required — don't lock/block on error; `true` for
+ *                  visibility — don't hide on error); whether "safe" is the
+ *                  right axis is objectui#8069's open question.
  * @param previous  The prior persisted record, if any (for `previous.*` refs).
  * @param scope     Extra top-level scope variables bound alongside `record` —
  *                  e.g. `{ parent }` so an inline line-item cell can reference
@@ -196,26 +234,39 @@ export function evalFieldPredicate(
   scope?: Record<string, unknown>,
   diagnostic?: FieldPredicateDiagnostic,
 ): boolean {
-  if (pred == null || (typeof pred === 'string' && !pred.trim())) return fallback;
+  if (pred == null) return fallback;
   const expr = toExpression(pred);
-  // The two fault sources — a not-ok verdict and a throw that slipped past the
-  // engine's "never throws" contract — converge on one reason string and one
-  // reporting site below, so the built-in warning and the `onFault` passback
-  // can never describe the failure differently.
+  // The fault sources — a blank predicate, a not-ok verdict, and a throw that
+  // slipped past the engine's "never throws" contract — converge on one reason
+  // string and one reporting site below, so the built-in warning and the
+  // `onFault` passback can never describe the failure differently.
   let reason: string | undefined;
   let value = fallback;
-  try {
-    const res = ExpressionEngine.evaluate<boolean>(expr, {
-      record,
-      previous,
-      ...(scope ? { extra: scope } : {}),
-    });
-    // Parse error, type error, unbound identifier, engine fault … — every
-    // not-ok verdict resolves to the fallback, but never silently (#5149).
-    if (!res.ok) reason = `[${res.error.kind}] ${res.error.message}`;
-    else value = res.value === true;
-  } catch (err) {
-    reason = `[throw] ${err instanceof Error ? err.message : String(err)}`;
+  if (isBlankPredicateText(pred)) {
+    // Declared-and-blank, in EITHER spelling. Answered here rather than by the
+    // engine for two reasons: the bare-string spelling never reached the engine
+    // at all (this line used to `return fallback` before any warning could
+    // fire — objectui#8069), and the envelope spelling reached it and came back
+    // with `AST-only evaluation not yet supported; persist \`source\`` for
+    // `{ source: '' }`, a reason that sends the author looking for a
+    // serialization bug. `isBlankPredicateText` is the repo's one definition of
+    // this question (objectui#3960) — a fourth local `trim()` here is exactly
+    // the drift it was consolidated to stop.
+    reason = BLANK_PREDICATE_REASON;
+  } else {
+    try {
+      const res = ExpressionEngine.evaluate<boolean>(expr, {
+        record,
+        previous,
+        ...(scope ? { extra: scope } : {}),
+      });
+      // Parse error, type error, unbound identifier, engine fault … — every
+      // not-ok verdict resolves to the fallback, but never silently (#5149).
+      if (!res.ok) reason = `[${res.error.kind}] ${res.error.message}`;
+      else value = res.value === true;
+    } catch (err) {
+      reason = `[throw] ${err instanceof Error ? err.message : String(err)}`;
+    }
   }
   if (reason !== undefined) {
     if (diagnostic?.warn !== false) {
