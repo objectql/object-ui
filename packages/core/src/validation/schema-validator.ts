@@ -143,20 +143,50 @@ const BASE_SCHEMA_RULES = {
 };
 
 /**
+ * A schema node as this validator may READ it: an object whose every key is
+ * `unknown` until a rule proves otherwise.
+ *
+ * `Record<string, unknown>` and NOT `BaseSchema` — a typed parameter here would
+ * assert the very thing being checked, and every rule below would be reading a
+ * value the type system had already promised was there. Arrays are deliberately
+ * inside the type: `typeof [] === 'object'`, and this validator has always
+ * walked into an array node and reported the `type` key missing from it
+ * (`MISSING_REQUIRED`). That verdict is unchanged.
+ */
+type SchemaNodeUnderValidation = Record<string, unknown>;
+
+/**
+ * The ONE narrowing between {@link validateSchema}'s `unknown` parameter and
+ * every rule below it (objectui#8416).
+ *
+ * The VERDICT is the guard this replaces, spelled the same way: the
+ * `!schema || typeof schema !== 'object'` test that used to sit at the top of
+ * `validateBaseSchema`. `null`, `undefined` and every primitive are refused;
+ * arrays and plain objects pass, exactly as before.
+ *
+ * What changes is WHERE it runs. Only ONE of the four rules ever had it, and
+ * `validateSchema` calls all four unconditionally: `validateFormSchema` read
+ * `schema.type` and `validateChildren` read `schema.children` with no guard at
+ * all, so `validateSchema(null)` and `validateSchema(undefined)` threw a raw
+ * `TypeError: Cannot read properties of null (reading 'type')` — measured on
+ * 256c709e2 — instead of returning the `INVALID_SCHEMA` result this function's
+ * own contract promises, and `isValidSchema(null)` threw instead of answering
+ * `false`. `SchemaRenderer` wraps its call in a `try`/`catch` whose comment
+ * reads "Validator itself failed — surface but don't crash render"; that catch
+ * is where the crash was landing.
+ */
+function isSchemaNodeShape(value: unknown): value is SchemaNodeUnderValidation {
+  return !!value && typeof value === 'object';
+}
+
+/**
  * Validate a schema against base rules
  */
-function validateBaseSchema(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
+function validateBaseSchema(
+  schema: SchemaNodeUnderValidation,
+  path: string = 'schema'
+): SchemaNodeValidationError[] {
   const errors: SchemaNodeValidationError[] = [];
-
-  if (!schema || typeof schema !== 'object') {
-    errors.push({
-      path,
-      message: 'Schema must be an object',
-      type: 'error',
-      code: 'INVALID_SCHEMA'
-    });
-    return errors;
-  }
 
   // Validate required and optional properties
   Object.entries(BASE_SCHEMA_RULES).forEach(([key, rule]) => {
@@ -235,8 +265,11 @@ const RETIRED_NODE_TYPES: Readonly<Record<string, string>> = Object.freeze({
  * is what `validateChildren` recurses with, so a retired spelling nested inside
  * a `children` array is refused with its own path.
  */
-function validateRetiredNodeType(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
-  const type = schema?.type;
+function validateRetiredNodeType(
+  schema: SchemaNodeUnderValidation,
+  path: string = 'schema'
+): SchemaNodeValidationError[] {
+  const type = schema.type;
   if (typeof type !== 'string') return [];
   if (!Object.prototype.hasOwnProperty.call(RETIRED_NODE_TYPES, type)) return [];
   return [{
@@ -368,12 +401,22 @@ function validateFieldWidgetNamespace(
 /**
  * Validate form schema specific properties
  */
-function validateFormSchema(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
+function validateFormSchema(
+  schema: SchemaNodeUnderValidation,
+  path: string = 'schema'
+): SchemaNodeValidationError[] {
   const errors: SchemaNodeValidationError[] = [];
 
   if (schema.type === 'form') {
-    if (schema.fields && Array.isArray(schema.fields)) {
-      schema.fields.forEach((field: any, index: number) => {
+    const fields = schema.fields;
+    if (Array.isArray(fields)) {
+      fields.forEach((entry: unknown, index: number) => {
+        // Narrowed before it is read, for the same reason the root is: a
+        // `fields` array is authored data too, and reading `field.name` off
+        // whatever an author put there made `fields: [null]` throw the same raw
+        // `TypeError` a `null` root did. A non-object entry keeps its old
+        // verdict — every key reads `undefined`, so `MISSING_FIELD_NAME`.
+        const field: SchemaNodeUnderValidation = isSchemaNodeShape(entry) ? entry : {};
         if (!field.name) {
           errors.push({
             path: `${path}.fields[${index}]`,
@@ -394,11 +437,13 @@ function validateFormSchema(schema: any, path: string = 'schema'): SchemaNodeVal
         }
 
         // Check for duplicate field names
-        const duplicates = schema.fields.filter((f: any) => f.name === field.name);
+        const duplicates = fields.filter(
+          (other: unknown) => (isSchemaNodeShape(other) ? other.name : undefined) === field.name
+        );
         if (duplicates.length > 1) {
           errors.push({
             path: `${path}.fields[${index}]`,
-            message: `Duplicate field name: ${field.name}`,
+            message: `Duplicate field name: ${String(field.name)}`,
             type: 'warning',
             code: 'DUPLICATE_FIELD_NAME'
           });
@@ -413,19 +458,22 @@ function validateFormSchema(schema: any, path: string = 'schema'): SchemaNodeVal
 /**
  * Validate child schemas recursively
  */
-function validateChildren(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
+function validateChildren(
+  schema: SchemaNodeUnderValidation,
+  path: string = 'schema'
+): SchemaNodeValidationError[] {
   const errors: SchemaNodeValidationError[] = [];
 
   const children = schema.children || schema.body;
   if (children) {
     if (Array.isArray(children)) {
-      children.forEach((child: any, index: number) => {
-        if (typeof child === 'object' && child !== null) {
+      children.forEach((child: unknown, index: number) => {
+        if (isSchemaNodeShape(child)) {
           const childResult = validateSchema(child, `${path}.children[${index}]`);
           errors.push(...childResult.errors, ...childResult.warnings);
         }
       });
-    } else if (typeof children === 'object' && children !== null) {
+    } else if (isSchemaNodeShape(children)) {
       const childResult = validateSchema(children, `${path}.children`);
       errors.push(...childResult.errors, ...childResult.warnings);
     }
@@ -456,20 +504,32 @@ function validateChildren(schema: any, path: string = 'schema'): SchemaNodeValid
  * ```
  */
 export function validateSchema(
-  schema: any,
+  schema: unknown,
   path: string = 'schema'
 ): SchemaNodeValidationResult {
   const allErrors: SchemaNodeValidationError[] = [];
 
-  // Validate base schema
-  allErrors.push(...validateBaseSchema(schema, path));
+  // Narrow ONCE, here, before any rule reads a key off the value — see
+  // `isSchemaNodeShape`. Every rule below is handed a value already proven to
+  // be an object, which is why none of them re-tests it.
+  if (!isSchemaNodeShape(schema)) {
+    allErrors.push({
+      path,
+      message: 'Schema must be an object',
+      type: 'error',
+      code: 'INVALID_SCHEMA'
+    });
+  } else {
+    // Validate base schema
+    allErrors.push(...validateBaseSchema(schema, path));
 
-  // Validate type-specific schemas
-  allErrors.push(...validateRetiredNodeType(schema, path));
-  allErrors.push(...validateFormSchema(schema, path));
+    // Validate type-specific schemas
+    allErrors.push(...validateRetiredNodeType(schema, path));
+    allErrors.push(...validateFormSchema(schema, path));
 
-  // Validate children recursively
-  allErrors.push(...validateChildren(schema, path));
+    // Validate children recursively
+    allErrors.push(...validateChildren(schema, path));
+  }
 
   const errors = allErrors.filter(e => e.type === 'error');
   const warnings = allErrors.filter(e => e.type === 'warning');
