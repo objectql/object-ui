@@ -670,52 +670,124 @@ function isDesignerKeyShape(text) {
  * see a nested or re-indented region, and it would also match a commented-out
  * row. The parser sees neither problem.
  *
- * @returns {{ tables: Map<string, Set<string>>, corpus: Set<string> }}
+ * ## The optional second argument (objectui#8834)
+ *
+ * This extractor is the ONLY reader of these tables, and it stays that way on
+ * purpose. `check-i18n-designer-table-parity.mjs` and the designer population
+ * of `check-i18n-en-drift.mjs` both call it rather than growing a second copy:
+ * `changeset-guard.yml:63-72` records what the second copy costs here — the
+ * base-ref resolver's second copy, in `check-i18n-en-drift.mjs`, inherited a
+ * real defect from the first draft and had to be fixed to match under
+ * objectui#3766. Single-sourcing is precedent in this repo, not preference.
+ *
+ * Every option DEFAULTS to the behaviour the dead-keys sweep already had, so
+ * its own call below and the one in `check-i18n-dead-keys.test.ts` are
+ * byte-identical to what they were:
+ *
+ *   - `consts` — which table constants to read. Callers that want a DIFFERENT
+ *     population pass their own list instead of widening
+ *     `DESIGNER_TABLE_CONSTS`: that constant is the dead-keys sweep's own
+ *     corpus, and `TYPE_LABELS_*` / `DOMAIN_LABELS_*` keys do not sit under
+ *     `DESIGNER_KEY_ROOTS`, so adding them there would change what this file's
+ *     own gate sweeps as a side effect nobody asked for.
+ *   - `source` / `label` — parse text the caller already has instead of the
+ *     working-tree file. The drift population needs the table as it stood at a
+ *     git BASE commit, which is a blob and not a file; git stays in the gate
+ *     that already owns it (`check-i18n-en-drift.mjs`) rather than being
+ *     learned here.
+ *   - `withValues` — collect `key -> string` alongside the key sets. OFF by
+ *     default, and when ON a value that is not a static string THROWS like any
+ *     other stale-extractor signal. It is opt-in rather than always-on so that
+ *     a future non-literal value cannot newly break the dead-keys sweep, which
+ *     never asks about values. Measured on this checkout at the time it was
+ *     added: all 3369 `ENGINE_STRINGS_*` values, all 72 `TYPE_LABELS_*` and all
+ *     18 `DOMAIN_LABELS_*` values are plain `StringLiteral`s, so nothing today
+ *     needs a tolerance this does not have.
+ *   - `require` — whether a named constant that is ABSENT throws. It must stay
+ *     `true` for every working-tree read: a silently empty table would make
+ *     every `en` key read as one-sided and every `zh` key vanish from the
+ *     corpus. It is turned off in exactly one place — the drift gate's BASE
+ *     side, where a table that does not exist yet is a fact about history
+ *     rather than a stale extractor, and the gate PRINTS every pair it had to
+ *     skip for that reason instead of quietly comparing nothing.
+ *
+ * ⚠️ None of these loosens what the extractor ACCEPTS at a given constant: the
+ * property-form and key-form throws below are untouched, and they are the only
+ * way this instrument knows it has gone stale.
+ *
+ * @param {string} root
+ * @param {{ consts?: string[], source?: string | null, label?: string,
+ *           withValues?: boolean, require?: boolean }} [options]
+ * @returns {{ tables: Map<string, Set<string>>, corpus: Set<string>,
+ *             values: Map<string, Map<string, string>> | null }}
  *   `corpus` is the UNION of both tables: a key present in only one of them is
  *   still a key of this bundle, and a dead `zh`-only key is exactly as dead as
- *   a dead `en` one.
+ *   a dead `en` one. `values` is `null` unless `withValues` was asked for.
  */
-export function collectDesignerKeys(root) {
-  const file = join(root, DESIGNER_TABLE);
-  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+export function collectDesignerKeys(root, options = {}) {
+  const {
+    consts = DESIGNER_TABLE_CONSTS,
+    source: sourceText = null,
+    label = DESIGNER_TABLE,
+    withValues = false,
+    require = true,
+  } = options;
+  const text = sourceText ?? readFileSync(join(root, DESIGNER_TABLE), 'utf8');
+  const source = ts.createSourceFile(label, text, ts.ScriptTarget.Latest, true);
   const tables = new Map();
+  const values = withValues ? new Map() : null;
 
   const visit = (node) => {
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
-      DESIGNER_TABLE_CONSTS.includes(node.name.text) &&
+      consts.includes(node.name.text) &&
       node.initializer &&
       ts.isObjectLiteralExpression(node.initializer)
     ) {
       const keys = new Set();
+      const texts = withValues ? new Map() : null;
       for (const prop of node.initializer.properties) {
         if (!ts.isPropertyAssignment(prop)) {
           throw new Error(
-            `${DESIGNER_TABLE}: unsupported property form in ${node.name.text} ` +
+            `${label}: unsupported property form in ${node.name.text} ` +
               `(${ts.SyntaxKind[prop.kind]}) — the extractor is stale`,
           );
         }
         if (!ts.isStringLiteral(prop.name) && !ts.isIdentifier(prop.name)) {
-          throw new Error(`${DESIGNER_TABLE}: unsupported key form in ${node.name.text} — the extractor is stale`);
+          throw new Error(`${label}: unsupported key form in ${node.name.text} — the extractor is stale`);
         }
         keys.add(prop.name.text);
+        if (withValues) {
+          const value = prop.initializer;
+          if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) {
+            throw new Error(
+              `${label}: ${node.name.text}[${JSON.stringify(prop.name.text)}] is not a static string ` +
+                `(${ts.SyntaxKind[value.kind]}) — the extractor is stale. Teach it this form, or the ` +
+                'value silently leaves the scope of every gate that compares these tables.',
+            );
+          }
+          texts.set(prop.name.text, value.text);
+        }
       }
       tables.set(node.name.text, keys);
+      if (withValues) values.set(node.name.text, texts);
     }
     ts.forEachChild(node, visit);
   };
   visit(source);
 
-  for (const name of DESIGNER_TABLE_CONSTS) {
-    if (!tables.has(name)) {
-      throw new Error(`${DESIGNER_TABLE}: \`const ${name} = { … }\` not found — the extractor is stale`);
+  if (require) {
+    for (const name of consts) {
+      if (!tables.has(name)) {
+        throw new Error(`${label}: \`const ${name} = { … }\` not found — the extractor is stale`);
+      }
     }
   }
 
   const corpus = new Set();
   for (const keys of tables.values()) for (const key of keys) corpus.add(key);
-  return { tables, corpus };
+  return { tables, corpus, values };
 }
 
 /**

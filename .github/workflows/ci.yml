@@ -499,6 +499,27 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:i18n-drift
 
+      # The two steps above judge the TEN LOCALE PACKS. The metadata-admin
+      # designer keeps its own module-local string tables (~3600 lines of
+      # user-visible text in packages/app-shell/src/views/metadata-admin/i18n.ts)
+      # and both of them are blind to it BY CONSTRUCTION — measured in
+      # objectui#8388 and quoted in the header of the script this step runs. The
+      # repo's report-only dead-keys sweep does read that table, but it asks about
+      # DEAD keys, its corpus is the UNION of the two halves so a one-sided key is
+      # not a subject to it, and it deliberately runs in NO workflow ("This is a
+      # REPORT, not a gate" — a pin in its own test suite keeps it out of every
+      # workflow file, which is why this comment does not spell its name). So
+      # until objectui#8834 an author could add an English string and forget the
+      # Chinese one with every gate in this repo green. This step is
+      # the state half of that fix — en is a subset of zh, and the shared rows
+      # carry the same {placeholders}; the event half (an en VALUE changed and zh
+      # did not) is a second population inside check:i18n-drift above. Needs the
+      # install (it parses the table with `typescript`) but nothing built, and no
+      # git history: it judges one commit.
+      - name: Verify the metadata-admin designer string tables stay paired
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:i18n-designer-parity
+
       # `scripts/` is not a workspace package, so `pnpm type-check` (i.e.
       # `turbo run type-check`, which walks package.json `scripts`) structurally
       # cannot reach it, and the coverage guard above decides coverage per
