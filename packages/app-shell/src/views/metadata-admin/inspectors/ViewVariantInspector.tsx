@@ -181,7 +181,7 @@ function readObjectBinding(
 }
 
 /** Build the View-type <select> options from the spec `type` enum. */
-function useTypeOptions(currentType: string, locale?: string) {
+function useTypeOptions(locale?: string) {
   return React.useMemo(() => {
     const schema = getListVariantSchema();
     const rawEnum = schema?.properties?.type?.enum;
@@ -190,11 +190,13 @@ function useTypeOptions(currentType: string, locale?: string) {
         ? rawEnum.filter((v: unknown): v is string => typeof v === 'string')
         : ['grid', 'kanban', 'calendar', 'gallery', 'gantt', 'timeline'];
     const opts = values.map((v) => ({ value: v, label: typeLabel(v, locale) }));
-    if (!opts.some((o) => o.value === currentType) && currentType) {
-      opts.push({ value: currentType, label: typeLabel(currentType, locale) });
-    }
+    // objectui#8488 — a `type` the spec enum does not carry used to be appended
+    // here UNFLAGGED, so an off-spec view type read exactly like an offered
+    // one. `InspectorSelectField` synthesises and flags it now; `typeLabel`
+    // still gets its say through `unknownValueLabel` at the call site, since a
+    // retired type can still have a human name in `TYPE_LABELS`.
     return opts;
-  }, [currentType, locale]);
+  }, [locale]);
 }
 
 export function ViewVariantInspector({
@@ -216,7 +218,7 @@ export function ViewVariantInspector({
   const isFormFamily = isFormFamilyKey(familyKey ?? variantKey);
   const viewType =
     typeof variant.type === 'string' ? (variant.type as string) : 'grid';
-  const typeOptions = useTypeOptions(viewType, locale);
+  const typeOptions = useTypeOptions(locale);
   const binding = readObjectBinding(variant, draft);
 
   // Canonical label lives at the top level (`draft.label`); a list `config`
@@ -394,6 +396,7 @@ export function ViewVariantInspector({
         label={t('engine.inspector.view.type', locale)}
         value={viewType}
         options={typeOptions}
+        unknownValueLabel={(v) => `${typeLabel(v, locale)} (not found)`}
         onCommit={(v) => writeVariant({ type: v })}
         disabled={readOnly}
       />

@@ -258,15 +258,19 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
           // render, or editing a legacy node would silently blank it. Surface
           // it as selectable but flag it — it is not offered to fresh nodes.
           // Same rule as FlowObjectListField's select cells (ADR-0090 D3).
-          const shown =
-            current && !opts.some((o) => o.value === current)
-              ? [...opts, { value: current, label: `${current} (deprecated)` }]
-              : opts;
+          //
+          // objectui#8488 promoted that RULE into `InspectorSelectField`, where
+          // the other 42 call sites inherit it. What stays here is the WORDING:
+          // "(deprecated)" is sourced (framework#4278, ADR-0090 D3) and says
+          // something the generic "(not found)" does not — the value is known,
+          // it is simply no longer offered. The prop exists so this sentence
+          // survives the unification instead of being flattened by it.
           return (
             <InspectorSelectField
               label={field.label}
               value={current}
-              options={shown}
+              options={opts}
+              unknownValueLabel={(v) => `${v} (deprecated)`}
               onCommit={(v) => onCommit(v)}
               disabled={disabled}
             />

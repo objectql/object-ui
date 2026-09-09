@@ -95,7 +95,7 @@ const TYPE_LABEL_KEYS: Record<string, string> = {
 };
 
 /** Build the Report-type <select> options from the spec `type` enum. */
-function useTypeOptions(currentType: string, locale: MetadataDefaultInspectorProps['locale']) {
+function useTypeOptions(locale: MetadataDefaultInspectorProps['locale']) {
   return React.useMemo(() => {
     const schema = getReportSchema();
     const rawEnum = schema?.properties?.type?.enum;
@@ -109,11 +109,11 @@ function useTypeOptions(currentType: string, locale: MetadataDefaultInspectorPro
       const label = key ? t(key, locale) : v;
       return { value: v, label: label === key ? v : label };
     });
-    if (!opts.some((o) => o.value === currentType) && currentType) {
-      opts.push({ value: currentType, label: currentType });
-    }
+    // objectui#8488 — a `type` outside the spec enum used to be appended here
+    // UNFLAGGED, so an off-spec report type read exactly like an offered one.
+    // `InspectorSelectField` synthesises and flags it now.
     return opts;
-  }, [currentType, locale]);
+  }, [locale]);
 }
 
 /** Read a `string[]` draft field defensively. */
@@ -236,7 +236,7 @@ export function ReportDefaultInspector({
 
   const reportType =
     typeof draft.type === 'string' ? (draft.type as string) : 'tabular';
-  const typeOptions = useTypeOptions(reportType, locale);
+  const typeOptions = useTypeOptions(locale);
 
   const labelValue = typeof draft.label === 'string' ? (draft.label as string) : '';
   const datasetName =
@@ -250,16 +250,21 @@ export function ReportDefaultInspector({
   const catalog = useDatasetCatalog(datasetCatalogOverride);
   const semantics = useDatasetSemantics(datasetName || undefined, catalog);
 
-  const datasetOptions = React.useMemo(() => {
-    const opts = catalog.datasets.map((d) => ({
-      value: d.name,
-      label: d.label && d.label !== d.name ? `${d.label} (${d.name})` : d.name,
-    }));
-    if (datasetName && !opts.some((o) => o.value === datasetName)) {
-      opts.push({ value: datasetName, label: datasetName });
-    }
-    return opts;
-  }, [catalog.datasets, datasetName]);
+  // A FOURTH hand-rolled copy of the unknown-value rule used to sit here, and
+  // it was the one that got the rule wrong: it appended the stored name with no
+  // marker at all, so a dataset the catalog had dropped rendered exactly like a
+  // dataset it offered. That is the direction objectui#8488 refused — it makes
+  // "stored" and "offered" indistinguishable on screen, trading a display
+  // defect for a semantic one. `InspectorSelectField` now synthesises the row
+  // AND flags it; the catalog is all this list owes.
+  const datasetOptions = React.useMemo(
+    () =>
+      catalog.datasets.map((d) => ({
+        value: d.name,
+        label: d.label && d.label !== d.name ? `${d.label} (${d.name})` : d.name,
+      })),
+    [catalog.datasets],
+  );
 
   const measureOptions: ObjectFieldInfo[] = React.useMemo(
     () =>
@@ -299,16 +304,17 @@ export function ReportDefaultInspector({
     const next = { ...chart, ...patch };
     onPatch({ chart: next.type ? next : undefined });
   };
-  const chartXOptions = React.useMemo(() => {
-    const opts = dimensionOptions.map((d) => ({ value: d.name, label: d.label || d.name }));
-    if (chartX && !opts.some((o) => o.value === chartX)) opts.push({ value: chartX, label: chartX });
-    return opts;
-  }, [dimensionOptions, chartX]);
-  const chartYOptions = React.useMemo(() => {
-    const opts = measureOptions.map((m) => ({ value: m.name, label: m.label || m.name }));
-    if (chartY && !opts.some((o) => o.value === chartY)) opts.push({ value: chartY, label: chartY });
-    return opts;
-  }, [measureOptions, chartY]);
+  // Both axis rosters used to append an out-of-catalog axis unflagged
+  // (objectui#8488): visible, but indistinguishable from a dimension the
+  // dataset actually offers. The flag is `InspectorSelectField`'s job now.
+  const chartXOptions = React.useMemo(
+    () => dimensionOptions.map((d) => ({ value: d.name, label: d.label || d.name })),
+    [dimensionOptions],
+  );
+  const chartYOptions = React.useMemo(
+    () => measureOptions.map((m) => ({ value: m.name, label: m.label || m.name })),
+    [measureOptions],
+  );
 
   // A `joined` report carries its data on dataset-bound `blocks` (edited via
   // the spec form's repeater) — the top-level binding only applies otherwise.

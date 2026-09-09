@@ -148,18 +148,23 @@ export function ViewColumnInspector({
   const objectName = readVariantObject(variantSchema);
   const { fields: objectFields } = useObjectFields(objectName || undefined);
   const currentFieldKey = col ? colFieldKey(col) : '';
-  const fieldOptions = React.useMemo(() => {
-    const opts = objectFields.map((f) => ({
-      value: f.name,
-      label: f.label && f.label !== f.name ? `${f.label} · ${f.name}` : f.name,
-    }));
-    // Keep the current value visible even if it isn't a known object field
-    // (computed / virtual / stale columns).
-    if (currentFieldKey && !opts.some((o) => o.value === currentFieldKey)) {
-      opts.unshift({ value: currentFieldKey, label: `${currentFieldKey} (not in object)` });
-    }
-    return opts;
-  }, [objectFields, currentFieldKey]);
+  const fieldOptions = React.useMemo(
+    () =>
+      objectFields.map((f) => ({
+        value: f.name,
+        label: f.label && f.label !== f.name ? `${f.label} · ${f.name}` : f.name,
+      })),
+    [objectFields],
+  );
+  // Keeping the current value visible when it isn't a known object field
+  // (computed / virtual / stale columns) is `InspectorSelectField`'s rule since
+  // objectui#8488 — this file only keeps the WORDING. What it does still own is
+  // a different question the synthesized row used to answer as a side effect:
+  // picker or free-text box? The old gate was `fieldOptions.length > 0` with
+  // the synthesized row already spliced in, which is true exactly when the
+  // catalog has rows OR a key is stored — spelled out here so removing the
+  // splice does not silently move that decision.
+  const showFieldPicker = fieldOptions.length > 0 || currentFieldKey !== '';
 
   if (!parsed || !col) {
     return (
@@ -266,11 +271,12 @@ export function ViewColumnInspector({
       )}
 
       <div className="border-t pt-3 space-y-3">
-        {fieldOptions.length > 0 ? (
+        {showFieldPicker ? (
           <InspectorSelectField
             label={t('engine.inspector.viewColumn.accessorKey', locale)}
             value={colFieldKey(col)}
             options={fieldOptions}
+            unknownValueLabel={(v) => `${v} (not in object)`}
             onCommit={(v) => patchIdentity({ field: v })}
             disabled={readOnly}
           />
