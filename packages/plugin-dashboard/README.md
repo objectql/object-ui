@@ -275,19 +275,12 @@ per-element `dataSource` binding and query the object themselves.
 adapter is an object with methods, so it cannot travel in one. An `object-*`
 widget reads its adapter from React context — `useContext(SchemaRendererContext)`
 at `src/ObjectMetricWidget.tsx:159`, with an explicit `dataSource` prop taking
-precedence when the host renders the widget directly — and the host installs it
-once, above the whole tree:
+precedence when the host renders the widget directly.
 
-```tsx
-import { SchemaRendererProvider, SchemaRenderer } from '@object-ui/react';
-import { createObjectStackAdapter } from '@object-ui/data-objectstack';
-import '@object-ui/plugin-dashboard';
+So the document stays plain data — every value in it survives `JSON.stringify`:
+
+```typescript
 import type { DashboardComponentSchema } from '@object-ui/types';
-
-const dataSource = createObjectStackAdapter({
-  baseUrl: 'https://api.example.com',
-  token: 'your-auth-token'
-});
 
 const schema: DashboardComponentSchema = {
   type: 'dashboard',
@@ -300,6 +293,24 @@ const schema: DashboardComponentSchema = {
     }
   ]
 };
+```
+
+The adapter is installed once, above the whole tree, and every `object-*` widget
+underneath reads it from context:
+
+```tsx
+import { SchemaRendererProvider, SchemaRenderer } from '@object-ui/react';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import '@object-ui/plugin-dashboard';
+import type { DashboardComponentSchema } from '@object-ui/types';
+
+// The document from the block above.
+declare const schema: DashboardComponentSchema;
+
+const dataSource = createObjectStackAdapter({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
 
 export const App = () => (
   <SchemaRendererProvider dataSource={dataSource}>
