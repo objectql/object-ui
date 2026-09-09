@@ -153,18 +153,6 @@ export interface KanbanRendererProps {
     coverImageField?: string;
     conditionalFormatting?: KanbanConditionalFormattingRule[];
     /**
-     * The object's field definitions, injected by `ObjectKanban` (the only
-     * entry point that fetches an object schema). Card conditional formatting
-     * needs them so a rule comparing a relation field sees the stored foreign
-     * key rather than the record `$expand` substituted for it — the board
-     * expands relations exactly as the grid does, so without this the SAME
-     * rule on the SAME view worked on the grid and silently never matched on
-     * the board (objectui#3501). Absent on the schema-only `kanban-ui` entry,
-     * which has no object schema to offer; there the payload is used verbatim,
-     * as before.
-     */
-    objectFields?: unknown;
-    /**
      * The lane counts below are counts of a fetched WINDOW, not of the group
      * (objectui#8307). Injected by `ObjectKanban`, the only entry point that
      * issues the windowed `$top` query and can therefore know the answer;
@@ -175,13 +163,41 @@ export interface KanbanRendererProps {
      */
     countsAreWindowed?: boolean;
   };
+  /**
+   * The object's field definitions, injected by `ObjectKanban` (the only entry
+   * point that fetches an object schema). Card conditional formatting needs
+   * them so a rule comparing a relation field sees the stored foreign key
+   * rather than the record `$expand` substituted for it — the board expands
+   * relations exactly as the grid does, so without this the SAME rule on the
+   * SAME view worked on the grid and silently never matched on the board
+   * (objectui#3501).
+   *
+   * ⛔ AN INTERNAL CHANNEL, NOT AN AUTHORING SURFACE (objectui#7742, maintainer
+   * decision batch #70, 2026-09-07). It sits HERE — a React prop, a sibling of
+   * `schema` — and deliberately NOT inside `schema`, which is where it used to
+   * live. Inside `schema` it was reachable by an AUTHOR: `BaseSchema` is
+   * `.passthrough()`, `SchemaRenderer` hands the node through, and on the
+   * schema-only `kanban-ui` entry (which has no object schema of its own to
+   * substitute) an authored `objectFields` reached
+   * `resolveConditionalFormatting` verbatim. Nothing declared it on any schema
+   * face, so nothing judged it either. As a prop the only writer is the one
+   * caller that can actually know the answer.
+   *
+   * Absent on the schema-only `kanban-ui` entry, which has no object schema to
+   * offer; there conditional formatting reads the card payload as before.
+   *
+   * ⚠️ `countsAreWindowed` above is the SAME shape and the same argument, and
+   * the batch #70 ruling did not name it — it stays on the schema bag, recorded
+   * rather than fixed here.
+   */
+  objectFields?: unknown;
 }
 
 /**
  * KanbanRenderer - The public API for the kanban board component
  * This wrapper handles lazy loading internally using React.Suspense
  */
-export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
+export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema, objectFields }) => {
   const { t } = useUncolumnedT();
   // ⚡️ Adapter: Map flat 'data' + 'groupBy' to nested 'cards' structure.
   const processedColumns = React.useMemo(
@@ -207,7 +223,7 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
         onQuickAdd={schema.onQuickAdd}
         coverImageField={schema.coverImageField}
         conditionalFormatting={schema.conditionalFormatting}
-        objectFields={schema.objectFields}
+        objectFields={objectFields}
         swimlaneField={schema.swimlaneField}
         countsAreWindowed={schema.countsAreWindowed}
       />
