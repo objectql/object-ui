@@ -152,7 +152,9 @@ function warnPredicateFailure(
   reason: string,
   context?: string,
 ): void {
-  const key = expr.source.trim()
+  // `Expression['source']` is optional in the spec; an absent source is blank
+  // by the same rule as a whitespace-only one, and lands in the same key shape.
+  const key = expr.source?.trim()
     ? JSON.stringify([expr.dialect, expr.source])
     : JSON.stringify([expr.dialect, expr.source, context ?? '']);
   if (warnedPredicates.has(key)) return;
