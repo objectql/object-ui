@@ -75,9 +75,9 @@ import type { CelLintIssue } from './celAuthoring.js';
  * - ✅ `os` is ADDED. The mirror case: bound by `buildExpressionScope`,
  *   ACCEPTED by the engine, and merely unadvertised — so it was the one root
  *   an author could legitimately write but was never offered. It is also the
- *   spec's canonical identity spelling (`os.user.id`, ADR-0068 / the
- *   `@objectstack/spec` expression docs) and the measured one: in-tree
- *   authored predicates spell `record.owner == os.user.id` across
+ *   root authors actually reach for: `os.user.id` is the identity spelling
+ *   ADR-0068 declares and the `@objectstack/spec` expression docs describe,
+ *   and in-tree authored predicates spell `record.owner == os.user.id` across
  *   `packages/core`, `packages/components` and `packages/plugin-grid`,
  *   including a conditional-formatting `condition` in
  *   `core/src/evaluator/__tests__/listConditional.test.ts`. Withholding a root
