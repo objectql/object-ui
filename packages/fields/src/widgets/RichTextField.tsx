@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useId } from 'react';
 import type { HtmlFieldMetadata, MarkdownFieldMetadata } from '@object-ui/types';
-import { cn, Textarea, EmptyValue, type FullscreenEditorAria } from '@object-ui/components';
+import { cn, Textarea, EmptyValue, CharacterCount, type FullscreenEditorAria } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/react';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor.js';
 import { FieldWidgetComponentProps } from './types.js';
@@ -38,6 +38,9 @@ function RichTextEditorSurface({
   autoFocus,
   textareaTestId,
   overlay,
+  counter,
+  maxLength,
+  describedBy,
   domProps,
   editorAria,
 }: {
@@ -55,6 +58,37 @@ function RichTextEditorSurface({
   textareaTestId?: string;
   /** Absolutely-positioned children over the textarea (the expand affordance). */
   overlay?: React.ReactNode;
+  /**
+   * The character counter for THIS surface, already constructed by the caller.
+   *
+   * Passed in rather than built here for the same reason `formatLabel` and
+   * `hint` are: the two surfaces differ in exactly one declared behaviour
+   * (`announceNearLimit`), and the difference belongs at the one place that
+   * knows which surface it is rendering. Positioned inside the `relative`
+   * wrapper below, over the textarea, exactly like {@link overlay}.
+   */
+  counter?: React.ReactNode;
+  /**
+   * The authored ceiling, forwarded to the `<Textarea>` as the native
+   * `maxLength` stop (objectui#8438).
+   *
+   * ⚠️ It is NOT reachable through {@link domProps}: `maxLength` is not on the
+   * `toDomProps` whitelist, and this widget read the key nowhere else — so
+   * before objectui#8438 a `max_length` authored on ANY of the three registry
+   * keys this widget serves reached no element at all, while the sibling
+   * `TextAreaField` had honoured it since framework#1878 §3.
+   */
+  maxLength?: number;
+  /**
+   * The composed `aria-describedby` for this surface's textarea.
+   *
+   * Composed by the CALLER and assigned after the `domProps` spread, because
+   * the two surfaces compose it from different sources: the inline one appends
+   * the counter's description id to the ids `<FormControl>` handed down, and
+   * the dialog's names only its own — the host's ids sit outside the modal,
+   * which Radix `aria-hidden`s while it is open.
+   */
+  describedBy?: string;
   /**
    * The host's DOM pass-through (objectui#4810), already filtered through the
    * `toDomProps` whitelist by the caller — the field's `id`, the
@@ -109,6 +143,7 @@ function RichTextEditorSurface({
           placeholder={placeholder}
           disabled={disabled}
           rows={fullHeight ? undefined : rows}
+          maxLength={maxLength}
           // `text-base` in the dialog for the same reason `TextAreaField` uses
           // it there: sub-16px inputs make iOS Safari zoom on focus, which is
           // exactly wrong for a surface the user opened to get more room.
@@ -128,6 +163,12 @@ function RichTextEditorSurface({
           // keeps that entry passing instead of handing the state back to a
           // host that may not have one.
           aria-invalid={!!error}
+          // After the spread so the COMPOSED value wins over the raw
+          // `aria-describedby` `toDomProps` forwarded — appended, never
+          // assigned, on the inline surface (see `describedBy`'s caller).
+          // Overwriting the host's ids would trade "no cap announced" for "no
+          // error announced", which is strictly worse and silent.
+          aria-describedby={describedBy}
           // LAST, and only ever non-empty on the dialog rendering: inside the
           // modal the primitive is the authority on both the name and the
           // validation state, and its `aria-invalid` must win over the `!!error`
@@ -135,6 +176,7 @@ function RichTextEditorSurface({
           // construction). On the inline surface this spreads nothing.
           {...editorAria}
         />
+        {counter}
         {overlay}
       </div>
     </div>
@@ -245,6 +287,20 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
   const fieldType = resolveRichTextFieldType(field);
   const syntax = richTextSyntax(fieldType);
 
+  /**
+   * Two description ids off one `useId()` — one per editing surface, minted
+   * ABOVE the readonly early return because a hook may not sit behind a
+   * conditional return. The readonly branch renders no counter, so they go
+   * unused there; moving the call down would desync hook order the moment a
+   * field toggles readonly. Identical to `TextAreaField`, and for the same
+   * reason: the dialog edits a LOCAL draft, so the moment the user types in it
+   * the two surfaces are counting different strings and one shared id would
+   * point both textareas at whichever sentence rendered last.
+   */
+  const instanceId = useId();
+  const descriptionId = `${instanceId}-charcount`;
+  const fullscreenDescriptionId = `${instanceId}-fullscreen-charcount`;
+
   if (readonly) {
     const Display = richTextCellRenderer(fieldType);
     // Not a rich-content type: nothing to render as markup, and `prose` would
@@ -292,6 +348,38 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
   // (which is what retired the `as any` that used to launder this carrier).
   const richField = field as MarkdownFieldMetadata | HtmlFieldMetadata;
   const rows = richField?.rows || 8;
+  /**
+   * The authored ceiling — the same dual read `TextAreaField` has carried
+   * since framework#1878 §3, and `max_length` is declared on all three of this
+   * widget's metadata faces (`MarkdownFieldMetadata`, `HtmlFieldMetadata`,
+   * `RichtextFieldMetadata`), so the cast above already admits it.
+   *
+   * ## Why this read did not exist until objectui#8438
+   *
+   * It was believed to be somebody else's job, in two places that measurement
+   * says were never doing it:
+   *
+   *  - `ObjectForm` sets `formField.maxLength` for a hand-written list of
+   *    types. For an object-schema-derived field that assignment lands on the
+   *    FORM FIELD, while the metadata carrier registered widgets read is
+   *    `formField.field` — a different object — so no registered widget has
+   *    ever seen it. Ablating the assignment entirely changes no rendered
+   *    attribute on either the registered or the builtin path.
+   *  - `EmbeddableForm`'s `DEFAULT_MAX_LENGTH` caps `markdown` and `html` at
+   *    5000. There the form field IS the carrier, so the value did arrive —
+   *    and then died here, unread.
+   *
+   * ⇒ The cap was invisible for ALL THREE registry keys, not just `richtext`:
+   * no native stop, no counter, and nothing named in `aria-describedby`, while
+   * `buildValidationRules` (which has no field-type gate) rejected the same
+   * text at SUBMIT. That is the worst ordering of the three possible ones —
+   * the person is told after writing — and it is what this read ends.
+   *
+   * The camelCase half stays a narrow structural read for the same reason it
+   * does in `TextAreaField`: the objectui metadata types deliberately do not
+   * declare the spec spelling.
+   */
+  const maxLength = (field as { maxLength?: number }).maxLength ?? richField?.max_length;
   // The stored syntax, DERIVED from the type's display pipeline rather than
   // read off a `format` key no rich-content type declares. Empty for a type
   // with no pipeline: the header names a syntax or it names nothing, it does
@@ -314,6 +402,17 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
   // edit through `onCommit`. `disabled` also carries the form's `isSubmitting`.
   const disabled = Boolean(domProps.disabled);
 
+  /**
+   * APPENDED, never assigned. `<FormControl>` is a Radix Slot and has already
+   * handed this control an `aria-describedby` naming the field's description
+   * and error message; it arrives through `toDomProps`' `aria-*` pass-through.
+   * Overwriting it would trade "no cap announced" for "no error announced".
+   */
+  const describedBy =
+    [domProps['aria-describedby'], maxLength ? descriptionId : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined;
+
   // Resolved once and handed to BOTH renderings of the editor, so the dialog
   // cannot drift into showing different copy than the inline surface.
   const formatLabel = t('fields.richText.format', { format, defaultValue: `Format: ${format}` });
@@ -333,7 +432,28 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
       disabled={readonly || disabled}
       error={error}
       className={domProps.className}
+      maxLength={maxLength}
+      describedBy={describedBy}
       domProps={domProps}
+      counter={
+        maxLength ? (
+          /*
+            The INLINE surface's counter — `announceNearLimit`, exactly as
+            `TextAreaField`'s is: this is the surface the user types into with
+            the rest of the form around them, so the near-limit warning is the
+            one thing worth interrupting for, and `CharacterCount` gates and
+            debounces it.
+          */
+          <CharacterCount
+            length={(value || '').length}
+            maxLength={maxLength}
+            descriptionId={descriptionId}
+            announceNearLimit
+            className="absolute bottom-2 right-2 text-xs text-gray-400"
+            testId="richtext-character-count"
+          />
+        ) : null
+      }
       overlay={
         showFullscreenButton && (
           <FullscreenFieldEditor
@@ -351,6 +471,27 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
               `aria-hidden` for as long as this dialog is open.
             */
             error={error}
+            /*
+              The FULLSCREEN surface's counter, with `announceNearLimit={false}`
+              — objectui#3417's ruling, adopted here unchanged rather than
+              re-decided: a fullscreen modal is opened deliberately to write at
+              length, the description already delivers the cap on focus, and
+              the dialog's textarea carries the same native stop. A second live
+              region would also put two of them in one document, since the
+              inline surface stays mounted behind the overlay.
+            */
+            footer={(draft) =>
+              maxLength ? (
+                <CharacterCount
+                  length={draft.length}
+                  maxLength={maxLength}
+                  descriptionId={fullscreenDescriptionId}
+                  announceNearLimit={false}
+                  className="text-xs text-muted-foreground self-center"
+                  testId="richtext-fullscreen-character-count"
+                />
+              ) : null
+            }
           >
             {(draft, setDraft, editorDisabled, editorAria) => (
               <RichTextEditorSurface
@@ -362,6 +503,16 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
                 disabled={editorDisabled}
                 autoFocus
                 fullHeight
+                maxLength={maxLength}
+                /*
+                  ASSIGNED here, not appended — and that is a statement about
+                  this element rather than a relaxation of the inline rule.
+                  `domProps` never reaches the dialog copy (see `domProps`), and
+                  the ids the host would have supplied name nodes OUTSIDE the
+                  modal, which Radix `aria-hidden`s while it is open. There is
+                  nothing to preserve.
+                */
+                describedBy={maxLength ? fullscreenDescriptionId : undefined}
                 textareaTestId="richtext-fullscreen-input"
                 editorAria={editorAria}
               />

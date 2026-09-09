@@ -31,6 +31,18 @@
  * defined elsewhere, or through a dynamic `opts[name]`, would not be seen —
  * which is why both sides carry a floor assertion, so a scanner that goes blind
  * reds instead of passing on an empty set.
+ *
+ * ── objectui#8071: this file is `object-grid.exportOptions`' MEMBER PIN ──────
+ *
+ * The two directions above compare the renderer's read set against the local
+ * TYPE. The third `describe` at the bottom adds the direction that makes this
+ * file a per-block member pin under objectui#8068's criterion: it compares the
+ * read set against the `object-grid` REGISTRATION — the surface an author of a
+ * JSON view actually reads, and the only place this block states what a member
+ * of `exportOptions` is. Neither the registration (`type: 'object'`, no `of`)
+ * nor `ComponentPropsMap['object-grid'].exportOptions` (`z.unknown()`) fixes a
+ * member shape, so that prose enumeration IS the declaration, and the read set
+ * is the whole contract behind it.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -212,5 +224,90 @@ describe('exportOptions — the renderer reads only what the spec declares (obje
     const clean = stripCommentsAndStrings(gridSource);
     expect(clean).not.toMatch(/exportOptions\s+as\s+any/);
     expect(clean).not.toMatch(/exportConfig\s+as\s+any/);
+  });
+});
+
+/* ── The registration side (objectui#8071) ───────────────────────────────── */
+
+const REGISTRATION_SOURCE = path.join(repoRoot, 'packages/plugin-grid/src/index.tsx');
+const registrationSource = readFileSync(REGISTRATION_SOURCE, 'utf8');
+
+/**
+ * The `exportOptions` entry of the input array `object-grid` is registered
+ * with, as its raw declaration line.
+ *
+ * Read out of the source rather than imported: pulling in the plugin's entry
+ * module registers ~30 keys into the `ComponentRegistry` singleton, which this
+ * project shares across files (see `vitest.config.mts`' `unit` project note on
+ * absence assertions). The scan is the same instrument the rest of this file
+ * already uses, and it is anchored on the registration call so it cannot drift
+ * onto some other array.
+ */
+function objectGridInputLine(key: string): string | null {
+  const arrayName = registrationSource
+    .slice(registrationSource.indexOf("ComponentRegistry.register('object-grid'"))
+    .match(/inputs:\s*([A-Za-z_$][\w$]*)/)?.[1];
+  if (!arrayName) return null;
+  const declAt = registrationSource.indexOf(`const ${arrayName}`);
+  if (declAt === -1) return null;
+  const end = registrationSource.indexOf('\n];', declAt);
+  const body = registrationSource.slice(declAt, end === -1 ? undefined : end);
+  return body.split('\n').find((l) => l.includes(`name: '${key}'`)) ?? null;
+}
+
+/**
+ * The member keys the registration's description ENUMERATES, from its single
+ * backticked `{ … }` list. That list is the block's whole statement about what
+ * a member of `exportOptions` is.
+ */
+function documentedMemberKeys(line: string): string[] {
+  const inner = line.match(/`\{([^`]*)\}`/)?.[1];
+  return inner ? inner.split(',').map((k) => k.trim()).filter(Boolean) : [];
+}
+
+/**
+ * The read set MINUS the documented set, as of objectui#8071's measurement.
+ *
+ * ⚠️ NOT a tolerance. `streaming` decides whether an export streams from the
+ * server or is assembled in the browser (`exportConfig?.streaming !== false`),
+ * and the registration does not mention it — so an author reading the only
+ * member enumeration this block publishes cannot know the key exists. That is
+ * objectstack#8010's defect exactly, one layer out: honoured by the renderer,
+ * invisible on the authoring surface. Filed as objectui#8731; this entry is
+ * what makes it a measurement instead of a memory, and it is asserted as an
+ * EXACT set so a second undocumented key cannot join it quietly and so landing
+ * the fix reds this row and deletes it.
+ */
+const UNDOCUMENTED_BUT_READ = ['streaming'];
+
+describe('object-grid `exportOptions` — members the BLOCK declares vs members the renderer reads (objectui#8071)', () => {
+  const line = objectGridInputLine('exportOptions');
+
+  it('scans something: `object-grid` registers an `exportOptions` input that enumerates members', () => {
+    // Non-vacuity floor, in the same shape as the one above: both assertions
+    // below are set comparisons, and a set comparison against nothing is the
+    // cheapest possible green.
+    expect(registrationSource).toContain("ComponentRegistry.register('object-grid'");
+    expect(line, 'the object-grid registration declares an `exportOptions` input').toBeTruthy();
+    expect(documentedMemberKeys(line!).length).toBeGreaterThan(0);
+  });
+
+  it('advertises no member key the renderer ignores', () => {
+    // The direction that is safe to enforce outright: a documented member key
+    // with no reader is authoring surface that does nothing — the failure the
+    // page:header.actions hole (objectstack#11592) is made of, seen from the
+    // declaration side. Named rather than counted, because the fix depends on
+    // WHICH key: either the renderer lost a read, or the prose invented one.
+    const read = readKeys(gridSource);
+    const advertisedButUnread = documentedMemberKeys(line!).filter((k) => !read.has(k));
+    expect(advertisedButUnread).toEqual([]);
+  });
+
+  it('reads exactly one member key it does not advertise, and it is named', () => {
+    const read = readKeys(gridSource);
+    const documented = new Set(documentedMemberKeys(line!));
+    expect([...read].filter((k) => !documented.has(k)).sort()).toEqual(
+      [...UNDOCUMENTED_BUT_READ].sort(),
+    );
   });
 });

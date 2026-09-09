@@ -680,11 +680,14 @@ export interface ObjectGridSchema extends BaseSchema {
   
   /**
    * Sort Configuration
-   * Can be either:
-   * - Legacy string format: "name desc"
-   * - Array of sort configs: [{ field: 'name', order: 'desc' }]
+   *
+   * `[{ field: 'name', order: 'desc' }]` — `order` is optional and means
+   * `'asc'`. The legacy string clause (`"name desc"`) is RETIRED
+   * (objectui#8221, decision batch #77): the array is the only spelling this
+   * key's declared input publishes (`type: 'array'`) and the only one
+   * `convertSortToQueryParams` lowers.
    */
-  sort?: string | SortConfig[];
+  sort?: SortConfig[];
   
   /**
    * Fields enabled for search
@@ -2335,8 +2338,8 @@ export interface ObjectMapSchema extends BaseSchema {
   staticData?: any[];
   /** Query filter, forwarded verbatim as `$filter` */
   filter?: any[];
-  /** Sort configuration, forwarded as `$orderby` */
-  sort?: string | SortConfig[];
+  /** Sort configuration, forwarded as `$orderby`. Array only — the legacy string clause is retired (objectui#8221). */
+  sort?: SortConfig[];
   /**
    * Map configuration — the author face. See `ObjectMapConfig`.
    *
@@ -2720,8 +2723,8 @@ export interface ObjectGanttSchema extends BaseSchema {
   staticData?: any[];
   /** Query filter (JSON Rules format), forwarded verbatim as `$filter`. */
   filter?: any[];
-  /** Sort configuration, forwarded as `$orderby` via `convertSortToQueryParams`. */
-  sort?: string | SortConfig[];
+  /** Sort configuration, forwarded as `$orderby` via `convertSortToQueryParams`. Array only — the legacy string clause is retired (objectui#8221). */
+  sort?: SortConfig[];
 }
 
 /**
@@ -2768,6 +2771,43 @@ export interface ObjectCalendarSchema extends BaseSchema {
    * and the enforcement points read only these three values.
    */
   defaultView?: 'month' | 'week' | 'day';
+  /**
+   * Query filter (JSON Rules format), forwarded verbatim as `$filter` on the
+   * calendar's own fetch — `plugin-calendar/src/ObjectCalendar.tsx` reads
+   * `schema.filter` at the `dataSource.find` call and again in that effect's
+   * dependency list.
+   *
+   * Undeclared here until objectui#8174, so an authored value reached the
+   * renderer only through {@link BaseSchema}'s `[key: string]: any` — admitted,
+   * never examined. That is verbatim the reasoning objectui#7322 used to move
+   * `ObjectKanbanSchema.groupBy` into its interface, and this is the same
+   * situation one key over: `@objectstack/spec` declares it
+   * (`ComponentPropsMap['object-calendar']`), the plugin's registration
+   * `inputs` declares it, the renderer reads it — this declaration face was the
+   * only one that stayed silent.
+   *
+   * Spelled exactly as {@link ObjectGanttSchema.filter}, so the two views'
+   * query keys cannot fork.
+   */
+  filter?: any[];
+  /**
+   * Sort configuration, forwarded as `$orderby` via `convertSortToQueryParams`
+   * (`plugin-calendar/src/ObjectCalendar.tsx`, the same `dataSource.find` call
+   * as {@link filter} and the same effect dependency list).
+   *
+   * Array only — the legacy string clause is retired (objectui#8221), and
+   * declaring the member is what makes that retirement audible HERE. Undeclared,
+   * `sort: 'name asc'` type-checked green on {@link BaseSchema}'s index
+   * signature, parsed green through the mirror's `.passthrough()`, and was then
+   * DROPPED at runtime: `convertSortToQueryParams` (`@object-ui/core`,
+   * `utils/sort-query.ts`) no longer admits a string in its signature and
+   * returns `undefined` for one after reporting the retired spelling. So the
+   * calendar rendered unsorted with nothing refusing the node.
+   *
+   * Spelled exactly as {@link ObjectGanttSchema.sort}, so the two views' sort
+   * vocabularies cannot fork.
+   */
+  sort?: SortConfig[];
 }
 
 /**
@@ -2864,6 +2904,31 @@ export interface ObjectKanbanSchema extends BaseSchema {
    * @default 100 — `DEFAULT_KANBAN_LIMIT`
    */
   limit?: number;
+  /**
+   * Query filter (JSON Rules format), forwarded verbatim as `$filter` on the
+   * board's own fetch — `plugin-kanban/src/ObjectKanban.tsx` reads
+   * `schema.filter` at the `dataSource.find` call, alongside the `$top` that
+   * {@link limit} feeds, and again in that effect's dependency list.
+   *
+   * Undeclared here until objectui#8174, so an authored value reached the
+   * renderer only through {@link BaseSchema}'s `[key: string]: any` — admitted,
+   * never examined. That is verbatim the reasoning objectui#7322 used to move
+   * {@link groupBy} and {@link limit} into this interface; this is the same
+   * situation one key over. `@objectstack/spec` declares it
+   * (`ComponentPropsMap['object-kanban']`), the plugin's registration `inputs`
+   * declares it, the renderer reads it — this declaration face was the only one
+   * that stayed silent.
+   *
+   * Spelled exactly as {@link ObjectGanttSchema.filter}, so the two views'
+   * query keys cannot fork.
+   *
+   * ⚠️ There is deliberately NO `sort` twin on this interface, and its absence
+   * is measured rather than overlooked: `ObjectKanban.tsx` has ZERO
+   * `schema.sort` read sites (the board groups records into lanes and issues no
+   * `$orderby`), and the spec's `object-kanban` entry declares no `sort`
+   * either. Only {@link ObjectCalendarSchema} declares both keys.
+   */
+  filter?: any[];
   /** Field for card title */
   titleField?: string;
   /** Fields to display on card */

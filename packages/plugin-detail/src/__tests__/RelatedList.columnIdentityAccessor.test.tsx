@@ -21,11 +21,26 @@
  * `RelatedList.columnIdentityAccessor.schema.test.tsx`, which has to mock
  * `SchemaRenderer` and therefore cannot live in this file.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { RelatedList } from '../RelatedList';
+
+/**
+ * Desktop, pinned rather than inherited (objectui#8399). `RelatedList` reads
+ * `useIsMobile` (breakpoint 768): above it a `type="table"` list renders a real
+ * `data-table`, below it an `object-gallery` card layout with no headers, no
+ * cells and no sort.
+ *
+ * Every case here reads rendered table CELLS.
+ *
+ * happy-dom's ambient `innerWidth` is 1024, so the desktop branch was inherited
+ * here rather than chosen.
+ */
+beforeAll(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
 
 // `status` is a `select` on purpose: its cell renderer resolves the stored
 // value to the option LABEL, so a cell reading the right field says "Planned"

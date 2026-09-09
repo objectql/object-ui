@@ -164,6 +164,16 @@ export interface KanbanRendererProps {
      * as before.
      */
     objectFields?: unknown;
+    /**
+     * The lane counts below are counts of a fetched WINDOW, not of the group
+     * (objectui#8307). Injected by `ObjectKanban`, the only entry point that
+     * issues the windowed `$top` query and can therefore know the answer;
+     * absent on the schema-only `kanban-ui` entry, whose `data` arrives whole
+     * from its author and whose counts are complete by construction. Not an
+     * authorable input for exactly that reason — same shape as `objectFields`
+     * above, and likewise absent from this component's registry `inputs`.
+     */
+    countsAreWindowed?: boolean;
   };
 }
 
@@ -199,6 +209,7 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
         conditionalFormatting={schema.conditionalFormatting}
         objectFields={schema.objectFields}
         swimlaneField={schema.swimlaneField}
+        countsAreWindowed={schema.countsAreWindowed}
       />
     </Suspense>
   );

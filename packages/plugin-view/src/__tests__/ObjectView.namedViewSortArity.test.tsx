@@ -27,10 +27,13 @@
  *           .order}` `` reads two absent keys off an array, so the request
  *           carried the literal string `"undefined undefined"`.
  *
- * The fix routes the view segments into the CANONICAL `sort` slot, declared
- * `string | SortConfig[]` — the arity a view actually carries, and the same
- * spelling the shared sort sink `convertSortToQueryParams` accepts
- * (objectui#4869), so no fourth dialect is introduced to make this work.
+ * The fix routes the view segments into the CANONICAL `sort` slot — the arity
+ * a view actually carries, and the same spelling the shared sort sink
+ * `convertSortToQueryParams` accepts (objectui#4869), so no fourth dialect is
+ * introduced to make this work. (That slot was declared
+ * `string | SortConfig[]` when this was written; objectui#8221 retired the
+ * string arm, which changes nothing here — the array was always the arity
+ * these tests are about.)
  *
  * These tests drive the REAL `ObjectGrid` rather than a probe that records the
  * forwarded schema: the defect was invisible in the forwarded object (the array
