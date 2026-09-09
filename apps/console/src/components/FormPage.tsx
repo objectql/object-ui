@@ -1177,7 +1177,34 @@ async function loadPublicForm(slug: string): Promise<LoadedForm> {
   }
   const payload = (await res.json()) as PublicFormPayload;
   return {
-    label: payload.label ?? payload.form?.label ?? payload.object,
+    // objectui#8408 — `payload.form?.title` sits AHEAD of the API-name arm.
+    //
+    // Every arm of the pre-fix chain (`payload.label ?? payload.form?.label ??
+    // payload.object`) missed but the last one against what this endpoint
+    // actually serves, so the one Console surface an anonymous visitor sees
+    // greeted them with the database table name — `ats_inquiry` where the
+    // author wrote "Apply". Neither of the first two arms is reachable here:
+    //
+    //   • `payload.label` is the VIEW's identity label, carried on the
+    //     envelope; the public resolver does not send it (it is optional on
+    //     {@link PublicFormPayload} and absent from the served body).
+    //   • `payload.form.label` is reachable only on a FLATTENED runtime
+    //     overlay, where the identity and the config share one object
+    //     (`VIEW_METADATA_MEMBERS.formOverlay`). This endpoint returns the
+    //     config alone, and a form config carries `title`, NOT `label` —
+    //     `FormViewSchema` REJECTS that key outright (`unrecognized_keys`),
+    //     as the {@link FormViewBody} note above and `form-spec.ts` both
+    //     record.
+    //
+    // So the ONE real, typed, populated key naming this form was the only one
+    // never read. It is read now, and read BEFORE `form.label` because it is
+    // the spec-legal spelling of the same intent — the rejected key must never
+    // be able to outrank it (AGENTS.md #0.1).
+    //
+    // `payload.label` keeps its precedence: when an envelope identity label
+    // does arrive it is a deliberate per-view name, and this card changed the
+    // fallback ORDER, not which value wins where one already did.
+    label: payload.label ?? payload.form?.title ?? payload.form?.label ?? payload.object,
     object: payload.object,
     form: payload.form,
     objectSchema: payload.objectSchema,
@@ -1926,8 +1953,34 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
     <div className="mx-auto max-w-2xl p-4 sm:p-6">
       <header className="mb-6">
         <h1 className="text-xl font-semibold">{loaded.label}</h1>
-        {loaded.form?.label && loaded.form.label !== loaded.label && (
-          <p className="mt-1 text-sm text-muted-foreground">{loaded.form.label}</p>
+        {/*
+          * objectui#8408 — the subtitle slot renders the form's `description`.
+          *
+          * It used to read `loaded.form.label`, guarded by
+          * `loaded.form.label !== loaded.label`, and that predicate was DEAD
+          * on the public route rather than merely selective — both branches
+          * were pushed through:
+          *
+          *   • `payload.label` absent  -> `loaded.label` IS `form.label`, so
+          *     the inequality is false;
+          *   • `payload.label` present -> `form.label` is undefined, so the
+          *     first conjunct is false.
+          *
+          * Neither renders, which is why replacing the predicate is the fix
+          * and adding a second condition beside it would not have been.
+          *
+          * `description` is what a form config actually carries next to
+          * `title` (the same contract that REJECTS `label`), it arrives in the
+          * payload untouched, and before this card the whole file never read
+          * it once — the author's sentence explaining the form to an
+          * anonymous visitor was fetched and dropped on the floor.
+          *
+          * No inequality guard: `description` and the heading are different
+          * keys saying different things, so equality between them is the
+          * author's business, not this renderer's.
+          */}
+        {loaded.form?.description && (
+          <p className="mt-1 text-sm text-muted-foreground">{loaded.form.description}</p>
         )}
       </header>
       <form onSubmit={handleSubmit} className="space-y-6">
