@@ -162,7 +162,7 @@ describe('KanbanImpl — prop-driven columns reach the DOM in the same commit (#
   it('THE GATE: the first commit that has headers already has the cards', () => {
     // Data unresolved at mount: no columns yet, so no headers.
     const { commits, setColumns } = mountHarness([]);
-    expect(commits.at(-1)?.headers).toEqual([]);
+    expect(commits[commits.length - 1]?.headers).toEqual([]);
 
     // Data resolves.
     setColumns(POPULATED);
