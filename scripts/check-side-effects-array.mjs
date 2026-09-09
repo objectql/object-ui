@@ -130,8 +130,8 @@
  *     that only a SECONDARY entry form reaches is outside the enumeration
  *     entirely -- `@object-ui/types`' `./zod` entry is the live example, and it
  *     is why fixing this classifier does not by itself change that package's
- *     count. Tracked separately; ⛔ do not read a zero here as "this package has
- *     no load-time effects", only as "none this gate can derive".
+ *     count. Tracked as objectui#8850; ⛔ do not read a zero here as "this
+ *     package has no load-time effects", only as "none this gate can derive".
  *
  * ## Reachability -- naming a module is not enough
  *
