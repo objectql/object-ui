@@ -22,7 +22,7 @@ import type {
   GroupingConfig,
 } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
-import type { KanbanConditionalFormattingRule } from './objectql.js';
+import type { KanbanConditionalFormattingRule, ViewNavigationConfig } from './objectql.js';
 
 /**
  * Kanban card — the shape the registered `'kanban'` renderer reads.
@@ -311,12 +311,6 @@ export interface KanbanSchema extends BaseSchema {
   coverImageField?: string;
 
   /**
-   * Allow columns to be collapsed/expanded.
-   * @default false
-   */
-  allowCollapse?: boolean;
-
-  /**
    * Conditional formatting rules for card coloring. Accepts the native
    * `{ field, operator, value }` shape and the spec `{ condition, style }` CEL
    * shape (issue #1584).
@@ -324,22 +318,137 @@ export interface KanbanSchema extends BaseSchema {
   conditionalFormatting?: KanbanConditionalFormattingRule[];
 
   /**
-   * Predefined card templates for quick-add.
-   * Each template pre-fills the quick-add form with default values.
-   */
-  cardTemplates?: CardTemplate[];
-
-  /**
-   * Custom column width configuration.
-   * Supports per-column overrides with min/max constraints.
-   */
-  columnWidths?: ColumnWidthConfig;
-
-  /**
    * Grouping configuration from ListView.
    * When set, the first grouping field is used as swimlaneField fallback.
    */
   grouping?: GroupingConfig;
+
+  /**
+   * Record navigation behaviour when a card is clicked (drawer / dialog /
+   * page). Defaults to an inline right-side drawer; set `{ mode: 'page' }` to
+   * route to the standalone detail page instead. Read at `ObjectKanban.tsx`
+   * (`navConfig`), which feeds it to `useNavigationOverlay`.
+   *
+   * DECLARED by objectui#7742 (decision batch #70) on the gantt precedent
+   * objectui#5903 set: the read existed and this face did not name it, so an
+   * authored overlay mode rode {@link BaseSchema}'s `[key: string]: any` —
+   * admitted, never examined — and the read site had to spell itself
+   * `(schema as any).navigation`. Declaring it WIDENS the published accept set;
+   * it is the one widening in a card whose other rows all narrow.
+   *
+   * The spec owns the member list — `mode`, `view`, `preventNavigation`,
+   * `openNewTab`, `size`, `width` — and its schema REFUSES anything else. Do
+   * not restate the vocabulary here.
+   *
+   * Same spec type as {@link ObjectGanttSchema.navigation} and
+   * {@link ObjectGridSchema.navigation} — aligned with `@objectstack/spec`
+   * `ListView.navigation` rather than restated, so the vocabulary cannot fork.
+   */
+  navigation?: ViewNavigationConfig;
+
+  /**
+   * RETIRED (objectui#7742, ADR-0049, maintainer decision batch #70,
+   * 2026-09-07) — declared on both faces and read by NO registered board.
+   *
+   * Measured on this branch over `packages/plugin-kanban/src`, every file
+   * including tests: `allowCollapse` 0 hits / 0 files, with `groupBy` (85/27),
+   * `cardTitle` (18/9) and `coverImageField` (17/3) firing as controls on the
+   * same instrument, so the zero is a reading and not a dead grep. The
+   * capability EXISTS through another channel — `KanbanEnhanced` collapses a
+   * lane off `KanbanColumn.collapsed` — so an author who wrote
+   * `allowCollapse: true` validated green and got a board that never collapsed
+   * off that key. A board-level switch wired to the per-lane mechanism is a new
+   * card if it is ever wanted; the ruling did not order one.
+   *
+   * A tombstone rather than a plain removal on PRONG 2 of the discriminator the
+   * precedent changesets state (objectui#5941, #7526): the key was TAUGHT as
+   * working — `content/docs/api/schema-reference.md` carried the row
+   * "`allowCollapse` | `boolean` | Allow columns to be collapsed." Prong 1 does
+   * not apply: there is no live replacement KEY to name, only a different
+   * channel.
+   *
+   * ⚠️ Inertness is why the key is retired, not why it is tombstoned. {@link
+   * BaseSchema} is `.passthrough()`, so dropping it from the mirror would leave
+   * a document naming it silently ACCEPTED with the value kept — the failure
+   * objectui#7664's own first cut shipped at {@link KanbanSchema.onCardClick}.
+   *
+   * ⛔ NOT the same key as `ObjectKanbanSchema.allowCollapse` (`objectql.ts`),
+   * which the batch #70 ruling did not reach and which stays declared on the
+   * `object-kanban` arm.
+   * @deprecated Not part of this contract — the value was inert.
+   */
+  allowCollapse?: never;
+
+  /**
+   * RETIRED (objectui#7742, ADR-0049, maintainer decision batch #70,
+   * 2026-09-07) — declared on both faces and read by NO registered board.
+   *
+   * Measured with the census above: `cardTemplates` 0 hits / 0 files across
+   * `packages/plugin-kanban/src`, same run and same firing controls. The
+   * capability exists through a COMPONENT PROP — `CardTemplates.tsx` takes
+   * `templates: CardTemplate[]` — never off the schema, so nothing an author
+   * wrote here ever reached it. {@link CardTemplate} itself stays exported:
+   * that prop and `plugin-kanban`'s re-export still consume the type.
+   *
+   * Tombstoned on PRONG 2, same as {@link KanbanSchema.allowCollapse}:
+   * `content/docs/api/schema-reference.md` carried the row "`cardTemplates` |
+   * `CardTemplate[]` | Predefined quick-add templates."
+   * @deprecated Not part of this contract — the value was inert.
+   */
+  cardTemplates?: never;
+
+  /**
+   * RETIRED (objectui#7742, ADR-0049, maintainer decision batch #70,
+   * 2026-09-07) — declared on both faces and read by NO registered board.
+   *
+   * Measured with the census above: `columnWidths` 0 hits / 0 files across
+   * `packages/plugin-kanban/src`, same run and same firing controls. The
+   * capability exists through a HOOK OPTION — `useColumnWidths` takes a
+   * `ColumnWidthConfig` argument — never off the schema. {@link
+   * ColumnWidthConfig} itself stays exported: that hook and `plugin-kanban`'s
+   * re-export still consume the type.
+   *
+   * ⚠️ The repo-wide name census for this key is NOT zero (22 hits / 11 files)
+   * and every one of those is a DIFFERENT key of the same spelling on the grid
+   * surface — `data-table.tsx`, `ObjectGrid.tsx`, `RecordPickerDialog.tsx`. The
+   * board's zero is the `packages/plugin-kanban/src` reading, and the grid key
+   * is untouched by this retirement.
+   *
+   * Tombstoned on PRONG 2, same as {@link KanbanSchema.allowCollapse}:
+   * `content/docs/api/schema-reference.md` carried the row "`columnWidths` |
+   * `ColumnWidthConfig` | Column width configuration."
+   * @deprecated Not part of this contract — the value was inert.
+   */
+  columnWidths?: never;
+
+  /**
+   * RETIRED on THIS arm (objectui#7742, ADR-0049, maintainer decision batch
+   * #70, 2026-09-07) — one arm, one spelling: write {@link
+   * KanbanSchema.cardTitle}.
+   *
+   * ⚠️ This tombstone is NOT an inertness finding, and reading it as one gets
+   * the mechanism backwards. `ObjectKanban.tsx` DOES read the key —
+   * `schema.cardTitle || schema.titleField` and `schema.cardTitle ??
+   * schema.titleField` — and that read is load-bearing for the SIBLING arm:
+   * `ObjectKanbanSchema` (`objectql.ts`) declares `titleField` and the batch #70
+   * ruling says in as many words that the `object-kanban` arm KEEPS it
+   * (objectui#7322 item ②, PR #8153, re-measured here from `25907cd70`). What
+   * is retired is this arm's ACCEPTANCE of the legacy spelling, not the read.
+   *
+   * So a `{ "type": "kanban" }` document naming `titleField` is now refused BY
+   * NAME and pointed at `cardTitle`; a `{ "type": "object-kanban" }` document
+   * naming it still validates and still renders. One renderer, two node types,
+   * two accept sets — which is the shape objectui#7322 item ② already gave the
+   * component's prop union.
+   *
+   * ⚠️ Never declared on this face before now: it rode {@link BaseSchema}'s
+   * `[key: string]: any`, which is why both reads were spelled `(schema as
+   * any).titleField` until PR #8153 widened the prop to the two-arm union.
+   * Declaring the tombstone is therefore the FIRST time this face judges the
+   * key at all — a narrowing, not a re-narrowing.
+   * @deprecated Not part of this contract on the `kanban` arm — write `cardTitle`.
+   */
+  titleField?: never;
 
   /**
    * RETIRED with the declarative face (objectui#7664, ADR-0049) — `draggable`

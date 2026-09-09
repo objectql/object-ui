@@ -973,14 +973,14 @@ A static board carries its cards inline:
 | `columns` | `KanbanColumn[]` | Lanes, each with `id`, `title`, `cards`, and optional `limit` / `className` / `collapsed`. A card has `id`, `title`, optional `description` and `badges`. |
 | `quickAdd` | `boolean` | Show a Quick Add button at the bottom of each column. |
 | `coverImageField` | `string` | Field whose URL renders as the card cover image. |
-| `allowCollapse` | `boolean` | Allow columns to be collapsed. |
 | `conditionalFormatting` | `KanbanConditionalFormattingRule[]` | Card colouring rules — native `{ field, operator, value }` or spec `{ condition, style }`. |
-| `cardTemplates` | `CardTemplate[]` | Predefined quick-add templates. |
-| `columnWidths` | `ColumnWidthConfig` | Column width configuration. |
 | `grouping` | `GroupingConfig` | ListView grouping config; its first field is the swimlane fallback. |
+| `navigation` | `ViewNavigationConfig` | Record navigation behaviour when a card is clicked (drawer / dialog / page). Defaults to an inline right-side drawer. |
 | `onCardMove` | `function` | Runtime slot supplied by a React host, `(cardId, fromColumnId, toColumnId, newIndex)`; not authorable in JSON. |
 | `onCardClick` | `function` | Runtime slot supplied by a React host, `(card, event?)`; not authorable in JSON. On the object-bound board the host's handler runs alongside the record-detail overlay. |
 | `onQuickAdd` | `function` | Runtime slot supplied by a React host, `(columnId, title)`; not authorable in JSON. |
+
+> Four spellings the `kanban` arm once accepted are now refused by name (objectui#7742, ADR-0049). `allowCollapse`, `cardTemplates` and `columnWidths` were declared and read by no registered board — collapse a lane with `columns[].collapsed`; card templates and column widths reach the board through a component prop and a hook option, not through the node. `titleField` is the legacy spelling of `cardTitle` and is retired on this arm only: write `cardTitle`. An `object-kanban` node still accepts `titleField`.
 
 > The former `@object-ui/types` kanban dialect — `DeclarativeKanbanSchema`, with a board-level `draggable`, a column `color` and card `labels` / `priority` — was retired in objectui#7664: no registered renderer read it, so a board written that way validated and rendered empty. `draggable` and a column `color` are now refused by name; a static board written with `columns[].cards[]` as above is the same document in both dialects and renders every card.
 
