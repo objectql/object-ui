@@ -43,6 +43,7 @@ one has its own section below.
 | `docs-route-eager-closure.yml` | Docs Route Eager Closure Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a package named in `apps/site/app/components/registerCatalogBlocks.ts` is not already reachable from the docs route's module graph (exit 1), or when the gate's own gauge cannot be trusted (exit 2) |
 | `governed-surface-guard.yml` | Governed Surface Queue Guard | PR to `main`, `develop` (incl. `ready_for_review`) — **no path filter**; merge-queue builds | **Yes on a queue build only** — a governed-surface diff with no authorized approval record (on any commit) is refused there; on the pull request itself it is deliberately green and prints an early warning |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
+| `lockfile-integrity.yml` | Lockfile Integrity Check | PR to `main`, `develop` touching `pnpm-lock.yaml` or the gate's own two files; manual | No — **deliberately not a blocking context** ([#8326](https://github.com/objectstack-ai/objectui/issues/8326)); it names the packages and the Dependabot merge gate classifies it `NOT_A_GATE` |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane: not in the required-check set, and it declares no `merge_group` trigger |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
 | `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No — but it gates *its own* merge, and goes red instead of merging when the check set is not green |
@@ -1471,6 +1472,54 @@ The predicates are covered by `node scripts/check-governed-queue-guard.mjs --sel
 workflow runs as its own first step because a rotted predicate must redden rather than wave a
 governed diff through, and the wiring is pinned by
 `scripts/__tests__/check-governed-queue-guard.test.ts`.
+
+## Lockfile Integrity (`lockfile-integrity.yml`)
+
+**Triggers:** Pull requests to `main`/`develop` that touch `pnpm-lock.yaml`,
+`scripts/check-lockfile-integrity.mjs` or the workflow file itself, plus manual dispatch. It appears
+in the checks list as **Lockfile Integrity Check**.
+
+Runs `scripts/check-lockfile-integrity.mjs`, which compares the pull request's `pnpm-lock.yaml`
+against the **merge base's** and reports two things:
+
+1. an `@objectstack/*` identity resolving to a version **lower** than the base resolved;
+2. a package the workspace declares at runtime (`dependencies`, `peerDependencies`,
+   `optionalDependencies`) resolving to **more physical copies** than the base did — where a copy is
+   a `snapshots:` key, peer suffix included, because that is the directory pnpm creates.
+
+It is the only gate here that needs two revisions of a file, which is why it checks out with
+`fetch-depth: 0`. Exit `0` clean, `1` findings, `2` **could not take a reading** — a shallow checkout
+or a lockfile whose format moved exits 2 rather than reporting a clean lockfile it never read.
+
+**Why it needed a gate.** In [#8326](https://github.com/objectstack-ai/objectui/issues/8326)
+Dependabot's regenerated lockfile on three pull requests at once downgraded the whole
+`@objectstack/*` family 17.3.0 → 17.2.0 and forked zod, splitting the workspace across **two physical
+`@objectstack/spec` copies**. Nothing dedupes two real paths, so `vendor-objectstack` went
+4,030,557 → 8,423,436 raw bytes. What that produced was a **red `Bundle Analysis` on a dependency bump
+for a reason that had nothing to do with the dependency** — and the obvious reading, "this bump bloats
+the bundle", was wrong. Two seats each spent a full diagnosis reaching the same answer independently.
+Every workspace range on the family is a floating `^17.x` against a registry whose latest is 17.3.0,
+so no fresh resolve can produce 17.2.0: it was a stale resolution carried across a rebase.
+
+**Why one rule was not enough.** [#8333](https://github.com/objectstack-ai/objectui/issues/8333)
+measured the other cause: floating `better-auth` to 1.7.3 from a **clean** base forks zod while moving
+**no `@objectstack/*` identity at all**, and re-measuring it on `da5e4f69e` shows `@objectstack/spec`
+staying at one version and still landing as **two directories**, one per peer resolution. A gate that
+only asked "did an identity move backward", or that counted versions rather than snapshot keys, is
+green on that.
+
+**⛔ What this gate does not do.** It does not pin, dedupe or re-resolve anything — the remedy for a
+finding is a decision the pull request makes. It is a **ratchet, not an audit**: a lockfile that is
+already duplicated stays green while the change does not make it worse. It does not judge backward
+moves outside `@objectstack/*` (third-party downgrades are legitimate) or duplications of packages
+this workspace does not itself declare at runtime — measured, scoping it wider reds on ordinary merged
+build-tooling churn. And it says nothing about bytes; `Bundle Analysis` measures those.
+
+**⛔ It cannot block anything today**, by design. `scripts/dependabot-merge-gate.mjs` classifies it in
+`NOT_A_GATE`, and its `pull_request` trigger is path-filtered, which under
+[#3523](https://github.com/objectstack-ai/objectui/issues/3523)'s rule makes it unrequirable while
+that filter stands. Enrolling it is a maintainer decision with its own cost, written up on #8326's
+pull request as input.
 
 ## Link Checking (`check-links.yml`)
 
