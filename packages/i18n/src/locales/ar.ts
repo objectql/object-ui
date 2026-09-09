@@ -19,6 +19,7 @@ const ar = {
       manage_users: "إدارة المستخدمين",
       manage_org_users: "إدارة مستخدمي المؤسسة",
       manage_metadata: "إدارة البيانات الوصفية",
+      manage_org_presentation: "إدارة عرض المؤسسة",
       manage_platform_settings: "إدارة إعدادات المنصة",
       setup_access: "الوصول إلى الإعداد",
       setup_write: "كتابة الإعدادات",
@@ -1089,6 +1090,7 @@ const ar = {
     showEmptyFields: "إظهار {{count}} حقل(حقول) فارغة",
     hideEmptyFields: "إخفاء الحقول الفارغة",
     noValue: "لا قيمة",
+    unresolvedReference: "مرجع غير مُحلّل: لم يتم تحويل {{value}} إلى مستخدم",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1109,6 +1111,9 @@ const ar = {
     loading: "جارٍ تحميل الرسم البياني…",
     nullCategory: "(غير محدد)",
     scatterOneMeasure: "المخطط المبعثر يرسم مقياسًا واحدًا فقط. أبقِ سلسلة واحدة:",
+    unconfigured: {
+      noCategoryAxis: "محور فئات الرسم البياني مطلوب — الرسم البياني المرتبط بكائن لا يخترع محورًا. أعلن أحد التالي:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1570,7 +1575,7 @@ const ar = {
       empty: {
         build: {
           title: "الإنشاء بالذكاء الاصطناعي",
-          description: "صف تطبيقًا أو سير عمل بلغة بسيطة — سأعدّ مسودة الكائنات والشاشات والأتمتة، ثم تراجعها وتنشرها.",
+          description: "صف تطبيقًا بلغة بسيطة — سأعدّ مسودة الكائنات والشاشات والبيانات النموذجية، ثم تراجعها وتنشرها.",
         },
         ask: {
           title: "اسأل بياناتك",
@@ -1579,7 +1584,7 @@ const ar = {
         editApp: {
           title: "تحرير «{{app}}»",
           titleGeneric: "تحرير هذا التطبيق",
-          description: "ما الذي تريد تغييره؟ سأعدّل هذا التطبيق في مكانه — إضافة حقل أو كائن أو عرض أو أتمتة، أو تعديل ما هو موجود.",
+          description: "ما الذي تريد تغييره؟ سأعدّل هذا التطبيق في مكانه — إضافة حقل أو كائن أو عرض أو لوحة معلومات، أو تعديل ما هو موجود.",
         },
       },
       clearConversation: "مسح",
@@ -2764,6 +2769,13 @@ const ar = {
     badgeTotal: "{{total}} إجمالاً",
     badgeNotifications: "{{unread}} إشعارات",
     badgeApprovals: "{{approvals}} موافقات معلقة",
+    arrivalMany: "{{count}} رسائل جديدة",
+    arrivalRepeats: "{{count}} رسائل جديدة في هذا الموضوع",
+    arrivalOpen: "عرض",
+    toastEnabled: "تنبيهات داخل التطبيق",
+    desktopEnabled: "إشعارات سطح المكتب",
+    desktopBlocked: "محظور. اسمح بالإشعارات لهذا الموقع من إعدادات المتصفح.",
+    desktopUnsupported: "هذا المتصفح لا يدعم إشعارات سطح المكتب.",
     emptyUnread: "كل شيء مقروء",
     filterUnread: "غير مقروء",
     filterAll: "الكل",

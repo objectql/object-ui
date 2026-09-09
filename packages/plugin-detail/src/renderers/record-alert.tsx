@@ -83,6 +83,10 @@ import {
   useActionEngine,
 } from '@object-ui/react';
 import { Alert, AlertTitle, AlertDescription, Button, cn, LazyIcon } from '@object-ui/components';
+// The config bag this renderer reads — its own module so this file keeps
+// exporting components only; the reader's contract and its pin live there
+// (objectui#6790).
+import { readProps } from './record-alert.readProps';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionDef } from '@object-ui/core';
 // The spec's INLINE locale-map form (`string | Record< string, string >`), bound
@@ -164,11 +168,6 @@ const SEVERITY_STYLES: Record<Severity, { wrap: string; icon: string }> = {
     icon: 'circle-check',
   },
 };
-
-function readProps(schema: any) {
-  const fromNested = (schema?.properties ?? {}) as any;
-  return { ...schema, ...fromNested };
-}
 
 export const RecordAlertRenderer: React.FC<RecordAlertProps> = ({ schema = {}, className }) => {
   const props = readProps(schema);

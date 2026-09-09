@@ -19,6 +19,7 @@ const ja = {
       manage_users: "ユーザー管理",
       manage_org_users: "組織ユーザーの管理",
       manage_metadata: "メタデータ管理",
+      manage_org_presentation: "組織表示の管理",
       manage_platform_settings: "プラットフォーム設定の管理",
       setup_access: "設定へのアクセス",
       setup_write: "設定の書き込み",
@@ -1082,6 +1083,7 @@ const ja = {
     showEmptyFields: "{{count}} 件の空フィールドを表示",
     hideEmptyFields: "空フィールドを非表示",
     noValue: "値なし",
+    unresolvedReference: "未解決の参照: {{value}} はユーザーとして解決されませんでした",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1102,6 +1104,9 @@ const ja = {
     loading: "チャート読み込み中…",
     nullCategory: "（未設定）",
     scatterOneMeasure: "散布図は1つの指標だけを描画します。系列は1つだけ残してください：",
+    unconfigured: {
+      noCategoryAxis: "チャートのカテゴリ軸が必要です — オブジェクト連携チャートは軸を推測しません。次のいずれかを宣言してください：",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1565,7 +1570,7 @@ const ja = {
       empty: {
         build: {
           title: "AI でビルド",
-          description: "アプリやワークフローを普通の言葉で説明してください — オブジェクト、画面、自動化を下書きしますので、確認して公開してください。",
+          description: "アプリを普通の言葉で説明してください — オブジェクト、画面、サンプルデータを下書きしますので、確認して公開してください。",
         },
         ask: {
           title: "データに質問",
@@ -1574,7 +1579,7 @@ const ja = {
         editApp: {
           title: "「{{app}}」を編集中",
           titleGeneric: "このアプリを編集",
-          description: "何を変更しますか？このアプリをその場で変更します — 項目、オブジェクト、ビュー、自動化の追加や、既存部分の調整ができます。",
+          description: "何を変更しますか？このアプリをその場で変更します — 項目、オブジェクト、ビュー、ダッシュボードの追加や、既存部分の調整ができます。",
         },
       },
       clearConversation: "クリア",
@@ -2759,6 +2764,13 @@ const ja = {
     badgeTotal: "合計 {{total}} 件",
     badgeNotifications: "通知 {{unread}} 件",
     badgeApprovals: "承認待ち {{approvals}} 件",
+    arrivalMany: "新着メッセージ {{count}} 件",
+    arrivalRepeats: "このトピックの新着メッセージ {{count}} 件",
+    arrivalOpen: "表示",
+    toastEnabled: "アプリ内通知",
+    desktopEnabled: "デスクトップ通知",
+    desktopBlocked: "ブロックされています。ブラウザーの設定でこのサイトの通知を許可してください。",
+    desktopUnsupported: "このブラウザーはデスクトップ通知に対応していません。",
     emptyUnread: "既読にしました",
     filterUnread: "未読",
     filterAll: "すべて",

@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, elementDataSourceBlock, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
+import { normalizeChartSchema } from './normalizeChartSchema';
+import { ComponentRegistry, chartMeasureKey, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, elementDataSourceBlock, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton, DataEmptyState } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight, Inbox } from 'lucide-react';
 import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -34,7 +35,92 @@ export { humanizeLabel };
  * agrees on one key instead of each re-deriving it.
  */
 export function aggregateValueKey(aggregate: { field?: string; function?: string }): string {
-  return aggregate.field || aggregate.function || 'count';
+  // The contract's own derivation answers every aggregate `ChartAggregateSchema`
+  // ADMITS; the tail is this renderer's floor for shapes it REJECTS (a
+  // non-count aggregate that names no field, or an empty bag), which reach this
+  // function only from unvalidated metadata and must still key a column rather
+  // than the string "undefined". Byte-identical to the three-rung `field ||
+  // function || 'count'` it replaces — the two extra rungs are unreachable for
+  // any aggregate the spec answers for. Delegated rather than restated so this
+  // cannot drift from the SERIES binding the dashboard relays compose, which is
+  // exactly how a fieldless count came to project `'count'` and be plotted as
+  // `'value'` (objectui#8266).
+  return chartMeasureKey(aggregate, aggregate.function || 'count');
+}
+
+/**
+ * Every category-axis binding this component READS, spelled as an author writes
+ * it, in the precedence order {@link resolveChartCategoryField} applies them.
+ *
+ * Module-local for the reason `ObjectTimeline`'s twin list is: the refusal's
+ * message renders THIS list rather than restating it in prose, so a rung added
+ * to (or retired from) the resolver cannot leave the diagnostic naming a
+ * vocabulary the resolver no longer has. (Also not a new public export — an
+ * exported array literal trips `react-refresh/only-export-components`.)
+ *
+ * Ordered canonical-first: the message tells the author which to prefer by
+ * position rather than by a second prose sentence that could drift from it.
+ */
+const OBJECT_BOUND_CHART_CATEGORY_BINDINGS = [
+  'aggregate.groupBy',
+  'xAxisKey',
+  'xAxis.field',
+] as const;
+
+/**
+ * The category axis this chart plots BY — resolved ONCE, for every reader.
+ *
+ * ## Why this is a function and not three inline reads
+ *
+ * "Which column is the category?" was spelled three times in this file, at
+ * three fidelities, and the refusal below would have been a fourth. That is the
+ * objectui#5042 / objectui#7544 drift shape — a second opinion of one question
+ * that nothing keeps in agreement — and objectui#7544's fix
+ * (`resolveListChartBinding` in `plugin-list/src/ListView.tsx`) is the same move
+ * one layer up, on the AUTHORED list-view chart block.
+ *
+ * ⚠️ It is one layer up, not this layer. `resolveListChartBinding` reads
+ * `{ chart, options.chart }` with `xAxisField` / `categoryField` / `yAxisFields`
+ * — the block an author writes on a LIST VIEW. By the time a schema reaches
+ * this component the relays have already translated that block into
+ * `{ objectName, aggregate, xAxisKey, series }`, and the producers that never
+ * had such a block at all (the two dashboard surfaces, and directly authored
+ * `object-chart` metadata) compose the translated shape straight away. So the
+ * upstream resolver cannot be CALLED here — asked for `schema.chart` it would
+ * read `undefined` off every chart this component renders and answer
+ * "unresolvable" for all of them. What is shared is the QUESTION and the rule
+ * for answering it; the vocabulary is necessarily this layer's.
+ *
+ * ## The three legs, in the order the render pipeline applies them
+ *
+ * 1. A structured `GroupBy` node (`{ field, dateGranularity }`) — its `field`
+ *    IS the category, and nothing substitutes for it: `runAggregate` sends the
+ *    node itself as the server's `groupBy`, so a node naming no field has no
+ *    other spelling that could rescue it.
+ * 2. A legacy string `aggregate.groupBy`.
+ * 3. Otherwise the chart plots rows as fetched, and the category is whatever
+ *    `normalizeChartSchema` — this package's ONE translation of the spec's
+ *    author-facing chart shape into the renderer's internal contract — resolves
+ *    for the x axis: `xAxisKey`, else spec `xAxis.field`, else a bare string
+ *    `xAxis`. Reading `schema.xAxisKey` alone here would have refused a chart
+ *    that authored the spec spelling and renders correctly today, because
+ *    `ChartRenderer` normalizes DOWNSTREAM of this component.
+ *
+ * Returns `undefined` only when the schema names no category by any declared
+ * spelling — a real answer, and what {@link ObjectChart}'s refusal keys on.
+ */
+export function resolveChartCategoryField(schema: {
+  aggregate?: { groupBy?: unknown } | undefined;
+  xAxisKey?: unknown;
+  xAxis?: unknown;
+} | undefined | null): string | undefined {
+  const gb = schema?.aggregate?.groupBy;
+  if (gb && typeof gb === 'object' && !Array.isArray(gb)) {
+    const field = (gb as { field?: unknown }).field;
+    return typeof field === 'string' && field ? field : undefined;
+  }
+  if (typeof gb === 'string' && gb) return gb;
+  return normalizeChartSchema(schema).xAxisKey;
 }
 
 /** Suffix the previous-window value carries under a compareTo overlay. */
@@ -392,10 +478,10 @@ export const ObjectChart = (props: any) => {
         let objectName: string | undefined = schema.objectName;
         let fieldName: string | undefined;
         let datasetDef: any = null;
-        const gb = schema.aggregate?.groupBy as any;
         if (objectName) {
-          fieldName = (gb && typeof gb === 'object' && !Array.isArray(gb)) ? gb.field
-            : (typeof gb === 'string' ? gb : schema.xAxisKey);
+          // The same question the refusal keys on, so the metadata probe and
+          // the refusal can never disagree about what the category is.
+          fieldName = resolveChartCategoryField(schema);
         } else if (schema.dataset) {
           // dataset path: dataset.object + first dimension's underlying field
           const dim0 = Array.isArray(schema.dimensions) && schema.dimensions.length ? schema.dimensions[0] : undefined;
@@ -929,6 +1015,87 @@ export const ObjectChart = (props: any) => {
     colors: paletteColors,
     ...(mergedCategoryColors ? { categoryColors: mergedCategoryColors } : {}),
   };
+
+  /**
+   * objectui#8168 — REFUSE an object-bound chart that declares no category axis.
+   *
+   * The twin of `ObjectTimeline`'s screen (objectui#7459), which is the settled
+   * in-repo shape for this: an object-bound view that names no axis is told so
+   * instead of being composed from a name nobody wrote. `ObjectCalendar` and
+   * `ObjectGantt` carry the same answer for their own axes. This component was
+   * the one of the four with no such screen at all.
+   *
+   * ## What it replaces
+   *
+   * `runAggregate` passes `schema.aggregate` to `ds.aggregate(objectName, {
+   * field, function, groupBy, filter })` with no guard on `groupBy`, and the
+   * `ds.find` leg hands the same bag to `aggregateRecords`, which buckets every
+   * record on `record[groupBy] ?? 'Unknown'`. With no category declared, the
+   * first asks a driver to group by `undefined` and the second collapses the
+   * whole object into one `'Unknown'` bar. Which of those a reader saw was
+   * decided by the data source, not by this component — and neither says the
+   * binding is missing. The only loud states here are a fetch `error`
+   * (`chart-error`) and a generic "No data yet"; neither is a statement about
+   * an absent binding.
+   *
+   * ## Why it keys on the CATEGORY alone
+   *
+   * `resolveListChartBinding`'s `resolves` (the upstream gate, objectui#7544)
+   * is `Boolean(categoryField && valueField)`, so its negation refuses when
+   * EITHER is missing. That is the right question for a capability gate deciding
+   * whether to OFFER a chart, and the wrong one for a renderer deciding whether
+   * to DRAW one: a measure may legitimately be absent, because `count` takes no
+   * field (`aggregateValueKey` projects it under the literal `'count'`), so
+   * refusing on an absent measure would refuse `count` grouped by a declared
+   * category — a chart that renders correctly today. The category has no such
+   * out. This is `ObjectTimeline`'s clause 2 in this file's vocabulary: that
+   * refusal "keys on the START axis alone", for the same reason.
+   *
+   * ## Three things this condition is careful about
+   *
+   * 1. `schema.dataset` — an ADR-0021 dataset chart selects dimensions and
+   *    measures BY NAME and may legitimately declare no dimension (a single
+   *    aggregate), exactly as `resolveListChartBinding`'s dataset leg says. It
+   *    is a different shape with a different answer and is never refused here.
+   * 2. Authored rows — `schema.data` or a `bind` scope. Those rows are handed
+   *    to `ChartRenderer` as they are; no field NAME is read to fetch them, so
+   *    a literal chart needs no object binding and must not be refused for
+   *    lacking one. Same carve-out, same reason, as `hasAuthoredItems` in
+   *    `ObjectTimeline` and as the `!boundData && !schema.data` guard on the
+   *    empty state below.
+   * 3. Placed above `error` and `loading`, because it is the same KIND of fact
+   *    as the timeline's: a static authoring fact that no fetch outcome
+   *    changes. A skeleton that resolves into a refusal, or a network error
+   *    shown first, would both send the author to debug the wrong layer.
+   *
+   * ## What this does NOT do
+   *
+   * It does not retire the six `'name'` / `'value'` floors at the three relay
+   * faces — that is the remainder of objectui#7547 and is mechanical only once
+   * this screen exists. Until they go, the relays always hand this component a
+   * category, so this branch is reached today only from a directly authored
+   * `object-chart` that declares none. Pinned by
+   * `ObjectChart.absentCategoryAxisRefusal-8168.test.tsx`, which measures both
+   * halves: that the refusal fires, and that it does NOT fire on the schema
+   * every producer composes today.
+   */
+  const hasAuthoredRows = !!boundData || Array.isArray(schema.data);
+  if (schema.objectName && !schema.dataset && !hasAuthoredRows && !resolveChartCategoryField(schema)) {
+      return (
+        <div className={"p-4 text-destructive " + (schema.className || '')} data-testid="chart-missing-category-axis" role="alert">
+            {tt(
+              'chart.unconfigured.noCategoryAxis',
+              'Chart category axis required — an object-bound chart will not invent one. Declare one of:',
+            )}{' '}
+            {OBJECT_BOUND_CHART_CATEGORY_BINDINGS.map((binding, i) => (
+              <React.Fragment key={binding}>
+                {i > 0 ? ', ' : ''}
+                <code className="font-mono">{binding}</code>
+              </React.Fragment>
+            ))}
+        </div>
+      );
+  }
 
   // Pending with nothing to draw yet → a chart-shaped skeleton (placeholder
   // bars), not a 0-value axis or a thin text line. Reads as "loading", never as

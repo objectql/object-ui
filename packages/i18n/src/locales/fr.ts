@@ -19,6 +19,7 @@ const fr = {
       manage_users: "Gérer les utilisateurs",
       manage_org_users: "Gérer les utilisateurs de l'organisation",
       manage_metadata: "Gérer les métadonnées",
+      manage_org_presentation: "Gérer la présentation de l'organisation",
       manage_platform_settings: "Gérer les paramètres de la plateforme",
       setup_access: "Accès à la configuration",
       setup_write: "Écriture des paramètres",
@@ -1084,6 +1085,7 @@ const fr = {
     showEmptyFields: "Afficher {{count}} champs vides",
     hideEmptyFields: "Masquer les champs vides",
     noValue: "Aucune valeur",
+    unresolvedReference: "Référence non résolue : {{value}} n'a pas été résolue en utilisateur",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1104,6 +1106,9 @@ const fr = {
     loading: "Chargement du graphique…",
     nullCategory: "(Non défini)",
     scatterOneMeasure: "Un nuage de points trace une seule mesure. Ne conservez qu’une série :",
+    unconfigured: {
+      noCategoryAxis: "Axe de catégories requis — un graphique lié à un objet n’en invente pas. Déclarez l’un des suivants :",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1565,7 +1570,7 @@ const fr = {
       empty: {
         build: {
           title: "Créer avec l'IA",
-          description: "Décrivez une application ou un flux de travail en langage courant — je rédige les objets, les écrans et les automatisations, puis vous vérifiez et publiez.",
+          description: "Décrivez une application en langage courant — je rédige les objets, les écrans et les données d'exemple, puis vous vérifiez et publiez.",
         },
         ask: {
           title: "Interroger vos données",
@@ -1574,7 +1579,7 @@ const fr = {
         editApp: {
           title: "Modification de « {{app}} »",
           titleGeneric: "Modifier cette application",
-          description: "Que souhaitez-vous changer ? Je modifie cette application sur place — ajouter un champ, un objet, une vue ou une automatisation, ou ajuster l'existant.",
+          description: "Que souhaitez-vous changer ? Je modifie cette application sur place — ajouter un champ, un objet, une vue ou un tableau de bord, ou ajuster l'existant.",
         },
       },
       clearConversation: "Effacer",
@@ -2759,6 +2764,13 @@ const fr = {
     badgeTotal: "{{total}} au total",
     badgeNotifications: "{{unread}} notifications",
     badgeApprovals: "{{approvals}} approbations en attente",
+    arrivalMany: "{{count}} nouveaux messages",
+    arrivalRepeats: "{{count}} nouveaux messages sur ce sujet",
+    arrivalOpen: "Afficher",
+    toastEnabled: "Alertes dans l'application",
+    desktopEnabled: "Notifications du bureau",
+    desktopBlocked: "Bloqué. Autorisez les notifications pour ce site dans les paramètres du navigateur.",
+    desktopUnsupported: "Ce navigateur ne prend pas en charge les notifications du bureau.",
     emptyUnread: "Tout est lu",
     filterUnread: "Non lus",
     filterAll: "Tous",

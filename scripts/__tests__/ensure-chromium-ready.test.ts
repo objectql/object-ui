@@ -63,6 +63,31 @@ function marker(name: string): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), `os-5304-${name}-`)), 'deps-ran');
 }
 
+/**
+ * A PATH carrying the externals this script needs and NOTHING else — in
+ * particular neither `timeout` nor `gtimeout`.
+ *
+ * objectui#8404. `timeout` is GNU coreutils and a stock macOS host has neither
+ * it nor Homebrew's `gtimeout`. Two of the cases in this file were red there on
+ * bytes CI called green, because the bare `timeout` call failed at 127 before
+ * the dependency install ever ran.
+ *
+ * ⚠️ The stand-in is a CAPABILITY, not a platform name: what makes those hosts
+ * different is the absent binary, so hiding the binary reproduces it exactly —
+ * on Linux, in this container, with no macOS anywhere. A
+ * `process.platform === 'darwin'` skip would have measured nothing and would
+ * red again on the next non-GNU host.
+ */
+function pathWithoutTimeout(): { dir: string; env: Record<string, string> } {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'os-8404-no-timeout-'));
+  for (const tool of ['bash', 'rm', 'sleep', 'touch']) {
+    const found = spawnSync('sh', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
+    if (!found) throw new Error(`cannot build the restricted PATH: this host has no ${tool}`);
+    fs.symlinkSync(found, path.join(dir, tool));
+  }
+  return { dir, env: { PATH: dir } };
+}
+
 describe('ensure-chromium-ready.sh — apt is off the happy path', () => {
   it('never invokes the dependency install when Chromium already launches', () => {
     const ran = marker('happy');
@@ -135,6 +160,81 @@ describe('ensure-chromium-ready.sh — the gate still reports', () => {
     ).toBe(1);
     expect(result.stderr).toMatch(/must not report green/);
   });
+});
+
+/**
+ * ⭐ objectui#8404 — the bound survives a host with no GNU coreutils.
+ *
+ * The two cases below are the two this file had that a stock macOS host reddens,
+ * run under a PATH where `timeout` and `gtimeout` are genuinely absent. They are
+ * not a re-run of the cases above with a decoration: on `origin/main`'s script,
+ * under this same PATH, the recovery case exits 1 with the dependency install
+ * never executed, and the deadline case never prints the #5304 signature.
+ *
+ * ⛔ Nothing here is skipped, and nothing above is weakened — the GNU path is
+ * still measured by the cases above, on the same run.
+ */
+describe('ensure-chromium-ready.sh — the bound holds where GNU `timeout` is absent (objectui#8404)', () => {
+  it('the restricted PATH really hides both spellings — the control for the two cases below', () => {
+    // Without this, both cases below could be measuring the GNU path again and
+    // would pass for a reason that has nothing to do with what they assert.
+    const { dir, env } = pathWithoutTimeout();
+    try {
+      const found = spawnSync('bash', ['-c', 'command -v timeout || command -v gtimeout'], {
+        env,
+        encoding: 'utf8',
+      });
+      expect(found.status, `PATH=${dir} still resolves a timeout: ${found.stdout}`).not.toBe(0);
+      // And the positive half of the same control: the PATH is not simply empty.
+      expect(
+        spawnSync('bash', ['-c', 'command -v sleep'], { env, encoding: 'utf8' }).status,
+        'the restricted PATH resolves nothing at all, so the two cases below would fail for that reason',
+      ).toBe(0);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('installs the system libraries and succeeds once Chromium launches', () => {
+    const ran = marker('recover-no-timeout');
+    const { dir, env } = pathWithoutTimeout();
+    try {
+      const result = run({ ...env, OS_CHROMIUM_PROBE_CMD: `test -f ${ran}`, OS_CHROMIUM_DEPS_CMD: `touch ${ran}` });
+      expect(result.status, result.stderr).toBe(0);
+      expect(
+        fs.existsSync(ran),
+        'the dependency install never ran. That is the objectui#8404 signature: the bound was ' +
+          'spelled as a bare `timeout`, so on a host without it the call failed at 127 before ' +
+          'install-deps was reached, and the recovery path could not recover.',
+      ).toBe(true);
+      expect(result.stdout).toMatch(/Chromium launches after installing its system libraries/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('terminates well inside the job ceiling when the dependency install never returns', () => {
+    const { dir, env } = pathWithoutTimeout();
+    try {
+      const result = run({
+        ...env,
+        OS_CHROMIUM_PROBE_CMD: 'false',
+        OS_CHROMIUM_DEPS_CMD: 'sleep 600',
+        OS_CHROMIUM_DEPS_TIMEOUT: '2',
+      });
+
+      expect(
+        result.elapsedMs,
+        `The script ran for ${result.elapsedMs}ms with no GNU timeout on PATH. An unbounded ` +
+          'dependency install is objectui#5304, and a host without coreutils must not be the ' +
+          'way back to it.',
+      ).toBeLessThan(60_000);
+      expect(result.status, 'a browser that never became usable must still fail the job').not.toBe(0);
+      expect(result.stderr).toMatch(/objectui#5304 signature/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
 });
 
 describe('the workflows actually use it', () => {

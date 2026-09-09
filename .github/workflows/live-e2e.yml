@@ -10,14 +10,40 @@
 # lazily-loaded widget's suspension unwound to the host's route boundary and
 # tore down the flow dialog; zero unit test could see it).
 #
-# ⚠️ INFORMATIONAL, NON-REQUIRED lane — `continue-on-error: true` keeps a
-# failure here from failing the workflow run, so it never blocks a merge and
-# never ejects unrelated PRs from the queue (objectstack#4850 is the prior
-# art for why a new lane must prove itself outside the merge gate first).
-# Do NOT add this job to required checks, and do not remove
-# `continue-on-error`, until the lane has run clean for long enough to trust
-# (watch the nightly schedule). Failures still surface: red step + uploaded
-# report + job summary.
+# ⚠️ INFORMATIONAL, NON-REQUIRED lane. What keeps it non-blocking is what it
+# is NOT wired into, and ⛔ never a `continue-on-error:` on the job:
+#   - it is not in the required-check set — ⛔ do not add this job to required
+#     checks until the nightly record proves the lane stable; and
+#   - it declares no `merge_group` trigger, so a queue build never waits on it
+#     and it cannot eject an unrelated pull request from the queue.
+# (objectstack#4850 is the prior art for why a new lane must prove itself
+# outside the merge gate first.)
+#
+# ⛔ Do NOT re-add `continue-on-error: true` to this job (objectui#8084). It
+# bought none of the non-blocking above, and it cost this lane the one reading
+# a monitor, a digest or an agent takes cheaply. Measured on the 2026-09-06
+# nightly, while the job still carried the flag:
+#
+#     step 7 `Start ObjectStack backend`    failure
+#     job 101442890465                      failure
+#     check run `Live E2E (informational)`  failure   <- the flag did not move it
+#     check suite 92170955546               success   <- asserts the negation
+#     workflow run 34017174769              success   <- asserts the negation
+#
+# The flag moved neither the job nor its check run — the two readings a merge
+# gate and a reviewer actually consult — and inverted only the aggregate. So an
+# outage detector reported `success` for a day while the E2E had not executed
+# at all, which is how the backend outage carded as objectui#8084's defect ①
+# ran unseen. Without the flag the run conclusion simply agrees with the job it
+# contains, and the lane stays exactly as advisory as it was.
+#
+# Failures surface as a red step, a red job, a red run, a job summary and the
+# `live-e2e-artifacts` upload. That upload carries `test-results/` (the
+# failure screenshots and videos `use.screenshot` / `use.video` write) and the
+# two server logs — it does NOT carry a Playwright HTML report, because
+# `playwright.live.config.ts` declares `reporter: [['list']]` and the `list`
+# reporter writes to stdout only (objectui#8238). The durable record of what
+# the specs actually did is the `Run live E2E allowlist` step's own log.
 #
 # Growing the allowlist: add specs to `test:e2e:live:ci` in package.json a
 # few at a time, only after they prove flake-free here — do not switch all
@@ -56,8 +82,10 @@ jobs:
     name: Live E2E (informational)
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # Non-blocking by construction — see the header comment before touching.
-    continue-on-error: true
+    # ⛔ There is deliberately no `continue-on-error:` here, and ⛔ nothing may
+    # add one back: it never made this job or its check run any less red, it
+    # only made the workflow-run conclusion contradict them (objectui#8084).
+    # The header carries the measurement.
 
     # ⚠️ Do NOT add a `runner.*` expression to this job-level `env:` block.
     # The `runner` context does not exist yet when job-level env is evaluated
@@ -79,8 +107,8 @@ jobs:
         with:
           submodules: true
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Enable Corepack and download the pinned pnpm
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -227,17 +255,32 @@ jobs:
             echo "## Live E2E failed (informational lane — does not block merge)"
             echo ""
             echo "Backend: published \`@objectstack/*\` per \`e2e/live/ci/backend.env\`."
-            echo "See the \`live-e2e-artifacts\` upload for the Playwright report and server logs."
+            echo "What the specs did is in this job's \`Run live E2E allowlist\` step log (the \`list\` reporter writes to stdout; there is no HTML report to open)."
+            echo "See the \`live-e2e-artifacts\` upload for the failure screenshots and videos (\`test-results/\`) and the two server logs."
             echo "If this failure reproduces on re-run it is a real console x backend integration bug — treat it as such even though the lane cannot block your merge."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload report and server logs
+      # ⛔ Do not add `playwright-report/` back to this glob without changing
+      # `playwright.live.config.ts` in the same PR. That config declares
+      # `reporter: [['list']]`; the `list` reporter writes to stdout and no
+      # reporter in it writes `playwright-report/`, so the path matched nothing
+      # in EVERY outcome — measured on a passing and on a failing run, absent
+      # both times — while this workflow's header and
+      # `content/docs/guide/ci-cd-pipeline.md` promised readers a report they
+      # could open (objectui#8238). The reporter list is the one line that
+      # decides it, and the claim is pinned in
+      # `scripts/__tests__/ci-cd-pipeline-doc.test.ts`.
+      #
+      # ⚠️ This step is gated on `failure()`, so on a GREEN lane it does not run
+      # and there is NO artifact at all. Any acceptance criterion phrased over
+      # this artifact's contents is therefore readable only on a run that
+      # failed; a green run leaves nothing to count (objectui#8238).
+      - name: Upload failure artefacts and server logs
         uses: actions/upload-artifact@v7
         if: ${{ !cancelled() && failure() }}
         with:
           name: live-e2e-artifacts
           path: |
-            playwright-report/
             test-results/
             ${{ runner.temp }}/live-backend/backend.log
             ${{ runner.temp }}/console-preview.log

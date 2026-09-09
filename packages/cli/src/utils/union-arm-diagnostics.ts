@@ -11,12 +11,15 @@
  *
  * ## What this exists for
  *
- * `safeValidateSchema` runs `AnyComponentSchema`, a `z.union`. When a document
- * matches no arm, Zod 4 reports ONE top-level issue — `invalid_union` · `Invalid
- * input` · `path: []` — and hangs every arm's real diagnosis off that issue's
+ * `safeValidateSchema` runs `AnyComponentSchema`. When it was a `z.union`, a
+ * document matching no arm got ONE top-level issue — `invalid_union` · `Invalid
+ * input` · `path: []` — with every arm's real diagnosis hung off that issue's
  * `errors` array. `validate.ts` used to print only the top level, so the author
  * got a bare verdict on the whole document even when the schema had diagnosed
- * the defect precisely, remediation text and all.
+ * the defect precisely, remediation text and all. ⚠️ Since objectui#8498 that
+ * union discriminates on `type`: the root issue sits at `['type']` when nothing
+ * matches and there is no root union issue at all when something does; the shape
+ * above still arrives from the undiscriminated unions at nested slots.
  *
  * The 2026-09-02 maintainer ruling chose **B — discriminator-selected arm**:
  * print the issues of the single arm that accepts the authored `type`, and
@@ -29,21 +32,33 @@
  * `validate.ts`, which remains the repository's only zod-issue printer — so no
  * second rendering surface is created and no shared renderer is warranted.
  *
- * ## Measured facts this rests on (Zod 4.4.3, measured on this tree)
+ * ## Measured facts this rests on (Zod 4.4.3, re-measured on this tree)
  *
- * 1. `errors` is positionally aligned with the union's options: one entry per
- *    member of `AnyComponentSchema`, `errors[i]` being option `i`'s issues.
- *    Selection here never relies on that alignment — see (2) — but it is why
- *    the arm lists can be read as arms at all.
- * 2. **An arm names the literals it accepts, in its own issues.** Two shapes do
- *    it, and they are the only two:
- *      - `invalid_value` at `['type']`, carrying `values: ['app']` — an object
- *        arm whose `type` is a `z.literal`;
- *      - `invalid_union` at `['type']` with `note: 'No matching discriminator'`,
- *        carrying `options: ['div', 'box', …]` — a `z.discriminatedUnion` arm.
- *    So the accepted-literal set is derivable from the error tree ALONE. This
- *    module therefore never imports or introspects the schema, and cannot drift
- *    from it.
+ * 1. A union that TRIES EVERY ARM reports `errors`, positionally aligned with
+ *    its options: `errors[i]` is option `i`'s issues. Selection here never
+ *    relies on that alignment — see (2) — but it is why the arm lists can be
+ *    read as arms at all. ⚠️ `AnyComponentSchema` stopped being such a union in
+ *    objectui#8498: it discriminates on `type`, so it produces NO `errors` array
+ *    at all. This fact now describes the unions that remain undiscriminated —
+ *    `MenuItemSchema` and its kind, reached at nested slots — which is where the
+ *    fallback at the bottom of `explain` earns its keep.
+ * 2. **A union names the literals it accepts.** THREE shapes do it, and (c) is
+ *    the one objectui#8498 added — the previous count of two was a totality
+ *    claim, and it is restated rather than patched because it went false:
+ *      - (a) `invalid_value` at `['type']`, carrying `values: ['app']` — an
+ *        object arm whose `type` is a `z.literal`;
+ *      - (b) `invalid_union` at `['type']` with `note: 'No matching
+ *        discriminator'` and `options: ['div', 'box', …]` — a
+ *        `z.discriminatedUnion` sitting as an ARM of a wider union, reporting
+ *        relative to its own node;
+ *      - (c) the same `invalid_union` · `No matching discriminator` · `options`
+ *        issue reported for the union the document was measured against
+ *        DIRECTLY, at `[…node, 'type']` — no arms, nothing to select among,
+ *        because the discriminator already answered. `AnyComponentSchema` is
+ *        this shape now, so it is the shape `objectui validate` meets first.
+ *    So the accepted-literal set is still derivable from the error tree ALONE.
+ *    This module therefore never imports or introspects the schema, and cannot
+ *    drift from it.
  * 3. **Paths inside `errors` are RELATIVE to their union's node.** The nested
  *    union at `['items', 0]` reports its arm issues at `['type']`, not at
  *    `['items', 0, 'type']`. Printing them raw would name the wrong node, so
@@ -93,6 +108,8 @@ export interface UnionIssueLike {
   values?: readonly unknown[];
   /** Present on a discriminated union's `No matching discriminator`. */
   options?: readonly unknown[];
+  /** The key that union dispatches on. ⛔ Not always `type` — see the guard. */
+  discriminator?: string;
   note?: string;
 }
 
@@ -243,6 +260,69 @@ function isUnion(issue: UnionIssueLike): boolean {
   return issue.code === 'invalid_union' && Array.isArray(issue.errors);
 }
 
+/** Zod's own wording for the shape (b)/(c) issues of header fact 2. */
+const NO_MATCHING_DISCRIMINATOR = 'No matching discriminator';
+
+/**
+ * The ruling's "no arm accepts" line, built for one node.
+ *
+ * Shared by both routes to that branch — the arm walk below, and the
+ * discriminated shape (c) — because it is ONE ruling: a note naming the
+ * authored `type`, plus a capped list of the nearest accepted literals. Two
+ * copies would be two places for the cap to drift.
+ */
+function noArmAccepts(
+  node: readonly PropertyKey[],
+  literals: readonly string[],
+  document: unknown,
+): UnionArmNote {
+  const authoredType = authoredTypeAt(document, node);
+  const { candidates, total } = nearestArmNames(authoredType, literals);
+  return {
+    kind: 'note',
+    path: [...node],
+    ...(authoredType === undefined ? {} : { authoredType }),
+    candidates,
+    totalArmNames: total,
+  };
+}
+
+/**
+ * Header fact 2 shape (c): the union the document was measured against IS
+ * discriminated and the authored `type` selected nothing.
+ *
+ * Zod reports one issue and NO arms — `errors` is present but empty, the
+ * literals live in `options`, and the path ends at the discriminator key
+ * (`[…node, 'type']`), so the node itself is that path minus its last segment.
+ * Returning `undefined` for every other issue keeps this off the arm-walk path
+ * entirely: an `invalid_union` that carries real arms still goes there, and one
+ * carrying neither arms nor options is still not this module's business.
+ */
+function noMatchingDiscriminator(
+  issue: UnionIssueLike,
+  document: unknown,
+): UnionArmNote | undefined {
+  if (issue.code !== 'invalid_union') return undefined;
+  if (issue.note !== NO_MATCHING_DISCRIMINATOR) return undefined;
+  if (!Array.isArray(issue.options)) return undefined;
+  if ((issue.errors ?? []).length > 0) return undefined;
+  // ⚠️ NOT every discriminated union is keyed on `type`, and this branch is only
+  // correct for the ones that are: `@objectstack/spec`'s `ViewDataSchema` is
+  // `discriminatedUnion('provider', …)` and rides `.data` on `object-grid` and
+  // three siblings. ⛔ Both conditions, establishing different facts: the path
+  // ending at `type` is what makes `slice(0, -1)` the node, the discriminator
+  // being `type` is what makes the note's wording and `authoredTypeAt` right.
+  // Zod 4.4.3 fills both from `def.discriminator` (schemas.js:1187/1190) so they
+  // cannot disagree today — written this way, a shape that ever separates them
+  // falls through to SILENT rather than to WRONG.
+  const path = issue.path ?? [];
+  if (path[path.length - 1] !== 'type') return undefined;
+  if (issue.discriminator !== undefined && issue.discriminator !== 'type') return undefined;
+  const literals = issue.options.filter((v): v is string => typeof v === 'string');
+  if (literals.length === 0) return undefined;
+  return noArmAccepts(path.slice(0, -1), literals, document);
+}
+
 function isAtTypeKey(issue: UnionIssueLike): boolean {
   const path = issue.path ?? [];
   return path.length === 1 && path[0] === 'type';
@@ -307,6 +387,8 @@ function explain(
   const expand = (armIssues: readonly UnionIssueLike[], arm?: string): UnionArmLine[] =>
     armIssues.flatMap((issue) => {
       const absolute = [...prefix, ...(issue.path ?? [])];
+      const discriminated = noMatchingDiscriminator({ ...issue, path: absolute }, document);
+      if (discriminated) return [discriminated];
       if (isUnion(issue)) return explain(issue, absolute, document);
       return [
         {
@@ -327,17 +409,7 @@ function explain(
 
   // B's other half — the union IS discriminated and no arm accepts.
   if (declaringArms.length > 0 && acceptingIndexes.length === 0) {
-    const authoredType = authoredTypeAt(document, prefix);
-    const { candidates, total } = nearestArmNames(authoredType, declaringArms.flat());
-    return [
-      {
-        kind: 'note',
-        path: [...prefix],
-        ...(authoredType === undefined ? {} : { authoredType }),
-        candidates,
-        totalArmNames: total,
-      },
-    ];
+    return [noArmAccepts(prefix, declaringArms.flat(), document)];
   }
 
   // No discriminator to select on (or, defensively, more than one accepting
@@ -354,6 +426,8 @@ function explain(
  * can call it unconditionally.
  */
 export function explainUnionIssue(issue: UnionIssueLike, document: unknown): UnionArmLine[] {
+  const discriminated = noMatchingDiscriminator(issue, document);
+  if (discriminated) return [discriminated];
   if (!isUnion(issue)) return [];
   return explain(issue, issue.path ?? [], document);
 }

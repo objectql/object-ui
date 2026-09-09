@@ -40,10 +40,12 @@
  *     the same controls now assert the key does nothing, which is what proves
  *     the heuristic survived the retirement intact.
  *
- * Deliberately no i18n provider: `fieldLabel` falls back to the value the
- * renderer hands it, which for the spec's bare-string section fields is the
- * field NAME. So the "labels" a skeleton shows here read as field names — the
- * same DOM nodes a translated app fills with translated labels.
+ * Deliberately no i18n provider, so the row labels below are rung 2 of the
+ * label ladder: the object's own DECLARED `label`. They read as field NAMES
+ * until objectui#8497 — `record:details` handed `DetailSection` a bare
+ * `{ name }` with no `label`, so `fieldLabel`'s fallback was the name itself.
+ * The renderer now fills that `label` from the bound object definition, and
+ * these are the same DOM nodes a translated app fills with translated labels.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -59,6 +61,14 @@ import { RecordDetailsRenderer } from '../record-details';
  */
 const objectSchema = {
   fields: {
+    // DECLARED and left UNSET on every record below, so the `record:details`
+    // dedupe ladder resolves its H1 candidate to `name`, finds no value there
+    // and hides nothing (objectui#8175). Without it the ladder's ADR-0079
+    // derivation rung ends in "first title-eligible field by declaration
+    // order" — `industry` — and every `Manufacturing` assertion in this file
+    // would be measuring the dedupe instead of the empty-section heuristic
+    // these cases exist to pin.
+    name: { type: 'text', label: 'Name' },
     industry: { type: 'text', label: 'Industry' },
     stage: { type: 'text', label: 'Stage' },
     amount: { type: 'text', label: 'Amount' },
@@ -191,7 +201,7 @@ describe('record:details — the UNAUTHORED empty-section default is DetailSecti
 
     // Every field keeps its row, so the record reads as a structure waiting to
     // be filled rather than as a blank page.
-    for (const label of ['stage', 'amount', 'close_date', 'next_step']) {
+    for (const label of ['Stage', 'Amount', 'Close Date', 'Next Step']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(emptyPlaceholders()).toHaveLength(4);
@@ -211,7 +221,7 @@ describe('record:details — the UNAUTHORED empty-section default is DetailSecti
 
     expect(screen.getByText('Summary')).toBeInTheDocument();
     expect(screen.getByText('Manufacturing')).toBeInTheDocument();
-    expect(screen.getByText('stage')).toBeInTheDocument();
+    expect(screen.getByText('Stage')).toBeInTheDocument();
     expect(emptyPlaceholders()).toHaveLength(1);
   });
 
@@ -232,7 +242,7 @@ describe('record:details — the UNAUTHORED empty-section default is DetailSecti
     });
 
     expect(screen.getByText('Manufacturing')).toBeInTheDocument();
-    expect(screen.queryByText('stage')).not.toBeInTheDocument();
+    expect(screen.queryByText('Stage')).not.toBeInTheDocument();
     expect(emptyPlaceholders()).toHaveLength(0);
     // …and the user-facing escape hatch is offered for the rows it hid.
     expect(screen.getByRole('button', { name: /empty fields/i })).toBeInTheDocument();
@@ -263,7 +273,7 @@ describe('record:details — an authored `hideEmpty` is INERT: the key is retire
     // Under the retired key this section vanished. The heuristic reserves the
     // all-empty case, and it is now the only thing deciding.
     expect(screen.getByText('Deal Terms')).toBeInTheDocument();
-    for (const label of ['stage', 'amount', 'close_date', 'next_step']) {
+    for (const label of ['Stage', 'Amount', 'Close Date', 'Next Step']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(emptyPlaceholders()).toHaveLength(4);
@@ -279,7 +289,7 @@ describe('record:details — an authored `hideEmpty` is INERT: the key is retire
     });
 
     expect(screen.getByText('Manufacturing')).toBeInTheDocument();
-    expect(screen.getByText('stage')).toBeInTheDocument();
+    expect(screen.getByText('Stage')).toBeInTheDocument();
     expect(emptyPlaceholders()).toHaveLength(1);
   });
 

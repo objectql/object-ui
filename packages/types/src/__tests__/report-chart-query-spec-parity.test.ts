@@ -73,15 +73,44 @@ describe('AppContextSelectorSchema derives from the spec', () => {
     expect(localKeys.filter((k) => !specKeys.includes(k))).toEqual([]);
   });
 
-  it('keeps the spec keys the old hand copy restated, defaults included', () => {
-    const parsed = AppContextSelectorSchema.parse({
+  it('keeps the spec keys the old hand copy restated — DECLARED, and no longer written for the author', () => {
+    // ⭐ INVERTED by objectui#8317 (decision batch #90). This pin used to read
+    // the substituted values back out of the parse output —
+    // `optionsSource.valueKey === 'id'`, `labelKey === 'name'`,
+    // `persist === 'query'` — and that reading is exactly the defect batch #69
+    // ruled against: a validator writing values into an author's document. The
+    // three keys are spec-declared and still accepted; what changed is that an
+    // author who did not write them does not get them back.
+    //
+    // ⚠️ The comment below this block has said the important half all along —
+    // "a materialised default is indistinguishable from an authored value" —
+    // and that indistinguishability is what objectui#8317 removed. Keep both
+    // directions asserted, or "stopped substituting" and "stopped declaring"
+    // read the same from here.
+    const authored = {
       id: 'active_package',
       label: 'Package',
       optionsSource: { endpoint: '/api/packages' },
-    });
-    expect(parsed.optionsSource.valueKey).toBe('id');
-    expect(parsed.optionsSource.labelKey).toBe('name');
-    expect(parsed.persist).toBe('query');
+    };
+    expect(AppContextSelectorSchema.parse(authored)).toEqual(authored);
+
+    const spelled = {
+      id: 'active_package',
+      label: 'Package',
+      persist: 'query',
+      optionsSource: { endpoint: '/api/packages', valueKey: 'id', labelKey: 'name' },
+    };
+    expect(AppContextSelectorSchema.parse(spelled)).toEqual(spelled);
+
+    // Still DECLARED — membership is what the spec derivation owes, and it is
+    // not readable off parse output any more (`BaseSchema` is passthrough, so
+    // an undeclared key would survive a parse too).
+    const optionsSource = shapeOf(AppContextSelectorSchema).optionsSource;
+    for (const key of ['valueKey', 'labelKey']) {
+      expect(Object.keys(shapeOf(optionsSource)), `optionsSource.${key} must stay declared`).toContain(key);
+    }
+    expect(Object.keys(shapeOf(AppContextSelectorSchema))).toContain('persist');
+
     // `includeAll` and `placement` were asserted here until spec 17.0.0
     // removed them (framework#4509 / objectui#3208). Both carried schema
     // defaults, which is exactly why the liveness lint could not flag them:
@@ -457,7 +486,11 @@ describe('DashboardWidgetSchema derives from the spec', () => {
       expect(issue, '`responsive` must be reported by name').toBeDefined();
       // The tombstone names its own retirement, not #5010's — if this ever reads
       // `#5010` the key was folded into the wrong retirement upstream.
-      expect(issue?.message).toContain('#4876, ADR-0049 D2');
+      // Was `'#4876, ADR-0049 D2'`. 17.3.0 stripped the `#NNNN` half of that
+      // citation and kept the ADR reference and the prescription, so the
+      // assertion keeps the durable half plus the repair the author acts on.
+      expect(issue?.message).toContain('ADR-0049 D2');
+      expect(issue?.message).toContain('Delete the key.');
       // And it must point at the surviving home for breakpoint behaviour rather
       // than just saying "removed".
       expect(issue?.message).toContain('page.components[].responsive');

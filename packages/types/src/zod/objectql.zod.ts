@@ -39,6 +39,38 @@ import { BaseSchema, specFieldsExcept } from './base.zod.js';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { DrillDownConfigSchema } from './data-display.zod.js';
 import { ViewSwitcherSchema } from './views.zod.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
+ */
+
 
 /**
  * HTTP Method Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -50,7 +82,7 @@ import { ViewSwitcherSchema } from './views.zod.js';
  * so this repo keeps exporting it under the `HttpMethodSchema` name — following
  * the rename WITHOUT changing cross-package semantics (objectui#3499).
  */
-export const HttpMethodSchema = SpecHttpMethodSubsetSchema;
+export const HttpMethodSchema = stripImportedDefaults(SpecHttpMethodSubsetSchema);
 
 /**
  * HTTP Request Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -58,14 +90,14 @@ export const HttpMethodSchema = SpecHttpMethodSubsetSchema;
  * `body` is the spec's `z.unknown()` (a superset of the old record/string/FormData/
  * Blob union) and `method` now defaults to `'GET'` on parse.
  */
-export const HttpRequestSchema = SpecHttpRequestSchema;
+export const HttpRequestSchema = stripImportedDefaults(SpecHttpRequestSchema);
 
 /**
  * View Data Source Schema — `@objectstack/spec/ui` schema re-exported by reference
  * (issue #2231; formerly a hand-written mirror that had drifted behind the spec's
  * fourth `provider: 'schema'` variant for schema-bound forms).
  */
-export const ViewDataSchema = SpecViewDataSchema;
+export const ViewDataSchema = stripImportedDefaults(SpecViewDataSchema);
 
 /**
  * List Column Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -82,21 +114,21 @@ export const ViewDataSchema = SpecViewDataSchema;
  * One behavior change rides along: the spec's `prefix.type` defaults to `'text'`
  * on parse instead of staying `undefined`, so the renderer always gets a value.
  */
-export const ListColumnSchema = SpecListColumnSchema;
+export const ListColumnSchema = stripImportedDefaults(SpecListColumnSchema);
 
 /**
  * Selection Config Schema — `@objectstack/spec/ui` schema re-exported by reference
  * (issue #2231; formerly a hand-written mirror). `type` now defaults to `'none'`
  * on parse instead of staying undefined.
  */
-export const SelectionConfigSchema = SpecSelectionConfigSchema;
+export const SelectionConfigSchema = stripImportedDefaults(SpecSelectionConfigSchema);
 
 /**
  * Pagination Config Schema — `@objectstack/spec/ui` schema re-exported by reference
  * (issue #2231; formerly a hand-written mirror). `pageSize` is now the spec's
  * positive-int with a default of 25 on parse.
  */
-export const PaginationConfigSchema = SpecPaginationConfigSchema;
+export const PaginationConfigSchema = stripImportedDefaults(SpecPaginationConfigSchema);
 
 /**
  * Sort Config Schema
@@ -105,6 +137,82 @@ export const SortConfigSchema = z.object({
   field: z.string().describe('Field to sort by'),
   order: z.enum(['asc', 'desc']).describe('Sort order'),
 });
+
+/**
+ * The spec's OBJECT arm of `exportOptions`, as a SHAPE, reached without restating
+ * its keys (objectui#7762).
+ *
+ * `ListViewExportOptionsSchema` is internal to the spec bundle and NOT a public
+ * export (measured, not assumed, by `../__tests__/export-options-spec-parity.test.ts`).
+ * The exported `ListViewSchema.shape.exportOptions` is the whole contract, but it is a
+ * TWO-ARM union: the legacy bare format array — which LIFTS to `{ formats }` at parse —
+ * and the strict five-key object. `ListViewSchema` below binds that union by reference
+ * and is right to: `list-view` reads both spellings. `object-grid` does not, so this
+ * peels the object arm out and leaves the lifting arm behind.
+ *
+ * Peeled rather than restated on purpose: a local copy of the five keys is a third
+ * copy of one contract, and the copy is what drifts (the lesson `objectql.ts`'s
+ * `ListViewExportOptions` docblock already records for the TypeScript face). Every
+ * member here is the spec's own schema object, so `'pdf'` and a sixth key stay refused
+ * with the spec's own messages and a spec-side change moves this member with it.
+ *
+ * The TYPE is derived by the same two steps at the TYPE level (`unwrap` then the arm with a
+ * `shape`), so the authoring face keeps the spec's per-member types — a `z.ZodRawShape`
+ * annotation here would erase them and collapse `z.input` of every member to `unknown`,
+ * which the mirror-parity drift ledger reports as `exportOptions` NARROWER than declared.
+ *
+ * THROWS at module load if the spec stops exposing an object arm. That is the intended
+ * failure: the alternative is a member that silently stops being the spec's, which is
+ * the class of defect this whole file exists to make visible.
+ */
+type SpecExportOptionsUnion = ReturnType< typeof SpecListViewSchema.shape.exportOptions.unwrap >;
+/** The object arm, statically: the one union member exposing a `shape` (the other is the lift's pipe). */
+type SpecExportOptionsObjectArm = Extract< SpecExportOptionsUnion['options'][number], { shape: unknown } >;
+type SpecExportOptionsShape = SpecExportOptionsObjectArm['shape'];
+
+const SPEC_EXPORT_OPTIONS_OBJECT_SHAPE: SpecExportOptionsShape = ((): SpecExportOptionsShape => {
+  type Peelable = {
+    unwrap?: () => Peelable;
+    options?: readonly Peelable[];
+    shape?: SpecExportOptionsShape;
+  };
+  let cur = stripImportedDefaults(SpecListViewSchema).shape.exportOptions as unknown as Peelable;
+  for (let i = 0; i < 5 && cur && !cur.options && typeof cur.unwrap === 'function'; i++) {
+    cur = cur.unwrap();
+  }
+  const arm = cur.options?.find((o) => o.shape);
+  if (!arm?.shape) {
+    // Short on purpose: this string SHIPS (the console's `framework` chunk), while the
+    // docblock above it — which carries the rationale and the remedy — is stripped by the
+    // production minifier. It still names the moved spec symbol, the member that depends on
+    // it, and the card, which is what a diagnostic has to do.
+    throw new Error(
+      '@object-ui/types: no object arm on `ListViewSchema.shape.exportOptions`; ' +
+        '`ObjectGridSchema.exportOptions` binds it by reference (objectui#7762).',
+    );
+  }
+  return arm.shape;
+})();
+
+/**
+ * ONE string, BOTH author-facing channels — the `.describe()` metadata generated docs
+ * publish, and the parse-time issue message an author who writes the wrong shape reads.
+ * The house discipline of `./tombstone.zod.ts`: two channels that cannot drift apart
+ * because there is only one string.
+ *
+ * The refusal it carries is objectui#7762's ruling. `ObjectGrid.tsx` reads
+ * `schema.exportOptions?.formats` and nothing else, so a bare format array authored on
+ * an `object-grid` node used to validate green through `BaseSchema`'s `.passthrough()`
+ * and then lose SILENTLY to the `['csv', 'json']` default — no error, no warning, no
+ * console line, with the export button still shown. Refusing it by name is that silent
+ * no-op made loud; nothing that renders today stops rendering.
+ */
+const OBJECT_GRID_EXPORT_OPTIONS_GUIDANCE =
+  'Export configuration for the grid toolbar menu — the OBJECT form only: ' +
+  '`{ formats, maxRecords, includeHeaders, fileNamePrefix, streaming }`. A bare format ' +
+  'array is the `list-view` spelling and is NOT read here: `object-grid` reads ' +
+  '`exportOptions.formats`, so an array is silently dropped for the csv/json ' +
+  'default. Write `{ "formats": ["csv", "xlsx"] }` instead.';
 
 /**
  * ObjectGrid Schema
@@ -122,6 +230,20 @@ export const ObjectGridSchema = BaseSchema.extend({
   selection: SelectionConfigSchema.optional().describe('Selection configuration'),
   pagination: PaginationConfigSchema.optional().describe('Pagination configuration'),
   bulkActions: z.array(z.string()).optional().describe('Bulk action identifiers (spec-canonical key; batchActions is the legacy alias)'),
+  // `exportOptions` — the spec's OBJECT arm, BY REFERENCE, with the bare array refused
+  // by name (objectui#7762). ⛔ NOT `SpecListViewSchema.shape.exportOptions` itself:
+  // that reference is the two-arm union whose first arm LIFTS a bare array to
+  // `{ formats }`, so binding it would make this mirror ACCEPT AND LIFT — the opposite
+  // of the named refusal ruled for this node. The strictness is the arm's own
+  // (`catchall: never`, measured), so a sixth key keeps zod's own `unrecognized_keys`
+  // message naming it, and a retired `'pdf'` keeps the spec's migration prescription:
+  // only the `invalid_type` message is local, and only it names the object form.
+  exportOptions: z
+    .strictObject(SPEC_EXPORT_OPTIONS_OBJECT_SHAPE, {
+      error: (issue) => (issue.code === 'invalid_type' ? OBJECT_GRID_EXPORT_OPTIONS_GUIDANCE : undefined),
+    })
+    .optional()
+    .describe(OBJECT_GRID_EXPORT_OPTIONS_GUIDANCE),
 
   // Legacy fields
   fields: z.array(z.string()).optional(),
@@ -259,14 +381,14 @@ export const ObjectViewSchema = BaseSchema.extend({
   defaultListView: z.string().optional().describe('Key of the listViews entry shown first'),
   // Spec slot by reference (objectui#7779) — `NavigationConfigSchema.optional()`,
   // the same object `ListViewSchema` derives its `navigation` from.
-  navigation: SpecListViewSchema.shape.navigation,
+  navigation: stripImportedDefaults(SpecListViewSchema).shape.navigation,
   table: z.lazy(() => ObjectGridSchema.omit({ type: true, objectName: true }).partial()).optional().describe('Table config'),
   form: z.lazy(() => ObjectFormSchema.omit({ type: true, objectName: true, mode: true }).partial()).optional().describe('Form config'),
   // Spec slots by reference (objectui#7779) — `array(string).optional()` on
   // both; the spec's own description marks `filterableFields` a legacy
   // shorthand for `userFilters.fields`.
-  searchableFields: SpecListViewSchema.shape.searchableFields,
-  filterableFields: SpecListViewSchema.shape.filterableFields,
+  searchableFields: stripImportedDefaults(SpecListViewSchema).shape.searchableFields,
+  filterableFields: stripImportedDefaults(SpecListViewSchema).shape.filterableFields,
   showSearch: z.boolean().optional().describe('Show search'),
   showFilters: z.boolean().optional().describe('Show filters'),
   showSort: z.boolean().optional().describe('Show sort controls'),
@@ -424,26 +546,26 @@ const LIST_VIEW_LOCAL_OVERRIDES = [
 // puts it on `GanttConfigSchema`/`TreeConfigSchema`: the renderers grow config knobs
 // ahead of the protocol (calendar's `allDayField`, for one), and stripping them here
 // would silently disable a shipped capability.
-const KanbanConfig = SpecKanbanConfigSchema.partial().extend({
+const KanbanConfig = stripImportedDefaults(SpecKanbanConfigSchema).partial().extend({
   /** @deprecated legacy alias for the spec's `groupByField` */
   groupField: z.string().optional().describe('Deprecated alias for groupByField'),
   /** @deprecated legacy alias for the spec's `columns` (fields shown on each card) */
   cardFields: z.array(z.string()).optional().describe('Deprecated alias for columns'),
 }).passthrough();
 
-const CalendarConfig = SpecCalendarConfigSchema.partial().extend({
+const CalendarConfig = stripImportedDefaults(SpecCalendarConfigSchema).partial().extend({
   // objectui-only: the calendar renderer's initial view mode. No spec counterpart —
   // promote it rather than growing this extension. `'agenda'` was retired
   // (objectui#5784, following #5740): `CalendarView` renders no agenda view.
   defaultView: z.enum(['month', 'week', 'day']).optional().describe("Initial calendar view mode — 'month' | 'week' | 'day' ('agenda' was retired: objectui#5784)"),
 }).passthrough();
 
-const GalleryConfig = SpecGalleryConfigSchema.partial().extend({
+const GalleryConfig = stripImportedDefaults(SpecGalleryConfigSchema).partial().extend({
   /** @deprecated legacy alias for the spec's `coverField` */
   imageField: z.string().optional().describe('Deprecated alias for coverField'),
 }).passthrough();
 
-const TimelineConfig = SpecTimelineConfigSchema.partial().extend({
+const TimelineConfig = stripImportedDefaults(SpecTimelineConfigSchema).partial().extend({
   /** @deprecated legacy alias for the spec's `startDateField` */
   dateField: z.string().optional().describe('Deprecated alias for startDateField'),
 }).passthrough();
@@ -470,7 +592,7 @@ const ViewKindEnum = SpecListViewSchema.shape.type.removeDefault();
  * before this extension an author writing `userActions: { group: false }` had
  * it silently stripped — valid on parse, no effect at render.
  */
-export const UserActionsSchema = SpecUserActionsConfigSchema.extend({
+export const UserActionsSchema = stripImportedDefaults(SpecUserActionsConfigSchema).extend({
   group: z.boolean().optional().describe('Allow users to group records'),
   hideFields: z.boolean().optional().describe('Allow users to show/hide columns'),
   rowColor: z.boolean().optional().describe('Allow users to color rows by a field value'),
@@ -504,7 +626,7 @@ export const ListViewSchema = BaseSchema
   // excludes the tombstone and hands the key back to `BaseSchema`'s
   // passthrough, turning a loud rejection into a silently-accepted dead key.
   // Re-forwarding needs an implementation card filed first (the ruling's text).
-  .extend(specFieldsExcept(SpecListViewSchema.shape, LIST_VIEW_LOCAL_OVERRIDES).shape)
+  .extend(specFieldsExcept(stripImportedDefaults(SpecListViewSchema).shape, LIST_VIEW_LOCAL_OVERRIDES).shape)
   .extend({
     // Component discriminator — load-bearing for the ObjectQLComponentSchema union.
     type: z.literal('list-view'),
@@ -569,7 +691,7 @@ export const ListViewSchema = BaseSchema
     // `role`) plus `live`, which has no spec counterpart. The legacy
     // `{ label, describedBy }` spellings fold into the canonical ones at the
     // ListView boundary (#2890).
-    aria: SpecAriaPropsSchema.extend({
+    aria: stripImportedDefaults(SpecAriaPropsSchema).extend({
       live: z.enum(['polite', 'assertive', 'off']).optional()
         .describe('aria-live politeness for the list region (objectui-only — promote rather than grow this extension)'),
     }).optional().describe('ARIA attributes'),
@@ -610,7 +732,7 @@ export const ListViewSchema = BaseSchema
     // nothing on the render path parses, so a stored array reaches `ListView`
     // un-lifted and its `resolvedExportOptions` fold is load-bearing
     // (objectui#4535 item 4).
-    exportOptions: SpecListViewSchema.shape.exportOptions,
+    exportOptions: stripImportedDefaults(SpecListViewSchema).shape.exportOptions,
     // Per-view-type configs — spec-derived (see the definitions above #2231).
     // `gantt` is NOT here: it flows in from the spec fields unmodified.
     kanban: KanbanConfig.optional().describe('Kanban-specific configuration'),
@@ -736,7 +858,7 @@ export const ObjectMapSchema = BaseSchema.extend({
   sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
   map: ObjectMapConfigSchema.optional().describe('Map configuration (the author face)'),
   enableClustering: z.boolean().optional().describe('Group nearby markers into clusters'),
-  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour (drawer/dialog/page)'),
+  navigation: stripImportedDefaults(SpecNavigationConfigSchema).optional().describe('Record navigation behaviour (drawer/dialog/page)'),
   locationField: z.string().optional().describe('Location field (internal flat form; prefer map.locationField)'),
   titleField: z.string().optional().describe('Title field (internal flat form; prefer map.titleField)'),
   mapStyle: z.string().optional().describe('MapLibre style URL/spec (overrides the public demo default)'),
@@ -845,7 +967,7 @@ export const ObjectGanttSchema = BaseSchema.extend({
   // (objectui#5074). Absence semantics are load-bearing: an omitted `viewMode`
   // lets a persisted layout seed the timeline granularity before the
   // renderer's 'day' fallback — do NOT add `.default('day')` here.
-  viewMode: SpecGanttConfigSchema.shape.viewMode.describe(
+  viewMode: stripImportedDefaults(SpecGanttConfigSchema).shape.viewMode.describe(
     'Initial timeline granularity, honoured by both renderer branches; when omitted, a persisted layout may seed it'
   ),
   // objectui#5903 — ten keys `ObjectGantt` reads and this mirror did not
@@ -862,7 +984,7 @@ export const ObjectGanttSchema = BaseSchema.extend({
   holidays: z.array(z.string()).optional().describe("Non-working dates for the working calendar, ISO 'yyyy-mm-dd' (UTC)"),
   persistLayout: z.boolean().optional().describe('Opt OUT of layout persistence — only an explicit false disables it'),
   viewName: z.string().optional().describe("Layout-persistence scope; storage key is `objectName:viewName` (default 'default')"),
-  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour on task click (drawer/dialog/page)'),
+  navigation: stripImportedDefaults(SpecNavigationConfigSchema).optional().describe('Record navigation behaviour on task click (drawer/dialog/page)'),
   markers: z
     .array(
       z.object({
@@ -887,20 +1009,20 @@ export const ObjectGanttSchema = BaseSchema.extend({
   //
   // The spec-modelled members are taken from `SpecGanttConfigSchema.shape` by
   // reference, exactly as `viewMode` above is, so the vocabulary cannot fork.
-  colorField: SpecGanttConfigSchema.shape.colorField,
-  dependenciesField: SpecGanttConfigSchema.shape.dependenciesField,
-  parentField: SpecGanttConfigSchema.shape.parentField,
-  typeField: SpecGanttConfigSchema.shape.typeField,
-  tooltipFields: SpecGanttConfigSchema.shape.tooltipFields,
-  baselineStartField: SpecGanttConfigSchema.shape.baselineStartField,
-  baselineEndField: SpecGanttConfigSchema.shape.baselineEndField,
-  groupByField: SpecGanttConfigSchema.shape.groupByField,
-  resourceView: SpecGanttConfigSchema.shape.resourceView,
-  assigneeField: SpecGanttConfigSchema.shape.assigneeField,
-  effortField: SpecGanttConfigSchema.shape.effortField,
-  capacity: SpecGanttConfigSchema.shape.capacity,
-  quickFilters: SpecGanttConfigSchema.shape.quickFilters,
-  autoZoomToFilter: SpecGanttConfigSchema.shape.autoZoomToFilter,
+  colorField: stripImportedDefaults(SpecGanttConfigSchema).shape.colorField,
+  dependenciesField: stripImportedDefaults(SpecGanttConfigSchema).shape.dependenciesField,
+  parentField: stripImportedDefaults(SpecGanttConfigSchema).shape.parentField,
+  typeField: stripImportedDefaults(SpecGanttConfigSchema).shape.typeField,
+  tooltipFields: stripImportedDefaults(SpecGanttConfigSchema).shape.tooltipFields,
+  baselineStartField: stripImportedDefaults(SpecGanttConfigSchema).shape.baselineStartField,
+  baselineEndField: stripImportedDefaults(SpecGanttConfigSchema).shape.baselineEndField,
+  groupByField: stripImportedDefaults(SpecGanttConfigSchema).shape.groupByField,
+  resourceView: stripImportedDefaults(SpecGanttConfigSchema).shape.resourceView,
+  assigneeField: stripImportedDefaults(SpecGanttConfigSchema).shape.assigneeField,
+  effortField: stripImportedDefaults(SpecGanttConfigSchema).shape.effortField,
+  capacity: stripImportedDefaults(SpecGanttConfigSchema).shape.capacity,
+  quickFilters: stripImportedDefaults(SpecGanttConfigSchema).shape.quickFilters,
+  autoZoomToFilter: stripImportedDefaults(SpecGanttConfigSchema).shape.autoZoomToFilter,
   // …and objectui's own ten, from the one field map above.
   ...GanttConfigExtensionFields,
   // `gantt` — the BLOCK face `getGanttConfig`'s FIRST branch reads and prefers
@@ -920,7 +1042,7 @@ export const ObjectGanttSchema = BaseSchema.extend({
   // configuration` on failure. Maintainer ruling, objectui#6475 (2026-08-27),
   // Option A: enforce as-is, no warning window (excluded by the startup-stage
   // no-gradualism rule, objectstack#12668 — no named external-user evidence).
-  gantt: SpecGanttConfigSchema.extend(GanttConfigExtensionFields).optional().describe(
+  gantt: stripImportedDefaults(SpecGanttConfigSchema).extend(GanttConfigExtensionFields).optional().describe(
     'Nested gantt config block — the authoring face, and the winner over the flattened top-level keys whenever present'
   ),
   // The query/data keys the fetch path reads. They were declared on
@@ -987,6 +1109,78 @@ export const KanbanConditionalFormattingRuleSchema = z.union([
   }),
 ]);
 
+/**
+ * The `object-kanban` board has a record source — at least one of `bind`,
+ * `data`, `objectName` is present (objectui#7780).
+ *
+ * ⚠️ NOT `requireRecordSource` above, and deliberately not built on it. That
+ * one serves the `object-map` / `object-gantt` / `object-calendar` ladder,
+ * whose rungs are `data` (a `ViewData` PROVIDER BLOCK) → `staticData` →
+ * `objectName`, resolved by the shared `resolveRecordSourceConfig` in
+ * `@object-ui/core`. This board walks a DIFFERENT ladder in
+ * `plugin-kanban/src/ObjectKanban.tsx`: the pre-fetched `data` PROP →
+ * `useDataScope(schema.bind)` → the inline ROW ARRAY on `schema.data` → a
+ * fetch keyed by `schema.objectName`
+ * (`rawData = external || boundData || schema.data || fetchedData`, the fetch
+ * gated on `schema.objectName && !boundData && !schema.data`). It has NO
+ * `staticData` rung and it HAS a `bind` rung, so the two key sets are neither
+ * equal nor nested and one predicate cannot serve both. objectui#7651 (ruled
+ * B, closed `not_planned`) refuses giving this board the shared ladder; this
+ * refinement describes the ladder that is already there rather than adding
+ * one.
+ *
+ * The pre-fetched `data` PROP is NOT a key here: it is a React prop
+ * (`ObjectKanbanComponentProps.data`, passed by a parent such as `ListView`),
+ * not something an author writes on the node, so it can neither be declared
+ * nor required.
+ *
+ * `bind` and `data` are `BaseSchema` members on BOTH faces — declared once, on
+ * the base, as optional members (`base.zod.ts` here, `../base.ts` there) and
+ * INHERITED by this member rather than restated on it. So this refinement names
+ * no key its own mirror has never heard of, the property objectui#7313 had to
+ * buy by declaring `data` / `staticData` first, and it names no key this
+ * member re-declares — `base-bind-declared.test.ts` (objectui#6357) keeps the
+ * `bind` declaration single, and the identity assertion in
+ * `__tests__/object-kanban-record-source-7780.test.ts` keeps both inherited.
+ *
+ * Presence is `!== undefined`, matching the sibling predicate's wording rather
+ * than the renderer's truthiness: `objectName: ''` validated before this card
+ * and still does, so the accept set only WIDENS. The one shape refused here
+ * (none of the three present) was refused before too, when `objectName` was
+ * required — see the before/after table in
+ * `__tests__/object-kanban-record-source-7780.test.ts`.
+ *
+ * ⛔ `groupBy` is NOT a rung and is untouched: it stays REQUIRED (objectui#7322,
+ * PR #7774). A record source and a lane key are different questions, and the
+ * two readings PR #7774 excluded from counting as a lane-less mode — the
+ * `dataSource` json fragment in `content/docs/utilities/data-objectstack.mdx`
+ * and `ListView.tsx`'s runtime-generated node — are still refused here, on
+ * `groupBy`, exactly as they were.
+ *
+ * Carries `params.code` so a consumer keys off the finding rather than
+ * string-matching the message, and reports at the ROOT path (`[]`): no single
+ * key is at fault when all three are absent, and blaming `objectName` would
+ * re-teach the requiredness this card removes.
+ *
+ * Deliberately a `function`, not an `export const`, for the same reason
+ * `requireRecordSource` is: the parity census in
+ * `__tests__/zod-mirror-parity.test.ts` reads `^export const` out of this
+ * directory and would demand a registered TS counterpart for it.
+ */
+const KANBAN_RECORD_SOURCE_KEYS = ['bind', 'data', 'objectName'] as const;
+function requireKanbanRecordSource(
+  schema: Partial<Record<(typeof KANBAN_RECORD_SOURCE_KEYS)[number], unknown>>,
+  ctx: z.core.$RefinementCtx,
+): void {
+  if (KANBAN_RECORD_SOURCE_KEYS.some((key) => schema[key] !== undefined)) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: [],
+    params: { code: 'RECORD_SOURCE_REQUIRED' },
+    message: '`object-kanban` has no record source: declare one of `bind`, `data` or `objectName`',
+  });
+}
+
 // objectui#7322 — `groupBy` and `limit` are the keys `ObjectKanban.tsx` reads
 // (thirteen `schema.groupBy` sites; `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT`
 // at `:264`); until this card neither was declared and both rode `BaseSchema`'s
@@ -997,7 +1191,7 @@ export const KanbanConditionalFormattingRuleSchema = z.union([
 // `KanbanConfig.groupField` above is live and untouched.
 export const ObjectKanbanSchema = BaseSchema.extend({
   type: z.literal('object-kanban'),
-  objectName: z.string().describe('ObjectQL object name'),
+  objectName: z.string().optional().describe('ObjectQL object name — the LAST rung of the board ladder, after the pre-fetched data prop, bind and the inline row array on data; one of bind, data, objectName must be present (objectui#7780)'),
   groupBy: z.string().describe('Field whose value places a record in a lane — the lane key the object-kanban renderer reads (ObjectKanban.tsx, thirteen sites); required, as the retired groupField was'),
   groupField: retirementTombstone('RETIRED (objectui#7322) — `groupField` is not read by the object-kanban renderer; author `groupBy`. (The view-level `kanban.groupField` alias is unaffected.)'),
   limit: z.number().int().positive().optional().describe('Row cap — the most records the board fetches, sent as a real $top on the query (ObjectKanban.tsx:264); default 100 (DEFAULT_KANBAN_LIMIT)'),
@@ -1007,7 +1201,7 @@ export const ObjectKanbanSchema = BaseSchema.extend({
   coverImageField: z.string().optional().describe('Field name for cover image on cards'),
   allowCollapse: z.boolean().optional().describe('Allow columns to collapse/expand'),
   conditionalFormatting: z.array(KanbanConditionalFormattingRuleSchema).optional().describe('Card conditional formatting rules'),
-});
+}).superRefine(requireKanbanRecordSource);
 
 /**
  * ObjectChart Schema
@@ -1050,9 +1244,9 @@ export const ObjectGallerySchema = BaseSchema.extend({
   objectName: z.string().optional().describe('ObjectQL object name'),
   filter: z.unknown().optional().describe('Query filter, forwarded verbatim as $filter'),
   data: z.array(z.record(z.string(), z.unknown())).optional().describe('Inline records'),
-  gallery: SpecGalleryConfigSchema.optional().describe('Gallery configuration (@objectstack/spec GalleryConfig)'),
-  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour (drawer/dialog/page)'),
-  grouping: SpecGroupingConfigSchema.optional().describe('Grouping configuration for sectioned display'),
+  gallery: stripImportedDefaults(SpecGalleryConfigSchema).optional().describe('Gallery configuration (@objectstack/spec GalleryConfig)'),
+  navigation: stripImportedDefaults(SpecNavigationConfigSchema).optional().describe('Record navigation behaviour (drawer/dialog/page)'),
+  grouping: stripImportedDefaults(SpecGroupingConfigSchema).optional().describe('Grouping configuration for sectioned display'),
   imageField: z.string().optional().describe('DEPRECATED — use gallery.coverField'),
   titleField: z.string().optional().describe('DEPRECATED — use gallery.titleField'),
 });
@@ -1106,8 +1300,13 @@ export const ObjectDataTableSchema = BaseSchema.extend({
  * Both nodes render (`plugin-list` registers `object-gallery`, `plugin-dashboard`
  * registers `object-data-table`); this is the validating face catching up with
  * the rendering one. The behaviour pin is `__tests__/objectql-union-arms-7363.test.ts`.
+ *
+ * `z.discriminatedUnion`, not `z.union` (objectui#8498) — see the same note on
+ * `crud.zod.ts#CRUDComponentSchema` for both reasons. All twelve arms already
+ * declared a distinct `type` literal, so ⛔ no document changes verdict; what
+ * changes is that a refusal now carries ONE arm's diagnosis instead of twelve.
  */
-export const ObjectQLComponentSchema = z.union([
+export const ObjectQLComponentSchema = z.discriminatedUnion('type', [
   ObjectGridSchema,
   ObjectFormSchema,
   ObjectViewSchema,

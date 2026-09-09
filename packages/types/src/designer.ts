@@ -18,6 +18,7 @@
  */
 
 import type { BaseSchema } from './base.js';
+import type { VisualizationType } from '@objectstack/spec/ui';
 
 // ============================================================================
 // Page Designer (Drag-and-Drop)
@@ -412,8 +413,23 @@ export interface ViewColumnConfig {
   order?: number;
 }
 
-/** View type union */
-export type UnifiedViewType = 'grid' | 'kanban' | 'gallery' | 'calendar' | 'timeline' | 'gantt' | 'map' | 'chart';
+/**
+ * View type union for the designer's view-configuration panel.
+ *
+ * DERIVED from `@objectstack/spec/ui` `VisualizationType` (objectui#8127) — the
+ * spec's own union of the visualizations a user can switch between, and the one
+ * `AppearanceConfig.allowedVisualizations` is typed on. The hand-written
+ * eight-arm union this replaces had already drifted: it was missing `tree`,
+ * which every other view-kind structure in this repo has carried for releases.
+ *
+ * ⚠️ Deliberately NOT `ViewType` (`./views.ts`). That union additionally carries
+ * `list` / `detail` (view categories, not visualizations) and the spec's
+ * `page` — a `type: 'page'` list view mounts a published page through `pageName`
+ * instead of drawing records, so it is not something this panel configures and
+ * not something a user switches into. Deriving from the visualization union is
+ * what keeps `page` correctly absent HERE while `ViewType` correctly gains it.
+ */
+export type UnifiedViewType = VisualizationType;
 
 /**
  * Unified data model for view configuration.

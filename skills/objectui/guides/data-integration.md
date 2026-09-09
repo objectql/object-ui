@@ -22,7 +22,12 @@ Components never import fetch libraries directly. They access data through `useD
 
 ## DataSource interface
 
-Defined in `packages/types/src/data.ts`:
+⚠️ The fence below is a deliberately SIMPLIFIED teaching copy, kept rather than
+replaced by an import: the published `DataSource` has **38** members and the
+excerpt is what makes this section readable. The real one is
+`import type { DataSource } from '@object-ui/types';` (source:
+`packages/types/src/data.ts`) — read it before you rely on any member's exact
+signature, because nothing checks the copy below against it.
 
 ```typescript
 interface DataSource<T = any> {
@@ -61,34 +66,52 @@ that do **not** exist: there is no `saveView` (write through `updateViewConfig`
 ### QueryParams
 
 ```typescript
-interface QueryParams {
-  $select?: string[];             // SELECT specific fields
-  $filter?: Record<string, any> | FilterArray;  // WHERE conditions (FilterArray: @objectstack/spec/data)
-  $orderby?: string | Record<string, 'asc' | 'desc'> | string[] | Array<{ field: string; order?: 'asc' | 'desc' }>;
-  $skip?: number;                 // OFFSET (for pagination)
-  $top?: number;                  // LIMIT (page size)
-  $expand?: string[];             // JOIN/expand related objects
-  $search?: string;               // free-text search term
-  $searchFields?: string[];       // fields the search term is matched against
-  $count?: boolean;               // ask the backend for `total`
-  [key: string]: any;             // why an unprefixed `limit` type-checks — and is then dropped
-}
+import type { QueryParams } from '@object-ui/types';
+
+// Imported, not re-declared: the nine keys below are the whole published type,
+// so a private copy could only be a second, slower-moving answer.
+const params: QueryParams = {
+  $select: ['name', 'email'],     // SELECT specific fields
+  $filter: { status: 'active' },  // WHERE conditions (or a FilterArray from @objectstack/spec/data)
+  $orderby: { createdAt: 'desc' },
+  $skip: 0,                       // OFFSET (for pagination)
+  $top: 20,                       // LIMIT (page size)
+  $expand: ['owner'],             // JOIN/expand related objects
+  $search: 'acme',                // free-text search term
+  $searchFields: ['name'],        // fields the search term is matched against
+  $count: true,                   // ask the backend for `total`
+};
 ```
+
+`$orderby` also takes a `string`, a `string[]`, or an
+`Array<{ field: string; order?: 'asc' | 'desc' }>` — read the published type for
+the full union rather than copying this one arm.
+
+⚠️ `QueryParams` declares those nine keys and **no index signature**. So an
+unprefixed `limit` is a compile error at the call site, not a key that
+type-checks and is then dropped on the wire. This fence claimed the opposite
+while it kept its own copy — which is exactly the drift a copy cannot report.
 
 ### QueryResult
 
 <!-- os:check -->
 ```typescript
-interface QueryResult<T = any> {
-  data: T[];                      // Returned data array — required, and NOT named `records`
-  total?: number;                 // Total count for pagination
-  page?: number;                  // Current page (1-indexed)
-  pageSize?: number;              // Items per page
-  hasMore?: boolean;              // Cursor-based pagination flag
-  cursor?: string;                // Next page cursor
-  metadata?: Record<string, any>; // Additional metadata
+import type { QueryResult } from '@object-ui/types';
+
+// Imported, not re-declared. The fence's old copy was already the WHOLE type,
+// member for member, so the copy bought the reader nothing and could only drift.
+function summarize(result: QueryResult<{ id: string }>) {
+  return {
+    items: result.data,                      // required, and NOT named `records`
+    total: result.total ?? result.data.length,
+    nextCursor: result.hasMore ? result.cursor : undefined,
+  };
 }
 ```
+
+The whole type is seven members: `data` (required), `total`, `page`
+(1-indexed), `pageSize`, `hasMore`, `cursor`, `metadata`. `data` is the one a
+mis-remembering adapter gets wrong — it is **not** named `records`.
 
 ## Wiring DataSource to SchemaRenderer
 

@@ -15,7 +15,7 @@ import {
   scan,
   summarise,
 } from '../check-vi-mock-inherit.mjs';
-import { scanSource } from '../js-comment-mask.mjs';
+import { maskComments, scanSource } from '../js-comment-mask.mjs';
 
 /**
  * objectui#6849 — the test for `scripts/check-vi-mock-inherit.mjs`.
@@ -54,6 +54,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 
 /** A quote, from its code point — see "Fixture discipline" above. */
 const Q = String.fromCharCode(39);
+
+/** A backtick, from its code point — same discipline as `Q`. */
+const BT = String.fromCharCode(96);
 
 const COVERED = '@object-ui/react';
 
@@ -163,6 +166,45 @@ describe('the eleven — spellings the `importOriginal` grep mis-counted as brok
       ).verdict,
     ).toBe('inherits');
   });
+
+  // -- objectui#8183: what the OPERAND grammar has to keep accepting ---------
+  // The tightening in `the failing shape` below refuses a spread whose operand
+  // merely MENTIONS the obtained module. These are its accept-side
+  // counterweight: a false refusal reds correct code, and that is how a gate
+  // gets deleted rather than fixed.
+
+  it('a parenthesised binding — `...(actual)`', () => {
+    expect(
+      verdictOf(`async (importOriginal) => { const actual = await importOriginal(); return { ...(actual), X: Stub }; }`)
+        .verdict,
+    ).toBe('inherits');
+  });
+
+  it('nested parentheses around an asserted call — ObjectTree.rowCeiling-7210.test.tsx', () => {
+    // The one site in this tree that writes this shape, byte-for-byte.
+    expect(
+      verdictOf(
+        `async (importOriginal) => ({ ...((await importOriginal<any>()) as Record<string, unknown>), X: Stub })`,
+      ).verdict,
+    ).toBe('inherits');
+  });
+
+  it('a non-null assertion is transparent — `...actual!`', () => {
+    expect(
+      verdictOf(`async (importOriginal) => { const actual = await importOriginal(); return { ...actual!, X: Stub }; }`)
+        .verdict,
+    ).toBe('inherits');
+  });
+
+  it('a property read off the module still inherits — the interop shape', () => {
+    // `(await importOriginal()).default` freezes nothing: the key set is still
+    // one the real module OWNS, so it grows when the module grows. No site in
+    // this tree writes it today; refusing it would be a false refusal waiting
+    // for the first file that does.
+    const site = verdictOf(`async (importOriginal) => ({ ...(await importOriginal()).default, X: Stub })`);
+    expect(site.verdict).toBe('inherits');
+    expect(site.reason).toBe('...(await importOriginal()).default');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -216,11 +258,130 @@ describe('the failing shape — a factory that hand-lists the export surface', (
     expect(sites[0].fn).toBe('doMock');
     expect(sites[0].verdict).toBe('frozen');
   });
+
+  // -- objectui#8183: an operand that merely MENTIONS the module -------------
+
+  /**
+   * Rows C and D of the recogniser table. Both obtain the real module, both
+   * spread, and both read `inherits` until objectui#8183 — the gate quoted the
+   * evasion back in its own reason line. The returned object carries exactly
+   * ONE inherited key (`_`), so the next export any module in the import graph
+   * reads at module scope still resolves to `undefined`: the #6849 failure,
+   * wearing the accepted spelling's clothes.
+   *
+   * NON-VACUITY. Each case is paired with the SAME fixture minus the object
+   * literal, and that twin must read `inherits`. The two differ by the wrapper
+   * alone, so a `frozen` verdict here cannot come from the gate bailing out
+   * early (`indirect`, `unreadable`, "never obtains the real module") — it can
+   * only come from the gate having READ the operand. The reason string is
+   * pinned for the same purpose: it is the one the gate emits after collecting
+   * spreads, not the one it emits before looking.
+   */
+  it('C — spreading an object literal that merely HOLDS the obtained module is frozen', () => {
+    const site = verdictOf(`async (importOriginal) => ({ ...({ _: await importOriginal() }), X: Stub })`);
+    expect(site.verdict).toBe('frozen');
+    expect(site.reason).toBe('the factory spreads something, but not the real module');
+
+    const twin = verdictOf(`async (importOriginal) => ({ ...(await importOriginal()), X: Stub })`);
+    expect(twin.verdict, 'the same fixture without the wrapper must still inherit').toBe('inherits');
+  });
+
+  it('D — the same evasion with the obtained value bound to a const first', () => {
+    const site = verdictOf(
+      `async (importOriginal) => { const actual = await importOriginal(); return { ...({ _: actual }), X: Stub }; }`,
+    );
+    expect(site.verdict).toBe('frozen');
+    expect(site.reason).toBe('the factory spreads something, but not the real module');
+
+    const twin = verdictOf(
+      `async (importOriginal) => { const actual = await importOriginal(); return { ...actual, X: Stub }; }`,
+    );
+    expect(twin.verdict, 'the same fixture without the wrapper must still inherit').toBe('inherits');
+  });
+
+  it('the nesting is refused one level up too — a BINDING that merely holds it', () => {
+    // `const wrapper = { _: await importOriginal() }` must not enter the
+    // inherited set, or C walks back in through the binding-propagation loop.
+    const site = verdictOf(
+      `async (importOriginal) => { const wrapper = { _: await importOriginal() }; return { ...wrapper, X: Stub }; }`,
+    );
+    expect(site.verdict).toBe('frozen');
+    expect(site.reason).toBe('the factory spreads something, but not the real module');
+
+    const twin = verdictOf(
+      `async (importOriginal) => { const wrapper = await importOriginal(); return { ...wrapper, X: Stub }; }`,
+    );
+    expect(twin.verdict, 'the same fixture without the wrapper must still inherit').toBe('inherits');
+  });
+
+  it('an ARRAY around the obtained module is refused for the same reason', () => {
+    const site = verdictOf(`async (importOriginal) => ({ ...[await importOriginal()], X: Stub })`);
+    expect(site.verdict).toBe('frozen');
+    expect(site.reason).toBe('the factory spreads something, but not the real module');
+  });
+
+  it('an object literal is refused even when its OWN contents would inherit', () => {
+    // Deliberate, and documented in the header rather than left to be read as
+    // an oversight: the nesting IS the evasion shape, and the one nesting that
+    // would be correct spells the same thing as `...actual`. No call site in
+    // this tree writes either.
+    expect(
+      verdictOf(`async (importOriginal) => { const actual = await importOriginal(); return { ...{ ...actual }, X: Stub }; }`)
+        .verdict,
+    ).toBe('frozen');
+  });
+
+  it('the callback spread without a CALL stays frozen under the operand grammar', () => {
+    // `...(importOriginal)` is a FUNCTION wearing parentheses. The grammar
+    // reaches the bare token and stops at the obtainer, which is not the module.
+    expect(verdictOf(`async (importOriginal) => ({ ...(importOriginal), X: Stub })`).verdict).toBe('frozen');
+  });
 });
 
 // ---------------------------------------------------------------------------
 // Scope — the narrow gate triage ruled for, and what it must NOT touch
 // ---------------------------------------------------------------------------
+
+/**
+ * The shape a hand-written array of exempt file paths declares itself with.
+ *
+ * Named rather than inlined so a failure can point at THE pattern instead of
+ * asking the reader to copy one out of an expectation by hand (objectui#8117).
+ */
+const EXEMPTION_DECLARATION_RE = /^\s*(export )?const (ALLOW|EXEMPT|IGNORE|SKIP|KNOWN)[A-Z_]*\s*=/m;
+
+/** The shape one ENTRY of such an array has: a quoted test file, then `,` or `]`. */
+const EXEMPTION_ENTRY_RE = /\.test\.tsx?['"`]\s*[,\]]/;
+
+/**
+ * Every line of `code` that matches `re`, as `<line number>: <source line>`.
+ *
+ * ## Why not `expect(src).not.toMatch(re)` (objectui#8117)
+ *
+ * `not.toMatch` over this gate prints its ~1850-line source as the "received"
+ * value and never says WHERE the match was; locating it needed a separate
+ * `grep -nP` with the pattern copied out of this file by hand. The assertion
+ * below is the same assertion — zero matches — reported so its failure names
+ * the offending line. `line` is looked up in `original`, which is the raw
+ * source: `maskComments` preserves byte offsets, so the numbering is shared.
+ */
+function offendingLines(code: string, re: RegExp, original: string = code) {
+  const lines = original.split('\n');
+  const all = new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
+  const out: string[] = [];
+  for (let m = all.exec(code); m; m = all.exec(code)) {
+    // Count to the first NON-WHITESPACE byte of the match, not to `m.index`.
+    // `EXEMPTION_DECLARATION_RE` opens with `^\s*`, and `\s` matches a newline:
+    // against a declaration with a blank line above it the match STARTS on that
+    // blank line, so the naive offset reported `1853: ` — an empty line, one
+    // above the carve-out, which is worse than useless in a failure message.
+    const at = m.index + /^\s*/.exec(m[0])![0].length;
+    const n = code.slice(0, at).split('\n').length;
+    out.push(`${n}: ${lines[n - 1].trim()}`);
+    if (all.lastIndex === m.index) all.lastIndex += 1;
+  }
+  return [...new Set(out)];
+}
 
 describe('scope — narrow, and out of scope by construction rather than by exemption', () => {
   it('a RELATIVE specifier is never judged — whole-module replacement is legitimate', () => {
@@ -248,8 +409,61 @@ describe('scope — narrow, and out of scope by construction rather than by exem
     // Triage: ⛔ 不要顺手加例外白名单. An exemption means the recogniser called
     // correct code broken — the repair is the recogniser, not a carve-out.
     const src = fs.readFileSync(path.join(repoRoot, 'scripts/check-vi-mock-inherit.mjs'), 'utf8');
-    expect(src).not.toMatch(/^\s*(export )?const (ALLOW|EXEMPT|IGNORE|SKIP|KNOWN)[A-Z_]*\s*=/m);
-    expect(src).not.toMatch(/\.test\.tsx?['"`]\s*[,\]]/);
+    // objectui#8117: the ENTRY pattern is read over the COMMENT-BLANKED source,
+    // the gate's own "only text the language would EXECUTE is judged" rule
+    // turned on the gate's own file. The header docblock is this sweep's
+    // per-slice logbook by construction, so recording a sweep means naming test
+    // files — and a backticked filename followed by a comma is byte-identical
+    // to one entry of the array this pin exists to catch. It reddened twice on
+    // running prose (#8116, #8207 at `e104c509d`), and both times the repair
+    // was to reword the sentence: a tax on every future slice author, paid to a
+    // pin whose failure text points at a regex while the only "fix" it suggests
+    // is the carve-out the comment above forbids. Blanking costs the pin
+    // nothing — a real exemption array is a string LITERAL, which the shared
+    // masker leaves intact; the sibling case below drives both directions.
+    //
+    // The DECLARATION pattern still reads the raw source: it cannot match a
+    // docblock line (`^\s*` reaches the ` * ` prefix and stops), so it has no
+    // false red to fix and narrowing it would buy nothing.
+    expect(offendingLines(src, EXEMPTION_DECLARATION_RE)).toEqual([]);
+    expect(offendingLines(maskComments(src), EXEMPTION_ENTRY_RE, src)).toEqual([]);
+  });
+
+  it('that pin reads CODE, and the header prose it used to redden on is intact', () => {
+    // Both legs are needed: on a tree whose header already avoids the comma,
+    // an empty reading proves only that today's prose dodges the pattern, not
+    // that the pin stopped judging prose. The RAW assertions are the control —
+    // each fixture MUST match before masking, or the leg below measures nothing.
+    const entry = (file: string) => `${Q}packages/x/src/${file}${Q},`;
+    const array = `const ALLOWLIST = [${entry('A.test.tsx')} ${entry('B.test.ts')}];`;
+    // The exact shape #8116 measured: one sweep record naming a swept file.
+    const prose = `/**\n *     ${BT}ObjectView.expandFls-7429.test.tsx${BT}, landed by objectui#7429\n */`;
+
+    expect(EXEMPTION_ENTRY_RE.test(array), 'the positive fixture is matchable at all').toBe(true);
+    expect(EXEMPTION_ENTRY_RE.test(prose), 'the prose fixture is matchable BEFORE masking').toBe(true);
+
+    // A real exemption array survives the mask — the pin keeps every tooth.
+    expect(offendingLines(maskComments(array), EXEMPTION_ENTRY_RE, array)).toEqual([
+      `1: ${array}`,
+    ]);
+    // The header record does not — that is the false red, and it is gone.
+    expect(offendingLines(maskComments(prose), EXEMPTION_ENTRY_RE, prose)).toEqual([]);
+    // And the same masking must not blind the pin to an array written INSIDE
+    // the docblock's file: prose above it does not shelter the code below it.
+    const both = `${prose}\n${array}`;
+    expect(offendingLines(maskComments(both), EXEMPTION_ENTRY_RE, both)).toEqual([`4: ${array}`]);
+  });
+
+  it('a reported line is the DECLARATION, never the blank line above it', () => {
+    // Measured, not hypothetical: the first draft of `offendingLines` counted to
+    // `m.index`, and `EXEMPTION_DECLARATION_RE` opens with `^\s*` where `\s`
+    // matches a newline. Appending a carve-out to the gate with a blank line
+    // before it therefore reported `1853: ` — an empty line, one above the
+    // declaration. A failure message that names the wrong line is the defect
+    // objectui#8117 is about, one level down, so it gets its own case.
+    const decl = "const KNOWN_BAD = ['packages/x/src/A.test.tsx'];";
+    const withBlankLineAbove = `const ok = 1;\n\n${decl}\n`;
+    expect(offendingLines(withBlankLineAbove, EXEMPTION_DECLARATION_RE)).toEqual([`3: ${decl}`]);
   });
 
   it('the covered set is non-empty and names only real workspace packages', () => {
@@ -262,6 +476,99 @@ describe('scope — narrow, and out of scope by construction rather than by exem
       expect(fs.existsSync(pkg), `${spec} names no package in this workspace`).toBe(true);
       expect(JSON.parse(fs.readFileSync(pkg, 'utf8')).name).toBe(spec);
     }
+  });
+
+  /**
+   * THE MEMBERSHIP LEDGER — objectui#8018.
+   *
+   * Every specifier a landed sweep has added, written out ONCE and BY HAND.
+   * The gate's header declares the covered set GROW-ONLY and the ratchet's
+   * whole force rests on that, but `findCallSites` classifies by MEMBERSHIP:
+   * a specifier that leaves the set stops being `covered` and its call sites
+   * become `unjudged`. So a removal does not redden — it makes that
+   * specifier's whole population invisible while the gate reports OK over a
+   * tree it no longer looks at. Measured before this ledger existed, by
+   * dropping each of the 21 members from the constant in turn and running this
+   * file: 18 of them left all 86 cases GREEN, together 384 judged call sites
+   * — `@object-ui/auth` (136) and `@object-ui/permissions` (48) among them.
+   *
+   * ⛔ It is NOT derived from `COVERED_SPECIFIERS`. A pin that reads its
+   * expectation from the thing it pins asserts `x === x` and cannot fail; the
+   * cautionary example is already in this file, where the verdict-line case
+   * builds its expectation with `COVERED_SPECIFIERS.join(', ')` and therefore
+   * ADAPTS to a removal rather than resisting it. That is this repo's
+   * recurring shape and it is the reason these names are typed out.
+   *
+   * The two cases below pin the list in BOTH directions, and the second is
+   * what keeps a hand-written ledger from silently falling behind:
+   *
+   *   - nothing may LEAVE the covered set (the ratchet direction); and
+   *   - nothing may JOIN it without being recorded here in the same PR, so a
+   *     member added tomorrow arrives already pinned rather than joining an
+   *     unprotected majority.
+   *
+   * ⚠ What it still permits, stated so no one reads it as more: an author
+   * who deletes a member from the constant AND its line here in one edit
+   * passes. That is the floor of any literal pin, and it is the point — the
+   * ratchet's promise is that a member cannot leave SILENTLY, not that it can
+   * never leave. Retirement becomes a visible, reviewable edit to a list whose
+   * docblock says the set only grows.
+   *
+   * Names only, deliberately: the gate's own header carries the slice, the
+   * measurement and the PR behind each entry, and a second copy of that
+   * provenance here would be an unchecked hand-copy of exactly the kind this
+   * case exists to catch.
+   */
+  const SWEPT_MEMBERS: readonly string[] = [
+    '@object-ui/react',
+    '@object-ui/i18n',
+    '@object-ui/plugin-markdown',
+    '@object-ui/data-objectstack',
+    '@object-ui/plugin-report',
+    '@object-ui/plugin-charts',
+    '@object-ui/plugin-dashboard',
+    '@object-ui/auth',
+    '@object-ui/collaboration',
+    '@object-ui/plugin-form',
+    '@object-ui/components',
+    '@object-ui/plugin-grid',
+    '@object-ui/permissions',
+    '@object-ui/plugin-detail',
+    '@object-ui/plugin-chatbot',
+    '@object-ui/plugin-designer',
+    '@object-ui/plugin-list',
+    '@object-ui/fields',
+    '@object-ui/app-shell',
+    '@object-ui/plugin-view',
+    '@object-ui/core',
+  ];
+
+  it('NOTHING LEAVES the covered set — every swept specifier is still a member', () => {
+    // The generalisation of the `@object-ui/i18n` pin further down, whose
+    // rationale applies verbatim to all 21: dropping a member makes every one
+    // of its call sites unjudged, so the gate stays GREEN over a population it
+    // no longer looks at — the one direction a ratchet must never be free to
+    // move.
+    const covered = new Set<string>(COVERED_SPECIFIERS);
+    const retired = SWEPT_MEMBERS.filter((spec) => !covered.has(spec));
+    expect(
+      retired,
+      'a landed sweep left COVERED_SPECIFIERS: its call sites are now unjudged and the gate reports OK over them',
+    ).toEqual([]);
+  });
+
+  it('NOTHING JOINS unrecorded — a new member is pinned in the PR that adds it', () => {
+    // Without this half the ledger is a snapshot that decays: every specifier
+    // added after it was written would inherit the same unprotected state the
+    // 18 were measured in. With it, the pin grows with the set by construction
+    // — the sweep PR that widens the constant widens this list too, which is
+    // the same PR the gate's "precondition for widening" already requires.
+    const ledger = new Set<string>(SWEPT_MEMBERS);
+    const unrecorded = COVERED_SPECIFIERS.filter((spec: string) => !ledger.has(spec));
+    expect(
+      unrecorded,
+      'add the new member to SWEPT_MEMBERS in this same PR — until then it has no membership pin',
+    ).toEqual([]);
   });
 
   it('the header states what it does NOT cover, and the precondition for widening', () => {
@@ -287,6 +594,81 @@ describe('scope — narrow, and out of scope by construction rather than by exem
     expect(header.length).toBeLessThan(source.length);
     expect(header).toMatch(/whole-module replacement/i);
     expect(header).toMatch(/precondition for widening is a sweep/i);
+    // objectui#8141: the scope the resolver actually implements includes the
+    // subpaths of a member, so the header has to say so -- a verdict line that
+    // claims more than the prose explains is the same over-claim one level up.
+    expect(header).toMatch(/covers its SUBPATHS/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The subpath boundary (objectui#8141)
+// ---------------------------------------------------------------------------
+
+describe('a member covers its SUBPATHS — the boundary objectui#8141 moved', () => {
+  /**
+   * The resolver decided scope by EXACT equality until objectui#8141, so
+   * `@object-ui/components/ui/sonner` -- a subpath of the member slice 6 swept
+   * -- was counted in the "other workspace" bucket and never judged, while the
+   * verdict line named the package as covered. Measured on `b38014e82` with
+   * the gate's own `scan()`: 2 such sites in the tree, both already inheriting,
+   * so the prefix match landed as a ratchet (623 -> 625 judged, 37 -> 35 other
+   * workspace, 0 frozen either way).
+   */
+
+  const SUBPATH = `${COVERED}/testing`;
+
+  it('a SUBPATH of a covered member is JUDGED rather than bucketed as workspace', () => {
+    const site = verdictOf(`() => ({ SchemaRenderer: Stub })`, SUBPATH);
+    expect(site.scope).toBe('covered');
+    expect(site.verdict).toBe('frozen');
+  });
+
+  it('the same subpath in the inheriting form is green', () => {
+    const site = verdictOf(`async (importOriginal) => ({ ...(await importOriginal()), X: Stub })`, SUBPATH);
+    expect(site.scope).toBe('covered');
+    expect(site.verdict).toBe('inherits');
+  });
+
+  it('vi.importActual of the SUBPATH inherits it — the specifier match follows the subpath', () => {
+    const site = verdictOf(
+      `async () => ({ ...(await ${importActual(SUBPATH)}), X: Stub })`,
+      SUBPATH,
+    );
+    expect(site.verdict).toBe('inherits');
+  });
+
+  it('THE REGRESSION PIN: a frozen subpath factory makes the gate RED, not silently green', () => {
+    // This is the whole card in one case. Revert the resolver to exact
+    // equality and the site drops into `workspace`: `frozen` empties, the run
+    // reports OK, and the green claims a package the gate never checked.
+    const { root, files } = fixtureTree({
+      'packages/plugin-form/src/Toast.test.tsx': `${mockCall(SUBPATH, `() => ({ toast: Stub })`)}
+`,
+    });
+    const result = scanFixture(root, files);
+    expect(result.frozen.map((f: { specifier: string }) => f.specifier)).toEqual([SUBPATH]);
+    expect(result.census.covered).toBe(1);
+    expect(result.census.workspace).toBe(0);
+  });
+
+  it('a sibling package whose NAME starts with a member is NOT covered', () => {
+    // The separator is part of the prefix. `@object-ui/react-native` would be a
+    // different package with its own sweep to do, not a subpath of the member.
+    for (const spec of [`${COVERED}-native`, `${COVERED}ive`]) {
+      const site = verdictOf(`() => ({ X: Stub })`, spec);
+      expect(site.scope, `${spec} must not be swallowed by the prefix`).toBe('workspace');
+      expect(site.verdict).toBe('unjudged');
+    }
+  });
+
+  it('the constant still names package ROOTS only — reach widened, membership did not', () => {
+    // ⛔ The repair is NOT enumerating subpaths in the constant: that keeps the
+    // gap open per subpath forever, and a subpath member would also fail the
+    // package.json case above. A member joins only by sweep.
+    for (const spec of COVERED_SPECIFIERS) {
+      expect(spec.split('/'), `${spec} is not a package root`).toHaveLength(2);
+    }
   });
 });
 
@@ -661,6 +1043,23 @@ describe('repo state — the gate is green on this tree', () => {
     for (const site of calendar) expect(site.scope).toBe('local');
   });
 
+  it('THE SUBPATH SITES, pinned against the real files — objectui#8141', () => {
+    // The on-disk half of the boundary. Both were `workspace` (counted, never
+    // judged) until objectui#8141 and both already inherited, which is why the
+    // prefix match was free; if a later edit re-freezes one, this reddens here
+    // as well as in the gate.
+    const subpathSites = ['packages/plugin-form/src/MasterDetailForm.outcomeToastSupersede.test.tsx', 'packages/plugin-form/src/WizardForm.outcomeToastSupersede.test.tsx'];
+    for (const file of subpathSites) {
+      expect(fs.existsSync(path.join(repoRoot, file)), `${file} moved — this control tests nothing`).toBe(true);
+      const sites = findCallSites(fs.readFileSync(path.join(repoRoot, file), 'utf8')).filter(
+        (s: { specifier: string }) => s.specifier.includes('/', s.specifier.indexOf('/') + 1),
+      );
+      const onAMember = sites.filter((s: { scope: string }) => s.scope === 'covered');
+      expect(onAMember.length, `${file} no longer mocks a subpath of a covered member`).toBeGreaterThan(0);
+      for (const site of onAMember) expect(site.verdict, `${file}:${site.line}`).toBe('inherits');
+    }
+  });
+
   it('puts the census in the verdict, so a reader sees the population', () => {
     // "OK" alone is what a gate that does nothing also prints.
     //
@@ -671,10 +1070,14 @@ describe('repo state — the gate is green on this tree', () => {
     const named = COVERED_SPECIFIERS.join(', ');
     const line = summarise(result);
     expect(line).toMatch(/\d+ tracked source file\(s\)/);
-    expect(line).toMatch(new RegExp(`\\d+ call site\\(s\\) on ${escapeRe(named)} judged`));
+    // "and their subpaths" is load-bearing rather than decorative: the resolver
+    // judges a member AND its subpaths (objectui#8141), and a verdict line that
+    // named only the members would claim less than the run actually checked --
+    // the same over-claim in the other direction.
+    expect(line).toMatch(new RegExp(`\\d+ call site\\(s\\) on ${escapeRe(named)} and their subpaths judged`));
     const out = execFileSync('node', ['scripts/check-vi-mock-inherit.mjs'], { cwd: repoRoot, encoding: 'utf8' });
     expect(out).toMatch(/check-vi-mock-inherit: OK/);
-    expect(out).toContain(`${result.census.covered} call site(s) on ${named} judged`);
+    expect(out).toContain(`${result.census.covered} call site(s) on ${named} and their subpaths judged`);
   });
 
   it('needs no install and no build — it is a cheap-tier gate', () => {

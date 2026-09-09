@@ -21,6 +21,7 @@
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
+import type { ActionSchema as ActionDeclaration } from '../crud.js';
 
 /**
  * Action Execution Mode Schema
@@ -60,16 +61,23 @@ const ActionConditionPredicateSchema = z.union([
 
 /**
  * Action Schema - Enhanced with Phase 2 features
+ *
+ * INPUT FACE: both type arguments carry this mirror's existing TypeScript
+ * declaration (objectui#7760, maintainer ruling, decision batch #69) — the annotation
+ * still breaks the recursion in the initializer below, but it no longer publishes
+ * `unknown` as what an author may write here. ⛔ Runtime accept set unchanged; ⛔ the
+ * declaration unchanged. The reasoning lives once, on `SchemaNodeSchema` in
+ * `base.zod.ts` — read it there before changing this line.
  */
-export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
+export const ActionSchema: z.ZodType<ActionDeclaration, ActionDeclaration> = z.lazy(() => BaseSchema.extend({
   type: z.literal('action'),
   label: z.string().describe('Action label'),
-  level: z.enum(['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'default']).optional().default('default').describe('Action type/level'),
+  level: z.enum(['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'default']).optional().describe('Action type/level'),
   icon: z.string().optional().describe('Icon to display (lucide-react icon name)'),
   variant: z.enum(['default', 'outline', 'ghost', 'link']).optional().describe('Action variant'),
   actionType: z.enum(['button', 'link', 'dropdown', 'ajax', 'confirm', 'dialog']).optional().describe('Action type'),
   api: z.string().optional().describe('API endpoint to call (for ajax actions)'),
-  method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().default('POST').describe('HTTP method'),
+  method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().describe('HTTP method'),
   data: z.any().optional().describe('Request body/data'),
   headers: z.record(z.string(), z.string()).optional().describe('Request headers'),
   // RETIRED (objectui#4314): the structured confirm object is a tombstone.
@@ -116,10 +124,10 @@ export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
     + 'enforce-or-remove with no deprecation window (maintainer ruling option 1, 2026-09-05).',
   ),
   chain: z.array(ActionSchema).optional().describe('Action chaining - actions to execute after this one'),
-  chainMode: ActionExecutionModeSchema.optional().default('sequential').describe('Chain execution mode'),
+  chainMode: ActionExecutionModeSchema.optional().describe('Chain execution mode'),
   condition: ActionConditionPredicateSchema.optional().describe('Execution gate — the action runs only while this predicate holds'),
-  reload: z.boolean().optional().default(true).describe('Whether to reload data after action'),
-  close: z.boolean().optional().default(true).describe('Whether to close dialog/modal after action'),
+  reload: z.boolean().optional().describe('Whether to reload data after action'),
+  close: z.boolean().optional().describe('Whether to close dialog/modal after action'),
   // RUNTIME SLOT (objectui#7344): `ActionRunner` awaits `action.onClick()` and
   // the action renderers guard `typeof action.onClick === 'function'`. The
   // `z.any()` this replaces accepted an authored string or object that then
@@ -163,11 +171,11 @@ export const DetailSchema = BaseSchema.extend({
     label: z.string(),
     content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]),
   })).optional().describe('Tabs for additional content'),
-  showBack: z.boolean().optional().default(true).describe('Show back button'),
+  showBack: z.boolean().optional().describe('Show back button'),
   // RUNTIME SLOT (objectui#7344): `register('detail', DetailView)` — the same
   // `handleBack` that calls `onBack()` for `detail-view`. Was `z.any()`.
   onBack: handlerKeyRefusal('onBack', 'runtime-slot', 'Custom back action'),
-  loading: z.boolean().optional().default(true).describe('Whether to show loading state'),
+  loading: z.boolean().optional().describe('Whether to show loading state'),
 });
 
 /**
@@ -178,22 +186,38 @@ export const CRUDDialogSchema = BaseSchema.extend({
   title: z.string().optional().describe('Dialog title'),
   description: z.string().optional().describe('Dialog description'),
   content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Dialog content'),
-  size: z.enum(['sm', 'default', 'lg', 'xl', 'full']).optional().default('default').describe('Dialog size'),
+  size: z.enum(['sm', 'default', 'lg', 'xl', 'full']).optional().describe('Dialog size'),
   actions: z.array(ActionSchema).optional().describe('Dialog actions/buttons'),
   open: z.boolean().optional().describe('Whether dialog is open'),
   // RETIRED (objectui#7344): no renderer is registered for `crud-dialog`;
   // nothing reads the key. Was `z.any()`.
   onClose: handlerKeyRefusal('onClose', 'retired', 'Close handler'),
-  closeOnOutsideClick: z.boolean().optional().default(true).describe('Whether clicking outside closes dialog'),
-  closeOnEscape: z.boolean().optional().default(true).describe('Whether pressing Escape closes dialog'),
-  showClose: z.boolean().optional().default(true).describe('Show close button'),
+  closeOnOutsideClick: z.boolean().optional().describe('Whether clicking outside closes dialog'),
+  closeOnEscape: z.boolean().optional().describe('Whether pressing Escape closes dialog'),
+  showClose: z.boolean().optional().describe('Show close button'),
 });
 
 /**
  * Union of all CRUD schemas
+ *
+ * `z.discriminatedUnion`, not `z.union` (objectui#8498) — the reasoning lives
+ * once, on `index.zod.ts#AnyComponentSchema`. This site changed because zod
+ * 4.4.3 REFUSES a plain `z.union` as a member of a discriminated union (it
+ * computes no `propValues`), so the root cannot discriminate until this one
+ * does. ⛔ Not an accept-set change: all three arms already declared `type` as a
+ * distinct `z.literal` (`action` · `detail` · `crud-dialog`).
  */
-export const CRUDComponentSchema = z.union([
-  ActionSchema,
+export const CRUDComponentSchema = z.discriminatedUnion('type', [
+  // `ActionSchema`'s `z.ZodType<ActionDeclaration, ActionDeclaration>` annotation
+  // is a maintainer ruling (objectui#7760, decision batch #69) and ⛔ does not
+  // move here. That type declares `_zod.propValues` as `PropValues | undefined`,
+  // so `tsc` cannot see through the `z.lazy` to the `type: z.literal('action')`
+  // the body really declares — the RUNTIME can, measured:
+  // `ActionSchema._zod.propValues.type` is `Set { 'action' }`. The intersection
+  // asserts that one fact and nothing else, leaving the output type intact so
+  // this union infers what it always did; `__tests__/any-component-union-fanout
+  // .test.ts` pins the fact at runtime so the cast cannot rot into a lie.
+  ActionSchema as typeof ActionSchema & z.core.$ZodTypeDiscriminable<'type'>,
   DetailSchema,
   CRUDDialogSchema,
 ]);

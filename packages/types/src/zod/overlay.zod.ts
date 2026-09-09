@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import type { MenuItem } from '../overlay.js';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 
 /**
@@ -182,8 +183,15 @@ export const HoverCardSchema = BaseSchema.extend({
  * lives — hang off it. A consumer that only prints top-level issues therefore
  * still shows `Invalid input` here; the guidance is reached by walking the
  * union's arm errors, and by the `.describe()` metadata, which is unchanged.
+ *
+ * INPUT FACE: both type arguments carry this mirror's existing TypeScript
+ * declaration (objectui#7760, maintainer ruling, decision batch #69) — the annotation
+ * still breaks the recursion in the initializer below, but it no longer publishes
+ * `unknown` as what an author may write here. ⛔ Runtime accept set unchanged; ⛔ the
+ * declaration unchanged. The reasoning lives once, on `SchemaNodeSchema` in
+ * `base.zod.ts` — read it there before changing this line.
  */
-export const MenuItemSchema: z.ZodType<any> = z.lazy(() =>
+export const MenuItemSchema: z.ZodType<MenuItem, MenuItem> = z.lazy(() =>
   z.union([
     z.object({
       label: z.string().describe('Menu item label'),

@@ -17,6 +17,16 @@ integration package to install. Day-to-day schema authoring is
 
 Every node in the UI tree follows this shape — enforce it on every input.
 
+⚠️ The fence below is a deliberately SIMPLIFIED teaching copy of the published
+`BaseSchema` (`import type { BaseSchema } from '@object-ui/types';`), KEPT
+rather than replaced by an import: the published interface declares **21**
+members plus an index signature, and this section teaches the SHAPE, not the
+member list. Two consequences before you go looking in the `.d.ts`: nothing
+checks the copy against the real type, and
+`props` / `events` below are **not declared members** — they reach a node
+through `BaseSchema`'s `[key: string]: any` index signature, which is why you
+will not find them in the published member list.
+
 ```typescript
 // @object-ui/types — abridged; the full BaseSchema member list is packages/types/src/base.ts
 interface BaseSchema {

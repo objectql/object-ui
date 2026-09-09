@@ -111,6 +111,44 @@ const OUT_OF_CONTRACT: Array<[label: string, url: string]> = [
   ['a token with inner spacing', '/thanks?x={{ record.id }}'],
 ];
 
+/**
+ * A refusal CITES THE RULING it comes from, in either spelling the spec uses.
+ *
+ * ⚠️ This file was the odd one out (objectui#7122 contract review). Its three
+ * siblings — `WizardForm.submitRedirect.test.tsx`,
+ * `ObjectForm.submitRedirect.test.tsx` and the console's
+ * `submitRedirect.test.ts` — all assert this SHAPE, while this one pinned the
+ * literal `'ruled 2026-08-11'`. That is the same defect the re-point was
+ * supposed to remove, moved one word along: it swapped a brittle `#7496` for a
+ * brittle date, and the four files disagreed about what the property even is.
+ *
+ * The property is that the sentence on screen carries its governing ruling in a
+ * machine-recognisable form, which is what proves it came from the schema and
+ * not from a local hand-written string (the load-bearing mutation probe in this
+ * file's header — "replacing the spec's refusal message … turns 14 tests red" —
+ * depends on exactly that).
+ *
+ * ## ⚠️ Why there is no bare `#\d{3,}` alternative
+ *
+ * The sibling files' first spelling was
+ * `/\(ruled \d{4}-\d{2}-\d{2}\)|#\d{3,}/` — two alternatives, to admit
+ * either form upstream uses. The loose half discriminated NOTHING: this repo's
+ * own hand-written messages routinely cite `objectui#NNNN`, so a locally
+ * authored sentence satisfied it, and telling those two apart is this
+ * assertion's entire job.
+ *
+ * It was also unnecessary, which is the measurement that settled it. Both
+ * spellings, read off the installed artifacts rather than recalled:
+ *
+ *   17.2.0  "… and this is an absolute URL (ruled 2026-08-11 on #7496)."
+ *   17.3.0  "… and this is an absolute URL (ruled 2026-08-11)."
+ *
+ * The issue number never appears OUTSIDE that parenthesis, so `(ruled ` + a
+ * date already matched both releases on its own. The optional ` on #NNNN` tail
+ * keeps the 17.2.0 spelling admissible without admitting a bare local `#7122`.
+ */
+const CITES_ITS_RULING = /\(ruled \d{4}-\d{2}-\d{2}(?: on #\d{3,})?\)/;
+
 describe('the shape verdict is the contract’s, for every family', () => {
   it.each(IN_CONTRACT)('accepts %j, and so does the schema', (url) => {
     expect(specAccepts(url)).toBe(true);
@@ -131,8 +169,13 @@ describe('the shape verdict is the contract’s, for every family', () => {
     // submitter reads on screen is the one the authoring door would have said.
     // An empty or generic message would be a silent drop wearing an error's
     // clothes — which is defect 2 with extra steps.
+    //
+    // The citation is asserted through `CITES_ITS_RULING` above — the SHAPE the
+    // provenance takes, not the literal date this release happens to print.
+    // Re-pointed rather than dropped: the property this line exists for is that
+    // the sentence carries its governing ruling, not how that ruling is spelled.
     expect(verdict.refusal).toMatch(/`(submitBehavior\.)?url`/);
-    expect(verdict.refusal).toContain('#7496');
+    expect(verdict.refusal).toMatch(CITES_ITS_RULING);
     expect(verdict.refusal.length).toBeGreaterThan(40);
   });
 

@@ -271,6 +271,160 @@ function assertSpecShapeWhereIsFilterAst(where: unknown, resource: string): void
 }
 
 /**
+ * The keys `aggregate()`'s ANALYTICS branch reads and its SPEC-SHAPE branch does
+ * not: `filter`, `field`, `function`.
+ *
+ * Written out once, and read by both the refusal below and its message, so the
+ * set a caller is told about cannot drift from the set that is checked.
+ *
+ * ⛔ Deliberately NOT "every key the spec-shape branch does not read". A refusal
+ * scoped that widely would reject `orderBy`, a future spec key, or any harmless
+ * extra a host happens to carry, and it would satisfy a naive "the spec-shape
+ * branch refuses `filter`" test while breaking traffic nobody complained about.
+ * These three are named one by one because they are the OTHER branch's own
+ * parameters: their presence says the params were built for the analytics wire
+ * and arrived on the spec-shape one, which is a producer defect with a name.
+ */
+const ANALYTICS_ONLY_AGGREGATE_KEYS = ['filter', 'field', 'function'] as const;
+
+type AnalyticsOnlyAggregateKey = (typeof ANALYTICS_ONLY_AGGREGATE_KEYS)[number];
+
+/** What each refused key means, and where its spec-shape equivalent lives. */
+const ANALYTICS_ONLY_KEY_ADVICE: Record<AnalyticsOnlyAggregateKey, string> = {
+  filter:
+    '`filter` is the ANALYTICS branch\'s filter and is lowered there through '
+    + '`parseFilterAST`; this branch\'s filter is `where` (`QuerySchema.where`, '
+    + '@objectstack/spec data/query.zod.ts) and is posted VERBATIM — rename it to '
+    + '`where` and lower it in the producer.',
+  field:
+    '`field` is half of the analytics branch\'s `${field}_${function}` measure; '
+    + 'this branch\'s measure is `aggregations`, an AggregationNode[] such as '
+    + "[{ function: 'sum', field: 'amount', alias: 'amount_sum' }].",
+  function:
+    '`function` is the other half of that measure pair and belongs inside an '
+    + '`aggregations` node, not beside `groupBy`.',
+};
+
+/** Which disjunct(s) of `looksLikeSpecShape` put this call on the branch. */
+function specShapeSelectorReasons(params: any): string[] {
+  const reasons: string[] = [];
+  if (Array.isArray(params?.groupBy)) reasons.push('`groupBy` is an array');
+  if (Array.isArray(params?.aggregations)) reasons.push('`aggregations` is an array');
+  if (params?.where !== undefined) reasons.push('a `where` key is present');
+  return reasons;
+}
+
+/**
+ * Analytics-branch params — `filter`, `field`, `function` — that reached
+ * `aggregate()`'s SPEC-SHAPE branch, which reads none of them.
+ *
+ * WHY A REFUSAL AND NOT A DROP (objectui#6864). This applies the maintainer
+ * ruling of 2026-08-30 on objectui#6825 — option A, REFUSE at the producer — to
+ * the rest of the same branch. That ruling's reason was that a shape the spec's
+ * own gate would reject is off-contract at the PRODUCER, so the adapter says no
+ * instead of degrading leniently; the reason lands harder here, because a
+ * silent drop is precisely the disposition it refused for `where`. Leaving one
+ * key on this branch refusing while three others vanish without a word would be
+ * harder to explain than the old behaviour.
+ *
+ * ⭐ AND THE DROP HERE IS WORSE THAN THE `where` HALF. `filter` is not the only
+ * casualty: `field` and `function` are the analytics branch's whole measure, and
+ * the spec-shape branch copies a measure only out of `aggregations`. So the
+ * legacy shape `{ field, function, groupBy, filter }` whose `groupBy` happens to
+ * be an ARRAY produced a `queryAst` carrying a `groupBy` and NO `aggregations`
+ * at all — a grouping with no measure — with the author's predicate gone too.
+ * The chart still rendered, the numbers were wrong, and there was nothing to
+ * look at.
+ *
+ * HOW A LEGACY CALLER GETS HERE, measured in this repo on 2026-09-08.
+ * `Array.isArray(params.groupBy)` is one of `looksLikeSpecShape`'s three
+ * disjuncts, and `ObjectChart`'s `runAggregate` gates only on the STRUCTURED
+ * node shape (`gb && typeof gb === 'object' && !Array.isArray(gb)`), so an
+ * ARRAY `aggregate.groupBy` falls through to its legacy call — `{ field,
+ * function, groupBy, filter }` — and that call lands here.
+ * `ObjectMetricWidget.computeOne` forwards `aggregate.groupBy` the same way.
+ * Both take the value from authored widget metadata across an `any` seam
+ * (`isObjectProvider`'s `aggregate?: any`, `ds: any`), so the type system
+ * cannot refuse it and this runtime refusal is what an author gets instead.
+ *
+ * ⛔ WHAT THIS DELIBERATELY DOES NOT DO. It does not ROUTE the legacy shape back
+ * to the analytics branch: that is the tolerant-consumer direction AGENTS.md
+ * §0.1 exists to stop, it is the option #6825 refused for `where`, and it could
+ * not work anyway — the analytics branch posts `dimensions: [params.groupBy]`,
+ * so an array `groupBy` would go out nested. It does not widen `AggregateParams`
+ * (`@object-ui/types`), which is a separate contract question. And it does not
+ * refuse a key that is present but nullish: `undefined`/`null` carries nothing
+ * for the branch to drop, and both `ObjectChart` and `ObjectMetricWidget` build
+ * their params by spreading possibly-absent authored values.
+ *
+ * Carries the `INVALID_FILTER` / 400 pair its siblings {@link MalformedFilterError}
+ * and {@link UnloweredAggregateWhereError} carry, so `isMalformedFilterError()`
+ * recognises it and a failed widget renders "this filter is malformed" rather
+ * than "check your connection" (objectui#3066). One branch, one envelope: a
+ * caller can catch `aggregate()`'s producer-side refusals with one predicate.
+ */
+export class AnalyticsKeysOnSpecShapeError extends Error {
+  readonly code = 'INVALID_FILTER';
+  readonly httpStatus = 400;
+  /** The offending keys, in the order {@link ANALYTICS_ONLY_AGGREGATE_KEYS} lists them. */
+  readonly keys: readonly AnalyticsOnlyAggregateKey[];
+  /** What each offending key carried, so a producer is identifiable from a log. */
+  readonly received: Record<string, unknown>;
+  /** The object `aggregate()` was called for. */
+  readonly resource: string;
+  constructor(
+    keys: readonly AnalyticsOnlyAggregateKey[],
+    params: any,
+    resource: string,
+  ) {
+    const received: Record<string, unknown> = {};
+    for (const key of keys) received[key] = params?.[key];
+    const named = keys.map((k) => `\`${k}\``).join(', ');
+    const shown = keys
+      .map((k) => `${k}=${JSON.stringify(params?.[k]) ?? String(params?.[k])}`)
+      .join(', ');
+    const why = specShapeSelectorReasons(params).join(' and ');
+    const noMeasure = !Array.isArray(params?.aggregations)
+      ? ' Because no `aggregations` was supplied either, the query this would '
+        + 'have built is a grouping with NO MEASURE — the chart renders and its '
+        + 'numbers mean nothing.'
+      : '';
+    super(
+      `aggregate('${resource}'): the spec-shape branch received the analytics `
+      + `branch's ${named} — ${shown} — and reads none of them. This call took the `
+      + `spec-shape branch because ${why}; the branch posts only \`groupBy\`, `
+      + '`aggregations`, `where` and `limit` to POST /data/:object/query, so those '
+      + `keys would have been dropped in silence.${noMeasure} `
+      + keys.map((k) => ANALYTICS_ONLY_KEY_ADVICE[k]).join(' ')
+      + ' The two shapes are alternatives, not a mixture: the analytics branch '
+      + '(`{ field, function, groupBy, filter }`, which lowers its filter for you) '
+      + 'is reached only when NONE of an array `groupBy`, an array `aggregations` '
+      + 'or a `where` key is present. Nothing was sent to the server, so no '
+      + 'unfiltered numbers came back.',
+    );
+    this.name = 'AnalyticsKeysOnSpecShapeError';
+    this.keys = keys;
+    this.received = received;
+    this.resource = resource;
+  }
+}
+
+/**
+ * Refuse the analytics branch's own keys when they reach the spec-shape branch.
+ *
+ * Presence is `!= null` on purpose, not `in`: a params object that spreads an
+ * absent authored value (`filter: filterForRun` where nothing was authored)
+ * carries the key with `undefined`, and there is nothing there to drop. Both
+ * in-tree producers build their params exactly that way, so keying on `in`
+ * would refuse calls that lose nothing.
+ */
+function assertNoAnalyticsKeysOnSpecShape(params: any, resource: string): void {
+  const present = ANALYTICS_ONLY_AGGREGATE_KEYS.filter((key) => params?.[key] != null);
+  if (present.length === 0) return;
+  throw new AnalyticsKeysOnSpecShapeError(present, params, resource);
+}
+
+/**
  * An ARRAY `filter` that reached `aggregate()`'s ANALYTICS branch and that the
  * protocol's lowering sink cannot turn into a `FilterCondition` — an infix join
  * (`[condA, 'or', condB]`) above all.
@@ -5403,6 +5557,19 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         assertSpecShapeWhereIsFilterAst(params.where, resource);
         queryAst.where = params.where;
       }
+      // The other half of the same ruling — objectui#6864. `where` above is the
+      // key this branch DOES read and refuses when unlowered; `filter`, `field`
+      // and `function` are the analytics branch's keys, which this branch reads
+      // not at all and used to drop without a word. Same disposition, applied to
+      // the rest of the branch, so it has ONE answer for off-contract params
+      // rather than two.
+      //
+      // ORDER IS DELIBERATE: this runs AFTER the `where` gate, so no input that
+      // already refused changes which error it gets — the addition is strictly
+      // additive over #6825's behaviour. Both refusals are producer-side and
+      // nothing has been sent at this point either way.
+      assertNoAnalyticsKeysOnSpecShape(params, resource);
+
       if (typeof params.limit === 'number') queryAst.limit = params.limit;
       const result: any = await this.client.data.query(resource, queryAst as any);
       // client.data.query returns { object, records, total, hasMore }
@@ -5468,7 +5635,27 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       // an array the sink cannot lower was refused above rather than dropped.
       if (analyticsWhere !== undefined) payload.where = analyticsWhere;
 
-      const data = await this.client.analytics.query(payload);
+      const contractResult = await this.client.analytics.query(payload);
+
+      // `client.analytics.query` resolved to `Promise<any>` at
+      // `@objectstack/client` 17.2.0 and resolves to `Promise<AnalyticsResult>`
+      // at 17.3.0, so the pre-envelope branches below stopped type-checking the
+      // moment the family moved. The client's own docblock states the runtime
+      // change that produced the narrower type: "BREAKING since #13079 - read
+      // `result.rows`, not `result.data.rows`; the method used to resolve to the
+      // whole envelope."
+      //
+      // Those branches are READ THROUGH a widened alias here rather than
+      // deleted, and the distinction is deliberate: deleting them is a runtime
+      // compatibility decision about servers older than #13079, NOT a type
+      // repair, and it belongs to whoever owns that decision. This alias
+      // restores exactly the compile-time latitude 17.2.0's `Promise<any>` gave
+      // the same expression and changes no runtime byte of it. When the
+      // compatibility question is ruled, the branches go and the alias goes
+      // with them - it exists only to keep a decision from being made by a
+      // build error.
+      const data = contractResult as AnalyticsResult &
+        Partial<Record<'data' | 'results', any>>;
 
       const rawRows: any[] = Array.isArray(data) ? data
         : data?.rows && Array.isArray(data.rows) ? data.rows

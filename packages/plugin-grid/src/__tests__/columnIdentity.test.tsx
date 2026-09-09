@@ -28,7 +28,13 @@ import { ObjectGrid } from '../ObjectGrid';
 import { ActionProvider } from '@object-ui/react';
 
 const makeDataSource = () => ({
-  find: vi.fn().mockResolvedValue({ value: [], '@odata.count': 0 }),
+  // `ObjectGrid` reads `result.data` for rows and `result.total` for the
+  // match count (ObjectGrid.tsx). This double used to answer
+  // `{ value: [], '@odata.count': 0 }` — neither key is read, so it read as
+  // though it supplied rows while supplying none. Inert only while the array
+  // was empty; the first person to put a row in it would have been handed
+  // zero silently (objectui#6917).
+  find: vi.fn().mockResolvedValue({ data: [], total: 0 }),
   findOne: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),

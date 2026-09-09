@@ -19,6 +19,7 @@ const ru = {
       manage_users: "Управление пользователями",
       manage_org_users: "Управление пользователями организации",
       manage_metadata: "Управление метаданными",
+      manage_org_presentation: "Управление представлением организации",
       manage_platform_settings: "Управление настройками платформы",
       setup_access: "Доступ к настройке",
       setup_write: "Запись настроек",
@@ -1092,6 +1093,7 @@ const ru = {
     showEmptyFields: "Показать {{count}} пустых полей",
     hideEmptyFields: "Скрыть пустые поля",
     noValue: "Нет значения",
+    unresolvedReference: "Неразрешённая ссылка: {{value}} не удалось сопоставить с пользователем",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1112,6 +1114,9 @@ const ru = {
     loading: "Загрузка графика…",
     nullCategory: "(Не указано)",
     scatterOneMeasure: "Точечная диаграмма строит только одну меру. Оставьте один ряд:",
+    unconfigured: {
+      noCategoryAxis: "Требуется ось категорий диаграммы — диаграмма, привязанная к объекту, не придумывает её. Объявите одно из:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1575,7 +1580,7 @@ const ru = {
       empty: {
         build: {
           title: "Создать с помощью ИИ",
-          description: "Опишите приложение или процесс обычными словами — я подготовлю объекты, экраны и автоматизации, а вы проверите и опубликуете.",
+          description: "Опишите приложение обычными словами — я подготовлю объекты, экраны и демонстрационные данные, а вы проверите и опубликуете.",
         },
         ask: {
           title: "Спросите свои данные",
@@ -1584,7 +1589,7 @@ const ru = {
         editApp: {
           title: "Редактирование «{{app}}»",
           titleGeneric: "Редактировать это приложение",
-          description: "Что нужно изменить? Я изменю это приложение на месте — добавлю поле, объект, представление или автоматизацию либо скорректирую существующее.",
+          description: "Что нужно изменить? Я изменю это приложение на месте — добавлю поле, объект, представление или дашборд либо скорректирую существующее.",
         },
       },
       clearConversation: "Очистить",
@@ -2770,6 +2775,13 @@ const ru = {
     badgeTotal: "Всего: {{total}}",
     badgeNotifications: "{{unread}} уведомлений",
     badgeApprovals: "{{approvals}} ожидающих утверждений",
+    arrivalMany: "Новых сообщений: {{count}}",
+    arrivalRepeats: "Новых сообщений по этой теме: {{count}}",
+    arrivalOpen: "Открыть",
+    toastEnabled: "Оповещения в приложении",
+    desktopEnabled: "Уведомления на рабочем столе",
+    desktopBlocked: "Заблокировано. Разрешите уведомления для этого сайта в настройках браузера.",
+    desktopUnsupported: "Этот браузер не поддерживает уведомления на рабочем столе.",
     emptyUnread: "Всё прочитано",
     filterUnread: "Непрочитанные",
     filterAll: "Все",

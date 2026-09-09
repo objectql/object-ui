@@ -24,10 +24,24 @@
  *   TreeNodeSchema            ReferenceError: Cannot access 'TreeNodeSchema' before initialization
  *
  * Seven name the very const being declared (`children: z.array(TreeNodeSchema)`
- * sits inside `TreeNodeSchema`'s own initialiser); `SchemaNodeSchema` names
- * `BaseSchemaCore`, which `base.zod.ts` declares BELOW it. For those eight the
- * `z.lazy` is LOAD-BEARING — it is buying a TDZ dodge, not a style — and they
- * keep the spelling they have. `mechanism` below reproduces the failure.
+ * sits inside `TreeNodeSchema`'s own initialiser); `SchemaNodeSchema` named
+ * `BaseSchemaCore`, which `base.zod.ts` declared BELOW it. For those eight the
+ * `z.lazy` was LOAD-BEARING — buying a TDZ dodge, not a style — and they keep
+ * the spelling they have. `mechanism` below reproduces the failure.
+ *
+ * ⚠️ SEVEN, not eight, since objectui#8344. That card redirected the node
+ * recursion point at `AnyComponentSchema` and had to build `SchemaNodeSchema`'s
+ * union ONCE, at module scope, immediately below `BaseSchemaCore` — because the
+ * component arm is a written option slot and there has to be an array to write
+ * into. Declaring it below `BaseSchemaCore` is what dissolves the TDZ, so the
+ * memoisation this file calls "worth doing where it is free" became free for this
+ * one const, and the row moved to {@link MEMOISED}. ⛔ It is a BYPRODUCT, not a
+ * goal: nobody memoised it to make `.unwrap()` honest, and ⛔ nothing here licenses
+ * moving the remaining seven — each still names the const being declared, and
+ * `mechanism` still reproduces their ReferenceError.
+ *
+ * ⇒ the eight-name list above is kept VERBATIM as the objectui#7918 reading it
+ * was. It is history, not the current ledger; the arrays below are the ledger.
  *
  * The two that loaded clean were memoised: `FilterBuilderConditionSchema` is not
  * recursive at all, and `NavigationItemSchema` already defers its self-reference
@@ -115,6 +129,9 @@ const innerTypeStable = (S: unknown): boolean => (S as LazyInternals)._zod.inner
 const MEMOISED: ReadonlyArray<readonly [string, unknown]> = [
   ['FilterBuilderConditionSchema', FilterBuilderConditionSchema],
   ['NavigationItemSchema', NavigationItemSchema],
+  // objectui#8344 — see the header. Its getter returns the ONE node union that
+  // `base.zod.ts` builds below `BaseSchemaCore`, so there is no TDZ left to dodge.
+  ['SchemaNodeSchema', SchemaNodeSchema],
 ];
 /** ⛔ Do not "fix" these — each one's `z.lazy` dodges a real ReferenceError. */
 const TDZ_BOUND: ReadonlyArray<readonly [string, unknown]> = [
@@ -124,7 +141,6 @@ const TDZ_BOUND: ReadonlyArray<readonly [string, unknown]> = [
   ['MenuItemSchema', MenuItemSchema],
   ['NavLinkSchema', NavLinkSchema],
   ['NavigationMenuItemSchema', NavigationMenuItemSchema],
-  ['SchemaNodeSchema', SchemaNodeSchema],
   ['TreeNodeSchema', TreeNodeSchema],
 ];
 
@@ -257,20 +273,28 @@ describe('objectui#7918 · z.lazy getter identity', () => {
     });
 
     it('FilterBuilderConditionSchema still accepts a condition and refuses a bad operator', () => {
+      // ⚠️ Both fixtures carry `id` since objectui#8415 declared it REQUIRED on
+      // the condition. The NEGATIVE one carries it for a reason that is not
+      // cosmetic: without it the row would be refused for the MISSING KEY, and
+      // this assertion — whose subject is `FilterOperatorSchema` — would stay
+      // green with the operator vocabulary deleted outright. Carrying `id`
+      // isolates the operator as the only thing left to refuse it.
       expect(FilterBuilderConditionSchema.safeParse(
-        { field: 'amount', operator: 'greater_than', value: 100 },
+        { id: 'c1', field: 'amount', operator: 'greater_than', value: 100 },
       ).success).toBe(true);
       expect(FilterBuilderConditionSchema.safeParse(
-        { field: 'amount', operator: 'not_a_real_operator' },
+        { id: 'c1', field: 'amount', operator: 'not_a_real_operator' },
       ).success).toBe(false);
     });
 
     it('FilterGroupSchema still nests conditions and sub-groups through the memoised arm', () => {
+      // The CONDITION rows carry `id` (required since objectui#8415); the
+      // sub-GROUP's `id` stays what it always was — declared but optional.
       const group = {
         id: 'g1', logic: 'and',
         conditions: [
-          { field: 'amount', operator: 'greater_than', value: 100 },
-          { id: 'g2', logic: 'or', conditions: [{ field: 'stage', operator: 'equals', value: 'won' }] },
+          { id: 'c1', field: 'amount', operator: 'greater_than', value: 100 },
+          { id: 'g2', logic: 'or', conditions: [{ id: 'c2', field: 'stage', operator: 'equals', value: 'won' }] },
         ],
       };
       expect(FilterGroupSchema.safeParse(group).success).toBe(true);

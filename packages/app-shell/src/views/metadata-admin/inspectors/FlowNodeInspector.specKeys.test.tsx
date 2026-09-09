@@ -22,7 +22,7 @@
  * Dropping `description?` from a local `interface` proves nothing on its own,
  * for two independent reasons measured on this card:
  *
- * 1. The node the inspector edits is typed `FlowNodeLike` (the exported shape
+ * 1. The node the inspector edits is typed `InspectorFlowNode` (the exported shape
  *    `locateFlowNode` returns), NOT the inspector's own module-local
  *    declaration — so narrowing only the local copy changes no read.
  * 2. Both shapes carry a deliberately load-bearing `[k: string]: unknown`
@@ -35,7 +35,7 @@
  *
  * The two assertions below survive both traps:
  *
- * - **Compile time**: the DECLARED members of `FlowNodeLike` — index signature
+ * - **Compile time**: the DECLARED members of `InspectorFlowNode` — index signature
  *   stripped — must be a subset of the spec's own `FlowNode` keys. That closes
  *   the whole class rather than the one key: any future member added to the
  *   read type that the contract refuses turns this red.
@@ -51,11 +51,11 @@
  * queries used to prove a control ABSENT can find controls that are present.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import * as Automation from '@objectstack/spec/automation';
 import type { FlowNode as SpecFlowNode } from '@objectstack/spec/automation';
-import type { FlowNodeLike } from './flow-nested-selection';
+import type { InspectorFlowNode } from './flow-nested-selection';
 
 // Same stubs the sibling suite uses: the engine config-schema hook is empty so
 // the hardcoded field groups render, and the field catalog resolves without a
@@ -71,7 +71,84 @@ vi.mock('../previews/useObjectFields', () => ({
 import { FlowNodeInspector } from './FlowNodeInspector';
 import type { MetadataSelection } from '../preview-registry';
 
-afterEach(cleanup);
+/* ── The `meta/object` double (objectui#7307) ───────────────────
+ * `FlowNodeInspector` renders `FlowReferenceField` for every reference-kind key
+ * on the selected node, and that field resolves its combobox options through
+ * `useMetadataListOptions` (`FlowReferenceField.tsx:638`) -> `MetadataClient.list(type)`,
+ * i.e. `GET /api/v1/meta/object` over the authenticated wrapper, which resolves
+ * the GLOBAL `fetch` at call time (`packages/auth/src/createAuthenticatedFetch.ts`,
+ * the bare `await fetch(input, ...)`). Under happy-dom that global is a real HTTP
+ * client and the document URL defaults to `http://localhost:3000`, so the relative
+ * path resolved to a live socket: measured on `fc32921aa`, three escapes to
+ * `http://localhost:3000/api/v1/meta/object`, one per render, while this file
+ * stayed green — which is objectui#6640 exactly.
+ *
+ * Answered from a RECORDING double — the shape objectui#5225 settled on, carried
+ * by `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx` and by
+ * this burn-down's earlier batches, most recently the sibling
+ * `FlowNodeInspector.inactiveRetained.test.tsx`. Deliberately NOT a blanket
+ * network stub: it records every URL it is handed and `afterEach` fails on any URL
+ * outside the route it serves, so an escape to somewhere else reds here instead of
+ * vanishing into the hook's `.catch`.
+ *
+ * What it answers, and why that changes no assertion here: an EMPTY registry, in
+ * the `{ type, items: [] }` envelope the server sends and `MetadataClient.list`
+ * parses (it also accepts a bare array; both parse to the same rows). Empty is
+ * load-bearing — the failing request landed in the hook's `.catch`, which sets
+ * `{ options: [], loading: false }`, so an empty registry yields byte-identical
+ * output to what these cases have always rendered, while a seeded one would put
+ * options into every reference combobox in the tree. This file asserts on the
+ * ABSENCE of a `Description` control and on what `onPatch` emits, so seeding
+ * options would be a silent change of subject. The route is matched on the
+ * PATHNAME because `MetadataClient.list` appends `?package=` / `?preview=draft`
+ * for scoped callers; the full URL is what gets recorded.
+ *
+ * `headers` is part of the answer, not decoration: the authenticated wrapper
+ * reads `response.headers.get('set-auth-token')` on every API call before the
+ * caller ever sees the body.
+ * ─────────────────────────────────────────────────────────── */
+
+const META_OBJECT_ROUTE = '/api/v1/meta/object';
+
+/** Every URL this file's renders handed the global `fetch`, in request order. */
+let metaCalls: string[] = [];
+
+/** The route key of a recorded URL: its pathname, without the scope query. */
+const routeOf = (url: string) => url.split('?')[0];
+
+/** Serve `GET /api/v1/meta/object` as an empty registry; record everything. */
+function installMetaObjectDouble() {
+  metaCalls = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      metaCalls.push(url);
+      if (routeOf(url) !== META_OBJECT_ROUTE) {
+        return { ok: false, status: 404, headers: new Headers(), json: async () => ({}) };
+      }
+      return { ok: true, status: 200, headers: new Headers(), json: async () => ({ type: 'object', items: [] }) };
+    }),
+  );
+}
+
+beforeEach(installMetaObjectDouble);
+
+afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of vanishing into `useMetadataListOptions`'s `.catch`.
+  expect(metaCalls.filter((url) => routeOf(url) !== META_OBJECT_ROUTE)).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch` — this replaces the bare
+  // `afterEach(cleanup)` that used to stand here, it does not drop it. Vitest
+  // runs `afterEach` hooks in reverse registration order, so this file's
+  // teardown runs before the root setup's RTL cleanup: unstubbing first would
+  // leave the tree mounted with the real global back in place, and a mount
+  // effect settling in that window escapes again (objectui#7439).
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 interface ZodIssue {
   code?: string;
@@ -129,7 +206,7 @@ type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ?
 /**
  * The DECLARED members of a type — its index signature removed.
  *
- * `keyof FlowNodeLike` is `string | number` while the index signature is there,
+ * `keyof InspectorFlowNode` is `string | number` while the index signature is there,
  * which is why the naive key comparison cannot see this defect at all.
  */
 type Declared<T> = {
@@ -138,14 +215,14 @@ type Declared<T> = {
 
 describe('the node read type declares no key FlowNodeSchema refuses (#6287)', () => {
   it('is pinned at compile time', () => {
-    type DeclaredNodeKeys = keyof Declared<FlowNodeLike>;
+    type DeclaredNodeKeys = keyof Declared<InspectorFlowNode>;
     type SpecNodeKeys = keyof SpecFlowNode;
 
     // Guard against a degenerate probe: were either side `any`, or the
     // index-signature strip to leave nothing behind, every assertion below
     // would pass while measuring nothing.
     type _SpecNotAny = Assert<Equal<IsAny<SpecFlowNode>, false>>;
-    type _LocalNotAny = Assert<Equal<IsAny<FlowNodeLike>, false>>;
+    type _LocalNotAny = Assert<Equal<IsAny<InspectorFlowNode>, false>>;
     type _StripLeftKeys = Assert<Equal<Equal<DeclaredNodeKeys, never>, false>>;
     type _SpecHasKeys = Assert<Extends<'label', SpecNodeKeys>>;
     // …and that the strip really removed the index signature: `description`

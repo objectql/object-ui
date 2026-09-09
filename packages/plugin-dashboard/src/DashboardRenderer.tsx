@@ -16,6 +16,8 @@ import {
   buildWidgetScopedFilter,
   mergeFilters,
   toDomProps,
+  chartCategoryKey,
+  chartMeasureKey,
 } from '@object-ui/core';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button, getLazyIcon } from '@object-ui/components';
 import { forwardRef, useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
@@ -615,14 +617,27 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                         function: providerAgg.function,
                         groupBy: providerAgg.groupBy,
                     } : undefined;
-                    const effectiveYField = effectiveAggregate?.field || yField;
+                    // The contract answers which column carries the measure —
+                    // see the twin site in `DashboardGridLayout` and
+                    // objectui#8266. Note `resolveSeriesLabel` below ALREADY
+                    // knew about this duality (`yField === 'value' || 'count'`)
+                    // while the dataKey did not: the legend read "Count" over a
+                    // plot with nothing in it.
+                    const effectiveYField = chartMeasureKey(effectiveAggregate, yField);
+                    // The CATEGORY half of the same gap — see the twin site in
+                    // `DashboardGridLayout` and objectui#8269. `xField ||
+                    // 'name'` bound a literal against rows keyed by the raw
+                    // `groupBy` field, and the refusal that produced named
+                    // `name`: a wrong-CAUSE diagnostic, since nothing on screen
+                    // named the `groupBy` that was actually ignored.
+                    const effectiveXAxisKey = chartCategoryKey(effectiveAggregate, xAxisKey);
                     return {
                         type: 'object-chart',
                         chartType: resolvedWidgetType,
                         objectName: widgetData.object,
                         aggregate: effectiveAggregate,
                         filter: widgetData.filter || widget.filter,
-                        xAxisKey: xAxisKey,
+                        xAxisKey: effectiveXAxisKey,
                         series: [{
                             dataKey: effectiveYField,
                             label: resolveSeriesLabel(widgetData.object, effectiveYField, effectiveAggregate?.function),

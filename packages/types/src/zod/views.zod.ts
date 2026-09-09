@@ -19,11 +19,44 @@
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { handlerKeyRefusal } from './tombstone.zod.js';
+import { ListViewSchema as SpecListViewSchema } from '@objectstack/spec/ui';
 
 /**
- * View Type Schema
+ * The spec's own list-view type vocabulary, unwrapped from its `.default('grid')`.
+ *
+ * ⭐ NOT a crossing of the objectui#8317 import boundary, and this file has no
+ * other read of `@objectstack/spec`, which is why it imports no
+ * `stripImportedDefaults`. A vocabulary is a set of VALUES, not a subschema:
+ * `.removeDefault()` here reaches the spec's enum and nothing that could write a
+ * key into a parsed document ever flows from it. The declared-exception list in
+ * `../__tests__/imported-defaults-8317.test.ts` names this site and its twin.
+ *
+ * Deliberately NOT exported: `__tests__/zod-mirror-parity.test.ts` runs a
+ * population census over every `export const` in this directory, and this is a
+ * derivation helper rather than a mirror anyone should reach for. The same
+ * unwrap is spelled once more, privately, in `./objectql.zod.ts` (`ViewKindEnum`,
+ * which types the renamed `viewType` key) — two derivations of one spec object
+ * cannot drift from each other, whereas two copies of its member list can, and
+ * did.
  */
-export const ViewTypeSchema = z.enum(['list', 'detail', 'grid', 'kanban', 'calendar', 'timeline', 'map', 'gallery', 'gantt', 'chart', 'tree']).describe('View type');
+const SpecListViewTypeEnum = SpecListViewSchema.shape.type.removeDefault();
+
+/**
+ * View Type Schema — the zod face of {@link ViewType} (`../views.ts`).
+ *
+ * DERIVED from `@objectstack/spec/ui` `ListViewSchema.type` (objectui#8127), so
+ * the two faces cannot drift from the spec or from each other. Both were
+ * hand-written eleven-arm copies of the spec's 17.2.0 list; `@objectstack/spec@17.3.0`
+ * added `page` and neither followed, while `ViewKindEnum` in `./objectql.zod.ts`
+ * — already derived — accepted `viewType: 'page'` the day the pin landed. That
+ * is `declared !== enforced` on a published surface: the validator said yes and
+ * the renderer silently drew a grid.
+ *
+ * `'list'` and `'detail'` are appended because they are objectui view
+ * CATEGORIES with no spec counterpart; see `../views.ts` for why they are not
+ * pushed upstream.
+ */
+export const ViewTypeSchema = z.enum([...SpecListViewTypeEnum.options, 'list', 'detail']).describe('View type');
 
 /**
  * Detail View Field Schema
@@ -113,7 +146,7 @@ export const DetailViewSchema = BaseSchema.extend({
   fields: z.array(DetailViewFieldSchema).optional().describe('Direct fields (without sections)'),
   actions: z.array(z.any()).optional().describe('Actions available in detail view'),
   tabs: z.array(DetailViewTabSchema).optional().describe('Tabs for additional content'),
-  showBack: z.boolean().optional().default(true).describe('Show back button'),
+  showBack: z.boolean().optional().describe('Show back button'),
   backUrl: z.string().optional().describe('Back button URL'),
   // RUNTIME SLOT (objectui#7344, the objectui#6182 ruling in the objectui#6124
   // shape): `detail-view` spreads the node's keys onto `DetailView`, whose
@@ -124,7 +157,7 @@ export const DetailViewSchema = BaseSchema.extend({
   editUrl: z.string().optional().describe('Edit button URL'),
   showDelete: z.boolean().optional().describe('Show delete button'),
   deleteConfirmation: z.string().optional().describe('Delete confirmation message'),
-  loading: z.boolean().optional().default(true).describe('Whether to show loading state'),
+  loading: z.boolean().optional().describe('Whether to show loading state'),
   header: SchemaNodeSchema.optional().describe('Custom header content'),
   footer: SchemaNodeSchema.optional().describe('Custom footer content'),
   related: z.array(z.object({

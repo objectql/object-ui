@@ -57,17 +57,31 @@ function UserBadge() {
 
 <!-- os:check -->
 ```typescript
-interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  image?: string;
-  role?: string;
-  roles?: string[];
-  emailVerified?: boolean;
-  [key: string]: unknown;
+import type { AuthUser } from '@object-ui/auth';
+
+// Imported, not re-declared. The old fence here kept a private copy of this
+// type; the copy could not drift loudly, so it went on teaching a member the
+// package had already retired. An import cannot do that: a member that goes
+// away upstream stops compiling here on the day it goes.
+function isTenantAdmin(user: AuthUser): boolean {
+  return user.tenantId !== undefined && (user.positions ?? []).includes('admin');
 }
 ```
+
+`AuthUser` extends the spec's `IAuthService` principal — `id`, `email`, `name`,
+plus the `positions` / `tenantId` an authorization decision reads — and adds the
+display-only fields better-auth returns to the client: `image`, `role`,
+`emailVerified`. The index signature (`[key: string]: unknown`) is deliberate:
+better-auth projects an app's own user columns onto this object, and no local
+type can enumerate them.
+
+⛔ **There is no `roles` member.** The hand-copied `roles?: string[]` mirror was
+RETIRED with objectui#5424 (maintainer ruling 2026-08-22) once its last reader —
+`AuthGuard`'s `requiredRoles` check — moved to `positions`. Framework ADR-0090
+D3 renamed `roles` → `positions` with no deprecation window, and the protocol-17
+session face emits no `roles` key at all. Reading `user.roles` now resolves
+through the index signature as `unknown` rather than as `string[]`. ⛔ Do not
+re-declare it, and do not re-emit it as a compatibility shadow of `positions`.
 
 ### AuthGuard (route protection)
 
@@ -119,9 +133,12 @@ const dataSource = new ObjectStackAdapter({
 
 ### PermissionProvider setup
 
+<!-- os:check -->
 ```typescript
 import { PermissionProvider } from '@object-ui/permissions';
+import { useAuth } from '@object-ui/auth';
 import type { ObjectPermissionConfig, RoleDefinition } from '@object-ui/types';
+declare function AppContent(): null; // stands in for your own app tree
 
 // A role definition carries identity and inheritance only. Its grants live in
 // `ObjectPermissionConfig.roles` below, keyed by object — that is the single
@@ -172,8 +189,8 @@ function App() {
     <PermissionProvider
       roles={roles}
       permissions={permissions}
-      userRoles={user?.roles || ['viewer']}
-      user={user}
+      userRoles={user?.positions || ['viewer']}
+      user={user ?? undefined}
     >
       <AppContent />
     </PermissionProvider>

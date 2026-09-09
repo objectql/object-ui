@@ -14,6 +14,10 @@ import type { ComponentMeta as CanonicalComponentMeta } from '@object-ui/types';
 // name. Two `import type` lines from one module is legal and costs nothing —
 // type imports are erased.
 import type { ComponentConfig } from '@object-ui/types';
+// A THIRD `import type` from the same module, for the same reason as the
+// second: the line above is the shape objectui#6298's pin reads, so the name
+// the splice below is typed with (objectui#6950) gets its own line.
+import type { InjectedComponentInput } from '@object-ui/types';
 import {
   ELEMENT_DATA_SOURCE_INPUT,
   isElementDataSourceBlock,
@@ -383,6 +387,25 @@ type LazyEntry = {
  * later must be able to say so without fighting this function.) Re-registering
  * the same component, which the registry allows and tests do constantly, is
  * likewise a no-op rather than a growing `inputs` array.
+ *
+ * ## Typed end to end — the cast is gone (objectui#6950)
+ *
+ * The spliced element is an `InjectedComponentInput` (`@object-ui/types`): a
+ * `ComponentInput` plus the framework-set `binding` marker, so it is a plain
+ * subtype of the array's element type and the return value type-checks as a
+ * `ComponentMeta` with no assertion. This used to read `as ComponentMeta`,
+ * because `ELEMENT_DATA_SOURCE_INPUT` carried a hand-written inline type and
+ * `binding` had no declared home — and a cast at the one place the key is
+ * written is exactly what would have hidden any later drift between the
+ * constant and the type. The absence is held by `eslint.config.js`, which
+ * scopes `@typescript-eslint/consistent-type-assertions` with
+ * `assertionStyle: 'never'` to THIS FILE (objectui#8316) — an AST rule,
+ * because `tsc --noEmit` stays at exit 0 with the cast re-added and the
+ * source-text pin that used to stand here was green for `<ComponentMeta>{…}`,
+ * the same assertion in the other spelling.
+ * `packages/types/src/__tests__/injected-component-input-6950.test.ts` still
+ * pins the positive half, that the local below is ANNOTATED. Keep it typed: if
+ * the shape ever stops fitting, that line is where the compiler should say so.
  */
 export function withElementDataSourceInput<T>(
   component: ComponentRenderer<T>,
@@ -391,7 +414,8 @@ export function withElementDataSourceInput<T>(
   if (!isElementDataSourceBlock(component)) return meta;
   const inputs: NonNullable<ComponentMeta['inputs']> = meta?.inputs ?? [];
   if (inputs.some((input) => input?.name === ELEMENT_DATA_SOURCE_INPUT.name)) return meta;
-  return { ...(meta ?? {}), inputs: [...inputs, { ...ELEMENT_DATA_SOURCE_INPUT }] } as ComponentMeta;
+  const injected: InjectedComponentInput = { ...ELEMENT_DATA_SOURCE_INPUT };
+  return { ...(meta ?? {}), inputs: [...inputs, injected] };
 }
 
 export class Registry<T = any> {

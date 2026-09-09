@@ -68,7 +68,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { FieldSchema } from '@objectstack/spec/data';
 import { MetadataClient } from '@object-ui/data-objectstack';
 import type { DesignerFieldDefinition } from '@object-ui/types';
@@ -341,13 +341,17 @@ describe('objectui#6041 · WRITE — the save carries `reference`, never `refere
   });
 
   it('refuses every unusable target state, and PUTs none of them', async () => {
-    // objectui#7714, all four states plus `null`. The whitespace row is this
-    // page being deliberately STRICTER than the contract: measured on 17.3.0,
-    // `reference: '   '` parses green at field level and through `ObjectSchema`
-    // (upstream objectstack#16126). The refusal is this writer's own, declared
-    // in `MetadataFieldsPage.tsx`, and it does not depend on which spec is
-    // installed — which is why it is asserted here and the spec's verdict is
-    // not (at this repo's 17.2.0 pin the spec accepts every one of these).
+    // objectui#7714, all four states plus `null`. The whitespace row USED to be
+    // this page being stricter than the contract; objectstack#16920 applies the
+    // spec's emptiness test to the trimmed value, so upstream now refuses the
+    // same shape under the same `custom` issue and the divergence is retired
+    // (objectui#8621). It is still asserted HERE rather than against the spec,
+    // for the reason that outlives the divergence: this refusal is the page's
+    // own, raised at editor time before the PUT, and it does not depend on
+    // which spec is installed. That independence is also what keeps this row
+    // green across the pin bump — this repo's pin is `@objectstack/spec` 17.3.0
+    // (`pnpm-lock.yaml`), which predates objectstack#16920 and still parses
+    // `reference: '   '` green at field level and through `ObjectSchema`.
     //
     // One render, re-driven per state: `renderPage` per iteration would leave
     // several mounted pages in the document and `getByTestId` would then find
@@ -373,27 +377,113 @@ describe('objectui#6041 · WRITE — the save carries `reference`, never `refere
     }
   });
 
-  it('does NOT pin a `master_detail` refusal — this page cannot reach one (measured)', () => {
-    // objectui#7714. The guard's list carries `master_detail` for parity with
-    // the sibling writer, where it IS reachable (`FieldMetadataPayload['type']`
-    // is an unconstrained `string`, and `MetadataService.saveObject` refuses a
-    // target-less master-detail today — pinned in
-    // `MetadataService.specKeyReference.test.ts`).
-    //
-    // Through THIS page it is unreachable, and the reason is worth stating
-    // rather than leaving as an empty spot: `toDesignerType` maps every type
-    // outside `DESIGNER_FIELD_TYPES` to `'text'`, so a stored `master_detail`
-    // arrives at the guard already flattened. Measured on this page:
-    //
-    //   stored { type: 'master_detail', reference: 'invoice' }
-    //     => designer field type "text"
-    //     => WIRE { "type": "text", "label": "Parent", "reference": "invoice" }
-    //
-    // So a refusal assertion here would be a PHANTOM — green because the guard
-    // never sees a `master_detail`, not because it handled one. The flattening
-    // is a separate defect (objectui#8060) and this case is a marker, so
-    // that when it is fixed the missing coverage is visible rather than assumed.
-    expect(true).toBe(true);
+  /**
+   * ⭐ This WAS the marker case, and it is now a real pin — objectui#8060.
+   *
+   * ## What it used to assert, and why that was not coverage
+   *
+   * It asserted `expect(true).toBe(true)`. The guard's list carries
+   * `master_detail` for parity with the sibling writer, where it IS reachable
+   * (`FieldMetadataPayload['type']` is an unconstrained `string`, and
+   * `MetadataService.saveObject` refuses a target-less master-detail — pinned
+   * in `MetadataService.specKeyReference.test.ts`). Through THIS page it was
+   * unreachable: `toDesignerType` mapped every type outside
+   * `DESIGNER_FIELD_TYPES` to `'text'` on the READ path, so a stored
+   * `master_detail` arrived at the guard already flattened —
+   *
+   *   stored { type: 'master_detail', reference: 'invoice' }
+   *     => designer field type "text"
+   *     => WIRE { "type": "text", "label": "Parent", "reference": "invoice" }
+   *
+   * — and a refusal assertion here would have been a PHANTOM: green because the
+   * guard never saw a `master_detail`, not because it handled one. The case
+   * existed so that when the flattening was fixed the missing coverage would be
+   * visible rather than assumed. ⭐ *A check that cannot fire is
+   * indistinguishable from one that passed.*
+   *
+   * ## What it asserts now
+   *
+   * objectui#8060 removed the flattening: a stored type this designer cannot
+   * author is carried through verbatim and `toFieldsMap` runs the guard over
+   * the carried-through entries too. So the branch FIRES on the real type, and
+   * both of its outcomes are pinned below — the passing one first, because a
+   * refusal pin alone cannot tell "the guard rejected it" from "the guard
+   * rejects every master-detail".
+   *
+   * ⚠️ The refusal half is a BEHAVIOUR CHANGE, not merely restored coverage: an
+   * object holding a target-less stored `master_detail` used to save from this
+   * page by flattening the field to `text`, losing the relationship. It is now
+   * refused by name before the PUT. `@objectstack/spec` 17.3.0 requires
+   * `reference` on `master_detail`, so that document's PUT answers 422 anyway;
+   * refusing here names the field and leaves the stored relationship intact.
+   */
+  it('DOES pin a `master_detail` now — the guard is reachable, and both outcomes are real', async () => {
+    const body = {
+      name: 'md_probe',
+      label: 'MD Probe',
+      fields: {
+        name: { type: 'text', label: 'Name' },
+        parent_id: { type: 'master_detail', label: 'Parent', reference: 'invoice' },
+      },
+    };
+    const localPuts: Array<Record<string, unknown>> = [];
+    const client = new MetadataClient({
+      baseUrl: 'http://localhost:3000',
+      fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if ((init?.method ?? 'GET').toUpperCase() === 'PUT') {
+          localPuts.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
+          return json({ success: true, name: 'md_probe' });
+        }
+        if (/\/meta\/object\/md_probe(\?|$)/.test(url)) {
+          return json({ type: 'object', name: 'md_probe', item: body });
+        }
+        return json({ items: [] });
+      }) as unknown as typeof fetch,
+    });
+
+    render(<MetadataFieldsPage objectName="md_probe" client={client} />);
+    await waitFor(() => expect(designerProps).not.toBeNull());
+
+    // (a) The guard SEES a real `master_detail` — the type is no longer
+    //     flattened before it gets there — and passes it, because the target is
+    //     present. Concrete strings on both sides: `'text'` is what the defect
+    //     wrote, so asserting `not.toBe('text')` is what tells them apart.
+    const next = designerProps!.fields.map((f) =>
+      f.name === 'name' ? { ...f, label: 'Renamed' } : f,
+    );
+    await act(async () => {
+      designerProps!.onFieldsChange!(next);
+    });
+    await waitFor(() => expect(localPuts).toHaveLength(1));
+    const wire = localPuts[0].fields as Record<string, Record<string, unknown>>;
+    expect(wire.parent_id.type).toBe('master_detail');
+    expect(wire.parent_id.type).not.toBe('text');
+    expect(wire.parent_id.reference).toBe('invoice');
+
+    // (b) And the refusal branch is live: strip the target from the STORED
+    //     document and the same edit is refused by name, with no PUT. Under the
+    //     old flattening this saved happily as a `text` field.
+    delete (body.fields.parent_id as Record<string, unknown>).reference;
+    // Unmount the first page before mounting the second: two live pages would
+    // both answer `getByTestId`, and `designerProps` would name whichever
+    // rendered last rather than the one being driven.
+    cleanup();
+    designerProps = null;
+    localPuts.length = 0;
+    render(<MetadataFieldsPage objectName="md_probe" client={client} />);
+    await waitFor(() => expect(designerProps).not.toBeNull());
+    await act(async () => {
+      designerProps!.onFieldsChange!(
+        designerProps!.fields.map((f) => (f.name === 'name' ? { ...f, label: 'Renamed again' } : f)),
+      );
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('metadata-fields-page-error').textContent,
+      ).toMatch(/a `master_detail` field needs a `reference` naming the object it links to/),
+    );
+    expect(localPuts).toEqual([]);
   });
 
 });

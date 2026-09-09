@@ -90,33 +90,50 @@ Sixteen keys in total: the eleven on `ComponentMeta` (`@object-ui/types`
 
 <!-- os:check -->
 ```typescript
-type ComponentInputControlType =
-  | 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object'
-  | 'color' | 'date' | 'code' | 'file' | 'slot';
+import type { ComponentInput, ComponentInputControlType } from '@object-ui/types';
 
-type ComponentInput = {
-  name: string;          // Maps to component prop
+// The eleven control kinds, taken from the published union rather than retyped.
+const controlTypes: ComponentInputControlType[] = [
+  'string', 'number', 'boolean', 'enum', 'array', 'object',
+  'color', 'date', 'code', 'file', 'slot',
+];
+
+// A manifest's inputs, checked against the published type. SIX keys are
+// writable — `name`, `type`, `of`, `required`, `enum`, `description`.
+const inputs: ComponentInput[] = [
+  { name: 'title', type: 'string', required: true, description: 'Heading text' },
   // ONE control type, or an ARRAY of them when the input accepts several
   // shapes (objectui#3832). Widening the vocabulary is a contract change.
-  type: ComponentInputControlType | ComponentInputControlType[];
-  label?: string;
-  defaultValue?: any;
-  required?: boolean;
-  enum?: string[] | Array<{ label: string; value: string }>;
-  description?: string;  // Also where a control hint or a numeric domain goes
-  advanced?: boolean;    // Hide by default in designer
+  { name: 'items', type: ['array', 'object'], of: 'object', description: 'Rows to render' },
+  { name: 'variant', type: 'enum', enum: ['solid', 'outline'], description: 'Visual style' },
+];
 
-  // ADR-0049 RETIREMENT TOMBSTONES (objectui#5905) - DECLARED but UNWRITABLE.
-  // Authoring one is a `tsc` error here and a named refusal from the Zod
-  // mirror (`ComponentInputSchema`). They were never read and never published:
-  // the manifest serializer forwards only `name`, `type`, `required`, `enum`,
-  // `binding` and `description`, so an authored value was silently dropped.
-  // Remedy: delete the key and say it in `description`, which IS published.
-  inputType?: never;
-  min?: never; max?: never; step?: never;
-  placeholder?: never;   // `BaseSchema.placeholder` is a different key, alive
-};
+// ADR-0049 RETIREMENT TOMBSTONES (objectui#5905) - DECLARED but UNWRITABLE.
+// Every key named here is `never` on the published type, so authoring one is a
+// `tsc` error and a named refusal from the Zod mirror (`ComponentInputSchema`).
+// They were never read and never published: the manifest serializer forwards
+// only `name`, `type`, `required`, `enum`, `binding` and `description`, so an
+// authored value was silently dropped. Remedy: delete the key and say it in
+// `description`, which IS published. A `Pick` rather than a prose list, so a
+// tombstone that is deleted upstream stops compiling here instead of lingering.
+type ComponentInputTombstones = Pick<
+  ComponentInput,
+  | 'label'
+  | 'defaultValue'
+  | 'advanced'
+  | 'inputType'
+  | 'min'
+  | 'max'
+  | 'step'
+  | 'placeholder'   // `BaseSchema.placeholder` is a different key, alive
+>;
 ```
+
+⛔ This fence used to keep a private copy of both names, and the copy was wrong
+in four ways at once while every gate stayed green: it declared `label`,
+`defaultValue` and `advanced` as WRITABLE where the published type has all three
+as `never` tombstones, and it did not carry `of` at all. That is what a
+teaching copy of a contract type costs — objectui#7636 paid it first.
 
 ### Looking up components
 
@@ -272,17 +289,28 @@ export function ColorField({
 
 ### FieldWidgetComponentProps interface
 
+The seven props a widget author writes, DERIVED from the published type rather
+than retyped: the key names are checked against it and the value types come
+from it, so this short view cannot drift from the long one.
+
 ```typescript
-type FieldWidgetComponentProps<T = any> = {
-  value: T;                     // Current field value
-  onChange: (val: T) => void;   // Value change callback
-  field: FieldMetadata;         // Field metadata (name, label, type, etc.)
-  readonly?: boolean;           // Read-only mode
-  disabled?: boolean;           // HTML disabled state
-  className?: string;           // Tailwind CSS classes
-  error?: string;               // Active validation message — drive `aria-invalid` with it
-};
+import type { FieldWidgetComponentProps } from '@object-ui/fields';
+
+type WidgetAuthorProps<T = string> = Pick<
+  FieldWidgetComponentProps<T>,
+  | 'value'      // Current field value — typed `T`
+  | 'onChange'   // Value change callback — `(val: T) => void`
+  | 'field'      // Field metadata (name, label, type, etc.)
+  | 'readonly'   // Read-only mode
+  | 'disabled'   // HTML disabled state
+  | 'className'  // Tailwind CSS classes
+  | 'error'      // Active validation message — drive `aria-invalid` with it
+>;
 ```
+
+A widget signature normally names the whole type, as the example above does
+(`FieldWidgetComponentProps<string>`); the `Pick` here exists to show WHICH
+seven a widget author actually writes without keeping a second copy of them.
 
 The slot is named `error` because that is what `FieldWidgetPropsSchema` in
 `@objectstack/spec/ui` — the published widget contract — calls it.

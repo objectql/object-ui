@@ -68,12 +68,33 @@
  * it is now, so it rots when the file moves; the many figures that name a reading at
  * a NAMED PAST revision ("42 / 63 until objectui#7542 …", "121 when objectui#6058
  * seeded it") are historical and cannot rot — they are readings of a tree that is
- * fixed. Exactly one live figure is excluded rather than pinned, and it says so
- * where it stands: the seed decomposition under `UnmirroredDeclared`, which needs a
- * key's PROVENANCE and no ledger in this file records that. ⛔ Do not add a live
- * figure here without a pin, and ⛔ do not pin one by writing a second constant —
+ * fixed. Exactly one figure is excluded rather than pinned, and it says so where it
+ * stands: the seed decomposition under `UnmirroredDeclared`, which needs a
+ * key's PROVENANCE and no ledger in this file records that. ⚠️ It was LIVE when that
+ * exclusion was written and is HISTORICAL now — objectui#8243 anchored the statement
+ * at named revisions — so it is no longer an exception to the sentence above, and
+ * ⛔ the exclusion is not licence to pin or refresh it (objectui#8248). ⛔ Do not add
+ * a live figure here without a pin, and ⛔ do not pin one by writing a second constant —
  * every pin below reads the header's OWN spelling, so the count a human edits stays
  * exactly one per site (objectui#7733's principle, and objectui#7433's before it).
+ *
+ * ⭐ **The LIVE / HISTORICAL split governs this file's ASSERTION MESSAGES too**
+ * (objectui#8248; maintainer ruling, decision batch #71). Judge a message CLAUSE, not
+ * a whole message:
+ *
+ *   - a clause that RECORDS A MEASUREMENT ("we measured X at revision R", "the header
+ *     carries no copy") is HISTORICAL — ⛔ never rewritten by a later card, because
+ *     rewriting it erases what was true when it was written;
+ *   - a clause that GIVES GUIDANCE ("do Y next", "⛔ do not add Z", "this figure is
+ *     live") is LIVE — it must be true NOW, and a later card MAY and MUST amend it
+ *     when the world moves under it, citing the card that moved it.
+ *
+ * ⛔ Neither licence extends to the other half: amend the guidance clause, leave the
+ * record clauses byte-identical beside it, and name the card that moved the world.
+ * Guidance that has gone stale is the exact failure this file exists to catch, and it
+ * misleads toward DOING work — a reader told a historical figure is "live" goes off to
+ * pin or exclude it. The first application is objectui#8248's amendment to
+ * objectui#8222's exclusion note, at the bottom of this file.
  *
  * On a file whose entire subject is measurement that is worth stating explicitly:
  *
@@ -108,7 +129,21 @@
  *     a delta to this number; count the registry. Nothing asserts it against a written
  *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **41 entries** in `KnownDrift`, **63 keys** across them — 41 / 62 until
+ *   - **41 entries** in `KnownDrift`, **64 keys** across them — 41 / 63 until
+ *     objectui#8344 added `component` to `complex.zod.ts#DashboardWidgetSchema`, an
+ *     existing entry (so the entry count did not move). 42 / 64 until
+ *     objectui#8338 RETIRED the `feedback.zod.ts#ToastSchema` key on BOTH faces
+ *     (ADR-0049 enforce-or-remove: `?: never` on the declaration, `retirementTombstone()`
+ *     on the mirror), the entry's whole content, so the entry went with it. ⭐ The first
+ *     entry this ledger has lost by RETIRING the key rather than by moving either face
+ *     toward the other — and the only route open: the declaration had NO inhabitant to
+ *     preserve, so "make the faces agree" had no mechanical direction. It was 41 / 63 until
+ *     objectui#7760 SEEDED `feedback.zod.ts#ToastSchema` with its one key `action`
+ *     (a pair born ledgered, not growth on an existing entry). ⭐ The first entry this
+ *     ledger has gained from a face becoming READABLE rather than from a mirror or a
+ *     declaration moving: the key's mirror face was `unknown` — which fits every
+ *     declaration — until that card gave `SchemaNodeSchema` its input type argument.
+ *     41 / 62 until
  *     objectui#7664 RE-KEYED the `kanban` arm (ruling (a)): the retired
  *     `DeclarativeKanbanSchema` entry carried `onCardMove` / `onCardClick`, and the
  *     plugin-dialect `KanbanSchema` entry that replaced it carries `onQuickAdd` as
@@ -144,7 +179,9 @@
  *     and 37 / 53 until objectui#7344 swept the string / `z.any()` handler mirrors:
  *     `DetailSchema` and `DetailViewSchema` entered (one `onBack` each) and
  *     `CalendarViewSchema` grew by `onEventClick`.
- *   - **14 entries** in `UnmirroredDeclared`, **87 keys** across them — 14 / 96 until
+ *   - **14 entries** in `UnmirroredDeclared`, **86 keys** across them — 14 / 87 until
+ *     objectui#7762 MIRRORED `ObjectGridSchema.exportOptions` (the entry kept its other
+ *     fourteen keys, so the entry count held); 14 / 96 until
  *     objectui#7779 closed nine of `ObjectViewSchema`'s ten keys (maintainer ruling
  *     B, 2026-09-06): eight MIRRORED — `navigation`, `searchableFields`,
  *     `filterableFields` by reference to the spec's `ListViewSchema` slots,
@@ -202,6 +239,69 @@
  *     spelled "six" rots exactly as fast as one spelled `6`, it is just harder to
  *     point a regex at. ⛔ Do not spell a live figure out again, and ⛔ do not
  *     restate one without checking that the pin's spelling still reaches it.
+ *   - **22 entries** in `WiderThanDeclared`, **35 keys** across them, and **45 arms**
+ *     under those keys — split **6** SCHEMA-NODE, **29** CONCRETE, **0** MIXED, **10** unions.
+ *     ⭐ objectui#8517 taught the operator to tell an OPEN record — `z.record(z.string(), V)`
+ *     — from a partial record over a finite key union, and NOT ONE figure on this line moved
+ *     with it. ⛔ Do not read that as the clause measuring nothing. It was built on two live
+ *     keys, `layout.zod.ts#GridSchema::columns` and
+ *     `reports.zod.ts#ReportComponentSchema::exportConfigs`, and reported BOTH at that card's
+ *     base (`3f775eeb8`); objectui#8516 / objectui#8556 then narrowed both MIRRORS to
+ *     `z.partialRecord` (`d4733f27e`, PR #8573) while the card was in review, so on the tree it
+ *     landed on (`main` at `7bf133d58`) the two faces agree and the operator reports neither.
+ *     Both readings are of FIXED trees and ⛔ neither can rot. ⇒ Every earlier reading of this
+ *     ledger, objectui#7759's census included, was a FLOOR for the open-record shape and not a
+ *     count; the two keys it was short are closed at the MIRROR instead of ledgered here. ⛔ Do
+ *     not delete the clause as unused: it is what makes a re-widening of either mirror fail
+ *     HERE, which is the file-level instrument objectui#8556 ruled that repair had to be
+ *     pinned against rather than against an accept set alone. Its discrimination is pinned on
+ *     synthetics at `assertionOpenRecordWideningIsReported`, with the `.passthrough()`
+ *     caricature beside it.
+ *     (objectui#8252 built the arm split; objectui#7760 moved every figure in it.) It
+ *     read 23 / 36 / 47 — 6 / 30 / 0 / 11 — until objectui#8338 RETIRED
+ *     `feedback.zod.ts#ToastSchema::action`, the entry's whole content, so the entry, its
+ *     one key and BOTH its arms left together. ⚠️ Six figures moved on one key, and NOT
+ *     in step: CONCRETE counts KEYS and fell by 1 while `arms` fell by 2 — ⛔ do not step
+ *     these by hand, the derivation reads arms and keys through different reducers and a
+ *     hand-stepped CONCRETE was wrong by one when this was written. It
+ *     read 34 / 52 / 61 — 24 / 27 / 1 / 9 — until objectui#7760 gave seven of the ten
+ *     recursion-breaking mirrors their existing TypeScript declaration as an explicit
+ *     INPUT type argument. ⛔ That repaired no mirror and no declaration: it made a face
+ *     READABLE that had been `unknown`. 19 keys across **18** pairs LEFT
+ *     (**13 emptied + 5 reduced = 18**) because the reading they recorded was the
+ *     annotation, and 3 keys
+ *     ENTERED — `feedback.zod.ts#ToastSchema::action` (⚠️ history: that row is GONE,
+ *     retired by objectui#8338 above — ⛔ do not look for it below),
+ *     `navigation.zod.ts#HeaderBarSchema::logo`, `overlay.zod.ts#TooltipSchema::content`
+ *     — real widenings the erased face had been HIDING. ⚠️ **pairs** there counts every
+ *     entry the move TOUCHED — an entry that lost a key and KEPT others is still one it
+ *     moved — and `emptied` is the subset that lost its whole content. Both readings are
+ *     written down because a bare pairs figure had already forked: this line read `16`,
+ *     which is NEITHER of the two readings above — ⛔ and they are not restated here as
+ *     digits, because a restatement no pin reaches is the objectui#7733 shape one line
+ *     further in. It was the one figure in this paragraph no pin reached, while every
+ *     other one moved correctly with objectui#7760.
+ *     objectui#8458 re-derived it by running this file's own `ledgerEntryMembers` over
+ *     `WiderThanDeclared` at `645ecb98c` and `a480f797a` — PR #8354's parent and its
+ *     merge — and diffing entry → key pairs; the decomposition is pinned by 'the
+ *     objectui#7760 movement figures reconcile with themselves' at the bottom of this
+ *     file. ⛔ That pin reads this sentence and nothing else: the movement is a
+ *     HISTORICAL reading of two fixed trees, and pointing it at the live ledger is the
+ *     hand re-derivation objectui#8243 removed. ⭐ All three are the
+ *     `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` single-or-list spelling
+ *     objectui#7069 called systematic and could not judge, which is the whole reason
+ *     that card's ledger declared this region EXCLUDED. MIXED is 0 because its one
+ *     member is among the 19. ⚠️ Until #8252
+ *     this ledger had NO figure in this header, and it is the one other cards quote as
+ *     the size of the wider direction: objectui#7759 published its two halves as
+ *     "27 keys / 21 pairs" SCHEMA-NODE and "27 keys / 18 pairs" CONCRETE, and
+ *     objectui#8252's own card body inherited the first 27. Re-derived here the
+ *     SCHEMA-NODE half is 24 pure plus the 1 MIXED — the figure had rotted by two while
+ *     every pin in this file stayed green, which is the objectui#8222 shape on the one
+ *     ledger objectui#8222 did not reach. The CONCRETE half has not moved. All six
+ *     figures are read off `WIDER_ARMS` and the mirrors by 'the WIDER ledger's header
+ *     figures are derived from its ARMS'; the per-KEY class is derived from the arm
+ *     verdicts, never written down beside them, so a MIXED key cannot be filed whole.
  *   - **the pairs with no entry in either** unmirrored ledger — the population minus
  *     the union of the two ledgers above. ⛔ Not written down here in any form: the
  *     census derives it and pins it (objectui#7433). ⚠️ This line used to carry a
@@ -412,18 +512,33 @@ export type IsAny< T > = 0 extends 1 & T ? true : false;
  * A mirror slot whose static INPUT face carries no information: `unknown`, `any`,
  * or a list of either.
  *
- * This is the hole in `WiderThanDeclaredKeys` below, and the hole is one const
- * wide. `base.zod.ts#SchemaNodeSchema` is annotated `z.ZodType< any >` to break the
- * recursion inside its own `z.lazy`, and zod 4 defaults such a schema's INPUT
- * parameter to `unknown`. Every slot spelled through it therefore reads `unknown`
- * (or `unknown[]`) on the input face — wider than every declaration BY DEFINITION,
- * and silent about what the mirror accepts at RUNTIME, where the lazy union does
- * validate. Comparing there would report the annotation and not the accept-set, so
- * those keys are not measured. ⚠️ That is not a small carve-out: it is exactly
- * where the producer objectui#7069 called systematic lives — the
- * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` spelling — so the
- * producer that motivated this direction is the one the type level cannot judge.
- * The runtime leg at the bottom of this file is what bounds the region instead.
+ * This is the hole in `WiderThanDeclaredKeys` below. A recursive mirror annotated
+ * `z.ZodType< any >` to break the cycle inside its own `z.lazy` gets `unknown` for
+ * its INPUT parameter from zod 4, so every slot spelled through it reads `unknown`
+ * (or `unknown[]`) — wider than every declaration BY DEFINITION, and silent about
+ * what the mirror accepts at RUNTIME, where the lazy union does validate. Comparing
+ * there would report the annotation and not the accept-set, so those keys are not
+ * measured. The runtime leg at the bottom of this file is what bounds the region.
+ *
+ * ⭐ The hole was TEN consts wide and objectui#7760 took it to THREE. That card gave
+ * seven of them their existing TypeScript declaration as both type arguments, on the
+ * maintainer ruling of decision batch #69 — no runtime accept set moved and no
+ * declaration moved, so what changed is only what this comparison can SEE. The three
+ * that kept the annotation each refused the argument for a MEASURED reason, recorded
+ * on that card: `app.zod.ts#NavigationItemSchema` and
+ * `complex.zod.ts#FilterBuilderConditionSchema` because the mirror already accepts
+ * more than the declaration states (`id` optional against a required one; `is_null` /
+ * `is_not_null` against `FilterBuilderOperator`), so the assignment `tsc` performs to
+ * check the annotation IS this ledger's comparison and it fails; and
+ * `complex.zod.ts#FilterGroupSchema` transitively, since its `conditions` arm is the
+ * first of those two. ⛔ None of the three is an inference cycle — that was the risk
+ * the ruling time-boxed a trial for, and it did not fire on any of the ten.
+ *
+ * ⚠️ What that bought, and it is the point of the card: the producer objectui#7069
+ * called systematic — the `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`
+ * spelling — is INSIDE the comparison now, and the three keys it had been hiding are
+ * in the ledger below. The exclusion is still live, so this predicate is not dead
+ * code; it now covers the three consts above rather than the whole schema-node face.
  *
  * ⚠️ It is deliberately NOT recursive, and that is a measurement rather than a
  * preference. A version descending into object properties and array elements was
@@ -446,13 +561,146 @@ export type Unconstrained< T > =
   : false;
 
 /**
- * The premise the exclusion rests on, asserted rather than described: the
- * annotation really does erase `SchemaNodeSchema`'s input face. If it is ever
- * spelled so that the face carries information, this fails and the exclusion — and
- * the ledger's SCHEMA-NODE class with it — has to be re-derived.
+ * The two premises the exclusion rests on, asserted rather than described — and they
+ * are OPPOSITE premises, which is why there are two lines and not one.
+ *
+ * This pin read "`Unconstrained< z.input< typeof SchemaNodeSchema > >` is `true`"
+ * until objectui#7760, and it fired on that card's first compile, exactly as its own
+ * note said it would. It is kept, INVERTED: `SchemaNodeSchema` carries its declaration
+ * on both faces now, and a revert to an unconstrained annotation would silently drop
+ * every single-or-list slot back out of the comparison — 19 ledger keys' worth, green
+ * the whole way, because a key that leaves a comparison reports nothing.
+ *
+ * The second line holds the other half. `NavigationItemSchema` is one of the three
+ * consts that refused the argument, so the exclusion still has live members and
+ * `Unconstrained` is still load-bearing. If it ever stops being unconstrained — that
+ * const taking its declaration too, or its mirror narrowed to fit — this fails, and
+ * the exclusion and the ledger's SCHEMA-NODE class with it have to be re-derived once
+ * more.
  */
-export type assertionSchemaNodeFaceIsUnconstrained =
-  Expect< Equal< Unconstrained< z.input< typeof SchemaNodeSchema > >, true > >;
+export type assertionSchemaNodeFaceIsConstrained =
+  Expect< Equal< Unconstrained< z.input< typeof SchemaNodeSchema > >, false > >;
+
+export type assertionRetainedAnnotationFaceIsUnconstrained =
+  Expect< Equal< Unconstrained< z.input< typeof NavigationItemSchema > >, true > >;
+
+/* ── The OPEN-RECORD discriminator (objectui#8517) ──────────────────────────── */
+
+/**
+ * `T`'s union arms that are OPEN RECORDS — a string index signature and NO literal
+ * members of their own. That is exactly the `z.record(z.string(), V)` shape and
+ * nothing else.
+ *
+ * ⚠️ Both halves are load-bearing, and the second one is why this is not simply
+ * `string extends keyof T`. Measured in this package's test program: a zod LOOSE
+ * object (what `.passthrough()` produces, and what `BaseSchema` is) also answers
+ * `true` to `string extends keyof T` — `keyof z.input< typeof BaseSchema >`
+ * resolves to bare `string`. Reporting on that predicate alone would report every
+ * slot spelled as a nested passthrough object in this repo, which is the caricature
+ * this direction has to avoid: a guard that reports everything makes the ledger
+ * useless while passing any single-instance assertion. `DeclaredKeys` tells the two
+ * apart because it strips the index signature and keeps the members —
+ * `DeclaredKeys< z.input< typeof BaseSchema > >` resolves to that schema's literal
+ * names, while `DeclaredKeys< Record< string, number > >` is `never`.
+ *
+ * The `IsAny` guard is not defensive tidying: `keyof any` is
+ * `string | number | symbol`, so `any` answers `true` to the index-signature half
+ * and `never` to the member half, and would read as an open record on every face
+ * `Unconstrained` exists to keep out.
+ */
+type OpenRecordArms< T > =
+  IsAny< T > extends true
+    ? never
+    : T extends unknown
+      ? string extends keyof T
+        ? [DeclaredKeys< T >] extends [never] ? T : never
+        : never
+      : never;
+
+/**
+ * `T`'s union arms that state a FINITE key set — an object, not an array, literal
+ * members, no string index signature. `Partial[Record[BreakpointName, number]]` is
+ * one; `object`, `{}` and `unknown` are not, and that is the whole reason this half
+ * exists: a declaration that admits an ARBITRARY object refuses no key, so an
+ * open-record mirror against it is not wider. Requiring one finite-keyed arm is what
+ * holds the clause below to the unambiguous case — the declaration names a key set
+ * and the mirror does not.
+ *
+ * ⚠️ `T extends object` is not tidying, and it was added because the pin below
+ * caught the clause without it. `keyof number` resolves to that primitive's METHOD
+ * names, so `DeclaredKeys[number]` is not `never` and a bare `number` arm reads as a
+ * finite-keyed object. A declaration spelled `number | object` — permissive, refusing
+ * no key — would then be reported against an open-record mirror on the strength of
+ * its `number` arm alone. Arrays are excluded for the same reason (`length`,
+ * `toString`), and `assertionPermissiveDeclarationIsNotWidened` covers both.
+ *
+ * ⚠️ Written with SQUARE brackets in this docblock on purpose (objectui#8517): the
+ * same shape in the issue text is deleted by GitHub's body sanitizer, and the two
+ * spellings have to stay legible side by side while this is being read.
+ */
+type FiniteKeyedArms< T > =
+  IsAny< T > extends true
+    ? never
+    : T extends unknown
+      ? T extends object
+        ? T extends readonly unknown[]
+          ? never
+          : string extends keyof T
+            ? never
+            : [DeclaredKeys< T >] extends [never] ? never : T
+        : never
+      : never;
+
+/**
+ * The mirror admits an ARBITRARY string key at a position where the declaration
+ * names a finite key set — the widening objectui#8517 measured as invisible to the
+ * assignability test on its own.
+ *
+ * ## Why the assignability test cannot see it
+ *
+ * `Record[string, number]` and `Partial[Record[BreakpointName, number]]` are
+ * MUTUALLY assignable: TypeScript grants an implicit index signature to mapped and
+ * anonymous object types, so the partial record fits the open one, and the open
+ * one fits the partial one because every member it could supply is `number` where
+ * `number | undefined` is wanted. ⇒ `[A] extends [B]` and `[B] extends [A]` are
+ * BOTH true, so neither this direction's operator nor `NarrowerThanDeclared`
+ * reports the pair. That is not one direction missing a case; the pair is
+ * invisible to that predicate outright. Measured on `GridSchema.columns` at this
+ * card's base (`3f775eeb8`), where `safeParse({ type: 'grid', columns: { xxl: 6 } })`
+ * returned green and `tsc` refused the same node. ⚠️ That reading is HISTORICAL:
+ * objectui#8516 (`d4733f27e`) narrowed that mirror to a `z.partialRecord`, so the
+ * pair is clean on both faces today and this clause is what would report it if the
+ * mirror were widened back. ⛔ Do not restate it as a live one.
+ *
+ * ## The bound, stated because a predicate that does not state one reads as wider
+ *
+ * This looks at the TOP-LEVEL union arms of the slot and no deeper — not into array
+ * elements, not into an arm's own properties. Same shallowness as `Unconstrained`
+ * above and for the same reason: a recursive version of this predicate has the
+ * failure mode that one had, where descending drove whole instantiations to `any`
+ * and the invariant went silently green on exactly the pairs with the most
+ * structure. ⇒ An open record NESTED one level down is NOT reported, and a future
+ * card widening the reach has to re-run the census, not just the pins.
+ *
+ * ## Where it sits in the operator, and why that placement is the guarantee
+ *
+ * It runs ONLY on the branch the assignability test already called clean. A key
+ * this file reports today therefore cannot stop being reported by anything here —
+ * the change is additive by construction, not by assertion. Every ledgered pair is
+ * reconciled against the measurement anyway by `assertionWiderMatchesLedger`, and
+ * the additivity itself is pinned on a synthetic carrying BOTH classes at once
+ * (`assertionOpenRecordClauseIsAdditive`), because a guarantee nobody has watched
+ * fail is not a guarantee. ⛔ A bare count of the pairs stood here and was removed:
+ * no pin reached it, which is the objectui#7733 shape this file is about.
+ */
+type MirrorAdmitsOpenRecord< MirrorIn, DeclaredType > =
+  Unconstrained< DeclaredType > extends true
+    ? false
+    : [OpenRecordArms< MirrorIn >] extends [never]
+      ? false
+      : [OpenRecordArms< DeclaredType >] extends [never]
+        ? [FiniteKeyedArms< DeclaredType >] extends [never] ? false : true
+        : false;
 
 /**
  * Every key whose mirror ACCEPTS a spelling the declaration REFUSES.
@@ -482,7 +730,9 @@ export type WiderThanDeclaredKeys< M, D > = {
   [K in MirroredKeys< M > & DeclaredKeys< D >]:
     Unconstrained< InputOf< ShapeOf< M >[K] > > extends true
       ? never
-      : [InputOf< ShapeOf< M >[K] >] extends [D[K]] ? never : K;
+      : [InputOf< ShapeOf< M >[K] >] extends [D[K]]
+        ? MirrorAdmitsOpenRecord< InputOf< ShapeOf< M >[K] >, D[K] > extends true ? K : never
+        : K;
 }[MirroredKeys< M > & DeclaredKeys< D >];
 
 /**
@@ -628,6 +878,182 @@ interface SyntheticNodeDeclaration { node: { type: string }; nodes: { type: stri
 
 export type assertionUnconstrainedFaceIsExcludedButNotAWaiver =
   Expect< Equal< WiderThanDeclaredKeys< SyntheticUnconstrainedMirror, SyntheticNodeDeclaration >, 'size' > >;
+
+/* ── Recognition: the OPEN-RECORD clause (objectui#8517) ────────────────────── */
+
+/**
+ * The two shapes objectui#8517 measured, and the fact that makes the pair invisible
+ * to a single assignability test: they are MUTUALLY assignable.
+ *
+ * ⚠️ Pinned rather than described because the intuition runs the other way and was
+ * wrong when two people derived it independently — the reasoning is that
+ * `Partial[Record[K, number]]` cannot fit an index signature demanding `number`,
+ * because its members are `number | undefined`. TypeScript grants an IMPLICIT index
+ * signature to mapped and anonymous object types, so it fits, and the open record
+ * fits the partial one because every member it could supply is a `number`. ⇒ Both
+ * directions hold, which is why NEITHER `WiderThanDeclaredKeys` nor
+ * `NarrowerThanDeclared` reported the pair. ⛔ Do not "simplify" the clause below
+ * back to an assignability test; these two lines are what says it cannot work.
+ */
+type SyntheticBreakpoint = 'xs' | 'sm' | 'md';
+
+export type assertionOpenRecordFitsThePartialRecord =
+  Expect< Equal< [Record< string, number >] extends [Partial< Record< SyntheticBreakpoint, number > >] ? true : false, true > >;
+
+export type assertionPartialRecordFitsTheOpenRecord =
+  Expect< Equal< [Partial< Record< SyntheticBreakpoint, number > >] extends [Record< string, number >] ? true : false, true > >;
+
+/**
+ * A synthetic pair in the live instance's shape: the slot is a union of a bare
+ * number and an OPEN record, the declaration is that same union over a finite key
+ * set, and a sibling key agrees on both faces.
+ *
+ * Both halves matter, and the second is the one that guards the caricature: an
+ * operator that reported `cols` by reporting EVERYTHING would satisfy the first
+ * assertion exactly as well as a correct one, so `agrees` is what tells them apart.
+ */
+type SyntheticOpenRecordSlot = z.ZodUnion< [z.ZodNumber, z.ZodRecord< z.ZodString, z.ZodNumber >] >;
+
+type SyntheticOpenRecordMirror = {
+  shape: { cols: SyntheticOpenRecordSlot; agrees: z.ZodString };
+};
+interface SyntheticFiniteKeyedDeclaration {
+  cols: number | Partial< Record< SyntheticBreakpoint, number > >;
+  agrees: string;
+}
+
+/** The widening is reported, and the agreeing sibling is not. */
+export type assertionOpenRecordWideningIsReported =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticOpenRecordMirror, SyntheticFiniteKeyedDeclaration >, 'cols' > >;
+
+/**
+ * ⭐ The caricature, pinned as a NEGATIVE. A LOOSE object — what `.passthrough()`
+ * produces, and what every declaration inheriting `BaseSchema` is — also answers
+ * `true` to `string extends keyof T`. A clause built on that predicate alone reports
+ * such a pair, and reporting it is the failure this direction has to avoid: the
+ * ledger would fill with the `.passthrough()` tolerance that `WithoutIndexSignature`
+ * above rules out of this file's question, while still passing an assertion that the
+ * live instance is now reported.
+ *
+ * ⛔ This is the assertion to run against a candidate clause FIRST, and it fires: the
+ * naive clause was BUILT AND RUN, and this pin reddened under it.
+ *
+ * ⚠️ What that run also measured, recorded because the intuition is wrong and was
+ * wrong here first. The naive clause does NOT flood the ledger — it moved 3 registry
+ * pairs where this one moved 2, both read at this card's base (`3f775eeb8`); on the
+ * tree this landed on, objectui#8516's narrowing has taken those two and this clause
+ * moves none, which is the header bullet's subject and ⛔ does not change the
+ * comparison below. The blast radius is small because the clause sits on
+ * the branch the assignability test already called clean and `Unconstrained` gates
+ * ahead of both, so nearly every loose face is spoken for before it is reached. Its
+ * one extra report is `objectql.zod.ts#ObjectViewSchema::form`, an inline `z.lazy`
+ * slot whose face is a passthrough object. ⇒ The argument against the naive clause is
+ * that its single false report is a WRONG KIND of finding, not that there would be
+ * many of them. ⛔ Do not restate this as "it reports everything"; that figure was
+ * asserted here from prediction once and the measurement replaced it.
+ */
+type SyntheticLooseObjectMirror = { shape: { cfg: typeof BaseSchema } };
+interface SyntheticClosedObjectDeclaration { cfg: { type: string } }
+
+export type assertionLooseObjectArmIsNotAnOpenRecord =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticLooseObjectMirror, SyntheticClosedObjectDeclaration >, never > >;
+
+/**
+ * The half of that pin a synthetic could not carry: the REAL loose face this repo
+ * runs on DOES answer `true` to the naive predicate. ⇒ The pin above is discriminating
+ * something that is actually there, and if a zod release ever stopped spelling a loose
+ * object with a bare `string` key this line fails and the pin above needs re-deriving
+ * rather than silently becoming vacuous.
+ */
+export type assertionTheLooseFaceReallyLooksLikeAnIndexSignature =
+  Expect< Equal< string extends keyof z.input< typeof BaseSchema > ? true : false, true > >;
+
+/**
+ * A declaration that REFUSES no key is not narrower than an open record, so the
+ * clause stays silent on every shape that admits anything: another open record (the
+ * two faces agree), a bare `object` and an `object` sitting beside a primitive arm
+ * (neither names a key set), an array element (below the bound), and `any`
+ * (`Unconstrained` already owns that case, and `keyof any` includes `string`, so a
+ * clause without the guard would read `any` as an open record on every pair).
+ *
+ * ⭐ The `beside` key is the one that was MEASURED rather than predicted: this pin
+ * failed on the first candidate clause, because `keyof number` resolves to that
+ * primitive's method names and so a `number` arm read as a finite-keyed object,
+ * carrying the whole permissive declaration into the report. ⛔ Do not drop the
+ * `T extends object` half of `FiniteKeyedArms` — this is the line that catches it.
+ */
+type SyntheticPermissiveMirror = {
+  shape: {
+    same: SyntheticOpenRecordSlot;
+    loose: z.ZodRecord< z.ZodString, z.ZodNumber >;
+    beside: SyntheticOpenRecordSlot;
+    anything: z.ZodRecord< z.ZodString, z.ZodNumber >;
+  };
+};
+interface SyntheticPermissiveDeclaration {
+  same: number | Record< string, number >;
+  loose: object;
+  beside: number | object;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the `any` face this pin exists to keep out of the clause.
+  anything: any;
+}
+
+export type assertionPermissiveDeclarationIsNotWidened =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticPermissiveMirror, SyntheticPermissiveDeclaration >, never > >;
+
+/**
+ * The BOUND, pinned so that widening the clause's reach is a deliberate act with a
+ * census behind it rather than a refactor.
+ *
+ * An open record NESTED inside an array element is NOT reported. The clause reads
+ * the slot's TOP-LEVEL union arms and no deeper, the same shallowness `Unconstrained`
+ * documents above and for the same measured reason. ⇒ A future card that descends
+ * has to re-run the census, and this pin is what fails when it does.
+ */
+type SyntheticNestedOpenRecordMirror = {
+  shape: { rows: z.ZodArray< z.ZodRecord< z.ZodString, z.ZodNumber > > };
+};
+interface SyntheticNestedDeclaration { rows: Partial< Record< SyntheticBreakpoint, number > >[] }
+
+export type assertionNestedOpenRecordIsBelowTheBound =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticNestedOpenRecordMirror, SyntheticNestedDeclaration >, never > >;
+
+/**
+ * ⭐ The non-regression axis, as a pin rather than as a property of the source.
+ *
+ * The clause runs ONLY on the branch the assignability test already called clean, so
+ * a key reported before it cannot stop being reported. That is true by construction
+ * — and a guarantee nobody has watched fail is not a guarantee, which is the whole
+ * argument this file makes about baselines. Here both classes meet on ONE pair: the
+ * ordinary widening `size` (a bare string against two literals) and the open-record
+ * widening `cols`, with `agrees` clean beside them. All three verdicts have to hold
+ * at once.
+ */
+type SyntheticBothClassesMirror = {
+  shape: { size: z.ZodString; cols: SyntheticOpenRecordSlot; agrees: z.ZodString };
+};
+interface SyntheticBothClassesDeclaration {
+  size: 'sm' | 'lg';
+  cols: number | Partial< Record< SyntheticBreakpoint, number > >;
+  agrees: string;
+}
+
+export type assertionOpenRecordClauseIsAdditive =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticBothClassesMirror, SyntheticBothClassesDeclaration >, 'size' | 'cols' > >;
+
+/**
+ * The clause does not disturb the other two directions: `NarrowerThanDeclared` and
+ * `UnmirroredDeclaredKeys` are still blind to an open-record widening, for the same
+ * structural reasons they are blind to every other one. ⚠️ The first line is NOT a
+ * restatement of `assertionNarrowerOperatorIsBlindToAWidening` above: that pair's
+ * blindness is a one-way assignability pass, this one's is a MUTUAL one, and only a
+ * pin over this shape would notice if a future narrower-side repair claimed the case.
+ */
+export type assertionNarrowerOperatorIsBlindToAnOpenRecord =
+  Expect< Equal< NarrowerThanDeclared< SyntheticOpenRecordMirror, SyntheticFiniteKeyedDeclaration >, never > >;
+
+export type assertionUnmirroredOperatorIsBlindToAnOpenRecord =
+  Expect< Equal< UnmirroredDeclaredKeys< SyntheticOpenRecordMirror, SyntheticFiniteKeyedDeclaration >, never > >;
 
 /* ── The registry ───────────────────────────────────────────────────────────── */
 
@@ -1024,8 +1450,31 @@ interface KnownDrift {
    * comparison, and this entry going stale is precisely what surfaced that.
    */
   'complex.zod.ts#DashboardComponentSchema': 'header' | 'widgets' | 'globalFilters';
-  /** TS declares `unknown`; the mirror declares a structured options object. The mirror is the STRICTER side here — narrowing the check would be wrong, widening the TS declaration is the ADR-0049 question. */
-  'complex.zod.ts#DashboardWidgetSchema': 'options';
+  /**
+   * `options` — TS declares `unknown`; the mirror declares a structured options object.
+   * The mirror is the STRICTER side here — narrowing the check would be wrong, widening
+   * the TS declaration is the ADR-0049 question.
+   *
+   * `component` — joined with objectui#8344, and the mirror is the stricter side here too.
+   * TS declares `SchemaNode` (`BaseSchema | string | number | boolean | null | undefined`);
+   * the mirror declares `BaseSchema` alone, so the five primitive arms are the drift. The
+   * key is the legacy `{ id, component, layout }` envelope's node slot, and it was spelled
+   * `SchemaNodeSchema` until #8344 redirected that const's component arm at
+   * `AnyComponentSchema`. This slot cannot follow it: `metric-card` is objectui's CLOSED
+   * widget-slot component extension (`DASHBOARD_COMPONENT_WIDGET_TYPES`), admitted by the
+   * 2026-08-14 ruling (objectstack#8593) and deliberately NOT an arm of the component
+   * union — `DashboardWidgetSlotComponentSchema` says the routing is "an internal property
+   * of the widget slot, not new authoring surface" — so following the redirect would have
+   * refused the very envelope this key exists for. ⇒ the slot names the passthrough the
+   * ruling assigns it, and the primitives it stops admitting land here.
+   *
+   * ⚠️ This entry is the reason objectui#8344 could not read its own type-check as green:
+   * the ledger is a TYPE MAP over the mirrors, so a `complex.zod.ts` edit moves a row
+   * INSIDE this file without editing it, and `tsc -p tsconfig.json` (the BUILD project)
+   * excludes every `.test.ts` under `src` and stays green while `tsconfig.test.json`
+   * reddens.
+   */
+  'complex.zod.ts#DashboardWidgetSchema': 'component' | 'options';
   /**
    * `fields` — inherited from `FilterFieldSchema.operators` below; the element type is
    * the drifted one. `onChange` — RUNTIME SLOT (objectui#6124): the `filter-builder` renderer
@@ -1225,7 +1674,7 @@ interface KnownDrift {
  *
  * objectui#6058 seeded this ledger at **121 keys**, and — on ONE line, because the
  * pin below reads this sentence off disk —
- * **87 keys** is what this ledger records today.
+ * **86 keys** is what this ledger records today.
  * The movements between the two are different facts. objectui#6152 measured the 23
  * callback-shaped (`on*`) keys and ruled that mirroring is the wrong remedy for every
  * one of them;
@@ -1329,7 +1778,12 @@ interface KnownDrift {
  * explicit that forcing the 121 per-key decisions now would be wrong. Two splits
  * are recorded here so whoever works them off does not re-derive them:
  *
- *   - **SPEC-DERIVED (2 entries, 3 keys)** — `DashboardWidgetSchema`, and since
+ *   - **SPEC-DERIVED (3 entries, 17 keys)** — it was 2 / 3 until objectui#7762 MIRRORED
+ *     `ObjectGridSchema.exportOptions` as the spec's object arm BY REFERENCE, which
+ *     re-derived that entry (its fourteen remaining keys) into this half: the #7779
+ *     membership mechanism a second time, and the first entry to arrive here by a single
+ *     mirrored member. ⚠️ Its keys' remedy did NOT change with the half — they are still
+ *     plain local omissions; the reading is on the entry. Then `DashboardWidgetSchema`, and since
  *     objectui#7779 `ObjectViewSchema` again, by MEMBERSHIP this time rather than by
  *     the old false positive: that card made the mirror reference
  *     `SpecListViewSchema.shape.navigation` / `.searchableFields` /
@@ -1382,7 +1836,11 @@ interface KnownDrift {
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (12 entries, 84 keys)** — plain omissions from a hand-written mirror.
+ *   - **LOCAL (11 entries, 69 keys)** — plain omissions from a hand-written mirror.
+ *     It was 12 / 84 until objectui#7762 MIRRORED `ObjectGridSchema.exportOptions`: one key
+ *     REPAIRED and the entry's other fourteen carried out of this half with it, because the
+ *     spec reference that repair introduced re-derives the pair into the SPEC-DERIVED half
+ *     above — the same two-effects-in-one-move shape objectui#7779 had on `ObjectViewSchema`.
  *     It was 13 / 94 until objectui#7779 MIRRORED eight of `ObjectViewSchema`'s ten
  *     keys and RETIRED a ninth, and the spec reference that mirroring introduced
  *     re-derived the entry (down to `listViews`) into the SPEC-DERIVED half — 12 / 84
@@ -1413,10 +1871,14 @@ interface KnownDrift {
  * same entry from ten keys to one (96 → 87 keys; the entry count held) and moved it
  * back to the SPEC-DERIVED half by membership — the ledger's first shrink by
  * MIRRORING BY REFERENCE across most of an entry, and its second RETIREMENT on the
- * LOCAL half (`viewTabBar`). The seeded pair is no longer
+ * LOCAL half (`viewTabBar`). objectui#7762 then did both halves of that move again on
+ * `ObjectGridSchema` with ONE key: mirroring `exportOptions` as the spec's object arm by
+ * reference shrank the ledger 87 → 86 and re-derived the entry (fourteen keys) from the
+ * LOCAL half into the SPEC-DERIVED one, so the entry count held while BOTH split figures
+ * moved. The seeded pair is no longer
  * among them, and the ledger now totals — on ONE line, because the pin below reads
  * this sentence off disk —
- * **14 entries / 87 keys** — 2 / 3 spec-derived, 12 / 84 local.
+ * **14 entries / 86 keys** — 3 / 17 spec-derived, 11 / 69 local.
  *
  * ⛔ The four split figures above and this totals line are PINNED: 'objectui#7279'
  * at the bottom of this file derives every one of them from the `UnmirroredDeclared`
@@ -1542,14 +2004,29 @@ interface UnmirroredDeclared {
     | 'sections' | 'showStepIndicator' | 'splitDirection' | 'splitResizable' | 'splitSize'
     | 'subforms' | 'submitHandler' | 'tabPosition';
   /**
-   * LOCAL. It was 17: `onNavigate` is in `RuntimeOnlyDeclared` below (objectui#6152),
-   * and `title` was MIRRORED by objectui#6639 (census-directed ruling 2026-08-29,
-   * declare branch) — the ledger's first shrink by REPAIR rather than
+   * SPEC-DERIVED by MEMBERSHIP since objectui#7762, LOCAL before it: that card mirrored
+   * `exportOptions` as the spec's OBJECT ARM by reference, which puts a `Spec…` symbol in
+   * this mirror's initializer, so `SPEC_DERIVED_PAIRS` re-derives the pair — the same
+   * mechanism that moved `ObjectViewSchema` at objectui#7779, and the second pair to reach
+   * this half by a single mirrored member.
+   *
+   * ⚠️ Read the half as MEMBERSHIP, not as a remedy: the fourteen keys below are still
+   * plain hand-written omissions on a `BaseSchema.extend({…})` mirror — the ordinary local
+   * route (objectui#6152's worklist), NOT objectui#2231's unification question, which is
+   * what the SPEC-DERIVED half means for a mirror that IS the spec schema by reference.
+   * This is the per-key reading objectui#7279 recorded on `ObjectViewSchema` for the same
+   * reason, kept here so whoever works these off does not re-derive it.
+   *
+   * It was 15 until objectui#7762 MIRRORED `exportOptions` — the ledger's shrink by REPAIR
+   * on the route objectui#6639 opened, and the first one that also moved its entry between
+   * the split's halves. It was 17: `onNavigate` is in `RuntimeOnlyDeclared` below
+   * (objectui#6152), and `title` was MIRRORED by objectui#6639 (census-directed ruling
+   * 2026-08-29, declare branch) — the ledger's first shrink by REPAIR rather than
    * reclassification.
    */
   'objectql.zod.ts#ObjectGridSchema':
     | 'aggregations' | 'bulkActionDefs' | 'bulkSpecActions' | 'conditionalFormatting'
-    | 'emptyState' | 'exportOptions' | 'grouping' | 'navigation' | 'operations'
+    | 'emptyState' | 'grouping' | 'navigation' | 'operations'
     | 'reorderableColumns' | 'resizableColumns' | 'rowColor' | 'rowHeight' | 'rowSpecActions'
     | 'singleClickEdit';
   /**
@@ -1620,7 +2097,7 @@ interface UnmirroredDeclared {
  *
  * `UnmirroredDeclared` above was seeded at **121 keys** by objectui#6058, and — on
  * ONE line, because the pin below reads this sentence off disk —
- * `UnmirroredDeclared` records **87 keys** today.
+ * `UnmirroredDeclared` records **86 keys** today.
  * These 23 moved here whole. Keys have since left that ledger by MIRRORING and by
  * RETIREMENT, but the move recorded HERE is neither and repaired nothing. ⛔ Nothing
  * was mirrored by it, no declaration was removed, no defect was repaired and nothing was
@@ -1885,19 +2362,27 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
  * nobody had looked at.
  *
  * **SCHEMA-NODE** — the mirror's face carries `unknown` NESTED inside an array
- * element or a property, from `SchemaNodeSchema`'s `z.ZodType< any >` annotation
- * (see `Unconstrained`, which excludes that face at the top level and one array
+ * element or a property, from a recursion-breaking `z.ZodType< any >` annotation
+ * (see `Unconstrained`, which excludes such a face at the top level and one array
  * deep but not deeper). These entries record the ANNOTATION, not an accept-set
  * gap: at runtime the lazy union does validate. ⛔ They are not defects to repair
- * one by one, and repairing one would not move this ledger — only re-annotating
- * `SchemaNodeSchema` would. They are seeded so the ratchet still covers those
- * pairs: a CONCRETE widening appearing on one of them changes its key set and
+ * one by one, and repairing one would not move this ledger — only re-annotating the
+ * const the reading comes from would. They are seeded so the ratchet still covers
+ * those pairs: a CONCRETE widening appearing on one of them changes its key set and
  * reddens the invariant.
  *
+ * ⭐ That last sentence was tested in full by objectui#7760, which re-annotated seven
+ * of the ten consts and took this class from 24 keys to 6 in one commit. ⛔ The class
+ * is therefore not a permanent residency: read it as "the instrument cannot see this
+ * key YET", and the way a key leaves it is that someone makes the face readable. The
+ * three keys that ENTERED this ledger under that card were SCHEMA-NODE readings the
+ * day before and are CONCRETE divergences today, with no mirror and no declaration
+ * touched.
+ *
  * The runtime leg at the bottom of this file is what keeps the second class from
- * silently spreading: it pins that every lazy node under the registered mirrors is
- * that one const, so a second annotated recursive mirror cannot enlarge the region
- * unnoticed.
+ * silently spreading: it pins the SOURCES — every lazy node under the registered
+ * mirrors is one of the named consts — so a new annotated recursive mirror cannot
+ * enlarge the region unnoticed.
  *
  * ## Seeded, and why that is a floor and not a waiver
  *
@@ -1932,7 +2417,9 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
  */
 interface WiderThanDeclared {
   /**
-   * CONCRETE `label` + SCHEMA-NODE `areas` / `actions`.
+   * CONCRETE `label` + SCHEMA-NODE `areas`. (`actions` left under objectui#7760: its
+   * element is a schema-node slot, and once `SchemaNodeSchema` carried its input face
+   * the key measured clean.)
 
    * `label` is the INLINE-LOCALE class: `BaseSchema`'s mirror spells the key
    * `I18nLabelSchema` — a plain string OR an inline locale map — while this
@@ -1940,9 +2427,7 @@ interface WiderThanDeclared {
    * accepts. The narrowing lives on the DECLARED side, which is why the forward
    * comparison reads the pair as clean.
    */
-  'app.zod.ts#AppComponentSchema': 'label' | 'areas' | 'actions';
-  /** SCHEMA-NODE: the element's `content` is a schema-node slot. */
-  'complex.zod.ts#CarouselSchema': 'items';
+  'app.zod.ts#AppComponentSchema': 'label' | 'areas';
   /**
    * CONCRETE, and DISJOINT rather than strictly wider — the pair also carries a
    * `KnownDrift` entry for the same key, one of the measured cases where each face
@@ -1951,18 +2436,27 @@ interface WiderThanDeclared {
    */
   'complex.zod.ts#ChatbotSchema': 'body';
   /**
-   * MIXED. `header` and `globalFilters` carry the inline-locale widening one level
-   * down (a nested `label`), `dateRange.defaultRange` is a bare string on the
-   * mirror against a closed literal set on the declaration, and `widgets` is
-   * SCHEMA-NODE. Three of the four also carry a `KnownDrift` entry.
+   * CONCRETE. `header` and `globalFilters` carry the inline-locale widening one level
+   * down (a nested `label`) and `dateRange.defaultRange` is a bare string on the
+   * mirror against a closed literal set on the declaration. All three also carry a
+   * `KnownDrift` entry.
+   *
+   * ⚠️ `widgets` was the fourth key and made this entry MIXED — the only MIXED key
+   * this ledger has held. Its verdict read "`widgets` is SCHEMA-NODE" until
+   * objectui#8252, and the three words were the whole verdict on a two-arm union: true
+   * of the widget-envelope arm, false of the component-node arm, which is concrete and
+   * whose TypeScript face was missing outright (objectui#7952, declared by PR #8296 as
+   * `c842594`). That arm was repaired there; the schema-node arm stopped reading wider
+   * under objectui#7760, when `SchemaNodeSchema` gained its input type argument — so
+   * the key measures clean and its row is gone. ⇒ The verdict that governs is still
+   * `WIDER_ARMS` below, which names one per arm; this docblock is the prose beside it
+   * and ⛔ may not be the only place a split is recorded again.
    */
-  'complex.zod.ts#DashboardComponentSchema': 'header' | 'widgets' | 'globalFilters' | 'dateRange';
+  'complex.zod.ts#DashboardComponentSchema': 'header' | 'globalFilters' | 'dateRange';
   /** CONCRETE: the element shape differs from the named declaration in both directions; also in `KnownDrift`. */
   'complex.zod.ts#FilterBuilderSchema': 'fields';
   /** CONCRETE: the mirror's operator enum and the declared operator union are not the same set; also in `KnownDrift`. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
-  /** SCHEMA-NODE. */
-  'crud.zod.ts#DetailSchema': 'groups' | 'tabs';
   /**
    * CONCRETE. `columns` compares an inline element shape against the named
    * `TableColumn`; `renderCellEditor` is the FUNCTION-SLOT class — zod 4 gives
@@ -1970,8 +2464,6 @@ interface WiderThanDeclared {
    * mirror accepts any callable where the declaration states one signature.
    */
   'data-display.zod.ts#DataTableSchema': 'columns' | 'renderCellEditor';
-  /** SCHEMA-NODE. */
-  'data-display.zod.ts#ListSchema': 'items';
   /**
    * FUNCTION-SLOT. ⚠️ Not the key objectui#5853 closed: that card was `type`,
    * the interface's literal set against a bare `z.string()` on the mirror, and it
@@ -1979,10 +2471,6 @@ interface WiderThanDeclared {
    * key and a different class.
    */
   'data-display.zod.ts#TableColumnSchema': 'cell';
-  /** SCHEMA-NODE. */
-  'data-display.zod.ts#TimelineSchema': 'events';
-  /** SCHEMA-NODE. */
-  'disclosure.zod.ts#AccordionSchema': 'items';
   /** CONCRETE and DISJOINT — the mirror admits a string, the declaration a list of dates; also in `KnownDrift`. */
   'form.zod.ts#CalendarSchema': 'defaultValue' | 'value';
   /** FUNCTION-SLOT. */
@@ -2013,36 +2501,50 @@ interface WiderThanDeclared {
    * false literal alone, so `true` parses green and `tsc` refuses it.
    */
   'layout.zod.ts#ContainerSchema': 'maxWidth';
-  /** MIXED: `aria` carries the inline-locale widening one level down; `regions` and `slots` are SCHEMA-NODE. */
-  'layout.zod.ts#PageNodeSchema': 'aria' | 'regions' | 'slots';
-  /** SCHEMA-NODE. */
-  'layout.zod.ts#ResizableSchema': 'panels';
-  /** SCHEMA-NODE. */
-  'layout.zod.ts#TabsSchema': 'items';
-  /** CONCRETE and DISJOINT — one variant spelling on each side the other refuses; also in `KnownDrift`. */
-  'navigation.zod.ts#HeaderBarSchema': 'variant';
+  /**
+   * MIXED: `aria` carries the inline-locale widening one level down; `slots` is
+   * SCHEMA-NODE. (`regions` left under objectui#7760 — its element's content is a
+   * schema-node list, so its reading WAS the annotation. `slots` did not move, so the
+   * unconstrained position on ITS path is not one of the ten consts that card filled.)
+   */
+  'layout.zod.ts#PageNodeSchema': 'aria' | 'slots';
+  /**
+   * CONCRETE. `variant` is DISJOINT — one variant spelling on each side the other
+   * refuses; also in `KnownDrift`. `logo` ENTERED under objectui#7760: the mirror is
+   * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` — the single-or-list
+   * spelling objectui#7069 called systematic — and the declaration states `logo?:
+   * string`. Both arms read now, and both are wider than a bare string, so an author
+   * may write a node here, `safeParse` returns green and `tsc` refuses it. ⛔ That card
+   * did not create the divergence: it made it MEASURABLE. `Unconstrained` had been
+   * excluding the key, because the face read `unknown` at the top level and one array
+   * deep.
+   */
+  'navigation.zod.ts#HeaderBarSchema': 'logo' | 'variant';
   /** CONCRETE, INLINE-LOCALE: both keys are `I18nLabelSchema` on the mirror and restated as plain strings on this declaration. */
   'objectql.zod.ts#ObjectGridSchema': 'label' | 'description';
-  /** SCHEMA-NODE. */
-  'objectql.zod.ts#ObjectViewSchema': 'form' | 'table';
-  /** SCHEMA-NODE. */
-  'overlay.zod.ts#MenubarSchema': 'menus';
-  /** SCHEMA-NODE. */
-  'reports.zod.ts#ReportBuilderSchema': 'report';
-  /** SCHEMA-NODE. */
-  'reports.zod.ts#ReportComponentSchema': 'sections';
-  /** SCHEMA-NODE. */
-  'reports.zod.ts#ReportSectionSchema': 'chart';
-  /** SCHEMA-NODE. */
-  'reports.zod.ts#ReportViewerSchema': 'report';
+  /**
+   * SCHEMA-NODE. (`form` left under objectui#7760; `table` did not. Both are inline
+   * `z.lazy` slots with no exported const — `UNNAMED_LAZY_SLOTS` below records them —
+   * and neither carries an annotation of its own, so what moved is what they REACH.)
+   */
+  'objectql.zod.ts#ObjectViewSchema': 'table';
+  /**
+   * CONCRETE. ENTERED under objectui#7760, unmeasurable before it: the mirror is
+   * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` and the declaration states
+   * `content?: string | SchemaNode` — the same union WITHOUT the list arm. So a list
+   * parses green here and `tsc` refuses it, while the sibling `body` on the same pair
+   * declares the list and agrees. ⭐ Two keys of one renderer read
+   * (`schema.content || renderChildren(schema.body)`), one declared narrower than its
+   * own mirror — the plainest instance of the class objectui#7069 was filed for, and it
+   * sat inside the region that card could not look at.
+   */
+  'overlay.zod.ts#TooltipSchema': 'content';
   /** CONCRETE: an inline option shape against the named `SelectOptionMetadata`. */
   'views.zod.ts#DetailViewFieldSchema': 'options';
-  /** SCHEMA-NODE. */
-  'views.zod.ts#DetailViewSchema': 'fields' | 'tabs' | 'sections';
+  /** SCHEMA-NODE. (`tabs` left under objectui#7760; `fields` and `sections` did not.) */
+  'views.zod.ts#DetailViewSchema': 'fields' | 'sections';
   /** SCHEMA-NODE. */
   'views.zod.ts#DetailViewSectionSchema': 'fields';
-  /** SCHEMA-NODE. */
-  'views.zod.ts#ViewSwitcherSchema': 'views';
 }
 
 /**
@@ -2053,6 +2555,144 @@ interface WiderThanDeclared {
  */
 export type assertionWiderLedgerKeysAreRegistered =
   Expect< Equal< Exclude< keyof WiderThanDeclared, MirrorKey >, never > >;
+
+/* ── The same ledger at ARM granularity (objectui#8252) ─────────────────────── */
+
+/**
+ * One arm of one ledgered key, classified on the axis objectui#7759 sorted on.
+ *
+ * `SCHEMA-NODE` — the arm's input face still carries an `unknown` from a
+ * recursion-breaking `z.ZodType< any >` annotation nested under it, so the WIDER
+ * reading on it is the ANNOTATION, not an accept-set gap.
+ * `CONCRETE` — everything else: the arm states a shape an author can write, so
+ * `safeParse` returns green and the declaration alone decides whether `tsc` agrees.
+ *
+ * ⚠️ The SCHEMA-NODE clause named `SchemaNodeSchema` until objectui#7760, and after
+ * that card the name would be a wrong reason attached to a right verdict: that const
+ * carries its declaration now, so an arm spelled through it is CONCRETE — which is why
+ * the three keys that ENTERED this ledger there are CONCRETE despite being schema-node
+ * slots. The six SCHEMA-NODE rows that remain each reach an annotation still standing
+ * (this file's other three consts, or one outside this package). ⛔ The class is about
+ * the READING; do not re-attach it to a const.
+ * The INLINE-LOCALE, FUNCTION-SLOT and structural sub-classes the docblocks above
+ * name are all CONCRETE here — this axis asks only whether the instrument produced
+ * the reading, and those finer names stay where they are. ⛔ OPEN-RECORD is NOT in
+ * that list and its absence is deliberate: objectui#8517's clause can read the
+ * class but no row carries it today (see the header bullet), and a sub-class named
+ * here with no docblock above naming a row is the rot this file is about.
+ */
+type WiderArmClass = 'SCHEMA-NODE' | 'CONCRETE';
+
+/**
+ * `WiderThanDeclared` at ARM granularity — one verdict per union arm of the
+ * mirror's slot, keyed `<pair>::<key>` (objectui#8252).
+ *
+ * ## The per-KEY verdict was a verdict over a per-ARM fact
+ *
+ * The ledger above records a class per ENTRY, in prose, and its clause for
+ * `complex.zod.ts#DashboardComponentSchema.widgets` was three words — "`widgets` is
+ * SCHEMA-NODE". True of the widget-envelope arm; false of the other, a
+ * `BaseSchema.extend({ type: z.enum(DASHBOARD_COMPONENT_WIDGET_TYPES) })` component
+ * node the TypeScript face was missing WHOLE, so the maintainer-ruled `metric-card`
+ * node parsed green and `tsc` refused it with no annotation an author could write
+ * (objectui#7952, ruled under objectstack#8593 and declared by PR #8296, `c842594`).
+ * ⭐ One key, two arms, and the artifact in one absorbed the real divergence in the
+ * other. objectui#7759 sorted its whole SCHEMA-NODE bucket out of its disposition
+ * lane on verdicts of that shape, which is what objectui#8252 re-judged.
+ *
+ * ## What is measured here and what is judged
+ *
+ * The ARM ENUMERATION is a MEASUREMENT — `measureMirrorArms` walks the mirror VALUE,
+ * for the same reason the blind-region leg at the bottom of this file is at runtime:
+ * at the type level every unconstrained face looks alike. The per-arm VERDICT is a
+ * judgement, and this table is where it lives so that three things can be pinned
+ * that prose could not carry: every ledgered key names one verdict PER MEASURED ARM
+ * (a mirror that grows an arm reddens until someone judges it), the row set is
+ * exactly the ledger's key set, and objectui#7952's key cannot collapse back to a
+ * single verdict.
+ *
+ * ⛔ The verdicts are NOT derived. At runtime BOTH of `widgets`' arms reach
+ * `SchemaNodeSchema` — the component arm through `BaseSchema`'s own `body` /
+ * `children` slots — so "reaches a lazy node" separates neither arm from the other
+ * and would classify every component-node arm in this repo as an artifact.
+ * ⚠️ objectui#7952 describes that arm as having "no schema-node recursion in it at
+ * all"; measured, it has, through the base. Its conclusion survives the correction,
+ * because what makes the arm CONCRETE is its own `type` enum and passthrough shape,
+ * not the absence of the artifact underneath it.
+ *
+ * ## The census objectui#8252 ran, on `c842594`
+ *
+ * Every key in the ledger, arms enumerated from the mirror and judged. Most keys are
+ * single-arm, and for those the arm verdict IS the key verdict — a single-arm key
+ * has no sibling to hide behind, which is the entire mechanism, so they are recorded
+ * rather than reasoned about. Of the keys that ARE unions, exactly one sits in the
+ * SCHEMA-NODE bucket and it is objectui#7952's own; the rest were already CONCRETE
+ * in objectui#7759's lane, arm by arm, so nothing was re-filed. ⇒ Measured, the
+ * shape does not recur. The header bullet carries the figures and they are pinned.
+ *
+ * ⚠️ Two bounds, stated because a census that does not state them reads as wider
+ * than it is. It looked ONE LEVEL DOWN as well — each arm's own shape properties,
+ * for a union mixing a schema-node arm with a concrete one — and found none. It does
+ * ⛔ NOT answer whether a single-arm SCHEMA-NODE key's reading has a SECOND, concrete
+ * cause underneath the artifact: that is a different mechanism from hiding behind a
+ * sibling, and it needs a two-face comparison per key rather than an arm count.
+ */
+/**
+ * The separator between a row's pair and its key.
+ *
+ * ⚠️ `::` and ⛔ not the `.` that `UNNAMED_LAZY_SLOTS` below uses for the same
+ * pair-and-key shape. Measured while objectui#8252 landed: a dotted row for
+ * `app.zod.ts#AppComponentSchema`'s handler-array key spells a PROPERTY READ of
+ * that key, in a file that already names `AppComponentSchema` — which is anchor A
+ * of the reader census in `handler-keys-string-any-mirrors-7344.test.ts`. That
+ * census then reads this file as a THIRD reader of a key whose reader set it pins
+ * at one file, and fails, correctly and on its own terms. The two repairs are not
+ * equal: adding this file to that census's prose allow-list would blunt it here
+ * permanently, so the separator moved instead. ⛔ Do not "unify" it with the dotted
+ * spelling — `UNNAMED_LAZY_SLOTS` happens to name no key that any census anchors
+ * on, which is the only reason the collision is one-sided rather than absent.
+ * ⛔ And do not spell the colliding key literally in this docblock: doing so
+ * reproduces the very match this separator exists to avoid (it did, once).
+ */
+const WIDER_ARM_ROW_SEPARATOR = '::';
+
+const WIDER_ARMS: Readonly< Record< string, readonly WiderArmClass[] > > = {
+  'app.zod.ts#AppComponentSchema::label': ['CONCRETE', 'CONCRETE'],
+  'app.zod.ts#AppComponentSchema::areas': ['SCHEMA-NODE'],
+  'complex.zod.ts#ChatbotSchema::body': ['CONCRETE'],
+  'complex.zod.ts#DashboardComponentSchema::header': ['CONCRETE'],
+  'complex.zod.ts#DashboardComponentSchema::globalFilters': ['CONCRETE'],
+  'complex.zod.ts#DashboardComponentSchema::dateRange': ['CONCRETE'],
+  'complex.zod.ts#FilterBuilderSchema::fields': ['CONCRETE'],
+  'complex.zod.ts#FilterFieldSchema::operators': ['CONCRETE'],
+  'data-display.zod.ts#DataTableSchema::columns': ['CONCRETE'],
+  'data-display.zod.ts#DataTableSchema::renderCellEditor': ['CONCRETE'],
+  'data-display.zod.ts#TableColumnSchema::cell': ['CONCRETE'],
+  'form.zod.ts#CalendarSchema::defaultValue': ['CONCRETE', 'CONCRETE'],
+  'form.zod.ts#CalendarSchema::value': ['CONCRETE', 'CONCRETE'],
+  'form.zod.ts#FieldConditionSchema::custom': ['CONCRETE'],
+  'form.zod.ts#FieldConstraintsSchema::validate': ['CONCRETE'],
+  'form.zod.ts#FormFieldSchema::validation': ['CONCRETE'],
+  'form.zod.ts#FormFieldSchema::condition': ['CONCRETE'],
+  'form.zod.ts#FormSchema::layout': ['CONCRETE'],
+  'form.zod.ts#FormSchema::fields': ['CONCRETE'],
+  'form.zod.ts#FormSchema::mode': ['CONCRETE'],
+  'form.zod.ts#SliderSchema::defaultValue': ['CONCRETE', 'CONCRETE'],
+  'form.zod.ts#SliderSchema::value': ['CONCRETE', 'CONCRETE'],
+  'layout.zod.ts#ContainerSchema::maxWidth': ['CONCRETE', 'CONCRETE'],
+  'layout.zod.ts#PageNodeSchema::aria': ['CONCRETE'],
+  'layout.zod.ts#PageNodeSchema::slots': ['SCHEMA-NODE'],
+  'navigation.zod.ts#HeaderBarSchema::logo': ['CONCRETE', 'CONCRETE'],
+  'navigation.zod.ts#HeaderBarSchema::variant': ['CONCRETE'],
+  'objectql.zod.ts#ObjectGridSchema::label': ['CONCRETE', 'CONCRETE'],
+  'objectql.zod.ts#ObjectGridSchema::description': ['CONCRETE', 'CONCRETE'],
+  'objectql.zod.ts#ObjectViewSchema::table': ['SCHEMA-NODE'],
+  'overlay.zod.ts#TooltipSchema::content': ['CONCRETE', 'CONCRETE'],
+  'views.zod.ts#DetailViewFieldSchema::options': ['CONCRETE'],
+  'views.zod.ts#DetailViewSchema::fields': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewSchema::sections': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewSectionSchema::fields': ['SCHEMA-NODE'],
+};
 
 /* ── The invariant ──────────────────────────────────────────────────────────── */
 
@@ -2298,13 +2938,13 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'app.zod.ts#NavigationItemTypeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'app.zod.ts#NavigationItemSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration. One of the three consts that REFUSED the objectui#7760 type argument (the mirror accepts more than the declaration states), so this reason is still literally true here",
   'app.zod.ts#MenuItemSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'app.zod.ts#AppContextSelectorSchema':
     "spec-owned BY REFERENCE — the local `.extend(…)` adds renderer props that no TS declaration in this package restates",
   'base.zod.ts#SchemaNodeSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'base.zod.ts#ComponentInputControlTypeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'base.zod.ts#HTMLAttributesSchema':
@@ -2318,9 +2958,9 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'complex.zod.ts#FilterOperatorSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'complex.zod.ts#FilterBuilderConditionSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration. One of the three consts that REFUSED the objectui#7760 type argument (the mirror accepts more than the declaration states), so this reason is still literally true here",
   'complex.zod.ts#FilterGroupSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration. One of the three consts that REFUSED the objectui#7760 type argument (the mirror accepts more than the declaration states), so this reason is still literally true here",
   'complex.zod.ts#GlobalFilterSchema':
     "no TS declaration in this package restates it — there is no second definition to drift from",
   'complex.zod.ts#ComplexSchema':
@@ -2328,11 +2968,11 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'crud.zod.ts#ActionExecutionModeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'crud.zod.ts#ActionSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'crud.zod.ts#CRUDComponentSchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'data-display.zod.ts#TreeNodeSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'data-display.zod.ts#ChartTypeSchema':
     "spec-owned BY REFERENCE — the local `.extend(…)` adds renderer props that no TS declaration in this package restates",
   'data-display.zod.ts#DataDisplaySchema':
@@ -2352,9 +2992,9 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'layout.zod.ts#LayoutSchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'navigation.zod.ts#NavLinkSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'navigation.zod.ts#NavigationMenuItemSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'navigation.zod.ts#NavigationSchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'objectql.zod.ts#HttpMethodSchema':
@@ -2376,7 +3016,7 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
   'objectql.zod.ts#ObjectQLComponentSchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'overlay.zod.ts#MenuItemSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
+    "recursive; a `z.lazy` exposes no `.shape` to read, so there is no key set for the per-key comparison. Since objectui#7760 it carries its TS declaration as BOTH type arguments, so the pair IS compared — as a whole type, by `tsc`, at the annotation itself",
   'overlay.zod.ts#OverlaySchema':
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'reports.zod.ts#ReportExportFormatSchema':
@@ -2450,6 +3090,10 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
   'layout.zod.ts#PageNodeSchema',
   'objectql.zod.ts#ObjectGallerySchema',
   'objectql.zod.ts#ObjectGanttSchema',
+  // objectui#7762: `exportOptions` is the spec's OBJECT ARM by reference — peeled out of
+  // `SpecListViewSchema.shape.exportOptions` (the two-arm union) so the bare-array arm,
+  // which LIFTS, is left behind and refused by name on this node instead.
+  'objectql.zod.ts#ObjectGridSchema',
   'objectql.zod.ts#ObjectMapSchema',
   // objectui#7779: BACK, by a real code reference this time — `navigation`,
   // `searchableFields` and `filterableFields` are `SpecListViewSchema.shape.*`
@@ -2477,6 +3121,14 @@ const ZOD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'zod');
  */
 const EXPECTED_MIRROR_PAIRS = 158;
 
+/**
+ * A ledger this file can size from its own AST. `WiderThanDeclared` joined at
+ * objectui#8252 — one union arm, no new code, the way `KnownDrift` joined at
+ * objectui#8222 — so the fifth ledger is sized by the SAME instrument as the other
+ * four rather than by a second definition of the word "key".
+ */
+type LedgerName = 'KnownDrift' | 'RuntimeOnlyDeclared' | 'UnmirroredDeclared' | 'WiderThanDeclared';
+
 /** This file, so the census can read its own type-level ledgers. */
 const SELF = fileURLToPath(import.meta.url);
 
@@ -2491,7 +3143,7 @@ let selfAst: ts.SourceFile | undefined;
  * instrument rather than a second one, and it is a MEASUREMENT: an entry added or
  * removed moves it with no list to maintain, which is the whole point of the card.
  */
-function ledgerEntryKeys(ledger: 'KnownDrift' | 'RuntimeOnlyDeclared' | 'UnmirroredDeclared'): string[] {
+function ledgerEntryKeys(ledger: LedgerName): string[] {
   selfAst ??= ts.createSourceFile(
     SELF, readFileSync(SELF, 'utf8'), ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS,
   );
@@ -2773,7 +3425,7 @@ this derivation subtracts from the pinned population, so it fails as a consequen
  * authoritative, and a `KnownDrift` reading of 63 is a reading rather than a second
  * definition of the word "key".
  */
-function ledgerEntryMembers(ledger: 'KnownDrift' | 'RuntimeOnlyDeclared' | 'UnmirroredDeclared'): Map<string, string[]> {
+function ledgerEntryMembers(ledger: LedgerName): Map<string, string[]> {
   selfAst ??= ts.createSourceFile(
     SELF, readFileSync(SELF, 'utf8'), ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS,
   );
@@ -3039,12 +3691,24 @@ sentence fails there instead — and that is route 1, which objectui#6141 predic
 objectui#7433 measured recurring four more times, and objectui#8222 was filed to stop
 being taken for the key totals specifically.
 
-⚠️ ONE live figure in the header is deliberately NOT here: the seed decomposition
+⚠️ ONE figure in the header is deliberately NOT here: the seed decomposition
 under \`UnmirroredDeclared\` ("what 121 used to mean"). It needs each key's PROVENANCE
 and no ledger in this file records that, so nothing here can derive it. It is
 excluded in writing where it stands, which is the other half of objectui#8222 — every
 live figure in that header is pinned or excluded with its reason, and ⛔ a new one
-that is neither should not be added.`)
+that is neither should not be added.
+
+⚠️ AMENDED (objectui#8248; maintainer ruling, decision batch #71). This note called
+that figure LIVE, which it was on the day the note was written. It is not one now:
+objectui#8243 rewrote the deferred-to statement as a reading at NAMED REVISIONS, and a
+statement anchored that way is HISTORICAL — nothing landing later can make it false.
+So it carries none of a live figure's obligations, and the action the word "live"
+sends you off to do — pin it, or exclude it afresh — is the WRONG one for a
+historical reading. ⛔ Only that word moved. The clauses above are this note's
+MEASUREMENT record — the header carries no copy of the decomposition, and no ledger
+here records key provenance so nothing here can derive it — and they are untouched,
+still exactly right, and ⛔ not rewritable by a later card. The rule that separates
+the two is stated ONCE, in this file's header.`)
       .toEqual({
         knownDriftKeys: keyTotal('KnownDrift'),
         runtimeOnlyKeys: keyTotal('RuntimeOnlyDeclared'),
@@ -3163,10 +3827,14 @@ stale copy survives beside a corrected one, which is the shape objectui#8243 rec
     //
     // ⚠️ objectui#8222's own exclusion note calls that deferred-to statement a LIVE
     // figure, which it was when the note was written. It is not one any more — read it
-    // as the historical reading described below. That note is left exactly as it
-    // stands: it is an assertion message objectui#8243 has no business editing, and
+    // as the historical reading described below. That note was left exactly as it
+    // stood: it is an assertion message objectui#8243 has no business editing, and
     // what it says about the FILE HEADER (no copy there, and none to be added back)
-    // is unchanged.
+    // is unchanged. ⭐ objectui#8248 later amended the one stale WORD in it, under the
+    // maintainer ruling now written in this file's header: a clause that RECORDS a
+    // measurement is never rewritten, a clause that GIVES GUIDANCE is live and must be
+    // amended when the world moves. The record clauses this comment names are still
+    // byte-identical there; ⛔ that ruling is not licence to edit them.
     //
     // ⭐ objectui#8243 took neither route. The statement was rewritten as a reading at
     // NAMED REVISIONS — 98 keys at `beccf1c6b`, of which 85 survive and 13 have left at
@@ -3365,7 +4033,15 @@ function measureReachableLazyNodes(): Map<unknown, string> {
  * `unknown`, and that face has ONE producing spelling: a recursive mirror annotated
  * `z.ZodType< any >` to break the cycle in its own `z.lazy`, which zod 4 reads as an
  * `unknown` INPUT parameter. So the exclusion is only as bounded as that population
- * is — and the population is exactly what the type level cannot report. At the type
+ * is — and the population is exactly what the type level cannot report.
+ *
+ * ⚠️ Seven of the ten below no longer PRODUCE that face: objectui#7760 gave them their
+ * TypeScript declaration as both type arguments, so their slots are measured now. They
+ * stay in this list unchanged, and the list's name is still right, because what this
+ * leg pins is the set of RECURSION-BREAKING SOURCES — every lazy node reachable from a
+ * registered mirror — not the set of erased faces. A `z.lazy` is what the walk can see;
+ * an annotation is not. ⇒ A future card that fills the remaining three ⛔ still may not
+ * shorten this list: it would stop being able to detect the eleventh. At the type
  * level every unconstrained face looks alike, so a NEW recursive mirror enlarges
  * the blind region without changing one character the compiler reads. At runtime
  * the mirrors are values and the lazy nodes are reachable, so the region can be
@@ -3432,5 +4108,261 @@ describe('the blind region of the wider direction is bounded (objectui#7069)', (
     const live = new Set(measureReachableLazyNodes().keys());
     const dead = RECURSION_BREAKING_MIRRORS.filter(([, schema]) => !live.has(schema)).map(([name]) => name);
     expect(dead).toEqual([]);
+  });
+});
+
+/* ── Per-ARM granularity: the derivation and its pins (objectui#8252) ────────── */
+
+/**
+ * Wrappers that carry no arm of their own. Unwrapping them is what makes
+ * `widgets` — `z.array(z.union([...]))` — read as a two-arm key rather than a
+ * one-arm array, which is the shape objectui#7952 measured and the reason the
+ * enumeration cannot simply read `def.options` off the slot.
+ */
+const ARMLESS_WRAPPERS: readonly string[] = [
+  'optional', 'nullable', 'default', 'prefault', 'catch', 'readonly', 'nonoptional',
+];
+
+/**
+ * The union arms of one mirror slot, measured from the mirror VALUE.
+ *
+ * `undefined` when the pair has no such slot — a ledger key that does not exist on
+ * its mirror. That is a hard failure below rather than a skipped row: a row read as
+ * "no arms" would satisfy nothing and pass everything.
+ */
+function measureMirrorArms(pair: MirrorKey, key: string): unknown[] | undefined {
+  const shape = defOf(MIRRORS[pair])?.shape as Record<string, unknown> | undefined;
+  const slot = shape?.[key];
+  if (slot === undefined) return undefined;
+  const unwrap = (node: unknown): unknown => {
+    const def = defOf(node);
+    if (!def) return node;
+    const type = def.type as string;
+    if (ARMLESS_WRAPPERS.includes(type)) return unwrap(def.innerType);
+    if (type === 'array') return unwrap(def.element);
+    if (type === 'pipe') return unwrap(def.in);
+    return node;
+  };
+  const node = unwrap(slot);
+  const def = defOf(node);
+  return def?.type === 'union' ? (def.options as unknown[]) : [node];
+}
+
+/** The arm ledger's rows, split back into the pair and key they judge. */
+function widerArmRows(): { row: string; pair: MirrorKey; key: string; arms: readonly WiderArmClass[] }[] {
+  return Object.entries(WIDER_ARMS).map(([row, arms]) => {
+    const cut = row.lastIndexOf(WIDER_ARM_ROW_SEPARATOR);
+    return {
+      row,
+      pair: row.slice(0, cut) as MirrorKey,
+      key: row.slice(cut + WIDER_ARM_ROW_SEPARATOR.length),
+      arms,
+    };
+  });
+}
+
+/** A key's class, DERIVED from its arm verdicts — never stored beside them. */
+const widerKeyClass = (arms: readonly WiderArmClass[]): 'SCHEMA-NODE' | 'CONCRETE' | 'MIXED' =>
+  arms.every((arm) => arm === 'SCHEMA-NODE') ? 'SCHEMA-NODE'
+    : arms.every((arm) => arm === 'CONCRETE') ? 'CONCRETE' : 'MIXED';
+
+describe('the WIDER ledger is judged per ARM, not per key (objectui#8252)', () => {
+  it('the enumeration can tell a union slot from a plain one (non-vacuity)', () => {
+    // Both directions, because both failure modes are silent. An unwrapper that
+    // stopped at `z.array` would report ONE arm for every key and every arity row
+    // below would pass while measuring nothing; one that walked into object shapes
+    // would report many arms everywhere and the ledger would be rewritten to match
+    // an instrument rather than the mirrors. Neither is visible from the arity pin.
+    const measured = widerArmRows().map(({ pair, key }) => measureMirrorArms(pair, key)?.length);
+    expect(measured.filter((n) => n === 1).length).toBeGreaterThan(0);
+    expect(measured.filter((n) => n !== undefined && n > 1).length).toBeGreaterThan(0);
+  });
+
+  it('every ledgered key has exactly one arm row, and every row a ledgered key', () => {
+    // The coverage both ways, and the answer to "a key with no union arms still
+    // needs a verdict": there is no third state. A single-arm key is a one-verdict
+    // row, not an absence — so it lands in the new granularity instead of falling
+    // through the per-arm framing the way it fell through the per-entry prose.
+    const ledgered = [...ledgerEntryMembers('WiderThanDeclared')]
+      .flatMap(([pair, keys]) => keys.map((key) => `${pair}${WIDER_ARM_ROW_SEPARATOR}${key}`));
+    expect(Object.keys(WIDER_ARMS).sort(), `
+WIDER_ARMS and WiderThanDeclared disagree about which keys exist.
+
+  * a key entered or left the type-level ledger => add or remove its arm row, with a
+    verdict per arm measured by measureMirrorArms(). ⛔ Never delete a row to make
+    this green: the ledger above is pinned against the mirrors themselves, so a key
+    removed there for the wrong reason fails at assertionWiderMatchesLedger.
+  * a row is misspelled => the pair half is checked by
+    assertionWiderLedgerKeysAreRegistered, the key half only here.`)
+      .toEqual([...ledgered].sort());
+  });
+
+  it('every row names one verdict per MEASURED arm', () => {
+    // ⭐ The pin objectui#8252 exists for. A MIXED key can no longer be filed
+    // SCHEMA-NODE wholesale, because "wholesale" has no spelling left: the row must
+    // hold as many verdicts as the mirror has arms, and a mirror that GROWS an arm
+    // reddens here until someone judges the new one. That is the event that produced
+    // objectui#7952 — the component arm was added to the mirror under
+    // objectstack#8593 and the key's one-word class never moved.
+    const wrong = widerArmRows()
+      .map(({ row, pair, key, arms }) => ({ row, judged: arms.length, measured: measureMirrorArms(pair, key)?.length }))
+      .filter(({ judged, measured }) => judged !== measured);
+    expect(wrong, `
+An arm row does not name one verdict per arm of its mirror slot.
+
+  * measured LARGER => the mirror grew an arm. Judge it: SCHEMA-NODE only if the
+    arm IS the recursion-breaking slot, CONCRETE if it states a shape an author can
+    write. If it is CONCRETE and the TypeScript face lacks it, that is a real
+    divergence — objectui#7759's lane, or its own card when it carries a ruling.
+  * measured SMALLER => an arm left. Drop its verdict.
+  * measured UNDEFINED => the key is not on the mirror at all.`)
+      .toEqual([]);
+  });
+
+  it('a concrete arm cannot hide behind a schema-node sibling (objectui#7952)', () => {
+    // The positive control for the collapse that IS the defect: a concrete arm filed
+    // under its sibling's verdict. The arity pin above cannot catch it —
+    // ['SCHEMA-NODE', 'SCHEMA-NODE'] has the right length — so the shape is pinned
+    // here.
+    //
+    // ⚠️ It was pinned on objectui#7952's own row, `DashboardComponentSchema::widgets`,
+    // until objectui#7760. That row is GONE: its concrete arm was declared by PR #8296
+    // and its schema-node arm stopped reading wider once `SchemaNodeSchema` carried its
+    // input type argument, so the key measures clean and left this ledger. ⛔ Do not
+    // re-point this at whichever row happens to be MIXED today — there is none, and a
+    // control that has to be re-aimed every time the ledger moves is a control that
+    // will one day be deleted instead. The derivation is the invariant, so the
+    // derivation is what is asserted: a mixed pair of verdicts must NOT reduce to
+    // either of its members.
+    expect(widerKeyClass(['CONCRETE', 'SCHEMA-NODE'])).toBe('MIXED');
+    expect(widerKeyClass(['SCHEMA-NODE', 'CONCRETE'])).toBe('MIXED');
+    expect(widerKeyClass(['SCHEMA-NODE', 'SCHEMA-NODE'])).toBe('SCHEMA-NODE');
+    expect(widerKeyClass(['CONCRETE', 'CONCRETE'])).toBe('CONCRETE');
+    // …and no live row is MIXED today, which is the fact the header's `0` records.
+    expect(widerArmRows().filter(({ arms }) => widerKeyClass(arms) === 'MIXED')).toEqual([]);
+  });
+});
+
+describe("the WIDER ledger's header figures are derived from its ARMS (objectui#8252)", () => {
+  it('every figure the header writes down for WiderThanDeclared equals the ledger and the mirrors', () => {
+    // objectui#7733 pinned three ledgers' entry counts and objectui#8222 their key
+    // totals; both blocks name the ledgers they reach, and `WiderThanDeclared` was in
+    // neither — it had no figure in the header at all. That is why "27 SCHEMA-NODE
+    // keys" could be quoted by objectui#7759, inherited by objectui#8252's card body,
+    // and be two out by the time anyone re-derived it, with this file green
+    // throughout. ⛔ Do not fold this block into either of those: it fails for a
+    // different movement (an ARM appearing under an existing key moves nothing they
+    // read) and it is the only one that reaches the mirrors as well as the ledger.
+    const rows = widerArmRows();
+    const classes = rows.map(({ arms }) => widerKeyClass(arms));
+
+    const [entries, keys, arms] = headerFigures(
+      /\*\*(\d+) entries\*\* in `WiderThanDeclared`, \*\*(\d+) keys\*\* across them, and \*\*(\d+) arms\*\*/,
+    );
+    const [schemaNode, concrete, mixed, unions] = headerFigures(
+      /split \*\*(\d+)\*\* SCHEMA-NODE, \*\*(\d+)\*\* CONCRETE, \*\*(\d+)\*\* MIXED, \*\*(\d+)\*\* unions/,
+    );
+
+    expect({ entries, keys, arms, schemaNode, concrete, mixed, unions }).toEqual({
+      entries: ledgerEntryKeys('WiderThanDeclared').length,
+      keys: rows.length,
+      arms: rows.reduce((n, { arms: judged }) => n + judged.length, 0),
+      schemaNode: classes.filter((c) => c === 'SCHEMA-NODE').length,
+      concrete: classes.filter((c) => c === 'CONCRETE').length,
+      mixed: classes.filter((c) => c === 'MIXED').length,
+      // Read off the MIRRORS, not off the ledger: the one figure here that fails when
+      // a mirror moves and the ledger does not.
+      unions: rows.filter(({ pair, key }) => (measureMirrorArms(pair, key)?.length ?? 0) > 1).length,
+    });
+  });
+});
+
+/* ── The objectui#7760 MOVEMENT figures reconcile with themselves (objectui#8458) ── */
+
+describe("the objectui#7760 movement figures reconcile with themselves (objectui#8458)", () => {
+  it('the pairs that move touched equal its emptied entries plus its reduced ones', () => {
+    // The one figure in that paragraph no instrument reached. Its neighbours — the
+    // ledger's entry / key / arm totals either side of the move and the arm split —
+    // are pinned by the blocks above and all moved correctly with objectui#7760;
+    // `16 pairs` sat between them unpinned, and a reader cannot tell by looking which
+    // digits in a checked paragraph are the checked ones. That is the whole shape:
+    // the header's authority rests on the others being derived, so an unwatched digit
+    // inherits an authority nothing gave it.
+    //
+    // ⛔ This is a HISTORICAL reading and nothing here may compare it to the live
+    // ledger. `WiderThanDeclared` today is NEITHER of the two trees the sentence
+    // describes (objectui#8338 moved it again afterwards), and the moment a figure
+    // here is derived from it the statement is live, rots on the next ledger move, and
+    // costs a hand re-derivation at every future repair — which is exactly what
+    // objectui#8243 removed for the seed decomposition. What IS checked is the
+    // statement's INTERNAL arithmetic, so a digit "refreshed" by hand — the way `16`
+    // got here — is red.
+    //
+    // ⭐ Re-derived, not inherited. objectui#8458's card carried the figure 18 from a
+    // contract reviewer and said in as many words not to adopt it, because adopting an
+    // unchecked figure is the defect the card is about. It was measured again by
+    // running THIS FILE'S `ledgerEntryMembers('WiderThanDeclared')` — the same
+    // instrument the pins above use, sliced out of the file rather than retyped — over
+    // the file at `645ecb98c` and at `a480f797a` (PR #8354's parent and its merge) and
+    // diffing entry -> key pairs: 19 rows left and 3 entered, across 18 distinct
+    // entries of which 13 lost their whole content and 5 kept keys. Both movements
+    // close against figures ALREADY pinned at those two revisions — 52 - 19 + 3 = 36
+    // keys and 34 - 13 + 2 = 23 entries — so the reading is anchored on both sides
+    // instead of asserted. The 5 reduced entries are `AppComponentSchema`,
+    // `DashboardComponentSchema`, `PageNodeSchema`, `ObjectViewSchema` and
+    // `DetailViewSchema`.
+    //
+    // ⚠️ The DEFINITION is the other half of this pin and it lives in the prose beside
+    // the figure: "pairs" counts every entry the move TOUCHED, not the emptied subset.
+    // ⛔ Do not write the figure back as a bare digit — `16` was wrong under BOTH
+    // readings (13 emptied, 18 touched), and a number with no definition forks again.
+    const [keysLeft, pairsTouched] = headerFigures(/(\d+) keys across \*\*(\d+)\*\* pairs LEFT/);
+    const [emptied, reduced, decomposed] = headerFigures(/\*\*(\d+) emptied \+ (\d+) reduced = (\d+)\*\*/);
+
+    expect({
+      decomposition: emptied + reduced,
+      restatedTotal: decomposed,
+      everyTouchedPairLostAKey: pairsTouched <= keysLeft,
+    }, `
+The objectui#7760 movement sentence no longer adds up.
+
+Every figure in it is a reading of two FIXED trees (\`645ecb98c\` and \`a480f797a\`), so
+none of them moves when the ledger moves. If you got here:
+
+  * you "refreshed" one of them to chase a ledger movement => put it back. The current
+    ledger is neither of those trees, and the live figures for it are the entry / key /
+    arm totals at the top of that bullet, pinned by the objectui#8252 block above.
+
+  * you re-derived the movement and got different numbers => that is a FINDING, not a
+    prose edit. The two commits are fixed, so a different reading means the INSTRUMENT
+    changed, not the history. Re-run \`ledgerEntryMembers('WiderThanDeclared')\` against
+    the file at both revisions and diff entry -> key pairs before touching a digit.
+
+  * you reworded the sentence => the spellings this pin reads are
+    \`N keys across **M** pairs LEFT\` and \`**E emptied + R reduced = M**\`, each exactly
+    once. A reword that drops one is red here rather than quietly unpinned, which is
+    the objectui#7733 principle; ⛔ do not "fix" it by deleting the pin.
+
+⛔ Never reconcile this by pointing a figure at the live ledger. That reintroduces the
+hand re-derivation on every future repair (objectui#8243), and it cannot be pinned
+that way anyway: no ledger in this file records what it held at a past revision.`)
+      .toEqual({
+        decomposition: pairsTouched,
+        restatedTotal: pairsTouched,
+        everyTouchedPairLostAKey: true,
+      });
+
+    // Non-vacuity: a spelling that matched something other than the reading — or an
+    // all-zero rewrite — would satisfy `0 + 0 = 0` while stating nothing. Each leg is
+    // a fact about the movement, not about the reader.
+    for (const [name, value] of Object.entries({ keysLeft, pairsTouched, emptied, reduced })) {
+      expect(value, `the historical movement figure ${name} read as 0 — the spelling matched something that is not the reading`)
+        .toBeGreaterThan(0);
+    }
+    // Both halves of the decomposition are non-empty: a move with no reduced entries
+    // would make "pairs" and "emptied" the same quantity, and the ambiguity that
+    // produced objectui#8458 could not be seen from the sentence.
+    expect(reduced, 'the reduced half read as 0 — then "pairs" and "emptied" state one quantity twice')
+      .toBeGreaterThan(0);
   });
 });

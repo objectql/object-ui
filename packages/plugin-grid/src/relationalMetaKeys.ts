@@ -369,7 +369,12 @@ export const RELATIONAL_META_READ_SET: Readonly<Record<string, RelationalMetaEnt
   // ── Read on this path, no producer ──────────────────────────────────────
   allow_create: { verdict: 'no-producer', readers: LOOKUP_EDITOR_ONLY, note: 'Runtime twin of `allowCreate`. Not on FieldSchema.' },
   lookup_page_size: { verdict: 'no-producer', readers: LOOKUP_EDITOR_ONLY, note: 'Runtime twin of `lookupPageSize`. Not on FieldSchema.' },
-  depends_on: { verdict: 'no-producer', readers: LOOKUP_EDITOR_ONLY, note: 'Runtime twin of `dependsOn`. Not on FieldSchema.' },
+  // ⭐ objectui#7357 removed the `depends_on` row. It is NOT a verdict change:
+  // the key left this table because `LookupField` stopped reading it — the
+  // snake_case twin was retired under ADR-0049 enforce-or-remove — and a row
+  // here states that a swept consumer reads the key. Keeping it would have made
+  // the derivation test's own orphan check the thing that failed, and widening
+  // the extractor to keep it alive would have asserted a read that is gone.
   picker: { verdict: 'no-producer', readers: BOTH_EDITORS, note: 'PeoplePicker variant opt-in. Not on FieldSchema.' },
   subtitle: { verdict: 'no-producer', readers: BOTH_EDITORS, note: 'PeoplePicker subtitle fields. Not on FieldSchema.' },
   avatarField: { verdict: 'no-producer', readers: BOTH_EDITORS, note: 'PeoplePicker avatar field. Not on FieldSchema.' },

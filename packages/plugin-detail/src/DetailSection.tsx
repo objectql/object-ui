@@ -17,6 +17,7 @@ import {
   CollapsibleTrigger, 
   CollapsibleContent,
   Button,
+  EmptyValue,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -35,10 +36,12 @@ import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { InlineFieldInput } from './InlineFieldInput';
 import { headerColorClass } from './headerColor';
+import { hasCellValue } from './emptiness';
 import {
   enrichDetailField,
   isComputedFieldType,
   isInlineExcludedDetailFieldType,
+  isMaskedDetailFieldType,
 } from './fieldEnrichment';
 
 /**
@@ -152,18 +155,74 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
    */
   const serverFieldErrors = useInlineEdit()?.fieldErrors ?? null;
 
+  /**
+   * What the copy affordance WRITES (objectui#8395).
+   *
+   * `String(value)` on an object is the literal text `[object Object]`, so
+   * every object-valued cell — address, geolocation, JSON, file, expanded
+   * lookup, repeater — silently put a placeholder on the clipboard, while the
+   * cell BESIDE the button rendered that same value correctly. Objects are
+   * serialized as JSON here instead: lossless, parseable, never
+   * `[object Object]`.
+   *
+   * ## The JSON blob is a DEFENSIBLE DEFAULT, NOT A SETTLED CONTRACT
+   *
+   * What an object cell *should* put on the clipboard is a product question
+   * with several defensible answers per kind — the formatted postal address
+   * the reader can see, `lat, lng` for a geolocation, a filename for a file,
+   * the option labels or the stored values for a multiselect. That contract is
+   * objectui#8395's OPTION B (a shared value-to-text formatter that REUSES the
+   * cell renderers' own formatters — `formatAddress`, objectui#4037 — rather
+   * than re-spelling them), and it is a SEPARATE, still-unspecified card.
+   * ⛔ Do not read this line as the answer to it.
+   *
+   * ## Two shapes were measured and REJECTED — do not reach for them
+   *
+   * Copying the cell's RENDERED text is the worse contract for 9 of 17 field
+   * types and loses data silently: `date` renders `Mar 4` (the year is gone),
+   * `percent` renders `12%` against a stored `0.123` (a different quantity),
+   * `datetime` concatenates to an unparseable `3/4/20265:06 am`, and `image`
+   * and `boolean` render no text at all — so it would copy the empty string,
+   * which is strictly worse than the defect it set out to fix. And withdrawing
+   * the affordance from text-less cells would narrow `canCopy` away from
+   * `hasCellValue`, whose three readers MUST agree (see its docblock above).
+   *
+   * ## The non-regression half
+   *
+   * Non-objects keep `String(value)` BYTE-FOR-BYTE: a number still copies
+   * `16`, never the rendered `16.00`; a select still copies its stored `won`,
+   * never the rendered `Closed Won`. Pinned per kind — both halves — in
+   * `__tests__/DetailSection.copyObjectValues-8395.test.tsx`.
+   */
   const handleCopyField = React.useCallback((fieldName: string, value: any) => {
-    const textValue = value !== null && value !== undefined ? String(value) : '';
+    let textValue: string;
+    if (value === null || value === undefined) {
+      textValue = '';
+    } else if (typeof value === 'object') {
+      // The same guard `JsonCellRenderer` already applies to this exact
+      // operation on this exact value: a structure `JSON.stringify` cannot
+      // represent (a cycle) keeps today's string form rather than throwing out
+      // of a click handler, and the row stays consistent with its own cell.
+      try {
+        textValue = JSON.stringify(value);
+      } catch {
+        textValue = String(value);
+      }
+    } else {
+      textValue = String(value);
+    }
     navigator.clipboard.writeText(textValue).then(() => {
       setCopiedField(fieldName);
       setTimeout(() => setCopiedField(null), 2000);
     });
   }, []);
 
-  // Identify empty fields once for both filtering and the toggle counter.
+  // Identify empty fields once for both filtering and the toggle counter —
+  // through `hasCellValue` in `./emptiness`, the ONE definition this file
+  // shares with the em-dash affordance, the copy affordance (objectui#8376)
+  // and, since objectui#8394, every other band of the record page.
   const isEmptyValue = React.useCallback((field: DetailViewField) => {
-    const value = data?.[field.name] ?? field.value;
-    return value === null || value === undefined || value === '';
+    return !hasCellValue(data?.[field.name] ?? field.value);
   }, [data]);
 
   const emptyCount = React.useMemo(
@@ -266,6 +325,12 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     // The container family rode the same fallback with an object-shaped value.
     // Read as the same narrow-only UNION as `isComputedFieldType` (#3355).
     const isInlineExcluded = isInlineExcludedDetailFieldType(field.type, objectDefField?.type);
+    // Types whose CELL is drawn as a mask (`password` / `secret`). Read the two
+    // types SEPARATELY for the same narrow-only union as the gates above
+    // (objectui#3355). Consumed by the copy affordance below — the mask and the
+    // clipboard are the READ direction of the same refusal, and `isInlineExcluded`
+    // (objectui#4221) already holds the WRITE direction of it.
+    const isMaskedField = isMaskedDetailFieldType(field.type, objectDefField?.type);
     const fieldEditable = !isReadonly && !isComputedField && !isSystemField && !isInlineExcluded;
     const canInlineEditField = fieldEditable && !!onEnterInlineEdit;
 
@@ -277,16 +342,36 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       if (displayWidget === 'permission-facet-link') {
         return <PermissionFacetLink value={value} field={enrichedField as any} />;
       }
-      const isEmpty = value === null || value === undefined || value === '';
+      const isEmpty = !hasCellValue(value);
       if (isEmpty) {
+        // The SHARED placeholder (objectui#8506). The span that stood here
+        // spelled its own em-dash and resolved its own `aria-label` from
+        // `detail.noValue`; `EmptyValue` resolves EXACTLY that key, with the
+        // same `"No value"` English fallback, through a provider-safe hook — so
+        // the accessible name survives byte-for-byte in every locale and the
+        // duplicate resolution goes away. Two deliberate props:
+        //
+        //  - `title` — the sighted-mouse counterpart of the accessible name,
+        //    added alongside it in the same commit. It rides through
+        //    `EmptyValue`'s `...props`. `pointer-events-auto` is what keeps it
+        //    a real tooltip: the shared component sets `pointer-events-none`,
+        //    which stops the placeholder being a hit target, and a `title` on
+        //    an element that can never be hovered is a dead attribute — the
+        //    hover would fall through to this row's own
+        //    `title={t('detail.editInlineHint')}` instead. It is also the only
+        //    instrument that tells THIS placeholder apart from the one a cell
+        //    renderer draws one row over (`DetailSection.emptinessAuthority-8376`,
+        //    `record-details.emptySectionDefault`), which read it by title.
+        //  - no `className` typography — the retired `text-muted-foreground/60
+        //    text-sm` is a deliberate change, not an oversight: it made this
+        //    row's dash a different grey and a different size from the dash
+        //    `DateTimeCellRenderer` draws for an unparseable value in the very
+        //    next row of the same section. They now draw identically.
         return (
-          <span
-            className="text-muted-foreground/60 text-sm select-none"
-            aria-label={t('detail.noValue', { defaultValue: 'No value' })}
+          <EmptyValue
+            className="pointer-events-auto"
             title={t('detail.noValue', { defaultValue: 'No value' })}
-          >
-            —
-          </span>
+          />
         );
       }
       // Use type-aware cell renderer; respect format hints (e.g.
@@ -300,11 +385,33 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       }
       return String(value);
     })();
-    const canCopy = value !== null && value !== undefined && value !== '';
+    // Same definition as the affordance above, deliberately: a row that says
+    // `No value` must not also offer to copy it. Before objectui#8376 both
+    // tests were raw and agreed by coincidence; fixing only the affordance
+    // would have put a copy button next to an em-dash that copies spaces.
+    const canCopy = hasCellValue(value);
+    // ⭐ A MASKED row offers no copy affordance at all (objectui#8440, maintainer
+    // ruling 2026-09-08 option A). The cell deliberately refuses to render the
+    // value; the affordance on the same row handed the RAW credential to the
+    // clipboard — silently, with no error and no visible sign, which is worse
+    // than not masking at all because the reader believes the value is
+    // protected. ⛔ The refusal is NOT spelled into `canCopy`: that name is one
+    // of the readers of `hasCellValue` (objectui#8376) that MUST agree on which
+    // rows are EMPTY, and a masked row is not an empty one — it is a row whose
+    // value this surface declines to hand over. Narrowing there would move the
+    // emptiness answer for every reader of it.
+    //
+    // ⛔ Nor is it spelled into `handleCopyField`: option B — copying the
+    // bullets — was considered and refused as a second silent wrong answer, so
+    // there is nothing for the handler to write. Withdrawing the affordance is
+    // the whole fix, and it is withdrawn at EVERY site that reaches the handler
+    // (the desktop row, its Enter/Space, its hover button, and the mobile
+    // grouped-inset row's click and Enter/Space).
+    const copyOffered = canCopy && !isMaskedField;
     // An editable field surfaces the pencil (edit) affordance instead of the
     // copy affordance, and reserves single-click for text selection — so
     // click-to-copy only applies to non-editable fields.
-    const copyInteractive = canCopy && !canInlineEditField;
+    const copyInteractive = copyOffered && !canInlineEditField;
     const isCopied = copiedField === field.name;
     const fieldLabelText = fieldLabel(objectName || '', field.name, field.label || field.name);
 
@@ -318,14 +425,14 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
           key={field.name}
           className={cn(
             "flex items-baseline justify-between gap-4 py-2.5 min-h-[44px] group",
-            canCopy && "cursor-pointer active:bg-muted/40 transition-colors",
+            copyOffered && "cursor-pointer active:bg-muted/40 transition-colors",
           )}
-          onClick={canCopy ? () => handleCopyField(field.name, value) : undefined}
-          onKeyDown={canCopy ? (e: React.KeyboardEvent) => {
+          onClick={copyOffered ? () => handleCopyField(field.name, value) : undefined}
+          onKeyDown={copyOffered ? (e: React.KeyboardEvent) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCopyField(field.name, value); }
           } : undefined}
-          role={canCopy ? 'button' : undefined}
-          tabIndex={canCopy ? 0 : undefined}
+          role={copyOffered ? 'button' : undefined}
+          tabIndex={copyOffered ? 0 : undefined}
         >
           <span className="text-[15px] text-muted-foreground shrink-0">{fieldLabelText}</span>
           <span className="text-[15px] text-foreground text-right break-words min-w-0 leading-snug">{displayValue}</span>
@@ -417,7 +524,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          ) : canCopy ? (
+          ) : copyOffered ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

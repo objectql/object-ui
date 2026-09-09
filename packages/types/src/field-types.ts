@@ -16,6 +16,29 @@
  * @packageDocumentation
  */
 
+import type { Field as SpecField } from '@objectstack/spec/data';
+
+/**
+ * A field's `dependsOn` in the shape `@objectstack/spec` declares at FIELD
+ * level — derived from `@objectstack/spec/data`'s `Field` by reference rather
+ * than restated (objectui#6153), so the two cannot drift: a list of controlling
+ * sibling field names, or `{ field, param }` entries mapping a sibling onto the
+ * remote query parameter a dependent lookup filters by.
+ *
+ * Measured on the installed `@objectstack/spec` 17.3.0, `FieldSchema` declares
+ * `dependsOn` as an OPTIONAL ARRAY of `string | { field, param? }` — never a
+ * bare string. That is deliberately narrower than `DependsOnInput` (`form.ts`),
+ * the shape the widget prop `FieldWidgetComponentProps.dependsOn` and
+ * `FormField.dependsOn` take, which also admits a bare parent name and `null`:
+ * `FieldSchema.safeParse` answers `invalid_type` at `dependsOn` to a bare
+ * string on a field document, with the same field carrying `['country']`
+ * accepted as the control — so declaring the wider shape here would let an
+ * author write metadata the publish door refuses. Every runtime reader takes
+ * `DependsOnInput`, and this type is assignable to it (pinned in
+ * `__tests__/field-metadata-depends-on-declared-6153.test.ts`).
+ */
+export type FieldDependsOn = NonNullable<SpecField['dependsOn']>;
+
 /**
  * Base field metadata interface
  * Common properties shared by all field types
@@ -121,11 +144,39 @@ export interface BaseFieldMetadata {
    */
   validate?: FieldValidationFunction | FieldConstraints;
   
-  /**
-   * Field dependencies (Phase 3.2.3)
-   * List of fields that this field depends on
+  /*
+   * There is deliberately no `depends_on` here (objectui#7357). It was
+   * objectui's own snake_case twin of {@link BaseFieldMetadata.dependsOn} and
+   * never a `@objectstack/spec` key — `FieldSchema` refuses it BY NAME, so any
+   * producer that authored it produced a document the publish door rejects.
+   * Retired under ADR-0049 enforce-or-remove (maintainer ruling, 2026-09-02,
+   * recommendation A on objectui#6153, and no grace window per the 2026-08-27
+   * ruling). One spelling, one concept: author `dependsOn`.
    */
-  depends_on?: string[];
+
+  /**
+   * Controlling sibling field(s) — the spec's field-level cascade key, declared
+   * here so every field-metadata member carries it THROUGH THE DECLARED TYPE
+   * (objectui#6153, maintainer ruling A, 2026-09-02). The option widgets
+   * (`SelectField`, `MultiSelectField`, `RadioField`, `CheckboxesField`) gate
+   * their authored option list behind it — a "select the parent first" hint
+   * while any controlling value is empty — and prune a selection the parent no
+   * longer offers; `LookupField` scopes its candidate queries by it.
+   *
+   * Two shapes, both {@link FieldDependsOn}:
+   *  - `['country']` — the sibling's value is sent as both the filter field and
+   *    the value (`country = ${country}`).
+   *  - `[{ field: 'account', param: 'account_id' }]` — the remote parameter
+   *    name differs from the local field name (dependent lookups).
+   *
+   * Precedence: this metadata key wins over the `dependsOn` WIDGET PROP
+   * (`FieldWidgetComponentProps.dependsOn`) — the one documented inversion, see
+   * `toHostProps.ts` in `@object-ui/fields`. Before this member existed the
+   * widgets reached the key through an `as any`, so it worked at runtime while
+   * no annotated literal could carry it — the declared/enforced gap the card
+   * measured.
+   */
+  dependsOn?: FieldDependsOn;
   
   /*
    * There is deliberately no `indexed` here (objectui#4679). The ObjectStack
@@ -230,6 +281,96 @@ export interface HtmlFieldMetadata extends BaseFieldMetadata {
    * docblock there): `RichTextField` reads it for all three registry keys it
    * serves. WARNING - NOT a spec key either; see the measured refusal in the
    * docblock there (objectui#7014).
+   */
+  rows?: number;
+}
+
+/**
+ * Rich-text (WYSIWYG) field metadata — the THIRD registry key `RichTextField`
+ * serves, and the last of the three to get a declarable face.
+ *
+ * `markdown`, `html` and `richtext` are ONE widget (objectui#5498). The first
+ * two carried an exported metadata type; `richtext` carried none, so the only
+ * way to write a richtext field's metadata was
+ * `as unknown as MarkdownFieldMetadata` — a deliberate cast whose presence in
+ * `RichTextField.rows.test.tsx` was the gap's only evidence. Neither a member
+ * nor a recorded alias: a silent hole that had to be rediscovered to be seen.
+ * Closed by the maintainer's objectui#7083 ruling (decision batch #71,
+ * 2026-09-07), which is why the cast and its comment are gone as well.
+ *
+ * ## The read set below is DERIVED, not copied from the siblings
+ *
+ * Read off `RichTextField.tsx` on the `richtext` path, key by key:
+ *
+ *  - `type` — `resolveRichTextFieldType` reads `field.type` (stripping a
+ *    `field:` prefix). It is THE discriminator for the three keys, and the
+ *    ONLY thing that differs between them at runtime: it selects the display
+ *    pipeline (`richtext` reads through the HTML renderer, objectui#5452) and
+ *    the editor's format label. Nothing else in the widget branches on it.
+ *  - `rows` — `richField?.rows || 8`, the inline editor's height. Declared
+ *    here for the same reason objectui#6140 declared it on the two siblings:
+ *    the running widget honoured a key an annotated literal rejected.
+ *  - `mobile_fullscreen`, `placeholder`, `label` — also read off this carrier
+ *    (the expand affordance, the textarea placeholder, the dialog title), and
+ *    all three already sit on {@link BaseFieldMetadata}, so they need no
+ *    redeclaration here. Listed because "derived" has to name what it found,
+ *    including the keys that turned out to need no line.
+ *
+ * The readonly branch hands `field` whole to the `RICH_TEXT_CELL_RENDERERS`
+ * entry for the type; both renderers there destructure `value` only, so the
+ * display half contributes no metadata key.
+ *
+ * ## `max_length` — read at SUBMIT, not by the widget
+ *
+ * `RichTextField` never reads this key. It is declared because a live reader
+ * outside the widget does, on every field regardless of type:
+ * `buildValidationRules` (`packages/fields/src/index.tsx`) compiles
+ * `(field as any).maxLength ?? field.max_length` into a react-hook-form
+ * `maxLength` rule. That function is GENERIC — it has no field-type gate
+ * anywhere in it — and both form producers call it on every field they build
+ * (`ObjectForm`'s `validation: buildValidationRules(field)` and the same line
+ * in `sectionFields.ts`); the form renderer spreads the result into the RHF
+ * `rules` object and localizes the `maxLength` entry. ⇒ `max_length` written
+ * on a `richtext` field IS enforced when the form is submitted. That is the
+ * checkable reason this key is declared.
+ *
+ * ⛔ Spec symmetry is NOT that reason, and must not be restated as one. At
+ * `@objectstack/spec` 17.3.0 `FieldSchema` answers identically for EVERY field
+ * type — `text` included — on `maxLength` (admitted) and on the legacy
+ * snake_case `max_length` (refused BY NAME), so that reading is
+ * non-discriminating here: it says nothing about `richtext` versus its two
+ * siblings. It is still pinned, for the three types this widget serves, in
+ * `packages/fields/src/widgets/__tests__/richtext-field-metadata-7083.test.tsx`
+ * — the `maxLength` admitted and `max_length` refused halves. `rows` admitted
+ * is pinned separately, in
+ * `packages/types/src/__tests__/select-option-spec-extension-7014.test.ts`.
+ *
+ * ⚠️ Two form-side sites do NOT reach `richtext`, and this key claims no
+ * coverage there: `ObjectForm` forwards `max_length` to the HTML `maxlength`
+ * attribute for `text | textarea | markdown | html` only, and
+ * `EmbeddableForm`'s `DEFAULT_MAX_LENGTH` caps `markdown` and `html` only.
+ * `richtext` is absent from both. Those omissions predate this member and are
+ * not corrected here.
+ *
+ * Omitting the key would have left `richtext` the one type of the three whose
+ * ceiling cannot be authored under an annotation, while the submit-time rule
+ * that enforces it stayed live — a fresh instance of the asymmetry this member
+ * exists to end.
+ *
+ * ⚠️ The `rows` docblocks on the two siblings still describe the
+ * `@objectstack/spec` 17.2.0 boundary, where `rows` was refused by name. That
+ * prose is objectui#7635's declared surface, not this member's; the 17.3.0
+ * reading above is stated for `richtext` only and is not a correction of it.
+ */
+export interface RichtextFieldMetadata extends BaseFieldMetadata {
+  type: 'richtext';
+  max_length?: number;
+  /**
+   * Height of the INLINE editor, in text rows. Same read as
+   * `MarkdownFieldMetadata.rows` and `HtmlFieldMetadata.rows` — literally the
+   * same expression, since the three registry keys are one widget: `rows`
+   * lands on the inline `<Textarea>`'s `rows` attribute and the fullscreen
+   * dialog ignores it (`rows={fullHeight ? undefined : rows}`).
    */
   rows?: number;
 }
@@ -826,6 +967,7 @@ export type FieldMetadata =
   | TextareaFieldMetadata
   | MarkdownFieldMetadata
   | HtmlFieldMetadata
+  | RichtextFieldMetadata
   | NumberFieldMetadata
   | CurrencyFieldMetadata
   | PercentFieldMetadata
@@ -895,36 +1037,42 @@ import type { ServiceObject } from '@objectstack/spec/data';
 /**
  * Client-side members the objectui runtime reads on the object document but
  * `@objectstack/spec` does not declare. Every member here must cite a live
- * runtime read — this interface is the measured client DELTA on top of the
- * spec document, not a place to restate spec keys (restating them would
- * recreate the hand-written fork objectui#5362 retired). The member list is
- * pinned by `__tests__/object-schema-metadata-spec-derivation.test.ts`, so
- * growing it is a conscious decision: promote the key upstream to the spec,
- * or add it here with the runtime read that justifies it.
+ * runtime read — this type is the measured client DELTA on top of the spec
+ * document, not a place to restate spec keys (restating them would recreate
+ * the hand-written fork objectui#5362 retired). The member list is pinned by
+ * `__tests__/object-schema-metadata-spec-derivation.test.ts`, so growing it is
+ * a conscious decision: promote the key upstream to the spec, or add it here
+ * with the runtime read that justifies it.
+ *
+ * ## The delta is EMPTY today, and that is the pinned state
+ *
+ * `editMode` was the one member. `@objectstack/spec` 17.3.0 ADOPTED it —
+ * measured on the installed build, `ObjectSchema`'s accept set went 42 → 43
+ * keys with gained set exactly `['editMode']` and an empty lost set, declared
+ * as `editMode?: 'page' | 'modal'`, the same union this file carried. So the
+ * key is no longer a client delta, and restating it here would be exactly the
+ * fork this type exists to prevent: two declarations of one key, with the
+ * local one shadowing the spec's for every reader.
+ *
+ * The retirement is what the pin's own docblock PRESCRIBED for this event
+ * ("If the spec ever adopts `editMode`, this test and the absence test above
+ * both flip — retire the extension member and let the derivation carry the
+ * key"), so it is executing a standing instruction, not a new decision.
+ *
+ * ⚠️ Nothing about `editMode` is removed from the product: it stays authorable
+ * and stays typed on {@link ObjectSchemaMetadata}, now carried by
+ * `ServiceObject`. `app-shell`'s `utils/recordFormNavigation.ts` read is
+ * unchanged. What DID change is that a published, spec-validated object
+ * document may now carry it — at 17.2.0 the spec refused the key by name.
+ *
+ * The type is kept (rather than deleted) because it is exported from
+ * `@object-ui/types` and because the derivation `spec type + client delta` is
+ * the shape this package pins; an empty delta states "objectui adds nothing
+ * here today", which is a fact worth keeping addressable. `Record<never,
+ * never>` rather than `{}`: `keyof` answers `never`, and it does not trip
+ * `@typescript-eslint/no-empty-object-type`.
  */
-export interface ObjectSchemaClientExtensions {
-  /**
-   * Default UI mode for record create/edit interactions.
-   *
-   * - `'modal'` (default) — open the record form inside a `ModalForm` dialog
-   *   overlaid on top of the current view. Suitable for short forms and
-   *   quick edits.
-   * - `'page'` — navigate to a dedicated full-screen route
-   *   (`/{objectName}/new` for create, `/{objectName}/record/:id/edit` for
-   *   edit). URLs are deep-linkable, refresh-safe, and integrate with the
-   *   browser back button. Recommended for objects with many fields,
-   *   `tabbed` / `wizard` form layouts, or scenarios that benefit from
-   *   shareable links to the create/edit form.
-   *
-   * The host application reads this flag in its central `handleEdit`
-   * dispatcher (see `@object-ui/app-shell` `AppContent` and
-   * `utils/recordFormNavigation.ts`) — switching the value requires no code
-   * changes.
-   *
-   * @default 'modal'
-   */
-  editMode?: 'modal' | 'page';
-}
+export type ObjectSchemaClientExtensions = Record<never, never>;
 
 /**
  * Object schema definition — the object document a data source's

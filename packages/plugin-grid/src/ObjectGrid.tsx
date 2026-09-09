@@ -47,7 +47,7 @@ import { resolveRowCrudAffordances, resolveRowRecordCrudAffordance } from './row
 import { useRecordCrudVerdicts } from './hooks/useRecordCrudVerdicts';
 import { resolveLegacyRowActions } from './resolveLegacyRowActions';
 import { applyRelationalMeta } from './relationalMetaKeys';
-import { resolveBulkActions } from './resolveBulkActions';
+import { resolveBulkActions, describeUnusableBulkActionDefs } from './resolveBulkActions';
 import { partitionBulkRows } from './bulkEligibility';
 import { resolvesToDataColumn, describeUnresolvedColumns } from './columnSpellingDiagnostics';
 import { RowActionMenu, formatActionLabel } from './components/RowActionMenu';
@@ -846,6 +846,14 @@ export type ObjectGridColumn =
  *     falling out of height alignment with the data beside them, which is why
  *     this grid sets BOTH slots. #6882's declaration is where the authoritative
  *     version of this now lives; this is the local copy agreeing with it.
+ *     ⭐ GUARDED SINCE objectui#6921: the cell set is MEASURED in the rendered
+ *     DOM by `packages/components/src/renderers/complex/__tests__/`
+ *     `data-table-cellClassName-population-6921.test.tsx` — the fence (a data
+ *     cell does NOT fold this key) and the non-regression (the three utility
+ *     cells DO) — and this entry's wording is pinned against that measurement
+ *     by `cellClassNameCensusProse-6921.test.ts` beside the slot suite. The
+ *     false sentence was copied forward for three days before anyone measured
+ *     it; a re-wording here that drops a cell name or revives the hold goes red.
  *
  * ⛔ The old closing note ("do not fix either hold by declaring the key on
  * `DataTableSchema` as a rider — that package is published surface with its own
@@ -2218,6 +2226,30 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     if (message) console.warn(message);
   }, [schema.columns, columnDiagnosticBlockType, schema.objectName, columnDiagnosticLabel]);
 
+  // [objectui#8730] The same channel, for the sibling failure on
+  // `bulkActionDefs`. A member that is not a usable def (a bare action name —
+  // the OTHER key's vocabulary — or `null`, a number, `{}`, `{ name: '' }`) is
+  // skipped by `resolveBulkActions`; before that guard it reached the bar and
+  // `formatActionLabel(undefined)` threw during render, so the author's first
+  // multi-row selection lost the whole selection bar.
+  //
+  // The skip alone would only relocate the failure into silence — which is what
+  // the mirror direction already does (`bulkActions: [{ name: 'approve' }]`,
+  // stepped over by the `typeof name !== 'string'` guard). Saying which member
+  // was dropped, and that a bare name belongs in `bulkActions`, is what makes
+  // this a diagnosis rather than a quieter version of the same defect. One
+  // `console.warn` per authored array, keyed on it — NOT a second guard: the
+  // predicate lives once, in `resolveBulkActions`, and this reads it.
+  const bulkDefsDiagnosticSlice = (schema as { bulkActionDefs?: unknown }).bulkActionDefs;
+  useEffect(() => {
+    const message = describeUnusableBulkActionDefs(bulkDefsDiagnosticSlice, {
+      blockType: columnDiagnosticBlockType,
+      objectName: schema.objectName,
+      label: columnDiagnosticLabel,
+    });
+    if (message) console.warn(message);
+  }, [bulkDefsDiagnosticSlice, columnDiagnosticBlockType, schema.objectName, columnDiagnosticLabel]);
+
   const generateColumns = useCallback((): ObjectGridColumnDraft[] => {
     // Map field type to column header icon (Airtable-style)
     const getTypeIcon = (fieldType: string | null): React.ReactNode => {
@@ -2476,7 +2508,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               cellRenderer = (value: any, row: any) => {
                 const displayContent = CellRenderer
                   ? <CellRenderer value={value} field={fieldMeta as any} />
-                  : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
+                  : (value != null && value !== '' ? String(value) : <EmptyValue />);
                 return (
                   <LinkCell
                     testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
@@ -2494,7 +2526,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               cellRenderer = (value: any, row: any) => {
                 const displayContent = CellRenderer
                   ? <CellRenderer value={value} field={fieldMeta as any} />
-                  : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
+                  : (value != null && value !== '' ? String(value) : <EmptyValue />);
                 return (
                   <LinkCell
                     testId={isPrimaryField ? 'primary-field-link' : 'link-cell'}
@@ -2694,7 +2726,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
                 objectName={schema.objectName}
                 recordId={rowRecordId(row)}
               >
-                {value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>}
+                {value != null && value !== '' ? String(value) : <EmptyValue />}
               </LinkCell>
             );
           } else if (CellRenderer) {
@@ -4359,7 +4391,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
 
     const renderFieldValue = (key: string, value: any): React.ReactNode => {
       if (value == null || value === '') {
-        return <span className="text-muted-foreground/50 text-sm italic">{t('grid.empty')}</span>;
+        return <EmptyValue className="text-sm italic" glyph={t('grid.empty')} />;
       }
 
       // Use objectSchema field type for type-aware rendering

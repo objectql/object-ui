@@ -49,9 +49,9 @@
     "lint": "eslint .",
     "build:analyze": "pnpm build && echo 'Bundle analysis available at dist/stats.html'",
     "preview": "vite preview",
-    "test": "vitest run --root ../.. apps/console/",
-    "test:watch": "vitest --root ../.. apps/console/",
-    "test:ui": "vitest --ui --root ../.. apps/console/",
+    "test": "vitest run --root ../.. --project @object-ui/console --no-passWithNoTests",
+    "test:watch": "vitest --root ../.. --project @object-ui/console --no-passWithNoTests",
+    "test:ui": "vitest --ui --root ../.. --project @object-ui/console --no-passWithNoTests",
     "prepublishOnly": "pnpm build"
   },
   "devDependencies": {
@@ -117,8 +117,6 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@object-ui/react-runtime": "workspace:*",
-    "@object-ui/sdui-parser": "workspace:*",
-    "sucrase": "^3.35.0"
+    "@object-ui/sdui-parser": "workspace:*"
   }
 }

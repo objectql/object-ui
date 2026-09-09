@@ -129,14 +129,68 @@ describe('record:details sections ↔ spec section-entry coverage (#3819)', () =
     expect(specSectionKeys).toContain('name');
   });
 
-  it('exposes an editor for every key the spec declares on a section', () => {
+  /**
+   * Section keys the spec declares that this designer does NOT yet expose an
+   * editor for — every one of them arriving with `@objectstack/spec` 17.3.0,
+   * which grew the section entry from four member keys to twelve (measured:
+   * gained set exactly these eight, lost set empty).
+   *
+   * ⛔ This is a DEFERRAL, not a dismissal, and it is deliberately a hand-kept
+   * list rather than a loosened assertion. Eight new inspector controls is a
+   * feature, and the bump that revealed the gap is not the place to build it
+   * (maintainer ruling on objectui#7122, 2026-09-05, ruled item 5: "推迟,单开
+   * feature 卡 —— 8 个新控件是功能,不是 bump 的尾巴"). Six of the eight are
+   * already HONOURED by the renderer through `DetailSection` (`icon`,
+   * `description`, `collapsible`, `defaultCollapsed`, `showBorder`,
+   * `headerColor`), so the gap is genuinely the control and not the capability;
+   * `group` is unimplemented here, and `hideEmpty` is retired on purpose
+   * (objectui#7129). All eight are documented on the `sections` input's
+   * description, which the sibling `recordDetailsInputs.spec-parity.test.ts`
+   * enforces — so they are discoverable in source mode today.
+   *
+   * The assertion below keeps its full force for everything else: a NINTH key
+   * landing upstream still fails here, and so does any entry of this list that
+   * stops being a spec key (a stale deferral) or that quietly gains a control
+   * without being removed from the list.
+   */
+  const DEFERRED_SECTION_CONTROLS = [
+    'group',
+    'hideEmpty',
+    'collapsible',
+    'showBorder',
+    'defaultCollapsed',
+    'icon',
+    'description',
+    'headerColor',
+  ];
+
+  it('exposes an editor for every key the spec declares on a section, bar the deferred eight', () => {
     expect(sectionsField?.kind).toBe('array');
     const authored = (sectionsField?.itemFields ?? []).map((f) => f.name);
-    const missing = specSectionKeys.filter((k) => !authored.includes(k));
+    const missing = specSectionKeys.filter(
+      (k) => !authored.includes(k) && !DEFERRED_SECTION_CONTROLS.includes(k),
+    );
     // If this fails: the spec declares a section key the block designer gives
-    // authors no way to write. Add the itemField — a key that only source-mode
-    // editing can reach is a key Studio-built pages structurally cannot carry.
+    // authors no way to write, and that is not one of the eight consciously
+    // deferred above. Add the itemField — a key that only source-mode editing
+    // can reach is a key Studio-built pages structurally cannot carry.
     expect(missing, 'section keys with no designer control').toEqual([]);
+  });
+
+  it('the deferral list is neither stale nor a cover for a control that now exists', () => {
+    // The two ways the exemption above could rot, both closed here rather than
+    // left to a reader's diligence. Without this the list would be a permanent
+    // hole: a key removed upstream, or one that later gained a control, would
+    // sit in it forever and quietly shrink what the coverage assertion checks.
+    const authored = (sectionsField?.itemFields ?? []).map((f) => f.name);
+    expect(
+      DEFERRED_SECTION_CONTROLS.filter((k) => !specSectionKeys.includes(k)),
+      'deferred key the spec no longer declares — drop it from the list',
+    ).toEqual([]);
+    expect(
+      DEFERRED_SECTION_CONTROLS.filter((k) => authored.includes(k)),
+      'deferred key that now HAS a designer control — drop it from the list',
+    ).toEqual([]);
   });
 
   it('the `name` editor is a text box carrying the snake_case convention', () => {
@@ -171,8 +225,9 @@ describe('record:details sections ↔ spec section-entry coverage (#3819)', () =
   });
 
   it('lists `name` before `label` — the entry identity comes first', () => {
-    // Matches `page:tabs` (`key`), where the stable identifier precedes the
-    // human label. `page:accordion` items no longer have an identifier field
+    // Matches `page:tabs` (`value` — named `key` until objectui#8278 renamed
+    // it to the member the spec declares), where the stable identifier
+    // precedes the human label. `page:accordion` items no longer have an identifier field
     // to compare against — its `value` was removed as dead input (#5212): the
     // renderer derives the panel id and never reads what was authored.
     const order = (sectionsField?.itemFields ?? []).map((f) => f.name);
@@ -408,8 +463,11 @@ describe('page:header `icon` — the designer field retired with the spec key (#
  *     who writes it by hand to remove the key.
  *
  * Neither is symmetric with `page:tabs`: one component over, an authored
- * `items[].value` (designer field name `key`) IS read, with a `tab-${idx}`
- * fallback only when absent (`itemsWithValue` for `page:tabs`, same file).
+ * `items[].value` IS read, with a `tab-${idx}` fallback only when absent
+ * (`itemsWithValue` for `page:tabs`, same file) — and the designer control
+ * there is NAMED `value` since objectui#8278, which is what makes the two
+ * comparable; until then it was named `key`, so the tabs panel wrote a key
+ * the spec refuses by name and the renderer never reads.
  * `PageTabsProps.items[].value` is a real, declared schema member. The
  * accordion's panel id is unconditionally derived; the tabs one is genuinely
  * live — this suite touches the accordion only.

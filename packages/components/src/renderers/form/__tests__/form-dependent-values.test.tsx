@@ -9,7 +9,7 @@
 /**
  * Live `dependentValues` injection for data-source fields (#2215).
  *
- * Dependent (cascading) lookups resolve their `depends_on` gate and filters
+ * Dependent (cascading) lookups resolve their `dependsOn` gate and filters
  * from the `dependentValues` prop. The form renderer must inject the LIVE
  * form values there — pre-fix nothing injected the prop and the widget's
  * context fallback read `ctx.formValues`, a member `SchemaRendererContext`

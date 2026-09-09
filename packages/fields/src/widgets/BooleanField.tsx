@@ -1,5 +1,5 @@
 import React, { useId } from 'react';
-import { Switch, Checkbox, Label } from '@object-ui/components';
+import { Switch, Checkbox, Label, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps } from './toDomProps.js';
 
@@ -51,6 +51,34 @@ export function BooleanField({ value, onChange, field, readonly, error, ...props
   const emitOwnLabel = !hostId;
 
   if (readonly) {
+    // Only a real boolean is a value of a boolean field (objectui#8593 — the
+    // widget-side half of objectui#8582's ruling on `BooleanCellRenderer`).
+    //
+    // `@objectstack/spec`'s runtime value contract for `boolean` / `toggle` is
+    // a bare `z.boolean()` (`data/field-value.zod.ts`, `valueSchemaFor`): the
+    // class is "a JS boolean on the wire (driver read-coercion repairs SQL
+    // 0/1)" and sits under `NON_TEXT_STORED_VALUE_TYPES` — stored "never text
+    // on any backend". The truth table that turns `'true'` / `1` / `'0'` into
+    // a boolean lives at the PRODUCER boundaries (objectql's
+    // `coerceBooleanFields` and its `invalid_boolean` write refusal, `rest`'s
+    // `parseBooleanCell` on CSV import), so a non-boolean reaching this branch
+    // is a producer that skipped its repair, and a second copy of that table
+    // here would be the widget-side dialect AGENTS.md #0.1 forbids.
+    //
+    // This branch used to read the value by TRUTHINESS. The string `'false'`,
+    // the string `'0'`, `{}` and `[]` said "Yes" — an affirmative the record
+    // never made — and `0`, `''`, `null` and `undefined` said "No", a negative
+    // it never made either. Both directions are the same fabrication and both
+    // now land on `EmptyValue`: the affordance every sibling widget in this
+    // directory draws for an absent value in its readonly branch
+    // (`NumberField`, `CurrencyField`, `PercentField`, `DateTimeField`,
+    // `EmailField`, `PhoneField`, `RadioField`, `ObjectField`, …), which is
+    // also what `BooleanCellRenderer` draws for the same input — the two
+    // surfaces agree by this directory's convention, not by import. Its
+    // accessible name ("No value") is a statement about the field's TYPE: the
+    // record holds no boolean here. A real `false` is a value and still says
+    // "No".
+    if (typeof value !== 'boolean') return <EmptyValue />;
     return <span className="text-sm">{value ? 'Yes' : 'No'}</span>;
   }
 

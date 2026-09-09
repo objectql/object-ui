@@ -201,7 +201,7 @@ export type FieldWidgetComponentProps<T = any> = {
    * sibling field in user-visible copy (the dependent-lookup gate hint).
    *
    * Only the form renderer knows a field's label — the widget sees its own
-   * metadata and a `depends_on` list of API names. Without this map the gate
+   * metadata and a `dependsOn` list of API names. Without this map the gate
    * sentence interpolated the raw API name into every locale, `en` included
    * ("Select crm_account first"), which is an internal identifier leaking into
    * the UI, not merely an untranslated word (objectstack#5407). This is the

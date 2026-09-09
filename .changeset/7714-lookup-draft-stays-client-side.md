@@ -29,16 +29,20 @@ session's half-finished state belongs to the client, not to the metadata store.
 That shows the author a field the server never received — the silent-drop shape
 objectstack#4001 closed.
 
-⚠️ **A declared divergence: objectui is stricter than the contract here.** The
-predicate is `typeof reference === 'string' && reference.trim() !== ''`. Measured on
-the 17.3.0 artifact, at field level and again through `ObjectSchema`, the spec
-ACCEPTS a whitespace-only `reference` while refusing an absent or empty one — so
-`reference: '   '` is refused by these writers on their own authority, not the
-platform's. Kept deliberately: whitespace names no object (the spec's own
-`ObjectSchema.fields` key grammar `/^[a-z_][a-z0-9_]*$/` admits no whitespace-bearing
-name), so admitting it only moves the identical failure past the PUT and into a stored
-document, where it surfaces with no field named. Filed upstream as objectstack#16126;
-if the spec trims, behaviour here is unchanged and only the declaration retires.
+**The whitespace row follows the contract; it is not a local opinion.** The predicate
+is `typeof reference === 'string' && reference.trim() !== ''`. It was a declared
+divergence when written — 17.3.0's #13632 refinement spelled its emptiness test as an
+equality against `''`, so the spec accepted `reference: '   '` while these writers
+refused it. objectstack#16920 applies that test to the TRIMMED value, so the spec now
+refuses the identical shape under the same `custom` issue at the same `reference`
+path, and the divergence note is retired (objectui#8621). Whitespace names no object
+at either end (the spec's own `ObjectSchema.fields` key grammar
+`/^[a-z_][a-z0-9_]*$/` admits no whitespace-bearing name), so admitting it would only
+move the identical failure past the PUT and into a stored document, where it surfaces
+with no field named. ⚠️ objectstack#16920 is an unreleased `minor` upstream and this
+repo's pin is `@objectstack/spec` 17.3.0, which predates it — so until the pin moves,
+these writers are still the only thing refusing `'   '` here, and they refuse it at
+editor time either way, before the PUT rather than at the publish gate.
 
 The refusal message diagnoses which of the four states it found — absent, empty,
 non-string (`invalid_type`, a value of the wrong kind rather than a missing target),

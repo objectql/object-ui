@@ -39,7 +39,8 @@ export function RadioField({
   const groupId = useId();
   const fieldName = props.name || config?.name || props.id || '';
 
-  const dependsOn = config?.dependsOn ?? dependsOnProp;
+  // Read through the declared type, not the untyped carrier (objectui#6153) — see SelectField.
+  const dependsOn = field?.dependsOn ?? dependsOnProp;
   const { options, gated, dependsOnFields } = useCascadingOptions<Option>(
     rawOptions,
     dependsOn,

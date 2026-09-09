@@ -128,7 +128,7 @@ import { getMetadataDefaultInspector } from './default-inspector-registry.js';
 import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n.js';
 import { JsonSourceEditor } from './JsonSourceEditor.js';
 import { validateMetadataDraft, hasClientValidator, type DraftMode } from './clientValidation.js';
-import { describeIssuePath } from './issuePath.js';
+import { describeIssuePath, issueSlicePath, issueSliceFingerprint } from './issuePath.js';
 import { buildCreateModeBody } from './createBody.js';
 import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
 
@@ -365,6 +365,27 @@ type ObjectCatalog = {
   fields: ObjectFieldOption[];
   actions: ObjectActionOption[];
 };
+
+/**
+ * A refusal the SERVER returned for this document, held against the draft
+ * slices its issue paths named (objectui#8057).
+ *
+ * Not `issues`: that state is overwritten wholesale by the debounced live Zod
+ * pass 200ms after any edit, so a server verdict parked there is gone by the
+ * author's next keystroke — which is part of why the wedge this closes was
+ * silent. This record survives edits until the named slice actually moves.
+ */
+interface SaveRefusal {
+  /**
+   * The slices that were LOCALISABLE at refusal time. ⛔ May be empty, and an
+   * empty list gates nothing: a refusal we cannot tie to any part of the
+   * document must fail open rather than block a Save the author has no
+   * described way to unblock.
+   */
+  held: Array<{ slicePath: string; fingerprint: string; label: string }>;
+  /** What the server said, kept for the Save button's explanation. */
+  summary: string;
+}
 
 interface MetadataResourceEditPageImplProps {
   type: string;
@@ -676,6 +697,23 @@ function MetadataResourceEditPageImpl({
   // So schema issues are surfaced loudly — banner, inline field errors,
   // `previewDiagnostics` — and left advisory; the server has the last word.
   // Pinned by `ResourceEditPage.schemaAdvisory.test.tsx`.
+  //
+  // ⭐ THE BOUNDARY, stated so a later reader can apply it (objectui#8057).
+  // "Advisory" is about a verdict this client PREDICTS, and it is the whole of
+  // what is advisory. It has never covered a verdict the server RETURNED:
+  //
+  //   server-REFUSED  →  BLOCKS   (`saveRefusal` / `refusalBlocking` below)
+  //   server-ACCEPTED →  advisory (this paragraph, unchanged)
+  //
+  // The two cannot overlap, and that is a property of the mechanism rather
+  // than a promise: only a 422 arms the blocking half, and a draft the server
+  // accepts does not produce one. So the dead-bolt this paragraph exists to
+  // prevent — Save wedged shut on a draft the server would have taken — stays
+  // unreachable. What ended with objectui#8057 is only the client's habit of
+  // re-sending a document the server had ALREADY refused, on every later edit,
+  // while reporting nothing. ⛔ Do not read the blocking half as licence to
+  // gate Save on the live Zod pass: that is the skew case, and it is still
+  // advisory. Both halves are pinned in `ResourceEditPage.schemaAdvisory.test.tsx`.
   // Blocking author-time issues reported by the scoped inspector (e.g. a CEL
   // formula that does not parse) — Save must refuse them rather than publish a
   // malformed definition (objectui#4306).
@@ -694,6 +732,67 @@ function MetadataResourceEditPageImpl({
     ? `${type}:${name}:${selection.kind}:${selection.id}`
     : `${type}:${name}:default`;
   const inspectorBlocking = blockingReport.key === selectionKey ? blockingReport.count : 0;
+
+  // ── The SERVER's refusal is not advisory — and it is DOCUMENT-scoped ──
+  //
+  // Everything above is about a verdict the CLIENT predicts, and the ruling
+  // there stands untouched: a live Zod issue stays advisory. This is the other
+  // kind of verdict — one the SERVER returned, on the wire, about THIS exact
+  // document. `doSave`'s 422 branch records it here.
+  //
+  // ⭐ Why this does not narrow the advisory ruling above. That ruling is
+  // conditioned, in its own words, on the server ACCEPTING the draft: the wedge
+  // it exists to prevent is a dead-bolt "on a draft the server accepts, with no
+  // on-screen editor able to take the key back out". A refusal cannot be armed
+  // by a draft the server accepts — there is no 422 to arm it with. So the skew
+  // this page fears (client stricter than server) structurally cannot reach
+  // this term: it holds only what the server has ALREADY refused, and so
+  // refuses only what is already refused one layer down. Nothing is predicted
+  // here; the discriminator is observed. Both halves are pinned by
+  // `ResourceEditPage.schemaAdvisory.test.tsx`.
+  //
+  // ⭐ Why it is DOCUMENT-scoped where `inspectorBlocking` is SELECTION-scoped.
+  // The measured wedge (objectui#8057) is an author who adds a Lookup field
+  // with an empty target, then selects an unrelated already-saved field and
+  // renames it. `inspectorBlocking` above expires when the selection changes —
+  // BY DESIGN, and that design is right for what it gates — so it is already
+  // gone by that second step, and every later auto-save PUTs the half-filled
+  // document again and is refused again, while the designer renders the rename
+  // as applied and the server has none of it. ⛔ The fix is NOT to widen that
+  // stamp: a selection-scoped term cannot carry a document-scoped invariant.
+  // This term has no selection in it at all, which is exactly why it survives.
+  const [saveRefusal, setSaveRefusal] = React.useState<SaveRefusal | null>(null);
+  // The wire body the server's issue paths address. `fromDraft` is the same
+  // serialiser `doSave` applies before `client.save`, so arming and gating read
+  // the same shape by construction rather than by coincidence.
+  const refusalProbeBody = React.useCallback(
+    (d: Record<string, unknown>): Record<string, unknown> => {
+      try {
+        return config.fromDraft ? config.fromDraft(d) : d;
+      } catch {
+        return d;
+      }
+    },
+    [config],
+  );
+  // Outstanding while ANY slice the refusal named is still byte-identical to
+  // what the server refused. Editing the offending field — or deleting it —
+  // changes that slice and releases the block; editing an UNRELATED field does
+  // not, which is the whole point. A refusal that localised nothing
+  // (`held: []`) is deliberately open: see `issueSliceFingerprint`.
+  const refusalBlocking = React.useMemo(() => {
+    if (!saveRefusal) return 0;
+    const body = refusalProbeBody(draft);
+    return saveRefusal.held.filter(
+      (h) => issueSliceFingerprint(body, h.slicePath) === h.fingerprint,
+    ).length;
+  }, [saveRefusal, draft, refusalProbeBody]);
+  // One item's refusal must never follow the author to the next item. Declared
+  // here rather than beside the sibling `setSelection(null)` effect above only
+  // because the state it clears is declared here.
+  React.useEffect(() => {
+    setSaveRefusal(null);
+  }, [type, name]);
   React.useEffect(() => {
     if (!editing) setSelection(null);
   }, [editing]);
@@ -1405,6 +1504,11 @@ function MetadataResourceEditPageImpl({
       lastAutoSaveSnapshotRef.current = JSON.stringify(fresh);
       setDestructiveIssues(null);
       setPendingItem(null);
+      // The server took this document, so whatever it refused before is
+      // settled. Cleared HERE and not on edit: an edit elsewhere in the
+      // draft is not evidence the refused part was fixed — that conflation
+      // is the wedge itself.
+      setSaveRefusal(null);
       // Stay in design mode after save for designer-capable types so the
       // user keeps their inspector context. Non-designer types fall back
       // to the previous "exit edit on save" UX.
@@ -1457,6 +1561,26 @@ function MetadataResourceEditPageImpl({
           }
         }
         setIssues(mapped);
+        // Hold the refusal against the draft slices the server named, so the
+        // next auto-save cannot re-send the same refused document behind an
+        // unrelated edit (objectui#8057). Paths that do not localise are
+        // DROPPED rather than kept as a wildcard: a refusal we cannot tie to a
+        // slice must gate nothing at all.
+        const probe = refusalProbeBody(draft);
+        const held: SaveRefusal['held'] = [];
+        const seenSlices = new Set<string>();
+        for (const m of mapped) {
+          const slicePath = issueSlicePath(m.path);
+          if (seenSlices.has(slicePath)) continue;
+          const fingerprint = issueSliceFingerprint(probe, slicePath);
+          if (fingerprint === undefined) continue;
+          seenSlices.add(slicePath);
+          held.push({ slicePath, fingerprint, label: labelForIssuePath(m.path) });
+        }
+        setSaveRefusal({
+          held,
+          summary: held.map((h) => h.label).join(', '),
+        });
         if (mapped.length === 1 && !mapped[0].path) {
           setError(mapped[0].message);
         } else if (mapped.length === 1) {
@@ -1643,6 +1767,11 @@ function MetadataResourceEditPageImpl({
     // Autosave is a save door like any other: gating only the button would let
     // the timer publish the malformed definition a second later (objectui#4306).
     if (inspectorBlocking > 0) return;
+    // Second validation term, and the one that survives a selection change.
+    // The timer is the door the objectui#8057 wedge actually came through: it
+    // re-sent the refused document on every later edit, silently, so the
+    // designer showed the rename as applied while the server held none of it.
+    if (refusalBlocking > 0) return;
     let snap: string;
     try {
       snap = JSON.stringify(draft);
@@ -1655,7 +1784,7 @@ function MetadataResourceEditPageImpl({
       doSaveRef.current(false);
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [draft, isDirty, editing, saving, createMode, readOnly, autoSaveEnabled, inspectorBlocking]);
+  }, [draft, isDirty, editing, saving, createMode, readOnly, autoSaveEnabled, inspectorBlocking, refusalBlocking]);
 
   // Keyboard shortcut — ⌘S / Ctrl+S triggers save when dirty.
   React.useEffect(() => {
@@ -1666,14 +1795,14 @@ function MetadataResourceEditPageImpl({
         e.preventDefault();
         // Third save door — the shortcut must respect the same gate as the
         // button and the autosave timer (objectui#4306).
-        if (!saving && (createMode || isDirty) && inspectorBlocking === 0) {
+        if (!saving && (createMode || isDirty) && inspectorBlocking === 0 && refusalBlocking === 0) {
           doSaveRef.current(false);
         }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [canWrite, readOnly, editing, createMode, saving, isDirty, inspectorBlocking]);
+  }, [canWrite, readOnly, editing, createMode, saving, isDirty, inspectorBlocking, refusalBlocking]);
 
   // Beforeunload guard — browser-native "leave site?" prompt when the
   // user closes the tab / reloads with unsaved changes.
@@ -1808,6 +1937,9 @@ function MetadataResourceEditPageImpl({
     }
     setIssues([]);
     setError(null);
+    // Cancel reverts the draft to the last saved snapshot, so the document the
+    // server refused no longer exists to be refused.
+    setSaveRefusal(null);
     setEditing(false);
   }
 
@@ -2019,22 +2151,35 @@ function MetadataResourceEditPageImpl({
           <X className="h-3.5 w-3.5" />
         </Button>
       )}
-      {/* `inspectorBlocking` is the ONLY validation term here, and that is on
-          purpose — the live client Zod `issues` are advisory. The reasoning,
-          and the measurement behind it, is at `blockingReport` above
-          (objectui#4306 / #6980). Do not add `issues.length` to this gate
-          without reading it. */}
+      {/* TWO validation terms here, and the live client Zod `issues` are
+          still neither of them — that asymmetry is on purpose. The
+          discriminator is who refused, not how bad it looks:
+            - `inspectorBlocking` — an author-time fault the server does NOT
+              catch (a CEL predicate that does not parse), SELECTION-scoped
+              (objectui#4306 / #6980);
+            - `refusalBlocking` — a 422 the server DID return for this exact
+              document, DOCUMENT-scoped so it survives a selection change
+              (objectui#8057).
+          `issues` — the live client Zod pass — stays advisory, because the
+          only failure the client can cause on its own is being STRICTER than
+          the server. The reasoning, and the measurement behind all three, is
+          at `blockingReport` and `saveRefusal` above. ⛔ Do not add
+          `issues.length` to this gate without reading it. */}
       {canWrite && (editing || createMode) && (
         <Button
           size="sm"
           onClick={() => doSave(false)}
-          disabled={saving || (!createMode && !isDirty) || inspectorBlocking > 0}
+          disabled={saving || (!createMode && !isDirty) || inspectorBlocking > 0 || refusalBlocking > 0}
           className="h-7 w-7 p-0 relative"
           title={
             saving
               ? t('engine.edit.saving', locale)
               : inspectorBlocking > 0
                 ? t('perm.cel.saveBlocked', locale)
+                : refusalBlocking > 0
+                  ? tFormat('engine.validation.serverRefused', locale, {
+                      issue: saveRefusal?.summary ?? '',
+                    })
                 : !createMode && !isDirty
                   ? t('engine.edit.noChanges', locale)
                   : `${t('engine.edit.save', locale)} (⌘S)`

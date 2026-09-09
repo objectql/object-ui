@@ -1089,9 +1089,41 @@ export interface ObjectFormSection {
   pane?: 'primary' | 'secondary';
 
   /**
-   * Field names or inline field configurations for this section
+   * Field names or inline field configurations for this section.
+   *
+   * OPTIONAL since objectui#7051, and optional ONLY in the sense that
+   * {@link group} is the other way to declare the same fact —
+   * `@objectstack/spec`'s `FormSectionSchema` refuses a section carrying
+   * neither ("A section must declare its members exactly one way") and refuses
+   * one carrying both. It was required here while no form-section renderer
+   * read `group`, so this type refused the exact shape the spec declares and a
+   * TypeScript author could not write the group-reference form at all.
    */
-  fields: (string | FormField)[];
+  fields?: (string | FormField)[];
+
+  /**
+   * Reference a declared field GROUP instead of enumerating members
+   * (`@objectstack/spec` 17.3.0, objectstack#13855, ADR-0085 §5).
+   *
+   * `{ group: 'contact_info' }` inherits the object's `fieldGroups` entry with
+   * that key: its members (every field pointing at it, in declaration order)
+   * and its own presentation (label, description, collapse) both, assembled by
+   * `deriveFieldGroupLayout` — the single assembler this repo never
+   * re-implements.
+   *
+   * Mutually exclusive with {@link fields}, and refused beside every key the
+   * group itself declares (`name`, `label`, `description`, `collapsible`,
+   * `collapsed`, `visibleWhen`) — the spec grants no override semantics, so a
+   * restated key would be a second writable spelling of one fact. What a
+   * section keeps beside `group` is how THIS form lays it out: `columns` and
+   * `pane`. Refused outright on a wizard step (`formType: 'wizard'`), which
+   * has no slot for a group's `collapse` or `visibleWhen`.
+   *
+   * The aliases `fieldGroup` / `groupKey` are NOT accepted spellings: the spec
+   * refuses them as unrecognized keys with a "did you mean `group`" hint, so
+   * they are deliberately absent here too.
+   */
+  group?: string;
 
   /**
    * Conditional visibility for the SECTION HEADER, as an authored predicate.
@@ -2743,8 +2775,40 @@ export interface ObjectCalendarSchema extends BaseSchema {
  */
 export interface ObjectKanbanSchema extends BaseSchema {
   type: 'object-kanban';
-  /** ObjectQL object name */
-  objectName: string;
+  /**
+   * ObjectQL object name — the LAST rung of this board's record-source ladder,
+   * and the only one that names an object.
+   *
+   * `packages/plugin-kanban/src/ObjectKanban.tsx` resolves its rows in four
+   * steps: the `data` PROP a parent pre-fetched (`hasExternalData`), then
+   * {@link BaseSchema.bind} through `useDataScope(schema.bind)`, then the
+   * inline rows on {@link BaseSchema.data}, and only then a fetch keyed by this
+   * member — `rawData = external || boundData || schema.data || fetchedData`,
+   * with the fetch itself gated on `schema.objectName && !boundData &&
+   * !schema.data`. So a board authored on `bind` or on inline rows never reads
+   * this key, and every read of it is guarded (`schema.objectName ?? ''`,
+   * `if (!schema.objectName) return`, `schema.objectName || ''`).
+   *
+   * Optional since objectui#7780. It was REQUIRED, so a `bind`-only or
+   * `data`-only board — which renders correctly today — was refused by both
+   * published faces and could not be annotated with its own type. The
+   * requirement the renderer really has, at least one of `bind`, `data`,
+   * `objectName` present, lives on the mirror as a refinement
+   * (`requireKanbanRecordSource` in `zod/objectql.zod.ts`), so the published
+   * declaration and the published validator say the same thing.
+   *
+   * ⚠️ This is NOT the `object-map` / `object-gantt` / `object-calendar` ladder
+   * and shares no code with it. Those three resolve through
+   * `resolveRecordSourceConfig` over `data` (a {@link ViewData} PROVIDER BLOCK)
+   * → `staticData` → `objectName`, and their mirror members end in
+   * `requireRecordSource`. This board has NO `staticData` rung, its `data` is a
+   * RAW ROW ARRAY read directly, and it has a `bind` rung the other three do
+   * not walk. objectui#7651 (ruled B, closed `not_planned`) refuses building
+   * the shared ladder here — see `KanbanSchema.data` in `./complex.ts`, whose
+   * epitaph records it. Nothing below adds a rung; this member's requiredness
+   * is the only thing objectui#7780 moved.
+   */
+  objectName?: string;
   /**
    * Field whose value places a record in a lane (e.g. `status`).
    *

@@ -29,6 +29,7 @@ const zh = {
       manage_users: '管理用户',
       manage_org_users: '管理组织用户',
       manage_metadata: '管理元数据',
+      manage_org_presentation: '管理组织展示',
       manage_platform_settings: '管理平台设置',
       setup_access: '访问 Setup',
       setup_write: '保存设置',
@@ -1121,6 +1122,7 @@ const zh = {
     showEmptyFields: '显示 {{count}} 个空字段',
     hideEmptyFields: '隐藏空字段',
     noValue: '无',
+    unresolvedReference: '未解析的引用：{{value}} 未能解析为用户',
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1141,6 +1143,9 @@ const zh = {
     loading: '图表加载中…',
     nullCategory: '(未指定)',
     scatterOneMeasure: '散点图只绘制一个度量。请只保留一个系列：',
+    unconfigured: {
+      noCategoryAxis: '图表需要分类轴 —— 对象绑定的图表不会虚构一个。请声明以下之一：',
+    },
   },
   report: {
     total: '总计',
@@ -1723,7 +1728,7 @@ const zh = {
       empty: {
         build: {
           title: '用 AI 搭建',
-          description: '用自然语言描述一个应用或流程 —— 我会起草对象、界面和自动化，随后你审阅并发布。',
+          description: '用自然语言描述一个应用 —— 我会起草对象、界面和示例数据，随后你审阅并发布。',
         },
         ask: {
           title: '向你的数据提问',
@@ -1732,7 +1737,7 @@ const zh = {
         editApp: {
           title: '正在编辑「{{app}}」',
           titleGeneric: '编辑此应用',
-          description: '想改点什么？我会就地修改这个应用 —— 加字段、对象、视图或自动化，或调整已有内容。',
+          description: '想改点什么？我会就地修改这个应用 —— 加字段、对象、视图或仪表盘，或调整已有内容。',
         },
       },
       clearConversation: '清空',
@@ -2897,6 +2902,13 @@ const zh = {
     badgeTotal: '共 {{total}} 项',
     badgeNotifications: '{{unread}} 条通知',
     badgeApprovals: '{{approvals}} 条待审批',
+    arrivalMany: '{{count}} 条新消息',
+    arrivalRepeats: '该主题有 {{count}} 条新消息',
+    arrivalOpen: '查看',
+    toastEnabled: '站内提醒',
+    desktopEnabled: '桌面通知',
+    desktopBlocked: '已被拦截。请在浏览器设置中允许本站发送通知。',
+    desktopUnsupported: '当前浏览器不支持桌面通知。',
   },
   publicForm: {
     submit: '提交',

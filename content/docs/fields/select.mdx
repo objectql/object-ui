@@ -84,7 +84,7 @@ cascade-clear propagate down the chain.
 `visibleWhen` options are for **small, static dictionaries** (category →
 subcategory, a handful of provinces). When the data is large, changes over time,
 or is shared across forms (real country/province/city tables, org units, product
-catalogs), model each level as a **`lookup`** with `depends_on` instead — the
+catalogs), model each level as a **`lookup`** with `dependsOn` instead — the
 candidate query is filtered server-side and paginated. See
 [Lookup Field](/docs/fields/lookup).
 
@@ -116,11 +116,38 @@ const status: SelectFieldMetadata = {
 };
 ```
 
-Cascading option lists are driven by a sibling field's value. The widget reads a
-camelCase `dependsOn` off the metadata, but no exported metadata type declares it —
-`BaseFieldMetadata` declares the snake_case `depends_on` instead — so the two
-spellings disagree and the gap is tracked as
-[objectui#6153](https://github.com/objectstack-ai/objectui/issues/6153).
+Cascading option lists are driven by a sibling field's value, declared with
+`dependsOn` — a `BaseFieldMetadata` member every field type inherits
+([objectui#6153](https://github.com/objectstack-ai/objectui/issues/6153)), in the
+shape `@objectstack/spec` declares at field level: an **array** of controlling
+field names, or `{ field, param }` entries when the remote parameter name differs
+from the local field name. While any controlling value is empty the widget is
+gated; once it is set, each option's `visibleWhen` decides whether it is offered,
+and a selection the parent no longer offers is cleared.
+
+```ts
+import type { SelectFieldMetadata } from '@object-ui/types';
+
+const province: SelectFieldMetadata = {
+  type: 'select',
+  name: 'province',
+  label: 'Province',
+  dependsOn: ['country'],
+  options: [
+    { label: 'Zhejiang', value: 'zj', visibleWhen: "record.country == 'cn'" },
+    { label: 'California', value: 'ca', visibleWhen: "record.country == 'us'" },
+  ],
+};
+```
+
+A bare parent name (`dependsOn: "country"`, as in the form schema above) is the
+**form-level** shape, `FormField.dependsOn`; on field metadata the spec accepts
+only the array, and `SelectFieldMetadata` refuses the string for the same reason.
+The metadata key wins over the `dependsOn` widget prop a host may pass.
+[objectui#7357](https://github.com/objectstack-ai/objectui/issues/7357) retired
+objectui's snake_case twin `depends_on`, which was never a `@objectstack/spec`
+key; `dependsOn` is the only spelling any widget reads. Metadata that still
+spells it the old way has no effect — rename it.
 
 The value being edited, and the `className` / `disabled` a host supplies, are **not**
 metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).

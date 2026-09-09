@@ -58,6 +58,7 @@ import { ModeToggle } from './ModeToggle.js';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher.js';
 import { CurrentOrganizationIndicator } from './CurrentOrganizationIndicator.js';
 import { LocaleSwitcher } from './LocaleSwitcher.js';
+import { NotificationPreferencesMenu } from './NotificationPreferencesMenu.js';
 import { ConnectionStatus } from './ConnectionStatus.js';
 import type { ActivityItem } from './ActivityFeed.js';
 import { InboxPopover } from './InboxPopover.js';
@@ -179,13 +180,16 @@ export function AppHeader({
         return;
       }
       const result: any = await client.meta.getItems('doc');
+      // `meta.getItems` answers the `{ type, items: [...] }` envelope (or a
+      // bare array from the ADR-0037 preview path) — the two shapes
+      // `MetadataProvider`'s `extractItems` accepts. A `value` arm used to
+      // trail them; measured zero producers emit `value` at THIS seam
+      // (objectui#6917), so it is gone (AGENTS.md #0.1).
       const items: any[] = Array.isArray(result)
         ? result
         : Array.isArray(result?.items)
           ? result.items
-          : Array.isArray(result?.value)
-            ? result.value
-            : [];
+          : [];
       setHelpDocs(
         items
           .map((it) => ({ name: it?.name, label: it?.label, _packageId: it?._packageId }))
@@ -890,6 +894,15 @@ export function AppHeader({
               </span>
               <LocaleSwitcher />
             </div>
+            {/*
+             * objectui#7011 — the two inbox announcement switches. They belong
+             * beside theme and language for the same reason those moved here:
+             * browser-local preferences a user sets once. The desktop switch is
+             * also the ONLY path to `Notification.requestPermission()` in this
+             * console, and keeping it behind a deliberate gesture is what stops
+             * a load-time prompt from spending that channel permanently.
+             */}
+            <NotificationPreferencesMenu />
 
             {isAuthEnabled && (
               <>

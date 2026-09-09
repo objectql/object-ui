@@ -45,6 +45,15 @@ These top-level schema fields are passed as raw strings:
 
 Every UI component node MUST follow this shape:
 
+⚠️ A deliberately SIMPLIFIED teaching copy of the published `BaseSchema`
+(`import type { BaseSchema } from '@object-ui/types';`), KEPT rather than
+replaced by an import: the published interface declares **21** members plus an
+index signature, and this rule is about the SHAPE, not the full member list.
+Nothing checks the copy against the real type. `properties`, `props` and
+`events` are **not declared members** — they reach a node through
+`BaseSchema`'s `[key: string]: any` index signature, which is exactly why the
+two rules below have to state who reads each of them.
+
 ```typescript
 interface BaseSchema {       // abridged — full member list: packages/types/src/base.ts
   type: string;              // Required: component type identifier

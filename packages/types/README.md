@@ -29,7 +29,9 @@ pnpm add @object-ui/types
 Object UI follows a strict **"Protocol First"** approach with a clear inheritance hierarchy:
 
 ```
-@objectstack/spec (v15.x)           ← The "Highest Law" - Universal protocol
+@objectstack/spec                   ← The "Highest Law" - Universal protocol. The
+                                      required range is declared in package.json,
+                                      the authority; a copy here goes stale unnoticed.
     ↓
 BaseSchema (@object-ui/types)       ← A component node: the base interface every
                                       UI component schema extends, carrying `type`
@@ -118,6 +120,42 @@ function renderComponent(schema: AnySchema) {
 // Or use the utility type
 type ButtonSchema = SchemaByType<'button'>;
 ```
+
+### The strict authoring face
+
+`@object-ui/types/zod` publishes **two** faces over the same declarations.
+
+- The **rendering face** (`AnyComponentSchema`, `SchemaNodeSchema`, every named
+  mirror) is tolerant: a node may carry keys the schema does not declare, because
+  renderer props ride through it.
+- The **strict authoring face** is a derived twin that closes every declared
+  object, at every depth. It is meant for authoring-time checking — validating a
+  document a person or an agent just wrote — where an undeclared key is far more
+  likely to be a typo than a renderer prop.
+
+```typescript
+import {
+  AnyComponentSchema,
+  ButtonSchema,
+  StrictAnyComponentSchema,
+  deriveStrictAuthoringSchema,
+} from '@object-ui/types/zod';
+
+const document = { type: 'card', childrn: [] }; // note the typo
+
+AnyComponentSchema.safeParse(document).success;       // true  — the tolerant face
+StrictAnyComponentSchema.safeParse(document).success; // false — `unrecognized_keys: ["childrn"]`
+
+// Take the strict twin of any schema on the face:
+const StrictButton = deriveStrictAuthoringSchema(ButtonSchema);
+```
+
+The twins are derived from the mirrors, never hand-written, so they cannot drift
+from them. Strictness here is a property of the parse, not of the declaration:
+the derived schema carries the same TypeScript type as the schema it came from.
+Opaque `custom` / `function` / `transform` validators have no shape to close;
+`deriveStrictAuthoringSchema` reports each one it meets through the optional
+`onOpaqueShape` callback.
 
 ## Type Categories
 
@@ -326,6 +364,7 @@ We follow these constraints for this package:
 - 📚 [Documentation](https://www.objectui.org/docs/api/schema-reference)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/types)
 - 📝 [Changelog](./CHANGELOG.md)
+- 💻 [GitHub repository](https://github.com/objectstack-ai/objectui)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)
 - 🤝 [Contributing Guide](https://github.com/objectstack-ai/objectui/blob/main/CONTRIBUTING.md)
 - 🗺️ [Roadmap](https://github.com/objectstack-ai/objectui/blob/main/ROADMAP.md)
@@ -333,9 +372,3 @@ We follow these constraints for this package:
 ## License
 
 MIT
-
-## Links
-
-- [Documentation](https://objectui.org/docs/api/schema-reference)
-- [GitHub](https://github.com/objectstack-ai/objectui)
-- [NPM](https://www.npmjs.com/package/@object-ui/types)

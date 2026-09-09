@@ -44,13 +44,17 @@ import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
 import { HistoryTimeline } from './HistoryTimeline';
 import { RecordMetaFooter } from './RecordMetaFooter';
-import { SchemaRenderer, toRenderableSchema, useSafeFieldLabel, useDataInvalidation, useInlineEdit, useRowPredicate } from '@object-ui/react';
+import { SchemaRenderer, SchemaErrorBoundary, toRenderableSchema, useSafeFieldLabel, useDataInvalidation, useInlineEdit, useRowPredicate } from '@object-ui/react';
 import { buildExpandFields, getRecordDisplayName, formatTitleTemplate, userActionPredicates } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import type { DetailViewSchema, DataSource, ActionSchema, SchemaNode } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
 import { useRecordEditable } from './useRecordEditable';
+import { getCellRenderer, resolveCellRendererType, coerceToSafeValue } from '@object-ui/fields';
+import { hasCellValue } from './emptiness';
+import { enrichDetailField } from './fieldEnrichment';
+import { chipTakesCellRenderer } from './summaryChipRenderers';
 
 /** Default page size for related lists in the detail view */
 const DEFAULT_RELATED_PAGE_SIZE = 5;
@@ -185,6 +189,66 @@ export interface DetailViewProps {
    */
   onToggleFavorite?: (next: boolean) => void;
 }
+
+
+/**
+ * Every field entry named by every section, flattened — the ONE spelling.
+ *
+ * ⚠️ Tolerant of a section with no `fields` array ON PURPOSE, and the
+ * tolerance is not leniency toward off-spec metadata (Commandment #0.1): a
+ * section carrying `{ group }` instead of `{ fields }` is EXACTLY what
+ * `@objectstack/spec` 17.3.0 declares (`RecordDetailsProps.sections[].group`,
+ * objectstack#13855), so this is the renderer learning to read a document the
+ * contract already accepts.
+ *
+ * A bare `sections.flatMap((s) => s.fields)` does not skip such a section — it
+ * keeps `undefined` as an ELEMENT (flatMap flattens arrays, and `undefined` is
+ * not one), and the very next line reads `.name` off it. That threw
+ * `Cannot read properties of undefined (reading 'name')` from inside a
+ * `useMemo` ABOVE the section loop, so no per-section boundary could contain
+ * it and `SchemaErrorBoundary` blanked the whole `record:details` component —
+ * one authored key erasing every sibling section on the page (objectui#8497).
+ * The crash predates the key it fires on: it arrived with `e99770841`
+ * (2026-05-01), months before #13855 declared `group`, so it was never a
+ * deliberate refusal of anything.
+ */
+const sectionFieldEntries = (sections: any[] | undefined): any[] =>
+  (sections || []).flatMap((s) => (Array.isArray(s?.fields) ? s.fields : []));
+
+/**
+ * One section's blast radius is that section (objectui#8497 acceptance 2).
+ *
+ * `SchemaErrorBoundary` already existed one level UP, per COMPONENT — which is
+ * why a single malformed section rendered "Component `record:details` failed to
+ * render" over the whole body and every well-formed sibling vanished with it.
+ * Reusing that same boundary per section pushes the granularity down: the
+ * broken section shows the failure in its own place, its siblings keep
+ * rendering their fields and their labels.
+ *
+ * ⚠️ This is the SECOND half of the containment and it cannot be the only one.
+ * A React error boundary catches what throws while RENDERING ITS SUBTREE, and
+ * the crash this card was filed for throws in a `useMemo` in `DetailView`'s own
+ * body — above every section, outside any per-section subtree. Hence
+ * {@link sectionFieldEntries}: that one guards the path that actually fired,
+ * this one bounds every OTHER way a section can throw.
+ *
+ * `componentType` is the section identity, so the notice names which section
+ * failed rather than blaming the component that hosts it.
+ */
+const SectionBoundary: React.FC<{ section: any; index: number; children: React.ReactNode }> = ({
+  section,
+  index,
+  children,
+}) => (
+  <SchemaErrorBoundary
+    componentType={`record:details section ${
+      section?.name ?? section?.group ?? section?.title ?? section?.label ?? `#${index + 1}`
+    }`}
+  >
+    {children}
+  </SchemaErrorBoundary>
+);
+
 
 export const DetailView: React.FC<DetailViewProps> = ({
   schema: rawSchema,
@@ -423,7 +487,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const autoSummaryFields = React.useMemo<string[]>(() => {
     if (schema.summaryFields && schema.summaryFields.length > 0) return [];
     const allFields = [
-      ...(schema.sections?.flatMap((s) => s.fields) || []),
+      ...sectionFieldEntries(schema.sections as any[]),
       ...(schema.fields || []),
     ];
     const fieldDefMap: Record<string, any> = {};
@@ -435,7 +499,12 @@ export const DetailView: React.FC<DetailViewProps> = ({
         fieldDefMap[name] = { ...(fieldDefMap[name] || {}), ...def, name };
       }
     }
-    const has = (n: string) => data?.[n] !== undefined && data?.[n] !== null && data?.[n] !== '';
+    // The picker and the chip renderer below MUST ask the same question. This
+    // spelling is the same defect one rung earlier (objectui#8394): a
+    // whitespace-only `status` satisfied a raw test, so it won the single
+    // status slot — and then the render dropped it for being empty, leaving no
+    // status chip at all where a genuinely filled `stage` would have shown one.
+    const has = (n: string) => hasCellValue(data?.[n]);
     const picks: string[] = [];
     // 1) status / stage / state / select with options
     const statusKeys = ['status', 'stage', 'state', 'phase'];
@@ -509,7 +578,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
       // Collect all visible fields from sections and top-level fields
       const allFields = [
-        ...(schema.sections?.flatMap(s => s.fields) || []),
+        ...sectionFieldEntries(schema.sections as any[]),
         ...(schema.fields || []),
       ];
 
@@ -976,12 +1045,16 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 </h1>
                 {effectiveSummaryFields.map((fieldName) => {
                   const val = data?.[fieldName];
-                  if (val === null || val === undefined || val === '') return null;
+                  // Same definition as `has` above and as every other band of
+                  // the page (`./emptiness`, objectui#8376/#8394). A raw test
+                  // here rendered a whitespace-only value as a visually blank
+                  // Badge beside the H1 — while the H1's own authority called
+                  // that field empty.
+                  if (!hasCellValue(val)) return null;
                   // Format value based on field type from schema or objectSchema.
                   // Best-effort: currency → localized currency, date/datetime →
                   // localized date string, others → String(val).
-                  const sectionField = (schema.sections || [])
-                    .flatMap((s) => s.fields)
+                  const sectionField = sectionFieldEntries(schema.sections as any[])
                     .concat(schema.fields || [])
                     .find((f) => f.name === fieldName);
                   const objField = objectSchema?.fields?.[fieldName];
@@ -1038,6 +1111,78 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   } catch {
                     /* fall back to String(val) */
                   }
+
+                  // ── The chip's STRING path cannot express an object ───────
+                  //
+                  // `String({…})` is the literal `[object Object]`, and it
+                  // reached the reader twice: as the chip's text beside the H1
+                  // and, because the accessible name is built from the same
+                  // string, as the chip's accessible name (objectui#8464).
+                  // Every branch above lands here too — `Number({})` is `NaN`,
+                  // `new Date({})` is Invalid, and the option lookup falls back
+                  // to `String(val)` — so the four formatted families are
+                  // caught by this one test rather than by four of their own.
+                  //
+                  // The test is the DEFECT'S OWN SIGNATURE, not a type guess:
+                  // it fires exactly where the placeholder was produced, so a
+                  // value the string path already renders (`['a','b']` →
+                  // `a,b`, every scalar) is byte-for-byte untouched.
+                  //
+                  // ⭐ Which side this chip is on was MEASURED, not argued.
+                  // objectui#8395 established on this page that "render what
+                  // the user sees" and "render the underlying value" give
+                  // different answers per kind. This chip already answers the
+                  // FIRST question for every family it formats — it prints
+                  // `$1,235` for a stored `1234.5`, `Mar 4, 2026` for
+                  // `'2026-03-04'`, `Closed Won` for `'won'` — so the display
+                  // authority is the field's own cell renderer, exactly as
+                  // `HeaderHighlight` reads it one band below.
+                  //
+                  // ⚠️ …but only where a pill can host it. A Badge is a much
+                  // smaller surface than a cell: 15 of the 53 registered types
+                  // draw a nested pill, an avatar composite, a bare `<img>`
+                  // with no text, or a "No value" face for a value
+                  // `hasCellValue` just called FILLED. Those kinds are named,
+                  // with the measurement, in `./summaryChipRenderers`, and they
+                  // take `coerceToSafeValue` — this package's single answer to
+                  // the same question, and byte-equal to what seven of them
+                  // print in their own cell (objectui#8596).
+                  const chipField = enrichDetailField(
+                    { name: fieldName, label: sectionField?.label, type: ftype || 'text' },
+                    objField,
+                  );
+                  const chipRendererType =
+                    resolveCellRendererType(chipField as any) || ftype || 'text';
+                  const stringPathFailed = display.includes('[object Object]');
+                  const ChipCellRenderer =
+                    stringPathFailed && chipTakesCellRenderer(chipRendererType)
+                      ? getCellRenderer(chipRendererType)
+                      : null;
+                  if (stringPathFailed && !ChipCellRenderer) {
+                    display = String(coerceToSafeValue(val) ?? '');
+                  }
+
+                  if (ChipCellRenderer) {
+                    return (
+                      <Badge
+                        key={fieldName}
+                        variant="secondary"
+                        className="text-xs bg-primary/10 text-primary border-transparent hover:bg-primary/15"
+                        data-summary-chip={fieldName}
+                      >
+                        {/* The chip carries no visible label, so the field name
+                            reached the reader only through the `aria-label`
+                            that the string branches below still set. A renderer
+                            draws an ELEMENT, and an `aria-label` would override
+                            it — hiding the very value this branch exists to
+                            show. Same accessible name, `field: value`, composed
+                            from content instead. */}
+                        <span className="sr-only">{`${fieldName}: `}</span>
+                        <ChipCellRenderer value={val} field={chipField as any} />
+                      </Badge>
+                    );
+                  }
+
                   if (percentValue !== null) {
                     return (
                       <Badge
@@ -1045,6 +1190,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                         variant="secondary"
                         className="text-xs bg-primary/10 text-primary border-transparent hover:bg-primary/15 gap-1.5 pl-2 pr-2"
                         aria-label={`${fieldName}: ${display}`}
+                        data-summary-chip={fieldName}
                       >
                         <span
                           className="relative inline-block h-1.5 w-12 rounded-full bg-primary/20 overflow-hidden"
@@ -1065,6 +1211,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                       variant="secondary"
                       className="text-xs bg-primary/10 text-primary border-transparent hover:bg-primary/15"
                       aria-label={`${fieldName}: ${display}`}
+                      data-summary-chip={fieldName}
                     >
                       {display}
                     </Badge>
@@ -1485,18 +1632,19 @@ export const DetailView: React.FC<DetailViewProps> = ({
             )}
             {schema.sections && schema.sections.length > 0 && (
               schema.sections.map((section, index) => (
-                <DetailSection
-                  key={index}
-                  section={section}
-                  data={{ ...data, ...editedValues }}
-                  objectSchema={objectSchema}
-                  objectName={schema.objectName}
-                  isEditing={isInlineEditing}
-                  onFieldChange={handleInlineFieldChange}
-                  onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
-                  autoFocusField={autoFocusField}
-                  dataSource={dataSource}
-                />
+                <SectionBoundary key={index} section={section} index={index}>
+                  <DetailSection
+                    section={section}
+                    data={{ ...data, ...editedValues }}
+                    objectSchema={objectSchema}
+                    objectName={schema.objectName}
+                    isEditing={isInlineEditing}
+                    onFieldChange={handleInlineFieldChange}
+                    onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+                    autoFocusField={autoFocusField}
+                    dataSource={dataSource}
+                  />
+                </SectionBoundary>
               ))
             )}
             {schema.fields && schema.fields.length > 0 && !schema.sections?.length && (
@@ -1673,18 +1821,19 @@ export const DetailView: React.FC<DetailViewProps> = ({
           {schema.sections && schema.sections.length > 0 && (
             <div className="space-y-3 sm:space-y-4">
               {schema.sections.map((section, index) => (
-                <DetailSection
-                  key={index}
-                  section={section}
-                  data={{ ...data, ...editedValues }}
-                  objectSchema={objectSchema}
-                  objectName={schema.objectName}
-                  isEditing={isInlineEditing}
-                  onFieldChange={handleInlineFieldChange}
-                  onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
-                  autoFocusField={autoFocusField}
-                  dataSource={dataSource}
-                />
+                <SectionBoundary key={index} section={section} index={index}>
+                  <DetailSection
+                    section={section}
+                    data={{ ...data, ...editedValues }}
+                    objectSchema={objectSchema}
+                    objectName={schema.objectName}
+                    isEditing={isInlineEditing}
+                    onFieldChange={handleInlineFieldChange}
+                    onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+                    autoFocusField={autoFocusField}
+                    dataSource={dataSource}
+                  />
+                </SectionBoundary>
               ))}
             </div>
           )}

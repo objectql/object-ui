@@ -134,6 +134,7 @@ import { isEntrypoint } from './invoked-as.mjs';
  *   readme-exports.yml            README Export Check
  *   docs-route-eager-closure.yml   Docs Route Eager Closure Check
  *   governed-surface-guard.yml     Governed Surface Queue Guard
+ *   action-ref-convention.yml      Action Ref Convention
  *
  * `Governed Surface Queue Guard` is the newest and the one whose reading here
  * differs from every other row, so it is worth a sentence. On a PULL REQUEST it
@@ -176,6 +177,12 @@ export const REQUIRED_CONTEXTS = Object.freeze([
   'README Export Check',
   'Docs Route Eager Closure Check',
   'Governed Surface Queue Guard',
+  // objectui#8465. Worth listing deliberately rather than by reflex: this gate
+  // reads `.github/workflows/**`, which is exactly what a Dependabot
+  // `github-actions` bump edits — those bumps are the pull requests most likely
+  // to introduce an off-convention reference and the least likely to have a
+  // human reading each edited line.
+  'Action Ref Convention',
 ]);
 
 /**
@@ -226,11 +233,13 @@ export const NOT_A_GATE = Object.freeze({
   'Test (coverage shard 3/4)': COVERAGE_SHARD_NOT_A_GATE,
   'Test (coverage shard 4/4)': COVERAGE_SHARD_NOT_A_GATE,
   'Live E2E (informational)':
-    'live-e2e.yml is declared INFORMATIONAL and NON-REQUIRED in its own header and runs `continue-on-error: true`; ci-cd-pipeline.md says in as many words not to add it to required checks.',
+    'live-e2e.yml is declared INFORMATIONAL and NON-REQUIRED in its own header, and ci-cd-pipeline.md says in as many words not to add it to required checks. It carries no `continue-on-error` since objectui#8084 — that flag left this check run red anyway and only inverted the workflow-run conclusion — so a red here is a real red, ignored because the lane is advisory and never because the check could not fail.',
   label:
     'labeler.yml applies labels. It is a mutation, not a verdict — nothing about the change is judged by it.',
   'Changeset Overwrite Report':
     "changeset-guard.yml's second job is REPORT-ONLY by measurement (objectui#6336): it names any `.changeset/*.md` the change modified or deleted without having added it, and exits 0 whatever it finds — all 19 such modifications in this repository's history were legitimate, so blocking would have failed every one of those pull requests. It goes red only when it cannot compute its diff, which is a fact about the checkout rather than a verdict on the change. Its pull_request trigger is also path-filtered to `.changeset/**` and the two gate scripts, so a Dependabot bump never produces this check at all.",
+  'Lockfile Integrity Check':
+    "lockfile-integrity.yml (objectui#8326) reports a lockfile DELTA — an `@objectstack/*` identity moving backward, or a workspace-declared dependency gaining a physical copy. ⛔ It is deliberately NOT a blocking context: enrolling it changes what stops the merge queue, which is a maintainer decision the #8326 dispatch reserved rather than took, and its pull request writes up the cost as input (measured: it would have blocked 3 of the 40 most recent lockfile-changing commits on `main`, each for a real duplication of a runtime-declared package). Its pull_request trigger is also path-filtered to `pnpm-lock.yaml` and its own two files, so it cannot be REQUIRED under #3523's rule while that filter stands — promoting it means removing the filter as well.",
   'Live half-state sweep':
     'half-state-patrol.yml is REPORT-ONLY by ruling (objectui#5791): a completed sweep exits 0 whether it found 0 half-states or 40, and the job gates no branch and blocks no queue. It goes red only when the sweep could not RUN — the patrol reporting its own death, which is a fact about the patrol, not a verdict on the pull request. Its pull_request trigger is also path-filtered to the sweeper and the workflow, so a Dependabot bump never produces this check at all.',
 });

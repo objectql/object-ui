@@ -32,6 +32,38 @@ import {
   DASHBOARD_COMPONENT_WIDGET_TYPES,
   DASHBOARD_WIDGET_TYPE_EXTENSIONS,
 } from '../complex.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
+ */
+
 
 /**
  * The retired declarative face, named once so every refusal below says the
@@ -158,7 +190,7 @@ export const KanbanSchema = BaseSchema.extend({
   conditionalFormatting: z.array(KanbanConditionalFormattingRuleSchema).optional().describe('Card conditional formatting rules'),
   cardTemplates: z.array(CardTemplateSchema).optional().describe('Predefined card templates for quick-add'),
   columnWidths: ColumnWidthConfigSchema.optional().describe('Custom column width configuration'),
-  grouping: SpecGroupingConfigSchema.optional().describe('Grouping configuration from ListView; its first field is the swimlaneField fallback'),
+  grouping: stripImportedDefaults(SpecGroupingConfigSchema).optional().describe('Grouping configuration from ListView; its first field is the swimlaneField fallback'),
   draggable: retiredDeclarativeKanbanKey('draggable', 'board', 'Drag-and-drop is always on; delete the key.'),
   onColumnAdd: handlerKeyRefusal('onColumnAdd', 'retired', 'Column add handler'),
   onCardAdd: handlerKeyRefusal('onCardAdd', 'retired', 'Card add handler'),
@@ -281,6 +313,41 @@ export const FilterOperatorSchema = z.enum([
  * — read that before "fixing" any of them to match this one.
  */
 const FilterBuilderConditionObject = z.object({
+  // REQUIRED, and the asymmetry with `FilterGroupSchema.id` below is the whole
+  // point of declaring it here (objectui#8415). The group's `id` has ZERO read
+  // sites and is optional for that reason; a CONDITION's `id` is the identity
+  // every affordance on the row matches on, measured in
+  // `packages/components/src/custom/filter-builder.tsx`:
+  //
+  //   - the four MATCH sites — `removeCondition` (`c.id !== conditionId`),
+  //     `updateCondition` and `changeOperator` (`c.id === conditionId`) and
+  //     `changeField` (`c.id !== conditionId`);
+  //   - the React `key` on the row;
+  //   - eleven call sites that hand `condition.id` to one of those four.
+  //
+  // The component's own exported `FilterBuilderCondition` declares it `string`,
+  // not `string | undefined`, and `addCondition` emits `crypto.randomUUID()`.
+  //
+  // ⭐ The narrowing refuses only what is ALREADY broken. Because a plain
+  // `z.object` STRIPS undeclared keys, an author who correctly wrote `id` had
+  // it discarded in silence: the document validated, the row rendered, and the
+  // row then had no individual identity. Both sides of every comparison listed
+  // above are `undefined`, and `undefined === undefined` is TRUE, so each
+  // helper matches EVERY id-less row rather than none:
+  //
+  //   - `removeCondition(undefined)` deletes them ALL in one click — the
+  //     clicked row included; only rows carrying a real id survive it;
+  //   - `updateCondition`, `changeOperator` and `changeField` fan a single
+  //     edit out across all of them;
+  //   - `key={condition.id}` becomes `key={undefined}`, which React reads as
+  //     NO key at all rather than as a duplicate one, so the rows reconcile by
+  //     index and React warns about the missing key.
+  //
+  // ⛔ Not "matches none": the failure is EN BLOC, and it is the more severe
+  // reading — a row cannot be edited or removed on its own. Nothing that worked
+  // stops working; the state this refuses is accepted-and-discarded, the class
+  // objectui#6150 closed for `tree-view.title`.
+  id: z.string().describe('Row identity — matched by `removeCondition` / `updateCondition` / `changeOperator` / `changeField`, and the React key'),
   field: z.string().describe('Field name'),
   operator: FilterOperatorSchema.describe('Filter operator'),
   value: z.any().optional().describe('Filter value'),
@@ -718,7 +785,7 @@ export const DashboardWidgetLayoutSchema = z.object({
  * node loses no authored key while a widget refuses undeclared ones.
  */
 export const DashboardWidgetTypeSchema = z.enum([
-  ...SpecChartTypeSchema.options,
+  ...stripImportedDefaults(SpecChartTypeSchema).options,
   ...DASHBOARD_WIDGET_TYPE_EXTENSIONS,
   ...DASHBOARD_COMPONENT_WIDGET_TYPES,
 ]);
@@ -773,14 +840,34 @@ export const DashboardWidgetTypeSchema = z.enum([
  *
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
-export const DashboardWidgetSchema = specFieldsExcept(SpecDashboardWidgetSchema.shape, [
+export const DashboardWidgetSchema = specFieldsExcept(stripImportedDefaults(SpecDashboardWidgetSchema).shape, [
   'id',
   'type',
 ] as const).extend({
   id: z.string().optional().describe('Widget ID'),
   type: DashboardWidgetTypeSchema.optional()
     .describe('Widget visualization type — the spec families plus objectui\'s closed `list`/`custom` and `metric-card` extensions'),
-  component: SchemaNodeSchema.optional().describe('Widget Component (legacy format)'),
+  // ⚠️ `BaseSchema`, ⛔ NOT `SchemaNodeSchema` (objectui#8344). The two were the
+  // same accept set until #8344 redirected the node recursion point at
+  // `AnyComponentSchema`, and this slot is the one place in the package where they
+  // must not be: `metric-card` is objectui's CLOSED widget-slot component
+  // extension (`DASHBOARD_COMPONENT_WIDGET_TYPES`), admitted by the 2026-08-14
+  // ruling (objectstack#8593) and DELIBERATELY not an arm of `AnyComponentSchema` —
+  // {@link DashboardWidgetSlotComponentSchema} says so in as many words: the
+  // routing is an internal property of the widget slot, "not new authoring
+  // surface". So the redirect would refuse `{ id, component: { type:
+  // 'metric-card', … }, layout }` — the legacy envelope this key exists FOR — and
+  // the only repair the card leaves open (a new arm) is the widening that ruling
+  // declined. ⇒ the slot names the passthrough the ruling assigns it instead of
+  // inheriting whatever the recursion point currently means. Pinned by
+  // `__tests__/dashboard-widget-strict-6002.test.ts`'s legacy-envelope case and by
+  // `__tests__/dashboard-widget-slot-component-arm-7952.test.ts`.
+  //
+  // ⚠️ One measured delta from the old spelling, and it is the only one: a PRIMITIVE
+  // in this slot (`component: "text"`) was accepted through `SchemaNodeSchema` and is
+  // refused now. No corpus document, fixture or pin writes one, and the key is
+  // declared "Widget Component (legacy format)" — a node, never a scalar.
+  component: BaseSchema.optional().describe('Widget Component (legacy format)'),
 }).strict();
 
 /**
@@ -868,7 +955,7 @@ const DashboardWidgetSlotComponentSchema = BaseSchema.extend({
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
 export const GlobalFilterSchema = z.object({
-  ...SpecGlobalFilterSchema.shape,
+  ...stripImportedDefaults(SpecGlobalFilterSchema).shape,
   options: z.array(z.union([
     z.string(),
     z.object({
@@ -890,7 +977,7 @@ export const GlobalFilterSchema = z.object({
   const specOwned: Record<string, unknown> = { ...filter };
   delete specOwned.options;
   delete specOwned.optionsFrom;
-  const result = SpecGlobalFilterSchema.safeParse(specOwned);
+  const result = stripImportedDefaults(SpecGlobalFilterSchema).safeParse(specOwned);
   if (result.success) return;
   for (const issue of result.error.issues) ctx.addIssue({ ...issue });
 });
@@ -917,7 +1004,7 @@ export const GlobalFilterSchema = z.object({
  * `.partial()` guarantees no *future* spec field can become required and
  * silently invalidate stored objectui dashboards.
  */
-const SpecDashboardFields = specFieldsExcept(SpecDashboardSchema.shape, [
+const SpecDashboardFields = specFieldsExcept(stripImportedDefaults(SpecDashboardSchema).shape, [
   'name',
   'label',
   'description',

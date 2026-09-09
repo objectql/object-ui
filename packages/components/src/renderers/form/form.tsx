@@ -2830,7 +2830,7 @@ ComponentRegistry.register('form',
                   // can say "Select Account first" instead of naming the raw
                   // API name (objectstack#5407). The whole form's map is passed
                   // (not a per-field slice) because the widget reads only the
-                  // entries its own `depends_on` names, and one stable
+                  // entries its own `dependsOn` names, and one stable
                   // reference keeps the widget's memo deps from thrashing.
                   dependsOnLabels: fieldLabelByName,
                   // The validation slot the widget props contract has declared

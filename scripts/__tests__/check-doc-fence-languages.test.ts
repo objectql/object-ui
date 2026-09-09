@@ -13,7 +13,11 @@ import {
   TS_FENCE_LANGUAGES as GUARD_TS_FENCES,
 } from '../check-doc-fence-languages.mjs';
 import {
+  ADR_DOCS as SNIPPET_ADR_DOCS,
+  adrDocsPages as snippetAdrDocsPages,
   APP_DOCS as SNIPPET_APP_DOCS,
+  AUDIT_DOCS as SNIPPET_AUDIT_DOCS,
+  auditDocsPages as snippetAuditDocsPages,
   listDocuments as snippetDocuments,
   ROOT_DOCS as SNIPPET_ROOT_DOCS,
   rootDocsPages as snippetRootDocsPages,
@@ -60,13 +64,30 @@ function documentCounts(text: string): string[] {
  * Lifted to module scope by objectui#7901 for the same reason objectui#7914
  * lifted the pattern: the pin below and the emptiness control beside it must
  * read ONE extraction, or the control demonstrates a surface the pin does not
- * have. The extraction itself is unchanged, character for character, from what
- * the pin carried inline.
+ * have.
+ *
+ * Stripped, not kept: a sentence that wraps across two comment lines has a `#`
+ * sitting in the middle of it, and a scan that reads the raw lines cannot see a
+ * numeral and the noun it qualifies as adjacent when the line break falls
+ * between them. Removing the marker is what makes the count pin below read the
+ * header the way a person does.
+ *
+ * That paragraph is the third copy's (`check-links-workflow.test.ts`), carried
+ * here verbatim by objectui#7967 together with the `.map` line it argues for.
+ * This extraction and its twin in the other objectui#7448 pin KEPT the marker
+ * while the third copy stripped it — one rule, three copies, and the two that
+ * never wrote down WHY were the two that drifted. The divergence is not
+ * theoretical: the census objectui#7967 ran over all 35 workflow headers reads
+ * two document counts under the stripped extraction that the kept extraction
+ * cannot see at all (`pre-install-import-graph.yml`, `shell-escape-residue.yml`
+ * — neither of them read by any pin today, which is why nothing was failing).
+ * The extraction control below fixtures the shape so this cannot drift back.
  */
 function headerComments(yaml: string): string {
   return yaml
     .split('\n')
     .filter((line) => /^\s*#/.test(line))
+    .map((line) => line.replace(/^\s*#\s?/, ''))
     .join('\n');
 }
 
@@ -117,60 +138,95 @@ const MIN_HEADER_PROSE = 400;
  */
 describe('check-doc-fence-languages: the scan surface is check-doc-snippet-types’s', () => {
   /**
-   * objectui#7856 card 1 — the ONE place the two walks are allowed to differ,
-   * named rather than tolerated.
+   * objectui#7856 — the ONE place the two walks are allowed to differ, named
+   * rather than tolerated. Card 1 opened it; card 2 widened it to three legs and
+   * did NOT widen the way it is expressed.
    *
    * That card brought the repository-root `docs/` tree, TOP LEVEL only, into
    * `check-doc-snippet-types`' walk: an authored-documentation directory that no
    * doc gate read, where three phantom-teaching sites (objectui#7838,
    * objectui#7854) had already been found by hand. It moved THAT gate's
    * population and no other, for a stated reason: the rest of the tree —
-   * `docs/adr/**`, a GOVERNED surface, and `docs/audits/**` — is card 2, whose
+   * `docs/adr/**`, a GOVERNED surface, and `docs/audits/**` — was card 2, whose
    * pull request stops in draft for a human to merge, and `check:doc-fences`'
-   * own surface was not that card's to move.
+   * own surface was not either card's to move.
    *
-   * So the equality below subtracts exactly what the snippet gate exports as its
-   * leg, `rootDocsPages()`, rather than a hand-written list of today's two
-   * filenames: a page added to `docs/` tomorrow travels into BOTH sides of this
-   * comparison by itself, and a page added under `docs/adr/` travels into
-   * NEITHER. A hand-written list would have to be re-typed for the first case and
-   * would stay silently green for the second.
+   * ⭐ Card 2 has now landed those two subtrees on the snippet gate — LEDGER-FIRST,
+   * because an ADR and a dated audit are records rather than pages to repair — and
+   * the whole cost of it here is three enumerators in the subtraction instead of
+   * one. That is the payoff of how card 1 wrote this: the equality subtracts
+   * exactly what the snippet gate EXPORTS as its legs rather than a hand-written
+   * list of today's seventeen filenames. A page added to `docs/` tomorrow travels
+   * into BOTH sides of this comparison by itself, a page added under `docs/adr/`
+   * travels into the snippet gate's side and is subtracted by itself, and a page
+   * added under a THIRD subdirectory of `docs/` travels into NEITHER. A
+   * hand-written list would have to be re-typed for the first two cases and would
+   * stay silently green for the third.
    *
    * ⛔ What this is not: a licence for the two walks to drift anywhere else. Any
    * OTHER divergence still fails here, which is the whole point of keeping the
    * comparison rather than deleting it.
    */
-  it('walks exactly the documents the snippet gate walks, minus that gate’s docs/*.md leg', () => {
-    const legOnly = new Set(snippetRootDocsPages(ROOT));
+  /** The snippet gate's three root-`docs/` legs, taken from the gate itself. */
+  const snippetDocsLegs = () => [
+    ...snippetRootDocsPages(ROOT),
+    ...snippetAdrDocsPages(ROOT),
+    ...snippetAuditDocsPages(ROOT),
+  ];
+
+  it('walks exactly the documents the snippet gate walks, minus that gate’s three docs/ legs', () => {
+    const legOnly = new Set(snippetDocsLegs());
     expect(fenceDocuments(ROOT)).toEqual(snippetDocuments(ROOT).filter((d: string) => !legOnly.has(d)));
   });
 
   it('…and that subtraction is non-empty, so it is not silently subtracting nothing', () => {
-    const leg = snippetRootDocsPages(ROOT);
-    expect(leg.length).toBeGreaterThan(0);
+    // Each leg separately: a union that is non-empty overall would stay green
+    // with one of its three members returning nothing at all.
+    for (const leg of [snippetRootDocsPages(ROOT), snippetAdrDocsPages(ROOT), snippetAuditDocsPages(ROOT)]) {
+      expect(leg.length).toBeGreaterThan(0);
+    }
     // Every subtracted document really is on the snippet gate's side only.
-    for (const doc of leg) {
+    for (const doc of snippetDocsLegs()) {
       expect(snippetDocuments(ROOT), `${doc} is not in the snippet gate's walk`).toContain(doc);
       expect(fenceDocuments(ROOT), `${doc} reached the fence guard's walk`).not.toContain(doc);
     }
   });
 
   /**
-   * The card-2 boundary, pinned on the leg itself. `recursive: false` is a claim
-   * about where this surface stops, and a claim about a walk is only worth what
-   * a test that reads the tree says about it.
+   * The boundary, pinned on the legs themselves. `recursive: false` on one and
+   * `recursive: true` on the other two are claims about where each surface stops,
+   * and a claim about a walk is only worth what a test that reads the tree says
+   * about it.
+   *
+   * Card 1 could state this as "no nested page reaches either walk". Card 2 makes
+   * that false for the snippet gate on purpose, so the pin says the stronger
+   * thing it can still say: the snippet gate's nested pages are EXACTLY the two
+   * subtree legs, and the fence guard's are still none. A third subdirectory of
+   * `docs/` appearing tomorrow lands in no leg and fails the first half here —
+   * which is the alarm card 1's version could not have rung, because it read
+   * every nested page as a violation and would have gone red for card 2 itself.
    */
-  it('the docs/*.md leg stops at the top level — the governed subtrees stay out of both walks', () => {
+  it('the three docs/ legs stop where they say they do, and only the snippet gate has them', () => {
     expect(SNIPPET_ROOT_DOCS).toEqual({ dir: 'docs', recursive: false });
+    expect(SNIPPET_ADR_DOCS).toEqual({ dir: 'docs/adr', recursive: true });
+    expect(SNIPPET_AUDIT_DOCS).toEqual({ dir: 'docs/audits', recursive: true });
     const nested = (docs: string[]) =>
       docs.filter((d) => d.startsWith(`${SNIPPET_ROOT_DOCS.dir}/`) && d.slice(`${SNIPPET_ROOT_DOCS.dir}/`.length).includes('/'));
-    expect(nested(snippetDocuments(ROOT))).toEqual([]);
+    expect([...nested(snippetDocuments(ROOT))].sort()).toEqual(
+      [...snippetAdrDocsPages(ROOT), ...snippetAuditDocsPages(ROOT)].sort(),
+    );
+    // Card 2 moved ONE gate's population; `check:doc-fences` still stops at the
+    // top level of `docs/`.
     expect(nested(fenceDocuments(ROOT))).toEqual([]);
-    // Non-vacuous: the subdirectories this asserts are absent do hold pages.
-    expect(
-      fs.existsSync(path.join(ROOT, SNIPPET_ROOT_DOCS.dir, 'adr')),
-      'docs/adr no longer exists, so the exclusion above pins nothing',
-    ).toBe(true);
+    // Non-vacuous: both subtrees exist and really hold pages.
+    for (const tree of [SNIPPET_ADR_DOCS, SNIPPET_AUDIT_DOCS]) {
+      expect(
+        fs.existsSync(path.join(ROOT, tree.dir)),
+        `${tree.dir} no longer exists, so the equality above pins nothing`,
+      ).toBe(true);
+    }
+    expect(snippetAdrDocsPages(ROOT).length).toBeGreaterThan(0);
+    expect(snippetAuditDocsPages(ROOT).length).toBeGreaterThan(0);
   });
 
   it('…and that is a non-empty set, so the comparison is not vacuous', () => {
@@ -395,8 +451,10 @@ describe('check-doc-fence-languages is wired, not merely present', () => {
     // objectui#7901 — the floor first, or the assertion below is vacuous. The
     // count half cannot distinguish a header that carries no counts from a
     // header this pin has stopped reading; both score `[]`. Measured when this
-    // was added, so it is latent rather than live: the extraction returned 4696
-    // characters from this header, 11.7 times the floor.
+    // was added, so it is latent rather than live: the extraction returned 4435
+    // characters from this header, 11.1 times the floor. It read 4696 at 11.7
+    // before objectui#7967 made this extraction strip the `#` markers: 261 of
+    // those characters were markers, and none of them were prose.
     expect(
       header.length,
       `${WORKFLOW}: the header prose this pin reads came back empty or near-empty, so it asserted over nothing`,
@@ -473,6 +531,50 @@ describe('check-doc-fence-languages is wired, not merely present', () => {
     for (const line of legitimate) {
       expect(documentCounts(line), `${WORKFLOW}'s count pin must NOT fire on: ${line}`).toEqual([]);
     }
+  });
+
+  /**
+   * The positive control for the EXTRACTION — objectui#7967.
+   *
+   * The control above exercises the PATTERN half of the pin and the one below
+   * exercises the emptiness floor. Neither can fail if the extraction hands the
+   * pattern a string the pattern is unable to read, and that is a third way for
+   * this pin to go vacuous — the one that was live here. Where an empty surface
+   * scores clean because there was nothing to read, this one scores clean with
+   * the surface arriving whole and still unreadable.
+   *
+   * Measured, not inferred. This extraction used to KEEP the `#` markers, so a
+   * count wrapping across two comment lines reached the pattern as
+   * `184\n# pages`: the marker is not one of the two intervening words the
+   * pattern allows, and it also trips the negative lookbehind that exists to
+   * rule out issue references. Run over that fixture the kept-marker extraction
+   * returns `[]`; the stripped one returns `["184 pages"]`.
+   *
+   * ⭐ A count landing at end-of-line is not a corner case in a block this
+   * shape. `doc-fence-languages.yml`'s header is hard-wrapped at a comment column, so a
+   * numeral parting from its noun is the ordinary outcome of editing a
+   * paragraph, not an unlucky one.
+   *
+   * Both halves are asserted because only the pair means anything. The
+   * unwrapped sentence proves the fixture is a count this pattern accepts, so
+   * the wrapped assertion is a claim about the EXTRACTION rather than about the
+   * regex; without it, a fixture the pattern simply never matched would look
+   * like the same green.
+   */
+  it('the extraction strips the markers, so a count that wraps across comment lines is still caught', () => {
+    const wrapped = ['  # the published site is built from 184', '  # pages today, so the sweep covers', '  name: x'].join(
+      '\n',
+    );
+    expect(
+      documentCounts(headerComments(wrapped)),
+      'a count wrapping across two comment lines must survive the extraction',
+    ).toEqual(['184 pages']);
+
+    const unwrapped = '  # the published site is built from 184 pages today, so the sweep covers\n  name: x';
+    expect(
+      documentCounts(headerComments(unwrapped)),
+      'the same sentence on one line — so the assertion above is about the extraction, not the pattern',
+    ).toEqual(['184 pages']);
   });
   /**
    * The positive control for the emptiness floor — objectui#7901.

@@ -43,6 +43,20 @@ const schema: ObjectQLComponentSchema = {
 Records whose parent is missing (or points outside the result set) are kept as
 roots, so nothing is silently dropped.
 
+### Expansion: the seed and the user's answer
+
+`defaultExpandedDepth` **seeds** expansion; it does not own it. The seeded set is
+derived from the forest during render rather than mirrored into component state,
+so a tree that expands by default is painted expanded in the first commit that
+has rows — there is no frame in which the forest is drawn collapsed
+(objectui#8666).
+
+When the record set changes — a refetch, a filter, a host that reallocates the
+rows — the seed is recomputed for the new forest. A node the user opened or
+closed by clicking its chevron, **and which is still in the forest**, keeps the
+user's answer; every other node, a genuinely new one included, takes the seed.
+Expansion is per-mount session state: it is not addressable and is not persisted.
+
 ### The `tree` view type is host composition, not authoring
 
 `tree` is **not** an authorable view type. Neither `ObjectViewSchema.defaultViewType`

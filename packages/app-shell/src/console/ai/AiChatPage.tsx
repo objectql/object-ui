@@ -350,7 +350,7 @@ export function agentEmptyState(
           : t('console.ai.empty.editApp.titleGeneric', { defaultValue: 'Edit this app' }),
         description: t('console.ai.empty.editApp.description', {
           defaultValue:
-            'What would you like to change? I’ll modify this app in place — add a field, object, view or automation, or adjust what’s already there.',
+            'What would you like to change? I’ll modify this app in place — add a field, object, view or dashboard, or adjust what’s already there.',
         }),
       };
     }
@@ -358,7 +358,7 @@ export function agentEmptyState(
       title: t('console.ai.empty.build.title', { defaultValue: 'Build with AI' }),
       description: t('console.ai.empty.build.description', {
         defaultValue:
-          'Describe an app or workflow in plain language — I draft the objects, screens and automations, then you review and publish.',
+          'Describe an app in plain language — I draft the objects, screens and sample data, then you review and publish.',
       }),
     };
   }

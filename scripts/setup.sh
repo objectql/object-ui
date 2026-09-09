@@ -22,6 +22,33 @@ if ! command -v node &> /dev/null; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Assert the root manifest actually DECLARES a script before this file invokes
+# it, so a name this file gets wrong is LOUD.
+#
+# The alternative failed silently for as long as it was wrong: this script used
+# to call `pnpm test:root`, a script the root manifest has never declared. pnpm
+# exits 254 on an unknown script -- but that call sat inside an `if`, and an
+# `if` condition suppresses `set -e`, so the miss took the else branch and
+# printed "Some tests failed, but setup is complete". The "run tests" step was
+# a no-op that reported it had run (objectui#7987). A step that cannot run
+# while reporting that it did is worse than one that fails: the contributor who
+# reads the warning believes the suite exists and is partly broken, the one who
+# does not believes it passed, and nothing distinguishes the two.
+#
+# Reading the name back out of the manifest is the same discipline the Node
+# floor above follows (objectui#5306): the script and the manifest cannot drift
+# apart, because the script asks the manifest.
+require_root_script() {
+    if ! node -e 'process.exit(require(process.argv[1]).scripts[process.argv[2]] ? 0 : 1)' \
+        "$REPO_ROOT/package.json" "$1"; then
+        echo -e "${RED}❌ setup.sh bug: root package.json declares no \"$1\" script${NC}"
+        echo -e "${YELLOW}That is a defect in this script, not in your environment.${NC}"
+        echo -e "${YELLOW}Please report it: https://github.com/objectstack-ai/objectui/issues${NC}"
+        exit 1
+    fi
+}
+
 # `>=22.11` -> `22.11`. A failed read exits the script under `set -e`, so an
 # unreadable manifest can never be mistaken for a satisfied floor.
 NODE_FLOOR=$(node -p "require('$REPO_ROOT/package.json').engines.node.replace(/^[^0-9]*/, '')")
@@ -48,31 +75,41 @@ echo -e "${GREEN}✓ pnpm $(pnpm -v) detected${NC}"
 echo -e "\n${YELLOW}📦 Installing dependencies...${NC}"
 pnpm install
 
-# Build core packages
-echo -e "\n${YELLOW}🔨 Building core packages...${NC}"
+# Build the packages
+#
+# One `pnpm build` -- which is `turbo run build`, and derives the order from the
+# manifests. Do NOT hand-list packages here again. This block used to build six
+# of them one at a time in a hand-written order (types, core, react, components,
+# fields, layout): a hand-maintained copy of a dependency graph turbo already
+# owns, and it had drifted from it. `@object-ui/react` depends on
+# `@object-ui/i18n` and `@object-ui/data-objectstack`, neither of which was on
+# the list, so on a CLEAN checkout the third step died with
+#
+#   src/index.ts(99,8): error TS2307: Cannot find module '@object-ui/i18n' ...
+#
+# and `set -e` took the whole script down before it reached anything else --
+# reproduced at exit status 2 on `3f775eeb8` (objectui#7987; the same defect
+# class objectui#7292 measured on `packages/components/package.json`'s
+# `prebuild`). A hand-written order cannot be kept correct by review, because
+# nothing tells the person adding a dependency that this file exists.
+echo -e "\n${YELLOW}🔨 Building packages...${NC}"
 echo -e "${BLUE}This may take a few minutes on first run...${NC}"
 
-pnpm --filter @object-ui/types build
-echo -e "${GREEN}✓ @object-ui/types built${NC}"
-
-pnpm --filter @object-ui/core build
-echo -e "${GREEN}✓ @object-ui/core built${NC}"
-
-pnpm --filter @object-ui/react build
-echo -e "${GREEN}✓ @object-ui/react built${NC}"
-
-pnpm --filter @object-ui/components build
-echo -e "${GREEN}✓ @object-ui/components built${NC}"
-
-pnpm --filter @object-ui/fields build
-echo -e "${GREEN}✓ @object-ui/fields built${NC}"
-
-pnpm --filter @object-ui/layout build
-echo -e "${GREEN}✓ @object-ui/layout built${NC}"
+require_root_script build
+pnpm build
+echo -e "${GREEN}✓ Packages built${NC}"
 
 # Run tests
+#
+# `pnpm test` -- the script README.md's manual-setup path tells a contributor to
+# run, and the one this file's own "Available commands" block advertises below.
+# A red suite is still tolerated (setup is complete either way), but that
+# tolerance now covers ONLY a genuine test failure: `require_root_script` has
+# already refused an undeclared name, so the else branch below can no longer be
+# reached by a step that never ran.
 echo -e "\n${YELLOW}🧪 Running tests...${NC}"
-if pnpm test:root; then
+require_root_script test
+if pnpm test; then
     echo -e "${GREEN}✓ All tests passed${NC}"
 else
     echo -e "${YELLOW}⚠ Some tests failed, but setup is complete${NC}"

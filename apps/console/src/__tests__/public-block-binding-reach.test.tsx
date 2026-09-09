@@ -40,9 +40,9 @@
  *
  * That distinction — a plausible value for EVERY input is not the same as a
  * plausible CONFIGURATION — is the lesson this file keeps re-learning, and it is
- * recorded instance by instance rather than as a slogan: four in
- * {@link SUPERSEDES_BINDING}, the fifth and sixth in {@link sampleFor}. Six is
- * the count because every one of them cost a red or, worse, a green for the
+ * recorded instance by instance rather than as a slogan: five in
+ * {@link SUPERSEDES_BINDING}, the sixth and seventh in {@link sampleFor}. Seven
+ * is the count because every one of them cost a red or, worse, a green for the
  * wrong reason. Read them before adding a sample.
  *
  * A block that declares `objectName` and asks the data layer for something else
@@ -242,10 +242,42 @@ const declaresObjectName = (cfg: { inputs?: Array<{ name?: string }> }) =>
  * intact. That is the "plausible value ≠ plausible configuration" lesson a
  * fourth time.
  *
+ * `staticData` is the third entry, and it arrived exactly as the other two did —
+ * as a red on this probe the moment objectui#8314 declared `object-calendar`'s
+ * full authoring surface. It is RUNG 2 of the shared record-source ladder, one
+ * below `data` and one ABOVE `objectName`
+ * (`packages/core/src/utils/record-source.ts`):
+ *
+ *     if (schema.staticData) {
+ *       return { provider: 'value', items: schema.staticData };
+ *     }
+ *
+ *     if (schema.objectName) {
+ *       return { provider: 'object', object: schema.objectName };
+ *     }
+ *
+ * The published contract says the same from both faces — `ObjectMapSchema
+ * .objectName` / `ObjectGanttSchema.objectName` gloss it as *"the THIRD record
+ * source `getDataConfig` resolves, after `data` and `staticData`"* — and the
+ * consuming renderers act on it: `ObjectCalendar.tsx` takes its
+ * `hasInlineData && dataProvider === 'value'` branch, calls `setData(dataItems)`
+ * and never reaches `dataSource.find`. So filling `staticData` is the author
+ * telling the block not to fetch, and reporting "objectName never reached the
+ * data layer" from it would be the probe manufacturing its own finding, exactly
+ * as it would for `data`. Length-sensitive like `customFields`: `sampleFor`
+ * returns a non-empty `['name']` for an array input, and an empty one would have
+ * left the binding intact. That is the "plausible value ≠ plausible
+ * configuration" lesson a fifth time.
+ *
+ * ⚠️ Worth knowing for the next declaration that lands on a ladder block: the
+ * five blocks sharing this ladder (calendar, gantt, grid, map, tree) all read
+ * `staticData`, so any of them declaring it belongs here on the same reasoning,
+ * and this entry covers them without a further edit.
+ *
  * Add to this list only with the guard quoted, so the next reader can check the
  * claim instead of trusting it.
  */
-const SUPERSEDES_BINDING = new Set(['data', 'customFields']);
+const SUPERSEDES_BINDING = new Set(['data', 'staticData', 'customFields']);
 
 /**
  * A plausible value for one declared input.
@@ -255,23 +287,33 @@ const SUPERSEDES_BINDING = new Set(['data', 'customFields']);
  * its empty state without asking for data would read here as an unbound
  * binding.
  *
- * `sections` is the FIFTH instance of the lesson counted in
+ * `sections` is the SIXTH instance of the lesson counted in
  * {@link SUPERSEDES_BINDING}, and the one objectui#3840 was filed for. The
  * generic `array` sample is `['name']`, and a bare string is not a section:
  * `@objectstack/spec`'s `FormViewSchema.sections` rejects it at parse —
  * `safeParse(['name'])` returns *"Invalid input: expected object, received
- * string"* — and requires `fields` on every entry (`[{}]` returns *"0.fields:
- * Invalid input: expected array, received undefined"*). This repo's own type
- * says the same: `ObjectFormSection.fields` is REQUIRED
- * (`packages/types/src/objectql.ts`). So `['name']` is not metadata any author
- * could publish, while `ObjectForm.tsx:1166` reads `section.fields.map(...)` off
- * each entry unguarded and takes the whole block down with *"Cannot read
+ * string"* — and requires every entry to declare its members (`[{}]` returns
+ * *"0.fields: A section must declare its members exactly one way, and this form
+ * section declares neither"*). So `['name']` is not metadata any author could
+ * publish, while `ObjectForm.tsx`'s section loop read `section.fields.map(...)`
+ * off each entry unguarded and took the whole block down with *"Cannot read
  * properties of undefined (reading 'map')"*. That makes the error card a
  * FIXTURE defect, not the product bug the shape suggested — the discriminator
  * being the spec shape, not the fact that a different sample stops the crash
  * (which is true either way).
  *
- * `formType` is the SIXTH, and it is why `object-master-detail-form` read GREEN
+ * ⚠️ Two halves of that reasoning moved with objectui#7051 and are restated
+ * here rather than left to read as still-true. (1) `ObjectFormSection.fields`
+ * is no longer REQUIRED on this repo's type: `group` — the field-group
+ * REFERENCE form, `@objectstack/spec` 17.3.0 / objectstack#13855 — is the other
+ * way a section declares the same fact, so the spec refuses an entry carrying
+ * NEITHER rather than one missing `fields`. The fixture reasoning is unchanged
+ * (a bare string is still not a section, and `{}` is still refused), only its
+ * quoted grounds. (2) That unguarded `.map` is now spelled `?? []`, so this
+ * sample's shape no longer decides whether the block survives — which is
+ * exactly why the sample is justified on the SPEC shape and not on the crash.
+ *
+ * `formType` is the SEVENTH, and it is why `object-master-detail-form` read GREEN
  * while carrying the identical latent crash. That block declares `formType` as a
  * bare `string` — not the enum `object-form` declares — so the default branch
  * below handed it `'x'`, a value the form family has no path for. The crashing

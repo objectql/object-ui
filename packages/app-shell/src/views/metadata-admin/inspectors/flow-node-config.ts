@@ -225,7 +225,15 @@ export interface FlowConfigField {
   options?: Array<{ value: string; label: string }>;
   /** One-line helper hint shown under the control. */
   help?: string;
-  /** Spec default, used when resolving `showWhen` against an unset controller. */
+  /**
+   * The spec default for this key, in the `'true'`/`'false'` string spelling
+   * this table compares against. Read at TWO sites, both for an unset key:
+   * `isFieldVisible` resolves a `showWhen` controller through it (a declared
+   * default decides which fields are on screen), and — since objectui#8451,
+   * objectui#6830 arm A — a `boolean` control seeds its checked state from
+   * it, so the box shows the value the runtime applies rather than a blank
+   * `false`. Shown, never written: it does not become part of the node.
+   */
   defaultValue?: string;
   /**
    * Conditional visibility: only render this field when the controlling field
@@ -754,7 +762,16 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     }),
     // Per-node SLA escalation (spec ApprovalEscalationSchema, nested under
     // config.escalation). Sub-fields reveal once escalation is enabled.
-    { id: 'escalation.enabled', path: ['config', 'escalation', 'enabled'], label: 'SLA escalation', kind: 'boolean', defaultValue: 'false', help: 'Escalate when a decision is not recorded within the timeout.' },
+    //
+    // `defaultValue` mirrors the spec's `.default(true)` (objectui#6620). An
+    // approval node whose escalation block OMITS `enabled` parses as ENABLED,
+    // so a table declaring 'false' drew the gate OFF and hid four sub-fields
+    // that are live at runtime — the inspector said "no escalation" about a
+    // node that escalates. The value is NOT a constant of this file:
+    // `flow-node-config.spec-reconciliation.test.ts` derives every default in
+    // this block from the installed `ApprovalEscalationSchema`, so the next
+    // upstream flip reddens there rather than diverging silently again.
+    { id: 'escalation.enabled', path: ['config', 'escalation', 'enabled'], label: 'SLA escalation', kind: 'boolean', defaultValue: 'true', help: 'Escalate when a decision is not recorded within the timeout.' },
     { id: 'escalation.timeoutHours', path: ['config', 'escalation', 'timeoutHours'], label: 'Timeout (hours)', kind: 'number', placeholder: '24', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
     {
       id: 'escalation.action', path: ['config', 'escalation', 'action'], label: 'On timeout', kind: 'select', defaultValue: 'notify',
@@ -1099,6 +1116,24 @@ export function isFieldVisible(
 }
 
 /**
+ * Whether a read value counts as UNSET — the one definition of "the author has
+ * stored nothing here", shared by every site that has to answer it.
+ *
+ * There were three copies of this predicate before objectui#8451: the re-show
+ * rule's {@link hasStoredValue}, {@link controllerAdmits}'s fallback to the
+ * declared default, and (as of that card) the boolean control's own fallback in
+ * `FlowNodeConfigField`. The third is the reason it is exported and named: a
+ * control that seeds from `defaultValue` must call a key unset in exactly the
+ * words the visibility resolver does, or the same node can render a field whose
+ * gate says "unset, so use the default" beside a control that says "stored, so
+ * ignore it". `''` is included because a cleared text control commits the empty
+ * string rather than deleting the key.
+ */
+export function isUnsetFieldValue(raw: unknown): boolean {
+  return raw === undefined || raw === null || raw === '';
+}
+
+/**
  * Whether this field currently holds a stored value — the input to the
  * re-show rule above, named so {@link inactiveRetainedKind} asks the same
  * question in the same words rather than re-deriving "empty".
@@ -1107,8 +1142,7 @@ function hasStoredValue(
   field: FlowConfigField,
   node: Record<string, unknown> | null | undefined,
 ): boolean {
-  const own = getFieldValue(node, field);
-  return own !== undefined && own !== null && own !== '';
+  return !isUnsetFieldValue(getFieldValue(node, field));
 }
 
 /**
@@ -1130,7 +1164,7 @@ function controllerAdmits(
   const controller = fields.find((f) => f.id === field.showWhen!.field);
   if (!controller) return false;
   const raw = getFieldValue(node, controller);
-  const resolved = raw === undefined || raw === null || raw === '' ? controller.defaultValue : raw;
+  const resolved = isUnsetFieldValue(raw) ? controller.defaultValue : raw;
   // Boolean controllers (e.g. `escalation.enabled`) compare against 'true'/'false'.
   const value = typeof resolved === 'boolean' ? String(resolved) : resolved;
   return typeof value === 'string' && field.showWhen.equals.includes(value);

@@ -7,6 +7,7 @@
  */
 
 import * as React from 'react';
+import { isUnsetFieldValue } from './flow-node-config.js';
 import type { FlowConfigField, InactiveRetainedKind } from './flow-node-config.js';
 import { t } from '../i18n.js';
 import {
@@ -199,15 +200,55 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
             disabled={disabled}
           />
         );
-      case 'boolean':
+      case 'boolean': {
+        // objectui#6830 arm A — "show, do not write" (triage 2026-09-04), the
+        // boolean half (objectui#8451).
+        //
+        // The control shows the value IN EFFECT: the stored boolean, or — when
+        // the author has stored nothing — the `defaultValue` the descriptor
+        // declares, which is what the runtime applies to the omitted key.
+        // Nothing is WRITTEN: an untouched node still ships without the key,
+        // and the first author edit commits an explicit boolean as before.
+        //
+        // The seed used to be `value === true`, which flattened `undefined` and
+        // `false` onto one unchecked box although the runtime treats them
+        // oppositely on a `default(true)` key — the mechanism that turned a
+        // missing display into a false assertion. The distinction survives to
+        // here (`getFieldValue` returns `undefined` vs `false`), so the two
+        // branches are kept apart:
+        //
+        //  - unset  -> the declared default in the table's own 'true'/'false'
+        //    spelling, the one `controllerAdmits` compares a controller against;
+        //  - stored -> `=== true`, unchanged. Deliberately NOT widened to also
+        //    accept a stored string `'true'`: that would be a lenient
+        //    renderer-side alias for off-spec metadata (AGENTS.md #0.1).
+        //
+        // ⛔ Nothing is rendered NAMING the default — no "(default)" caption,
+        // no help line. That is triage's arm-A ruling and stands on its own.
+        //
+        // ⚑ Its original SECONDARY argument has been discharged and must not be
+        // cited again: `escalation.enabled` used to declare the OPPOSITE of what
+        // the installed spec applies to an omitted key, so a caption would have
+        // shipped a wrong claim to authors in words. objectui#6620 fixed the
+        // declaration and, from this seed, that field now draws CHECKED — it no
+        // longer renders byte-identically to before, and the argument that the
+        // seed is the safe half of the change no longer applies to it. Both
+        // boolean fields the offline table declares a default for now agree with
+        // the spec, and `flow-node-config.spec-reconciliation.test.ts` keeps the
+        // whole escalation block reconciled against the installed
+        // `ApprovalEscalationSchema`, so a future divergence reddens there rather
+        // than being absorbed by a rendering decision here. Pinned by
+        // `FlowNodeInspector.declaredDefault.test.tsx`'s #6620 case.
+        const checked = isUnsetFieldValue(value) ? field.defaultValue === 'true' : value === true;
         return (
           <InspectorCheckboxField
             label={field.label}
-            value={value === true}
+            value={checked}
             onCommit={(v) => onCommit(v)}
             disabled={disabled}
           />
         );
+      }
       case 'select':
         return (() => {
           const current = value != null ? String(value) : '';

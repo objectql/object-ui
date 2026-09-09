@@ -268,6 +268,24 @@ export default tseslint.config({
     'object-ui/no-dynamic-import-in-test-hook': 'error',
   },
 }, {
+  // objectui#8047 ratchet — a `File.tsx:123` line address inside a test NAME is
+  // read by nothing: it is not an assertion, no gate parses it, the cited file
+  // is never opened. So it cannot fail, and it rots the first time a line is
+  // inserted above what it cites. objectui#7853 ruled the class (cite by
+  // CONTENT, not by line address) and five per-instance repairs followed it
+  // — #6548, #6998, #7289, #7913, #8045 — without closing it. Scoped to test
+  // files, because the property is "nothing reads a test name"; a line address
+  // in a comment, in an assertion message, or in data a test asserts ON is a
+  // human-read citation and is deliberately out of the population (the rule's
+  // own header carries the boundary and its measured false-positive cost).
+  // Error so a new one fails CI; the whole live population was converted in the
+  // same change, so this lints clean today.
+  files: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
+  plugins: { 'object-ui': objectUi },
+  rules: {
+    'object-ui/no-line-address-in-test-name': 'error',
+  },
+}, {
   // objectui#4045 ratchet — a `<button>` with no `type` is `type="submit"` per
   // HTML, so it submits any <form> it is composed into instead of running its
   // own handler. In an SDUI renderer that composition is a JSON metadata
@@ -302,6 +320,44 @@ export default tseslint.config({
   plugins: { 'object-ui': objectUi },
   rules: {
     'object-ui/no-inline-spec-config': 'error',
+  },
+}, {
+  // objectui#8316 ratchet — no type assertion in the registry's meta seam.
+  //
+  // The objectui#6950 ruling made removing the `as ComponentMeta` cast from
+  // `withElementDataSourceInput` a deliverable, on the ground that a cast at
+  // the one place `binding` is written is exactly what hides the next drift
+  // between `ELEMENT_DATA_SOURCE_INPUT` and its type. PR objectui#8297 removed
+  // it. Nothing the compiler runs can hold that removal: an assertion is
+  // invisible to `tsc` by construction, and it was measured — re-adding
+  // `as ComponentMeta` to the return leaves `packages/core`'s `tsc --noEmit`
+  // at exit 0, as does the `<ComponentMeta>{…}` spelling. (Control taken in
+  // the same run: a real type error on the line above, `const injected:
+  // InjectedComponentInput = 42`, does fail it — TS2322 at Registry.ts.)
+  //
+  // So the removal was pinned by reading the file's source text, in
+  // `packages/types/src/__tests__/injected-component-input-6950.test.ts`. That
+  // pin worked for the spelling it was written against and for nothing else:
+  // measured on 4dc80d0fc, re-adding `as ComponentMeta` turned it red, and
+  // re-adding `<ComponentMeta>{…}` — the same assertion, other spelling — left
+  // it green at 9 passed. A regex over source is also moved by a reflow and
+  // asserts an ABSENCE, which is what a broken pattern returns too. This rule
+  // replaces those two `not.toMatch` lines; the pin's positive half (the local
+  // is annotated `InjectedComponentInput`) is a different claim and stays.
+  //
+  // AST-level, so both spellings are one report and formatting cannot move it,
+  // and it fails at `Lint`, a gate the repo already runs over this file.
+  //
+  // ⛔ Scoped to the ONE file the ruling is about, deliberately. A repo-wide
+  // `assertionStyle: 'never'` is a much larger decision with its own decision
+  // box and is NOT this ratchet (objectui#8316); so is the pre-existing
+  // sibling `as unknown as RegistryConfigLike[]` in
+  // `packages/sdui-parser/scripts/gen-manifest.ts`, which this scope does not
+  // reach. `Registry.ts` carries zero type assertions today, so this lints
+  // clean with no allowlist.
+  files: ['packages/core/src/registry/Registry.ts'],
+  rules: {
+    '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
   },
 }, {
   // objectui#5191 ratchet — `getBadgeColorClasses(color, value)` returns a

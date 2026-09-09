@@ -115,7 +115,10 @@
  * `KNOWN_HAND_SPELLINGS` below is an allowlist that only shrinks: an entry is a
  * live defect with a card, never a waiver. It exists so that a first run finding
  * real instances cannot force the prose fixes into the same PR as the gate — the
- * same shape `scripts/__tests__/network-escape-ledger.test.ts` uses.
+ * same shape the network-escape ledger used (objectui#6640) until objectui#7307
+ * burned it to zero and retired it; `scripts/__tests__/network-escape-ledger.test.ts`
+ * now pins that its list is GONE, which is where a shrink-only ledger is supposed
+ * to end up.
  *
  * It landed carrying exactly one row, which is the gate's own first finding:
  * objectui#7787, `navigation-overlay.tsx`'s file-header example, the copy of

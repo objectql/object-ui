@@ -10,6 +10,7 @@ import * as React from 'react';
 import {
   cn,
   Button,
+  EmptyValue,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -28,6 +29,7 @@ import {
 } from './fieldEnrichment';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { useDetailTranslation } from './useDetailTranslation';
+import { hasCellValue } from './emptiness';
 
 export interface HeaderHighlightProps {
   fields: HighlightField[];
@@ -168,7 +170,15 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
               resolvedType === 'textarea' ||
               (!!resolvedType && EXPANDABLE_FIELD_TYPES.has(resolvedType));
             const isBoolean = resolvedType === 'boolean';
-            const isEmpty = value === null || value === undefined || value === '';
+            // The SAME definition the body grid draws its em-dash from
+            // (`./emptiness`, objectui#8376/#8394). This strip sits between the
+            // page H1 and the body grid, and the H1's own authority
+            // (`recordDisplayValueAt`) trims — so a raw test here made this the
+            // one band on the page still calling a whitespace-only value FILLED
+            // and painting a blank chip where the em-dash belongs. Objects stay
+            // values: they go to `CellRenderer` below, which knows how to draw
+            // them.
+            const isEmpty = !hasCellValue(value);
 
             // Compact-layout UX: an editor (select / date / lookup) needs more
             // room than a KPI number, so an actively-edited column widens to the
@@ -240,12 +250,26 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
                           </span>
                         )
                       ) : isEmpty ? (
-                        <span
-                          className="block text-sm text-muted-foreground/60 select-none"
-                          aria-label={t('detail.noValue', { defaultValue: 'No value' })}
-                        >
-                          —
-                        </span>
+                        // The SHARED placeholder (objectui#8506). This span
+                        // spelled its own em-dash and resolved its own
+                        // `aria-label` from `detail.noValue`; `EmptyValue`
+                        // resolves EXACTLY that key with the same `"No value"`
+                        // English fallback, so the accessible name survives
+                        // byte-for-byte in every locale. Unlike the body grid's
+                        // placeholder this one carries NO `title`, so nothing
+                        // here needs `pointer-events` back — the strip's chip
+                        // keeps its own `onDoubleClick`, which fires from the
+                        // chip, not from the dash.
+                        //
+                        // `block` is layout, not typography: the filled branch
+                        // below is a `block` span inside the same
+                        // `min-w-0 flex-1` box, and an inline dash would sit on
+                        // a different baseline. The retired
+                        // `text-sm text-muted-foreground/60` IS a deliberate
+                        // typography change — it made the strip's own dash a
+                        // different grey from the one a cell renderer draws for
+                        // a chip two columns over.
+                        <EmptyValue className="block" />
                       ) : (
                         <span
                           // Hover reveals the full value; for option-backed

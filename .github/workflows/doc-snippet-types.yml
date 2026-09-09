@@ -69,8 +69,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Enable Corepack and download the pinned pnpm
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -132,8 +132,11 @@ jobs:
       # literal under `packages/*/src/**` is compiled by nothing: `tsc` sees a
       # string, `tsup` copies it through, and this gate's own scan surface stops
       # at the authored pages — `content/docs`, the per-app docs trees, the
-      # package READMEs, the root `README.md` (objectui#7115) and the top level
-      # of the root `docs/` tree (objectui#7856 card 1). This
+      # package READMEs, the root `README.md` (objectui#7115), the top level of
+      # the root `docs/` tree (objectui#7856 card 1) and, recursively,
+      # `docs/adr/**` and `docs/audits/**` (objectui#7856 card 2, which brought
+      # them in LEDGER-FIRST: they are records, so their blocks are declared on
+      # `UNGATED_DOCS` rather than compiled). This
       # step censuses that class through the same `compileSnippets()` the doc
       # blocks go through, against the closure the step above just built.
       #

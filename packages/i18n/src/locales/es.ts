@@ -19,6 +19,7 @@ const es = {
       manage_users: "Gestionar usuarios",
       manage_org_users: "Gestionar usuarios de la organización",
       manage_metadata: "Gestionar metadatos",
+      manage_org_presentation: "Gestionar la presentación de la organización",
       manage_platform_settings: "Gestionar la configuración de la plataforma",
       setup_access: "Acceso a la configuración",
       setup_write: "Escritura de la configuración",
@@ -1086,6 +1087,7 @@ const es = {
     showEmptyFields: "Mostrar {{count}} campos vacíos",
     hideEmptyFields: "Ocultar campos vacíos",
     noValue: "Sin valor",
+    unresolvedReference: "Referencia sin resolver: {{value}} no se resolvió como un usuario",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1106,6 +1108,9 @@ const es = {
     loading: "Cargando gráfico…",
     nullCategory: "(Sin especificar)",
     scatterOneMeasure: "Un gráfico de dispersión traza una sola medida. Conserve una sola serie:",
+    unconfigured: {
+      noCategoryAxis: "Se requiere el eje de categorías del gráfico — un gráfico vinculado a un objeto no lo inventa. Declare uno de:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1567,7 +1572,7 @@ const es = {
       empty: {
         build: {
           title: "Crear con IA",
-          description: "Describa una aplicación o un flujo de trabajo en lenguaje natural — yo redacto los objetos, las pantallas y las automatizaciones, y luego usted revisa y publica.",
+          description: "Describa una aplicación en lenguaje natural — yo redacto los objetos, las pantallas y los datos de ejemplo, y luego usted revisa y publica.",
         },
         ask: {
           title: "Pregunte a sus datos",
@@ -1576,7 +1581,7 @@ const es = {
         editApp: {
           title: "Editando «{{app}}»",
           titleGeneric: "Editar esta aplicación",
-          description: "¿Qué desea cambiar? Modifico esta aplicación sobre la marcha — añadir un campo, un objeto, una vista o una automatización, o ajustar lo que ya existe.",
+          description: "¿Qué desea cambiar? Modifico esta aplicación sobre la marcha — añadir un campo, un objeto, una vista o un panel, o ajustar lo que ya existe.",
         },
       },
       clearConversation: "Borrar",
@@ -2761,6 +2766,13 @@ const es = {
     badgeTotal: "{{total}} en total",
     badgeNotifications: "{{unread}} notificaciones",
     badgeApprovals: "{{approvals}} aprobaciones pendientes",
+    arrivalMany: "{{count}} mensajes nuevos",
+    arrivalRepeats: "{{count}} mensajes nuevos sobre este tema",
+    arrivalOpen: "Ver",
+    toastEnabled: "Avisos en la aplicación",
+    desktopEnabled: "Notificaciones de escritorio",
+    desktopBlocked: "Bloqueado. Permite las notificaciones de este sitio en la configuración del navegador.",
+    desktopUnsupported: "Este navegador no admite notificaciones de escritorio.",
     emptyUnread: "Todo al día",
     filterUnread: "No leídos",
     filterAll: "Todos",

@@ -24,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   cn,
+  EmptyValue,
   resolveIcon,
   useIsMobile,
 } from '@object-ui/components';
@@ -910,6 +911,45 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           })
         : cols;
 
+    /**
+     * Does this cell have nothing to show? **THE** definition of emptiness on
+     * this surface (objectui#8459), read by BOTH places that decide what the
+     * reader sees:
+     *
+     *  - `pruneEmpty`, which drops a COLUMN whose every cell is empty;
+     *  - the placeholder branch of `makeCell`, which draws the muted em-dash
+     *    for an individual CELL.
+     *
+     * The two MUST agree, because one is defined in terms of the other:
+     * `pruneEmpty` keeps a column when `.some()` cell is not empty, and that
+     * promise ("a column you can see has something in it") is only true when
+     * "empty" means the same thing as "this cell draws the placeholder".
+     * They did not agree. The cell branch tested `null | undefined` alone, so
+     * the two clauses below that it lacked — whitespace-only strings and empty
+     * arrays — were pruned at the column level and rendered as *visually blank
+     * cells* in any column that survived because some other row had a value.
+     * Measured in real DOM: a `note` column holding `['   ', 'real']` kept its
+     * header and painted the first cell with three spaces, where the very same
+     * function draws `—` for `null`.
+     *
+     * ## Why this does NOT delegate to `DetailSection`'s `hasCellValue`
+     *
+     * Measured, not assumed. `hasCellValue` answers `true` for every non-null
+     * `object`, and `typeof [] === 'object'` — so it calls an EMPTY ARRAY a
+     * VALUE. This surface calls it empty, and that is the answer a grid needs:
+     * `SelectCellRenderer` maps `[]` over zero options and paints nothing, so
+     * an all-`[]` column pruned here would instead survive and render a column
+     * of blank cells. Delegating would therefore *introduce* the defect this
+     * function exists to remove. The two surfaces agree on every scalar (both
+     * trim) and on non-empty objects (both VALUE, so type-aware renderers keep
+     * drawing coordinates, addresses and badges); they differ only on `[]`,
+     * and here the finer line is the right one.
+     *
+     * `0` and `false` are VALUES on both — no clause below matches them.
+     *
+     * Pinned end-to-end (DOM, not predicate) in
+     * `__tests__/RelatedList.emptinessAgreement-8459.test.tsx`.
+     */
     const isValueEmpty = (v: any) =>
       v === null ||
       v === undefined ||
@@ -960,8 +1000,12 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         ...(def.reference_field && { reference_field: def.reference_field }),
       };
       return (value: any) => {
-        if (value === null || value === undefined) {
-          return React.createElement('span', { className: 'text-muted-foreground/50 text-xs italic' }, '—');
+        // ONE definition of emptiness with `pruneEmpty` — see `isValueEmpty`.
+        // This used to test `null | undefined` alone, which let a
+        // whitespace-only string or an empty array through to a renderer that
+        // paints nothing, in a column `pruneEmpty` had already judged empty.
+        if (isValueEmpty(value)) {
+          return React.createElement(EmptyValue);
         }
         return React.createElement(CellRenderer, { value, field: fieldMeta });
       };

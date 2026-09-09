@@ -598,8 +598,8 @@ jobs:
           fetch-depth: 0
           submodules: true
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Enable Corepack and download the pinned pnpm
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Verify pnpm version
         run: pnpm --version
@@ -1082,16 +1082,28 @@ jobs:
       # union — `ci.yml` on the source, these steps on the version outputs — is
       # the whole post-version tree.
       #
-      #     pnpm quick-reference:check   QUICK_REFERENCE.md          ~1 s
-      #     pnpm check:control-bytes     the 40 generated CHANGELOGs  ~4 s
-      #     pnpm test scripts/__tests__  73 files / 1996 tests       ~50 s
+      #     pnpm quick-reference:check   QUICK_REFERENCE.md            ~1 s
+      #     pnpm check:control-bytes     the 40 generated CHANGELOGs   ~4 s
+      #     pnpm test scripts/__tests__  every test in that directory  ~50 s
       #
       # The tooling suite is named as a DIRECTORY rather than as a list of test
       # files, deliberately: every test in this repository that reads a
       # manifest version, `QUICK_REFERENCE.md` or a `CHANGELOG.md` lives in it
       # (measured — 7 of 7 matches), `doc-version-claims.test.ts` among them,
       # and a list would go stale the first time someone adds an eighth.
-      # Measured green on a real rendered tree: 1 s + 4 s + 50 s.
+      #
+      # ⭐ The middle column names that directory instead of counting it, for
+      # the same reason. It read "73 files / 1996 tests" until objectui#8122,
+      # by which time the directory held 121 files and 3618 tests -- a figure
+      # copied into a comment is true only on the day it is written, and this
+      # one was false even on 2026-08-25, the date this block measures from:
+      # `main` carried 81 test files there, not 73.
+      # The run prints its own `Test Files` / `Tests` line; that is the count.
+      #
+      # Measured green on a real rendered tree, 2026-08-25: 1 s + 4 s + 50 s.
+      # ⚠️ Those wall-clocks are THAT DAY's readings, kept because the scoping
+      # decision was made on their order of magnitude. The tooling suite has
+      # grown since, so re-measure before quoting them as today's.
       #
       # ⛔ WHAT IS DELIBERATELY NOT RUN, AND WHY IT IS NOT AN OMISSION.
       # `check:spec-floors` and `check:published-dist` read dependency RANGES

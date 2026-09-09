@@ -24,6 +24,38 @@ import {
   PageVariableSchema as SpecPageVariableSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
+ */
+
 
 /**
  * Div Schema - Basic HTML container
@@ -77,7 +109,6 @@ export const TextSchema = BaseSchema.extend({
   ),
   variant: z.enum(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'body', 'caption', 'overline'])
     .optional()
-    .default('body')
     .describe('Text variant/style'),
   align: z.enum(['left', 'center', 'right', 'justify']).optional().describe('Text alignment'),
 });
@@ -157,7 +188,7 @@ export const IconSchema = BaseSchema.extend({
           : undefined,
     })
     .describe('Lucide glyph name, kebab-case (objectui#5631: was `name`)'),
-  size: z.number().optional().default(24).describe('Icon size in pixels'),
+  size: z.number().optional().describe('Icon size in pixels'),
   color: z.string().optional().describe('Icon color'),
 });
 
@@ -166,7 +197,7 @@ export const IconSchema = BaseSchema.extend({
  */
 export const SeparatorSchema = BaseSchema.extend({
   type: z.literal('separator'),
-  orientation: z.enum(['horizontal', 'vertical']).optional().default('horizontal').describe('Separator orientation'),
+  orientation: z.enum(['horizontal', 'vertical']).optional().describe('Separator orientation'),
   decorative: z.boolean().optional().describe('Whether decorative'),
 });
 
@@ -178,8 +209,8 @@ export const ContainerSchema = BaseSchema.extend({
   maxWidth: z.union([
     z.enum(['sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', 'full', 'screen']),
     z.boolean(),
-  ]).optional().default('lg').describe('Max width constraint'),
-  centered: z.boolean().optional().default(true).describe('Center the container'),
+  ]).optional().describe('Max width constraint'),
+  centered: z.boolean().optional().describe('Center the container'),
   padding: z.number().optional().describe('Padding value'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
@@ -191,18 +222,15 @@ export const FlexSchema = BaseSchema.extend({
   type: z.literal('flex'),
   direction: z.enum(['row', 'col', 'row-reverse', 'col-reverse'])
     .optional()
-    .default('row')
     .describe('Flex direction'),
   justify: z.enum(['start', 'end', 'center', 'between', 'around', 'evenly'])
     .optional()
-    .default('start')
     .describe('Justify content alignment'),
   align: z.enum(['start', 'end', 'center', 'baseline', 'stretch'])
     .optional()
-    .default('center')
     .describe('Align items'),
-  gap: z.number().optional().default(2).describe('Gap between items (Tailwind scale 0-8)'),
-  wrap: z.boolean().optional().default(false).describe('Allow items to wrap'),
+  gap: z.number().optional().describe('Gap between items (Tailwind scale 0-8)'),
+  wrap: z.boolean().optional().describe('Allow items to wrap'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
 
@@ -224,11 +252,26 @@ export const StackSchema = BaseSchema.extend({
  */
 export const GridSchema = BaseSchema.extend({
   type: z.literal('grid'),
+  /**
+   * Keyed by the BREAKPOINT VOCABULARY, not by `string` (objectui#8516).
+   *
+   * `z.partialRecord`, ⛔ never `z.record(z.enum([…]), …)`: measured on zod
+   * 4.4.3, the plain `z.record` over an enum key REQUIRES every member, so
+   * `{ md: 2 }` — which the declaration explicitly invites, and which
+   * `grid-breakpoint-columns-7097.test.tsx` pins the renderer as reading —
+   * stops parsing. That spelling trades this divergence for its opposite.
+   *
+   * The six names are the whole of `BreakpointName` (`../mobile.ts`). They are
+   * spelled here rather than derived because `mobile.ts` has no zod mirror to
+   * derive from; the equality is held by a type-level pin in
+   * `__tests__/mirror-partial-record-narrowing-8516.test.ts`, so adding or
+   * dropping a breakpoint on either face fails to compile.
+   */
   columns: z.union([
     z.number(),
-    z.record(z.string(), z.number()),
-  ]).optional().default(3).describe('Number of columns (responsive)'),
-  gap: z.number().optional().default(4).describe('Gap between items (Tailwind scale 0-8)'),
+    z.partialRecord(z.enum(['xs', 'sm', 'md', 'lg', 'xl', '2xl']), z.number()),
+  ]).optional().describe('Number of columns (responsive)'),
+  gap: z.number().optional().describe('Gap between items (Tailwind scale 0-8)'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
 
@@ -243,9 +286,9 @@ export const CardSchema = BaseSchema.extend({
   body: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Card body content'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Child components'),
   footer: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Card footer content'),
-  variant: z.enum(['default', 'outline', 'ghost']).optional().default('default').describe('Card variant style'),
-  hoverable: z.boolean().optional().default(false).describe('Whether the card is hoverable'),
-  clickable: z.boolean().optional().default(false).describe('Whether the card is clickable'),
+  variant: z.enum(['default', 'outline', 'ghost']).optional().describe('Card variant style'),
+  hoverable: z.boolean().optional().describe('Whether the card is hoverable'),
+  clickable: z.boolean().optional().describe('Whether the card is clickable'),
   onClick: handlerKeyRefusal('onClick', 'runtime-slot', 'Click handler'),
 });
 
@@ -267,7 +310,7 @@ export const TabsSchema = BaseSchema.extend({
   type: z.literal('tabs'),
   defaultValue: z.string().optional().describe('Default active tab value'),
   value: z.string().optional().describe('Controlled active tab value'),
-  orientation: z.enum(['horizontal', 'vertical']).optional().default('horizontal').describe('Tabs orientation'),
+  orientation: z.enum(['horizontal', 'vertical']).optional().describe('Tabs orientation'),
   items: z.array(TabItemSchema).describe('Tab items configuration'),
   onValueChange: handlerKeyRefusal('onValueChange', 'runtime-slot', 'Change handler'),
 });
@@ -279,7 +322,7 @@ export const ScrollAreaSchema = BaseSchema.extend({
   type: z.literal('scroll-area'),
   height: z.union([z.string(), z.number()]).optional().describe('Height of scroll container'),
   width: z.union([z.string(), z.number()]).optional().describe('Width of scroll container'),
-  orientation: z.enum(['vertical', 'horizontal', 'both']).optional().default('vertical').describe('Scrollbar orientation'),
+  orientation: z.enum(['vertical', 'horizontal', 'both']).optional().describe('Scrollbar orientation'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
 
@@ -299,9 +342,9 @@ export const ResizablePanelSchema = z.object({
  */
 export const ResizableSchema = BaseSchema.extend({
   type: z.literal('resizable'),
-  direction: z.enum(['horizontal', 'vertical']).optional().default('horizontal').describe('Direction of resizable panels'),
+  direction: z.enum(['horizontal', 'vertical']).optional().describe('Direction of resizable panels'),
   minHeight: z.union([z.string(), z.number()]).optional().describe('Minimum height'),
-  withHandle: z.boolean().optional().default(true).describe('Show resize handle'),
+  withHandle: z.boolean().optional().describe('Show resize handle'),
   panels: z.array(ResizablePanelSchema).describe('Resizable panels'),
 });
 
@@ -310,7 +353,7 @@ export const ResizableSchema = BaseSchema.extend({
  */
 export const AspectRatioSchema = BaseSchema.extend({
   type: z.literal('aspect-ratio'),
-  ratio: z.number().optional().default(16 / 9).describe('Aspect ratio (width / height)'),
+  ratio: z.number().optional().describe('Aspect ratio (width / height)'),
   image: z.string().optional().describe('Image URL to display'),
   alt: z.string().optional().describe('Image alt text'),
   body: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Child components (alternative to image)'),
@@ -351,7 +394,7 @@ export const PageNodeRegionSchema = z.object({
  * variable nothing could ever write — and its `type` enum was missing
  * `record_id`, so a spec-valid record-picker variable was rejected outright.
  */
-export const PageVariableSchema = SpecPageVariableSchema;
+export const PageVariableSchema = stripImportedDefaults(SpecPageVariableSchema);
 
 /**
  * Page Type Schema — `@objectstack/spec/ui` schema re-exported **by reference**
@@ -363,7 +406,7 @@ export const PageVariableSchema = SpecPageVariableSchema;
  * `layout.ts` had drifted the OPPOSITE way (it carried five visualization names
  * the spec explicitly repudiates); both now come from the spec.
  */
-export const PageTypeSchema = SpecPageTypeSchema;
+export const PageTypeSchema = stripImportedDefaults(SpecPageTypeSchema);
 
 /**
  * Spec-owned Page fields, flowing in **by reference** (objectstack#4115).
@@ -387,7 +430,7 @@ export const PageTypeSchema = SpecPageTypeSchema;
  * `.partial()` guarantees no *future* spec field can become required and
  * silently invalidate stored objectui pages.
  */
-const SpecPageFields = specFieldsExcept(SpecPageSchema.shape, [
+const SpecPageFields = specFieldsExcept(stripImportedDefaults(SpecPageSchema).shape, [
   'name',
   'label',
   'description',
@@ -407,12 +450,12 @@ export const PageNodeSchema = BaseSchema.extend(SpecPageFields.shape).extend({
   description: z.string().optional().describe('Page description'),
   pageType: PageTypeSchema.optional().describe('Page type (record, home, app, utility)'),
   object: z.string().optional().describe('Bound object name (for record pages)'),
-  template: z.string().optional().default('default').describe('Layout template name'),
+  template: z.string().optional().describe('Layout template name'),
   variables: z.array(PageVariableSchema).optional().describe('Local page state variables'),
   regions: z.array(PageNodeRegionSchema).optional().describe('Page layout regions'),
   body: z.array(SchemaNodeSchema).optional().describe('Main content array'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Alternative content prop'),
-  isDefault: z.boolean().optional().default(false).describe('Whether this is the default page'),
+  isDefault: z.boolean().optional().describe('Whether this is the default page'),
   assignedProfiles: z.array(z.string()).optional().describe('Profiles that can access this page'),
 });
 

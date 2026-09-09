@@ -28,6 +28,7 @@ one has its own section below.
 | `changeset-guard.yml` | Changeset Bump Policy, Changeset Overwrite Report | PR / push touching `.changeset/**` or either gate itself | **Yes** — the bump policy job only; the overwrite job is report-only |
 | `changeset-presence.yml` | Changeset Declaration | PR to `main`, `develop` — **no path filter**; merge-queue builds | **Yes** — when a released package's `src/` changed and no changeset was added |
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
+| `action-ref-convention.yml` | Action Ref Convention | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `uses:` ref is not spelled as a floating major tag and is not a declared exception, when a declared exception matches nothing, or when the scan's own census collapses |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
 | `skill-examples.yml` | Skill Example Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a MARKED fenced example in a `skills/` or `.claude/skills/` guide no longer compiles against the packages' built types, no longer parses as JSON, uses a bare `any`, or carries a marker that opts nothing in |
@@ -42,7 +43,8 @@ one has its own section below.
 | `docs-route-eager-closure.yml` | Docs Route Eager Closure Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a package named in `apps/site/app/components/registerCatalogBlocks.ts` is not already reachable from the docs route's module graph (exit 1), or when the gate's own gauge cannot be trusted (exit 2) |
 | `governed-surface-guard.yml` | Governed Surface Queue Guard | PR to `main`, `develop` (incl. `ready_for_review`) — **no path filter**; merge-queue builds | **Yes on a queue build only** — a governed-surface diff with no authorized approval record (on any commit) is refused there; on the pull request itself it is deliberately green and prints an early warning |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
-| `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
+| `lockfile-integrity.yml` | Lockfile Integrity Check | PR to `main`, `develop` touching `pnpm-lock.yaml` or the gate's own two files; manual | No — **deliberately not a blocking context** ([#8326](https://github.com/objectstack-ai/objectui/issues/8326)); it names the packages and the Dependabot merge gate classifies it `NOT_A_GATE` |
+| `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane: not in the required-check set, and it declares no `merge_group` trigger |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
 | `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No — but it gates *its own* merge, and goes red instead of merging when the check set is not green |
 | `cross-repo-issue-closer.yml` | Cross-repo Issue Closer | PR `closed` (acts only when merged) | No — runs after merge |
@@ -161,8 +163,10 @@ Two things follow for anyone editing this directory:
     so on a PR that touches none of those four neither of its contexts is created at all.
   - **Bundle Analysis** (`performance-budget.yml`) — an ordinary path filter on the same
     trigger, with the same consequence for every PR that matches none of its paths.
-  - **Live E2E (informational)** (`live-e2e.yml`) — the job carries `continue-on-error: true`,
-    so the run is green whatever the specs did; it cannot serve as a guarantee of anything.
+  - **Live E2E (informational)** (`live-e2e.yml`) — an **exclusion** path filter:
+    `paths-ignore:` on the same trigger, declaring `**/*.md`, `content/**`, `docs/**`,
+    `apps/site/**` and `.changeset/**`, so a docs-only or changeset-only pull request never
+    creates the context at all and a required one would wait for it forever.
   - **Close issues referenced in other repositories** (`cross-repo-issue-closer.yml`) — its only
     trigger is `pull_request_target` with `types: [closed]`, and the job additionally requires
     `github.event.pull_request.merged == true`, so it runs only *after* a merge.
@@ -170,10 +174,13 @@ Two things follow for anyone editing this directory:
   Each of those properties is pinned against the YAML in
   `scripts/__tests__/ci-cd-pipeline-doc.test.ts`: change one of them without editing its line
   here and that test fails, naming the workflow
-  ([#4170](https://github.com/objectstack-ai/objectui/issues/4170)). The `live-e2e.yml` line is
-  the one already scheduled to become false — that workflow's header says `continue-on-error`
-  comes off once the lane has run clean long enough to trust, and the day it does, the lane
-  becomes requirable and this line is wrong. Then delete the line and its entry in that test;
+  ([#4170](https://github.com/objectstack-ai/objectui/issues/4170)). The `live-e2e.yml` line has
+  already outlived one property: it used to quote `continue-on-error: true` on that job, and
+  [#8084](https://github.com/objectstack-ai/objectui/issues/8084) took the flag off after
+  measuring that it left the job and its check run red and inverted only the run conclusion —
+  so it had never been what made the context unrequirable. Removing it did **not** promote the
+  lane, so the line was re-pointed at the property that still blocks it. Retire a line here only
+  when its workflow carries no such property at all, and delete its entry in that test with it;
   do not soften it in place.
 
 ## Core CI Workflow (`ci.yml`)
@@ -258,10 +265,51 @@ ignored paths changed.
 This is a **real PR gate**, and it is easy to miss because it is not part of CI — it is its own
 **Lint** entry in the checks list.
 
+The bullets below are this job's gate list, in the order it runs them. Everything above
+`pnpm lint` runs **before the install**: each of those reads sources with nothing beyond node
+builtins and a local module, so none of what they need lives in `node_modules` — and placed there,
+a failed install cannot make them green. Where a gate ships a `--self-test`, the job runs that
+first, which is what stops a scanner that recognises nothing from reporting a clean tree forever.
+
 - `scripts/check-lint-coverage.mjs` runs first: every package must run ESLint or be declared a
   known gap. turbo skips scriptless packages silently, so without this guard a package reads as
   clean because nothing ever linted it.
+- `scripts/check-entry-guard.mjs` — every `scripts/**` CLI must answer "did node run me, or did
+  something import me?" through one shared predicate. node resolves symlinks for the module graph
+  but leaves `process.argv[1]` as the caller typed it, so a hand-typed guard reached through a
+  symlink compares two different paths, answers no, and the script does **nothing** — exit 0, no
+  output, and the wrapper that spawned it reads a green gate. Measured on a real blocking gate
+  here: `check-skills-paths.mjs` run directly on a deliberately broken tree exits 1 naming the dead
+  path; through a symlink, on the same tree, it exits 0 in silence
+  ([#6092](https://github.com/objectstack-ai/objectui/issues/6092)). (Named without its `scripts/`
+  path on purpose: this section reads as the `lint` job's gate list, and that script runs in
+  `skills-paths.yml`, so spelling the path here would credit this job with a gate it does not run.)
+- `scripts/check-upstream-port-parity.mjs` — the objectstack tooling ported into this tree is a
+  **pinned** copy, and drift from the pin is red in either direction. It reverses the declared
+  divergences back out of each ported file and requires the reconstruction to hash to the pinned
+  upstream digest; it fetches nothing, because a gate that reached `api.github.com` would be red on
+  a network hiccup and green on a cached 200. The direction of harm is this repository's least
+  visible one — a drifted copy does not fail, it *reports*: before this gate, the ported half-state
+  patrol stood 4,637 `diff` lines behind upstream and went on rendering a confident report with the
+  corresponding rows simply missing
+  ([#6642](https://github.com/objectstack-ai/objectui/issues/6642)).
+- `scripts/check-bash32-floor.mjs` — this repository's own shell must run on bash 3.2, which is what
+  macOS ships and what CI never exercises. Under bash 5 a `mapfile`, a `declare -A` or an unguarded
+  `$EPOCHSECONDS` in a hand-run script is invisible: the defect *and* its repair both read green,
+  and the only reader who ever meets the failure is a contributor on a Mac at the moment they most
+  need the script to work. Its scan roots are `scripts/**`, `.claude/hooks/**` and `e2e/**` — the
+  third is the point rather than a detail, since two of the four shell files this repository wrote
+  itself live under `e2e/live/ci/`
+  ([#7692](https://github.com/objectstack-ai/objectui/issues/7692)).
 - Then `pnpm lint`.
+- Then `scripts/check-cross-repo-closer-outcome.mjs` — it extracts the ~250 lines of inline
+  `github-script` out of `cross-repo-issue-closer.yml` with a real parser, never a retyped copy,
+  runs it under doubles the way `actions/github-script` does, and pins each exit's outcome: which
+  of `setFailed` / `warning` / job summary fires, and which API calls were made. That workflow runs
+  only on a merge, its conclusion is required by nothing, and every run of it so far has been
+  green — which is the problem rather than the reassurance, since its close loop has had a live
+  target roughly one and a half times a day and taken the same `already closed -- skipping` exit
+  every time ([#5261](https://github.com/objectstack-ai/objectui/issues/5261)).
 - Then `pnpm check` — this repository's own tree run through `objectui check`, the command the CLI
   ships. The step builds the CLI and its workspace dependency closure first, through pnpm rather
   than turbo: the root script executes `packages/cli/dist/`, this job installs without building, and
@@ -340,6 +388,63 @@ skip-list: the scan fails on an entry whose file has been cleaned or deleted, so
 to remove its entry is as red as a new offender. Entries carry the issue tracking their removal
 (objectstack#5450) and the map is expected to reach empty and stay there.
 
+## Action Ref Convention (`action-ref-convention.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter**, for the same reason `control-bytes.yml` has none: the population this gate scans *is*
+`.github/workflows/`, and a change touching only that directory runs nothing expensive in `ci.yml`
+or `lint.yml`. It appears in the checks list as **Action Ref Convention**.
+
+Runs `scripts/check-action-ref-convention.mjs` — a checkout and one `node` call, no install.
+
+### The convention
+
+**Every `uses:` in `.github/workflows/**` is written as a floating major tag, `owner/action@vN`.**
+
+**An exception is marked by an entry in `DECLARED_EXCEPTIONS`** in that script, carrying the
+workflow file, the action path, the issue that owns the decision, and a real reason. That is the
+only form an exception takes. A trailing `# v9.0.0`-style comment beside a ref is a version *hint*,
+not a reason, and the gate does not read it as one.
+
+### Why it exists — the finding is the sole instance, not the pinning
+
+[objectui#8465](https://github.com/objectstack-ai/objectui/issues/8465). There were 13 distinct
+action references in this directory. Exactly **one** was spelled differently from the other twelve —
+a commit SHA on `actions/stale` — and it was the only reference in the repository that had **never
+resolved**: 236 scheduled runs of `stale.yml` since 2026-01-16, **0 successes**, every one failing
+in `Set up job`, unnoticed for eight months because nothing downstream consumes that job. The broken
+reference itself is [objectui#8126](https://github.com/objectstack-ai/objectui/issues/8126).
+
+This is **not** an argument that SHA pinning is wrong — it is normally the *more* secure spelling and
+supply-chain guidance recommends it. The failure was the *shape*: one ref written in a form nothing
+else in the tree used, with no convention that would have made the odd one out visible and nothing
+verifying it. A floating tag that stops resolving is loud on the next run of every workflow that uses
+it; a lone off-convention ref that never resolved is silent for as long as nobody happens to look.
+
+So the default is the floating major tag because that is what the tree already was — 12 of 13, and
+the repository's one deliberately reasoned per-ref pin, `changesets/action@v1`, is itself a tag (held
+there by `scripts/__tests__/changeset-release-action-ref-pin.test.ts`). Declaring it moved no
+reference and closed no door. **Do not read it as a ruling against SHA pinning, and do not "unify"
+this directory in either direction under cover of this gate** — changing the repository's pinning
+posture is a supply-chain decision and belongs on its own card.
+
+### What it does not do
+
+It checks **spelling, not resolvability**. A SHA that points at no commit and one that points at a
+real commit are indistinguishable without the network. That is deliberate: what failed in #8465 was
+that the odd ref had no reason attached and no second instance to compare against, and both of those
+are checkable offline.
+
+### The three ways it goes red
+
+1. An off-convention ref with no entry in `DECLARED_EXCEPTIONS`.
+2. An entry in `DECLARED_EXCEPTIONS` that matches nothing any more — the same staleness check
+   `KNOWN_OFFENDERS` and `DOCUMENTATION_EXEMPT` carry elsewhere in this repository, because an escape
+   hatch nobody removes is how a baseline turns into a permanent skip-list.
+3. Its own census collapsing. A scan that stops finding references reports an empty offender list,
+   which renders exactly like a clean repository, so the floors and a positive control
+   (`actions/checkout` must be found) are asserted in the same run as the counts.
+
 ## Performance Budget (`performance-budget.yml`)
 
 **Triggers:** Push and PR when changes touch `packages/`, `apps/console/`, or `pnpm-lock.yaml`.
@@ -401,15 +506,44 @@ reviewers; exceeding any of them turns no check red and blocks no merge:
 **Trigger:** PRs to `main` / `develop` (same code-path filter as `ci.yml` — docs-only and
 changeset-only PRs skip it), a nightly cron (`30 6 * * *`) on `main`, and manual dispatch.
 
-**Blocks a merge: no.** The job runs with `continue-on-error: true` by construction — a red run
-is informational and never ejects a PR from the merge queue. Do not add it to required checks
-(and do not remove `continue-on-error`) until the nightly record proves the lane stable; see the
-header comment in the workflow file (#2835).
+**Blocks a merge: no** — because the job is not in the required-check set and `live-e2e.yml`
+declares no `merge_group` trigger, so a queue build never waits on it and it cannot eject a PR
+from the queue. Do not add it to required checks until the nightly record proves the lane
+stable; see the header comment in the workflow file (#2835).
+
+**Advisory, and honest about it: the run conclusion agrees with the job conclusion.** The job
+carries no `continue-on-error`, so a failing spec fails the workflow run as well as the job. It
+used to carry `continue-on-error: true`, and that flag moved neither the job nor its check run —
+both stayed red — while flipping the run and check-suite conclusions to `success`. Three
+consecutive nightlies reported `success` at the run level with a red job inside one of them, so
+every monitor, digest and agent reading run-level conclusions was told the negation of what had
+happened, and the backend outage underneath ran a day unseen
+([#8084](https://github.com/objectstack-ai/objectui/issues/8084)). Advisory and honest are
+different axes: this lane is the first without giving up the second, and nothing may re-add that
+flag to buy back a green aggregate.
 
 What it does: runs an allowlist of the live specs (`pnpm test:e2e:live:ci`) against a real
 `objectstack dev` backend booted from **published** `@objectstack/*` packages serving the
 showcase app, catching the class of bug only a real browser against a real backend can see.
-Failures still surface as a red step plus an uploaded Playwright report and job summary.
+Failures still surface as a red step, a job summary, and a `live-e2e-artifacts` upload.
+
+**What that upload actually contains — and what it does not.** It carries `test-results/` (the
+failure screenshots and videos the config's `use.screenshot` / `use.video` settings write) plus
+`backend.log` and `console-preview.log`. It carries **no Playwright HTML report**:
+`playwright.live.config.ts` declares `reporter: [['list']]`, and the `list` reporter writes to
+stdout, so nothing in that config ever produces a `playwright-report/` directory. The durable
+record of what the specs did is the `Run live E2E allowlist` step's own log. This page and the
+workflow header both promised an "uploaded Playwright report" for as long as the lane has
+existed, and no run could ever have produced one (objectui#8238) — so if you want a report to
+open, the reporter list in `playwright.live.config.ts` is the one line that decides it, and it
+must move together with this paragraph and the workflow's upload glob.
+
+⚠️ **The upload step is gated `if: ${{ !cancelled() && failure() }}`.** On a **green** lane it
+does not run at all, so there is no artifact and nothing to count. Any acceptance criterion
+phrased over this artifact's contents — "the uploaded artifact has more than N files", "a
+directory X appears in it" — is therefore readable **only on a run that failed**. Phrase checks
+about this lane against the `Run live E2E allowlist` step's log instead, which exists in both
+outcomes.
 
 **Which specs are in the allowlist:** whatever the `test:e2e:live:ci` script in `package.json`
 names — that script is the single source of truth, and this page deliberately does not repeat
@@ -420,7 +554,15 @@ comment), so every promotion would stale a hand-copied enumeration here; it alre
 Backend pins live in `e2e/live/ci/backend.env` and must match the `@objectstack/spec` version in
 `pnpm-lock.yaml` — bump both in the same PR, or the run proves nothing.
 
-That file carries a **third** pin, `BETTER_AUTH_VERSION`, and it is a different kind of thing:
+`OBJECTSTACK_VERSION` is the only `@objectstack` value that file declares, and moving it is the
+only move. The showcase-app commit the lane sparse-checks-out is **derived**, not pinned:
+`start-backend.sh` resolves the `@objectstack/cli@$OBJECTSTACK_VERSION` release tag at boot
+(`git ls-remote --tags`, peeled sha) and refuses to start when it does not resolve. It used to be
+a second key, `OBJECTSTACK_REF`, moved by hand under a MUST that nothing could check — the same
+shape as the version drift above, and retired for the same reason (objectui#7964). Deriving it
+means the app source and the published packages it runs on come from one release by construction.
+
+That file carries a **second** pin, `BETTER_AUTH_VERSION`, and it is a different kind of thing:
 not a matched-pair pin but a workaround for a break inside the published packages themselves.
 `@objectstack/plugin-auth` imports `createLocalAccountIssuer` from `@better-auth/core/db` and
 declares `@better-auth/core` with a caret; `@better-auth/core@1.7.3` removed that export in a
@@ -431,7 +573,7 @@ its 300-second readiness timeout having run zero specs (objectstack#16186, objec
 pinning a dependency to turn a lane green is a gate weakening — `e2e/live/ci/better-auth-pin.mjs`
 runs on **every** start, cache hits included, and fails by name if the override was not declared,
 did not resolve, or resolved and still lacks the export. ⛔ It is not, and must not become, a
-repair of the two pins above: objectui#7689's triage forbids repairing this lane by moving those.
+repair of the version pin above: objectui#7689's triage forbids repairing this lane by moving it.
 Retire the pin and its guard together in the PR that bumps `OBJECTSTACK_VERSION` past the
 upstream fix.
 
@@ -563,10 +705,10 @@ path filter at all**, for the same reason as the two sections above: this gate's
 is markdown, and `ci.yml` still lists `'**/*.md'` under the `paths-ignore` of its `push` trigger. It
 appears in the checks list as **Skill Guide Path Check**.
 
-Runs `scripts/check-skills-paths.mjs`, which reads every markdown file under `skills/` and asks, of
-each in-repo path the prose states inside a backtick code span, whether it exists on disk. Those
-guides are a direct input to every agent that writes code in this repository, and their prose gives
-paths as coordinates.
+Runs `scripts/check-skills-paths.mjs`, which reads every markdown file under `skills/` and
+`.claude/skills/` and asks, of each in-repo path the prose states inside a backtick code span,
+whether it exists on disk. Those guides are a direct input to every agent that writes code in this
+repository, and their prose gives paths as coordinates.
 
 **Why a dead coordinate costs more than its size suggests:** the symbol named next to it is usually
 real and only the location is wrong, so nobody gets a compile error — an agent gets "file not found"
@@ -1330,6 +1472,54 @@ The predicates are covered by `node scripts/check-governed-queue-guard.mjs --sel
 workflow runs as its own first step because a rotted predicate must redden rather than wave a
 governed diff through, and the wiring is pinned by
 `scripts/__tests__/check-governed-queue-guard.test.ts`.
+
+## Lockfile Integrity (`lockfile-integrity.yml`)
+
+**Triggers:** Pull requests to `main`/`develop` that touch `pnpm-lock.yaml`,
+`scripts/check-lockfile-integrity.mjs` or the workflow file itself, plus manual dispatch. It appears
+in the checks list as **Lockfile Integrity Check**.
+
+Runs `scripts/check-lockfile-integrity.mjs`, which compares the pull request's `pnpm-lock.yaml`
+against the **merge base's** and reports two things:
+
+1. an `@objectstack/*` identity resolving to a version **lower** than the base resolved;
+2. a package the workspace declares at runtime (`dependencies`, `peerDependencies`,
+   `optionalDependencies`) resolving to **more physical copies** than the base did — where a copy is
+   a `snapshots:` key, peer suffix included, because that is the directory pnpm creates.
+
+It is the only gate here that needs two revisions of a file, which is why it checks out with
+`fetch-depth: 0`. Exit `0` clean, `1` findings, `2` **could not take a reading** — a shallow checkout
+or a lockfile whose format moved exits 2 rather than reporting a clean lockfile it never read.
+
+**Why it needed a gate.** In [#8326](https://github.com/objectstack-ai/objectui/issues/8326)
+Dependabot's regenerated lockfile on three pull requests at once downgraded the whole
+`@objectstack/*` family 17.3.0 → 17.2.0 and forked zod, splitting the workspace across **two physical
+`@objectstack/spec` copies**. Nothing dedupes two real paths, so `vendor-objectstack` went
+4,030,557 → 8,423,436 raw bytes. What that produced was a **red `Bundle Analysis` on a dependency bump
+for a reason that had nothing to do with the dependency** — and the obvious reading, "this bump bloats
+the bundle", was wrong. Two seats each spent a full diagnosis reaching the same answer independently.
+Every workspace range on the family is a floating `^17.x` against a registry whose latest is 17.3.0,
+so no fresh resolve can produce 17.2.0: it was a stale resolution carried across a rebase.
+
+**Why one rule was not enough.** [#8333](https://github.com/objectstack-ai/objectui/issues/8333)
+measured the other cause: floating `better-auth` to 1.7.3 from a **clean** base forks zod while moving
+**no `@objectstack/*` identity at all**, and re-measuring it on `da5e4f69e` shows `@objectstack/spec`
+staying at one version and still landing as **two directories**, one per peer resolution. A gate that
+only asked "did an identity move backward", or that counted versions rather than snapshot keys, is
+green on that.
+
+**⛔ What this gate does not do.** It does not pin, dedupe or re-resolve anything — the remedy for a
+finding is a decision the pull request makes. It is a **ratchet, not an audit**: a lockfile that is
+already duplicated stays green while the change does not make it worse. It does not judge backward
+moves outside `@objectstack/*` (third-party downgrades are legitimate) or duplications of packages
+this workspace does not itself declare at runtime — measured, scoping it wider reds on ordinary merged
+build-tooling churn. And it says nothing about bytes; `Bundle Analysis` measures those.
+
+**⛔ It cannot block anything today**, by design. `scripts/dependabot-merge-gate.mjs` classifies it in
+`NOT_A_GATE`, and its `pull_request` trigger is path-filtered, which under
+[#3523](https://github.com/objectstack-ai/objectui/issues/3523)'s rule makes it unrequirable while
+that filter stands. Enrolling it is a maintainer decision with its own cost, written up on #8326's
+pull request as input.
 
 ## Link Checking (`check-links.yml`)
 
@@ -2201,6 +2391,43 @@ carry it. Regenerating a file is not reconciling two versions of it, and the ver
 updated by `reset --hard` plus a force-push inside `changesets/action`, which merges nothing on
 the runner. Removed by [#6436](https://github.com/objectstack-ai/objectui/issues/6436).
 
+## Toolchain Setup (`scripts/ci-setup-pnpm.sh`)
+
+Every workflow that runs `pnpm` calls this one script, as its first step after checkout:
+
+```yaml
+- name: Enable Corepack and download the pinned pnpm
+  run: bash scripts/ci-setup-pnpm.sh
+```
+
+pnpm is **not** on the GitHub runner. It arrives through Corepack, which downloads the
+version pinned in the root `package.json`'s `packageManager` field from
+`registry.npmjs.org` the first time anything invokes `pnpm`. That download is a network
+read on the hot path of 13 workflows, and it has failed:
+[#8099](https://github.com/objectstack-ai/objectui/issues/8099) records a job that died
+inside undici ten seconds in, reddening the **required** check `README Export Check` on a
+one-file prose diff. Re-running the same head with no code change turned it green.
+
+The script does two things a bare `corepack enable` does not:
+
+- **It puts the download where a reader can see it.** `corepack enable` only writes the
+  shims; the *first pnpm invocation* is what downloads. Left implicit, that lands wherever
+  each workflow happens to touch pnpm first — including inside `actions/setup-node`'s
+  `cache: 'pnpm'` store probe, where a red is hardest to attribute to the toolchain rather
+  than to the diff under test.
+- **It retries the read, bounded.** Four attempts with a 5s/10s/15s backoff, each retry
+  emitting a `::warning::` annotation that says the failure is the toolchain download and
+  not the diff.
+
+⛔ It does **not** remove the dependency on `registry.npmjs.org` — a sustained registry
+outage still reds these jobs. It bounds a transient read, which is the failure that was
+actually observed.
+
+Two workflows mention `corepack enable` in comments only and must stay that way:
+`changelog.yml` and `dependabot-auto-merge.yml`, the latter recording
+[#6392](https://github.com/objectstack-ai/objectui/issues/6392)'s ruling that removed the
+step because nothing in that job calls pnpm.
+
 ## Adding a New Workflow
 
 > **Give it a section on this page in the same PR.** Not a convention — a test.
@@ -2216,19 +2443,25 @@ the runner. Removed by [#6436](https://github.com/objectstack-ai/objectui/issues
    now uses `@v7`, a hardcoded `node-version: 20` where every workflow declares 22
    (and 20 sat below the floor the root `package.json`'s `engines` field now declares), and
    `pnpm/action-setup@v4`, which no workflow in this repository has ever used — pnpm comes
-   from `corepack enable` plus the root `packageManager` field instead.
+   from Corepack plus the root `packageManager` field instead, through
+   `scripts/ci-setup-pnpm.sh`.
 
    `readme-exports.yml` (see the **README Exports** section above) is a good one to read: it
    is short, runs on every pull request, and its setup is the complete pattern most new
-   build/test/lint workflows need — checkout, enable Corepack, `actions/setup-node` with
-   pnpm's own cache, `pnpm install --frozen-lockfile`, then a `turbo run build` step for
-   whatever it needs built. Two of its steps hold for any workflow no matter which Node or
-   pnpm version the repository is on when you read this:
+   build/test/lint workflows need — checkout, the shared pnpm setup, `actions/setup-node`
+   with pnpm's own cache, `pnpm install --frozen-lockfile`, then a `turbo run build` step
+   for whatever it needs built. Two of its steps hold for any workflow no matter which Node
+   or pnpm version the repository is on when you read this:
 
    ```yaml
    - uses: actions/checkout@v7
-   - run: corepack enable
+   - run: bash scripts/ci-setup-pnpm.sh
    ```
+
+   The second line is not optional and not a style choice — see
+   [Toolchain Setup](#toolchain-setup-scriptsci-setup-pnpmsh) below.
+   `scripts/__tests__/ci-setup-pnpm-wiring.test.ts` fails a workflow that runs `pnpm`
+   without it, and fails one that spells `corepack` in a `run:` step directly.
 
    Copy everything else — the Node version, the cache key, the install command — from the
    workflow itself, not from this page.

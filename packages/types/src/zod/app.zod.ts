@@ -24,6 +24,39 @@ import {
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 import { handlerKeyRefusal } from './tombstone.zod.js';
+import type { AppMenuItem } from '../app.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
+ */
+
 
 // ============================================================================
 // Unified NavigationItem Schema
@@ -182,13 +215,13 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => NavigationItemO
  *
  * Drift guard: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
-export const NavigationAreaSchema = specFieldsExcept(SpecNavigationAreaSchema.shape, [
+export const NavigationAreaSchema = specFieldsExcept(stripImportedDefaults(SpecNavigationAreaSchema).shape, [
   'id',
   'label',
   'navigation',
 ] as const).extend({
-  id: SpecNavigationAreaSchema.shape.id.describe('Unique identifier'),
-  label: SpecNavigationAreaSchema.shape.label.describe('Display label'),
+  id: stripImportedDefaults(SpecNavigationAreaSchema).shape.id.describe('Unique identifier'),
+  label: stripImportedDefaults(SpecNavigationAreaSchema).shape.label.describe('Display label'),
   navigation: z.array(NavigationItemSchema).describe('Navigation items within area'),
 });
 
@@ -199,8 +232,15 @@ export const NavigationAreaSchema = specFieldsExcept(SpecNavigationAreaSchema.sh
 /**
  * Menu Item Schema - Navigation menu item
  * @deprecated Use NavigationItemSchema instead.
+ *
+ * INPUT FACE: both type arguments carry this mirror's existing TypeScript
+ * declaration (objectui#7760, maintainer ruling, decision batch #69) — the annotation
+ * still breaks the recursion in the initializer below, but it no longer publishes
+ * `unknown` as what an author may write here. ⛔ Runtime accept set unchanged; ⛔ the
+ * declaration unchanged. The reasoning lives once, on `SchemaNodeSchema` in
+ * `base.zod.ts` — read it there before changing this line.
  */
-export const MenuItemSchema: z.ZodType<any> = z.lazy(() => z.object({
+export const MenuItemSchema: z.ZodType<AppMenuItem, AppMenuItem> = z.lazy(() => z.object({
   type: z.enum(['item', 'group', 'separator']).optional().describe('Item type'),
   label: z.string().optional().describe('Display label'),
   icon: z.string().optional().describe('Icon name (Lucide)'),
@@ -265,7 +305,7 @@ export const AppActionSchema = z.object({
  *
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
-export const AppContextSelectorSchema = SpecAppContextSelectorSchema.extend({
+export const AppContextSelectorSchema = stripImportedDefaults(SpecAppContextSelectorSchema).extend({
   label: z.union([z.string(), z.record(z.string(), z.any())])
     .describe('Dropdown label — plain string or objectui i18n label envelope'),
 });
@@ -295,7 +335,7 @@ export const AppContextSelectorSchema = SpecAppContextSelectorSchema.extend({
  * `.partial()` guarantees no *future* spec field can become required and
  * silently invalidate stored objectui apps.
  */
-const SpecAppFields = specFieldsExcept(SpecAppSchema.shape, [
+const SpecAppFields = specFieldsExcept(stripImportedDefaults(SpecAppSchema).shape, [
   'name',
   'label',
   'description',
@@ -316,7 +356,7 @@ export const AppComponentSchema = BaseSchema.extend(SpecAppFields.shape).extend(
   description: z.string().optional().describe('Application description'),
   logo: z.string().optional().describe('Logo URL or icon name'),
   favicon: z.string().optional().describe('Favicon URL'),
-  layout: z.enum(['sidebar', 'header', 'empty']).optional().default('sidebar').describe('Global layout strategy'),
+  layout: z.enum(['sidebar', 'header', 'empty']).optional().describe('Global layout strategy'),
   menu: z.array(MenuItemSchema).optional().describe('Legacy navigation menu (deprecated, use navigation)'),
   navigation: z.array(NavigationItemSchema).optional().describe('Unified navigation tree'),
   areas: z.array(NavigationAreaSchema).optional().describe('Navigation areas (business-domain partitions)'),

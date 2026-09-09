@@ -10,6 +10,8 @@ import { parse as parseYaml } from 'yaml';
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here.
 import ts from 'typescript';
 import {
+  ADR_DOCS,
+  AUDIT_DOCS,
   EXIT_CODES,
   FRAGMENT_MARKER_EXAMPLES,
   ROOT_DECLARED_CONTROL_PACKAGE,
@@ -27,6 +29,8 @@ import {
   moduleSpecifiersOfBlock,
   resolvesOnlyThroughRootManifest,
   ROOT_DOCS,
+  adrDocsPages,
+  auditDocsPages,
   rootDeclaredSpecifiers,
   rootDocsPages,
   scanFences,
@@ -101,8 +105,10 @@ const FENCE = '```';
  */
 const README_SAMPLE_DOC = 'content/docs/plugins/plugin-markdown.mdx';
 // 195 until objectui#6972 replaced two prop-table rows above it with a
-// retirement blockquote (+11 lines); re-declared here, as this pin intends.
-const README_SAMPLE_FENCE_LINE = 206;
+// retirement blockquote (+11 lines); 206 until objectui#8125's annotation sweep
+// added one `import type` line to the page's first block (+1 line);
+// re-declared here each time, as this pin intends.
+const README_SAMPLE_FENCE_LINE = 207;
 
 /**
  * The regex reader objectui#7555 removed from both gates, kept HERE and only
@@ -584,21 +590,35 @@ describe('this repository', () => {
  * `check-doc-component-types.mjs` walked `content/docs`, and the repository's
  * landing page fell between them.
  *
- * ⚠️ Read the second assertion carefully. Being ON the ungated ledger is NOT a
- * claim that this file compiles — it does not; objectui#7417 carries its nine
- * measured diagnostics. It is the objectui#5174 distinction, which this script's
- * own header states: a document outside the walk is "neither covered NOR
- * declared ungated", invisible to the gate's own accounting, while a ledgered
- * one is named, counted, re-derived every run and shrink-only.
+ * ⚠️ Read the second assertion carefully — and read what it USED to say, because
+ * the flip is the point. It pinned this page as DECLARED debt: on the ungated
+ * ledger, with a reason naming objectui#7417. That was never a claim the page
+ * compiled; it was the objectui#5174 distinction this script's own header states
+ * — a document outside the walk is "neither covered NOR declared ungated",
+ * invisible to the gate's own accounting, while a ledgered one is named,
+ * counted, re-derived every run and shrink-only.
+ *
+ * objectui#5174's last batch paid the debt down: the page's five ts/tsx blocks
+ * compile against the built `dist/*.d.ts`, so the row came off and the ledger
+ * reached ZERO. The assertion therefore pins the far end of that walk — NOT on
+ * the ledger, and actually contributing blocks to the compiled tier. Both halves
+ * are load-bearing: a page can leave the ledger by having no ts/tsx block left
+ * at all, which is coverage of nothing, and only the second half tells the two
+ * apart.
  */
 describe('objectui#7115 — the root README is in the scan set', () => {
   it('listDocuments reaches it', () => {
     expect(listDocuments(repoRoot)).toContain('README.md');
   });
 
-  it('is DECLARED debt rather than absent, and its reason names the card that carries it', () => {
-    expect(Object.keys(UNGATED_DOCS as Record<string, string>)).toContain('README.md');
-    expect((UNGATED_DOCS as Record<string, string>)['README.md']).toContain('objectui#7417');
+  it('is COVERED and actually judged — off the ledger, with blocks in the compiled tier', () => {
+    expect(Object.keys(UNGATED_DOCS as Record<string, string>)).not.toContain('README.md');
+    const state = analyze({});
+    expect(state.covered as string[]).toContain('README.md');
+    expect(
+      (state.compiled as Array<{ doc: string }>).filter((b) => b.doc === 'README.md').length,
+      'off the ledger with no block left would be coverage of nothing',
+    ).toBeGreaterThan(0);
   });
 
   it('root pages are collected BY NAME, not by the packages walk', () => {
@@ -660,15 +680,28 @@ describe('objectui#7856 — the root docs/*.md pages are in the scan set, and on
     expect((state.compiled as { doc: string }[]).some((b) => leg.has(b.doc))).toBe(true);
   });
 
-  it('stops at the top level: a page in a subdirectory is NOT collected', () => {
+  it('stops at the top level: a page in a subdirectory is NOT collected BY THIS LEG', () => {
     const root = tempTree({
       'docs/PAGE.md': '# top level\n',
       'docs/adr/0001-decision.md': '# governed, card 2\n',
       'docs/audits/2026-07-audit.md': '# card 2\n',
+      'docs/rfcs/0001-proposal.md': '# a THIRD subdirectory, in no leg\n',
     });
     try {
+      // The leg itself is unchanged by card 2 — this is the assertion that has to
+      // keep holding, because `rootDocsPages` is the only place non-recursion is
+      // decided and both later legs were built beside it rather than into it.
       expect(rootDocsPages(root)).toEqual(['docs/PAGE.md']);
-      expect(listDocuments(root)).toEqual(['docs/PAGE.md']);
+      // The WALK has moved, and saying so here is the point: card 2 gave the two
+      // named subtrees their own legs, so they are collected — by `adrDocsPages`
+      // and `auditDocsPages`, never by this one. `docs/rfcs/` has no leg and is
+      // collected by nothing, which is where this gate's `docs/` surface stops
+      // today.
+      expect(listDocuments(root)).toEqual([
+        'docs/PAGE.md',
+        'docs/adr/0001-decision.md',
+        'docs/audits/2026-07-audit.md',
+      ]);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -702,6 +735,168 @@ describe('objectui#7856 — the root docs/*.md pages are in the scan set, and on
     const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-doc-snippet-types.mjs'), 'utf8');
     expect(source).toMatch(/if \(!existsSync\(join\(repoRoot, ROOT_DOCS\.dir\)\)\) \{/);
     expect(ROOT_DOCS).toEqual({ dir: 'docs', recursive: false });
+  });
+});
+
+/**
+ * objectui#7856 card 2 — the two subtrees BELOW that top level, and the one
+ * widening in this family whose whole delivery is the LEDGER.
+ *
+ * The sibling rule this file's header states — "Widening a scan surface is the
+ * change that can be GREEN ABOUT NOTHING… Anything added here later is owed the
+ * same proof" — lands differently here than it did for card 1, and the difference
+ * is the reason this block exists rather than a copy of the one above it.
+ *
+ * Card 1 could prove its widening by showing the leg's blocks in the COMPILED
+ * tier: its eleven diagnostics were repaired, so the pages are judged on every
+ * commit. Card 2 may not make that claim and must not fake it. `docs/adr/**` and
+ * `docs/audits/**` are RECORDS — an ADR states what was decided on a date, an
+ * audit states what was true on a date — and the 2026-09-07 triage ruling on
+ * objectui#7856 drew the line for both: "Repairing a code block inside one
+ * falsifies the record, exactly as it would inside an ADR." ⇒ Every block-bearing
+ * page in these two legs is on `UNGATED_DOCS`, which means NOTHING in them is
+ * compiled.
+ *
+ * So the proof this block owes is the opposite shape, and it is a stricter one:
+ *
+ *   1. the pages really are in the walk (membership, by name, from the legs
+ *      themselves — the objectui#5174 distinction between a NAMED debt and a tree
+ *      no accounting can mention);
+ *   2. every one of them that holds a `ts` / `tsx` block really is on the ledger,
+ *      because a page in the walk, off the ledger and silently compiling nothing
+ *      is the counterfeit;
+ *   3. NOTHING from either leg reaches the compiled tier — stated as an assertion
+ *      rather than left as an inference, so the day one of them is repaired this
+ *      test is what asks whether the record survived it;
+ *   4. each ledger entry carries a MEASURED count and names the record, so
+ *      "declared" cannot decay into an adjective;
+ *   5. no `FRAGMENT_MARKER` was written inside either subtree. That is card 2's
+ *      most easily lost decision: a marker is an edit INSIDE a record, and an
+ *      ungated document is never compiled, so a marker there would declare a block
+ *      this gate already does not read — debt with nothing to ever prompt its
+ *      removal. The ledger alone already keeps the block accounted for.
+ *
+ * The BOUNDARY is pinned the same way card 1's was, with one addition: `recursive:
+ * true` on these two against `recursive: false` on `ROOT_DOCS` is a claim about
+ * three different walks, so the fixture below shows the descent happening here and
+ * the test above shows it not happening there. A subdirectory of `docs/` that is
+ * neither of these two is in no leg at all, and that is asserted rather than
+ * assumed.
+ */
+describe('objectui#7856 card 2 — docs/adr/** and docs/audits/** are in the scan set, ledger-first', () => {
+  const legPages = () => [...adrDocsPages(repoRoot), ...auditDocsPages(repoRoot)];
+
+  it('listDocuments reaches both legs', () => {
+    const documents = listDocuments(repoRoot);
+    for (const doc of legPages()) expect(documents).toContain(doc);
+    // Non-vacuous, per leg: a union that is non-empty overall would stay green
+    // with one of the two enumerators returning nothing.
+    expect(adrDocsPages(repoRoot).length).toBeGreaterThan(0);
+    expect(auditDocsPages(repoRoot).length).toBeGreaterThan(0);
+    expect(adrDocsPages(repoRoot)).toContain('docs/adr/0001-master-detail-subform.md');
+    expect(auditDocsPages(repoRoot)).toContain('docs/audits/2026-07-objectview-detailview-schema.md');
+  });
+
+  it('the widening is VISIBLE to the accounting: every block-bearing page in them is on the ledger', () => {
+    const state = analyze({}) as {
+      scans: Map<string, { blocks: unknown[] }>;
+      covered: string[];
+    };
+    const legs = legPages();
+    const withBlocks = legs.filter((doc) => (state.scans.get(doc)?.blocks.length ?? 0) > 0);
+    // Non-vacuous: these subtrees really do carry snippets, which is why they
+    // were worth bringing into the walk at all.
+    expect(withBlocks.length).toBeGreaterThan(0);
+    expect([...withBlocks].sort()).toEqual(
+      Object.keys(UNGATED_DOCS as Record<string, string>)
+        .filter((doc) => legs.includes(doc))
+        .sort(),
+    );
+    // …and a page in these legs that holds NO block is covered, contributing
+    // nothing — it may not be ledgered (the stale-entry check would refuse it).
+    for (const doc of legs) {
+      if (!withBlocks.includes(doc)) expect(state.covered).toContain(doc);
+    }
+  });
+
+  it('and NOTHING in either leg is compiled — the ledger is the delivery, not a step toward one', () => {
+    const state = analyze({}) as {
+      compiled: { doc: string }[];
+      declaredFragments: { doc: string }[];
+    };
+    const legs = new Set(legPages());
+    expect(state.compiled.filter((b) => legs.has(b.doc))).toEqual([]);
+    expect(state.declaredFragments.filter((b) => legs.has(b.doc))).toEqual([]);
+  });
+
+  it('every ledger entry inside the two legs carries a measured count and names the record', () => {
+    const legs = new Set(legPages());
+    const entries = Object.entries(UNGATED_DOCS as Record<string, string>).filter(([doc]) => legs.has(doc));
+    expect(entries.length).toBeGreaterThan(0);
+    for (const [doc, reason] of entries) {
+      expect(reason, `${doc}: names no block count`).toMatch(/\d+ `tsx?` blocks?/);
+      expect(reason, `${doc}: names no diagnostic count`).toMatch(/\d+ diagnostics/);
+      expect(reason, `${doc}: names no diagnostic code`).toMatch(/TS\d{4}/);
+      expect(reason, `${doc}: does not say which phase was measured`).toMatch(/syntax-phase|semantic-phase/);
+      expect(reason, `${doc}: does not say the page is a record`).toMatch(/record/i);
+    }
+  });
+
+  it('no fragment marker was written inside either record subtree', () => {
+    for (const doc of legPages()) {
+      const { markers } = scanFences(fs.readFileSync(path.join(repoRoot, doc), 'utf8')) as {
+        markers: unknown[];
+      };
+      expect(markers, `${doc} carries a fragment marker — an edit inside a dated record`).toEqual([]);
+    }
+  });
+
+  it('recursive: true descends — a page filed deeper does not fall silently out of the walk', () => {
+    const root = tempTree({
+      'docs/PAGE.md': '# top level\n',
+      'docs/adr/0001-decision.md': '# a\n',
+      'docs/adr/superseded/0002-decision.md': '# filed deeper\n',
+      'docs/adr/notes.txt': 'not a page\n',
+      'docs/adr/assets/diagram.png': 'not a page\n',
+      'docs/audits/2026-07-audit.md': '# b\n',
+      'docs/audits/2026-08/split-audit.mdx': '# also a page\n',
+      'docs/rfcs/0001-proposal.md': '# a THIRD subdirectory, in no leg\n',
+    });
+    try {
+      expect(adrDocsPages(root)).toEqual([
+        'docs/adr/0001-decision.md',
+        'docs/adr/superseded/0002-decision.md',
+      ]);
+      // Directories are visited at their own alphabetical position, so a nested
+      // page sorts by its DIRECTORY name rather than after every loose file.
+      expect(auditDocsPages(root)).toEqual([
+        'docs/audits/2026-07-audit.md',
+        'docs/audits/2026-08/split-audit.mdx',
+      ]);
+      // Where the surface stops, asserted rather than assumed: `docs/rfcs/` is in
+      // no leg, so nothing collects it.
+      expect(listDocuments(root)).not.toContain('docs/rfcs/0001-proposal.md');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('an absent subtree yields nothing here, and a verdict is refused in main', () => {
+    const root = tempTree({ 'docs/PAGE.md': '# top level\n' });
+    try {
+      // A throwaway fixture tree stays listable…
+      expect(adrDocsPages(root)).toEqual([]);
+      expect(auditDocsPages(root)).toEqual([]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+    // …while a REAL run refuses, exactly as a missing `docs/` or a dangling
+    // ROOT_PAGES name does. `main()` takes no `--root`, so this is pinned against
+    // the source for the same reason those two are.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-doc-snippet-types.mjs'), 'utf8');
+    expect(source).toMatch(/for \(const tree of \[ADR_DOCS, AUDIT_DOCS\]\) \{\n\s*if \(!existsSync\(join\(repoRoot, tree\.dir\)\)\) \{/);
+    expect(ADR_DOCS).toEqual({ dir: 'docs/adr', recursive: true });
+    expect(AUDIT_DOCS).toEqual({ dir: 'docs/audits', recursive: true });
   });
 });
 
@@ -1064,6 +1259,47 @@ describe('the ROOT BOUND — what only this repository declares does not resolve
       const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
       expect(source).toContain('resolves ONLY through the repository root');
       expect(source).toContain('ROOT-');
+    });
+
+    /**
+     * objectui#8059 — the refusal is a contract with its reader, and until this
+     * pin existed NOTHING in the repository asserted a word of it. That is how
+     * it came to name two remedies, one of which reads as impossible on a peer
+     * (the package DOES declare it, in a field this map does not read) and one
+     * of which surrenders the whole block — including the documented package's
+     * own surface, which is where objectui#3999 and objectui#4817 both landed
+     * defects. A diagnostic nothing pins drifts silently, so the three remedies
+     * and the reason each is ordered where it is are pinned by content here.
+     */
+    it('the refusal names a remedy a reader of a PEER can actually perform (objectui#8059)', () => {
+      const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+
+      // 1. "DECLARES" is qualified, so the sentence stops reading as impossible
+      //    on a package that declares the specifier in `peerDependencies`.
+      expect(source).toContain('Import what an imported ');
+      expect(source).toContain('package declares in its `dependencies`.');
+      expect(source).toContain('a peer is a requirement ON the reader');
+
+      // 2. The stand-in shape is named, with the property that earns it: the
+      //    block still compiles, so the documented surface stays judged.
+      expect(source).toContain('If the specifier IS such a peer and this block needs its bindings, stand ');
+      expect(source).toContain('them in with `declare const` typed to what the block uses them as');
+      expect(source).toContain("The block still compiles, so the documented package's own surface around it ");
+
+      // 3. The fragment remedy is still offered, but ranked last and with its
+      //    cost stated — it is the one that deletes coverage.
+      expect(source).toContain('Declaring the block a fragment is the LAST resort');
+      expect(source).toContain('it stops the WHOLE block ');
+
+      // The header bullet carries the same remedy, so the rule and the message
+      // cannot drift apart. The bullet lives BEFORE the fence-scanning banner.
+      const banner = source.indexOf('── Fence scanning');
+      expect(banner).toBeGreaterThan(0);
+      const header = source.slice(0, banner);
+      expect(header).toContain('**`dependencies` only**');
+      expect(header).toContain('without surrendering the block: stand');
+      expect(header).toContain("the peer's bindings in with `declare const`");
+      expect(header).toContain('reads as IMPOSSIBLE on a');
     });
   });
 });

@@ -15,8 +15,15 @@ import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel } from '@ob
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { RecordDetailsComponentProps } from '@object-ui/types';
-import { columnIdentity, isObjectInlineEditable } from '@object-ui/core';
+import {
+  columnIdentity,
+  deriveTitleField,
+  isObjectInlineEditable,
+  recordDisplayValueAt,
+  resolveNameField,
+} from '@object-ui/core';
 import { DetailView } from '../DetailView';
+import { deriveFieldGroupDetailSections } from '../synth/buildDefaultPageSchema';
 
 /** Normalize a field entry (string | {field} | {name}) to its machine name. */
 const fieldName = (entry: any): string | null => columnIdentity(entry) ?? null;
@@ -25,6 +32,43 @@ const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};
   return { designer: { 'data-obj-id': id, 'data-obj-type': type, style }, rest };
 };
+
+/**
+ * `sections[].group` references that resolved to no declared group, already
+ * reported. Keyed `<object>.<group>` so one typo is loud once per object
+ * rather than once per render (the shape `reportRetiredFieldType` established
+ * in `@object-ui/core` — the repo's one pattern for an authoring diagnostic
+ * this renderer cannot fix for the author).
+ */
+const reportedUnresolvedGroups = new Set<string>();
+
+/**
+ * Report a `group` that names no entry in the object's `fieldGroups`.
+ *
+ * ⚠️ Reported, not rendered, and that split is the spec's, not a convenience.
+ * `@objectstack/spec`'s `field-group-layout.ts` states existence is NOT a parse
+ * question — the key names something on a DIFFERENT schema, so parse takes any
+ * well-formed key and `page-section-group-unknown` (`@objectstack/lint`) is the
+ * declared reporter of one that resolves to nothing. `deriveFieldGroupLayout`'s
+ * own documented semantics drop a declared group no visible field references,
+ * so an unresolvable REFERENCE dropping is the same rule one level out. What
+ * the drop must never be is silent, which is what this reporter buys.
+ */
+function reportUnresolvedSectionGroup(objectName: string, group: string): void {
+  const key = `${objectName}.${group}`;
+  if (reportedUnresolvedGroups.has(key)) return;
+  reportedUnresolvedGroups.add(key);
+  console.error(
+    `[record:details] section group "${group}" is not declared in fieldGroups on object "${objectName}" — `
+    + 'the section renders nothing. Declare the group on the object, or enumerate `fields` on the section. '
+    + '(`@objectstack/lint` reports this as `page-section-group-unknown`.)',
+  );
+}
+
+/** Test seam — forget which unresolved group references have been reported. */
+export function resetUnresolvedSectionGroupReports(): void {
+  reportedUnresolvedGroups.clear();
+}
 
 export interface RecordDetailsRendererProps {
   schema?: RecordDetailsComponentProps & Record<string, any>;
@@ -123,12 +167,60 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // bare strings (`fields: ['first_name', ...]`), but DetailSection reads
   // `field.name` / `field.label`, so we must coerce string → object form
   // before handing the schema to DetailView. Object entries pass through.
+  // The bound object definition. Declared HERE rather than beside the
+  // title-dedupe ladder below because two readers now need it and it must
+  // precede the earlier of them: `withDeclaredLabel` (the field-label ladder)
+  // and `deriveFieldGroupDetailSections` (the `sections[].group` reference
+  // form). One read, one name.
+  const objSchema: any = (ctx as any).objectSchema;
+  const objSchemaFields: Record<string, any> | undefined = objSchema?.fields;
+
+  /**
+   * Rung 2 of the label ladder: the label the OBJECT declares (objectui#8497).
+   *
+   * `DetailSection` renders `fieldLabel(objectName, field.name, field.label ||
+   * field.name)` — an i18n lookup whose third argument is the fallback. So the
+   * ladder is `bundle key -> field.label -> field.name`, and an enumerated
+   * `sections[].fields` list is `['our_entity', ...]`: bare strings, which
+   * `normaliseField` turned into `{ name }` with NO `label`. Rung 2 was
+   * therefore missing entirely and the ladder collapsed to `bundle key ->
+   * field name`. With no bundle — the default for an app that has not
+   * configured translations — EVERY detail page rendered raw snake_case field
+   * names under a `text-transform: uppercase`, while `clm_contract.our_entity`
+   * declared `label: 'Our Signing Entity'` all along and nothing reported it.
+   *
+   * The label is NOT invented here and it is not a new source: this is the
+   * same read the GROUP-derived body already performed (`toField` in
+   * `synth/buildDefaultPageSchema.ts`: `label: f.label || name`), which is
+   * exactly why the platform's synthesized default page showed declared labels
+   * while a hand-authored enumeration of the same fields did not. Filling the
+   * rung here is what makes the two bodies agree.
+   *
+   * ⚠️ An AUTHORED `label` on the entry still wins — `withDeclaredLabel` only
+   * fills a `label` the author left undefined, so a view's explicit override
+   * keeps its precedence, and an app WITH a full bundle is untouched because
+   * rung 1 resolves before this value is ever read.
+   *
+   * `pickLocalized` rather than a raw read: a field label may be authored as an
+   * inline `{ en, 'zh-CN' }` map, and handing that object through would render
+   * `[object Object]`. It returns '' for a value it cannot resolve, which the
+   * emptiness check below rejects so the ladder falls through to the name.
+   */
+  const withDeclaredLabel = (entry: any): any => {
+    if (!entry || typeof entry !== 'object' || typeof entry.name !== 'string') return entry;
+    if (entry.label !== undefined) return entry;
+    const declared = objSchemaFields?.[entry.name]?.label;
+    if (declared == null) return entry;
+    const label = pickLocalized(declared, language);
+    return label ? { ...entry, label } : entry;
+  };
+
   const normaliseField = (entry: any): any => {
-    if (typeof entry === 'string') return { name: entry };
+    if (typeof entry === 'string') return withDeclaredLabel({ name: entry });
     if (entry && typeof entry === 'object' && !entry.name && entry.field) {
-      return { ...entry, name: entry.field };
+      return withDeclaredLabel({ ...entry, name: entry.field });
     }
-    return entry;
+    return withDeclaredLabel(entry);
   };
   const normaliseList = (list: any[] | undefined): any[] | undefined =>
     Array.isArray(list) ? list.map(normaliseField) : list;
@@ -160,8 +252,37 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // non-empty because a row with no value is not duplicating a heading.
   // The H1 itself is drawn a package away, by `@object-ui/components`'
   // `PageHeaderRenderer` (`page:header`, synthesized by
-  // `buildDefaultPageSchema`) — the names below mirror the tail of THAT
-  // chain, which is why a change to either half must re-read the other.
+  // `buildDefaultPageSchema`) — the names below mirror THAT chain, which is
+  // why a change to either half must re-read the other.
+  //
+  // ⭐ The first two candidates are the unified ADR-0079 resolver, in NAME
+  // space (objectui#8175). Before them this list was the six literal names
+  // alone — the TAIL of the header's chain with no equivalent of the resolver
+  // rung above it — so an object declaring `nameField: 'contract_no'` got BOTH
+  // halves of the dedupe wrong at once: the duplicate survived (`contract_no`,
+  // the value the H1 was showing) and an ordinary field disappeared instead
+  // (`name`, the literal walk's first entry, a row the H1 never showed).
+  // Pinned in `__tests__/record-details.nameFieldDedupe-8175.test.tsx`, which
+  // asserts which row RENDERS and which row DROPS — never the heading, which
+  // this package does not draw.
+  //
+  // ⚠️ The resolver rung is UNROLLED into two candidates on purpose, and
+  // `resolveNameField` alone is NOT enough. It returns ONE answer and
+  // short-circuits: a declared pointer wins outright and `deriveTitleField`
+  // never runs. This ladder is VALUE-keyed, and so is the header's — when the
+  // declared pointer is blank on a record, `getRecordDisplayName` keeps
+  // walking and lands on the derivation (step 4). Listing both rungs is what
+  // lets the fall-through happen here too. When nothing is declared the two
+  // return the same name and the first one simply wins.
+  //
+  // ⚠️ Two disagreements with the header chain are KNOWN and deliberately NOT
+  // repaired here — both are rungs that name no FIELD, so there is no row to
+  // hide for either, and closing them is a separate ruling:
+  //   - `page:header`'s own `schema.title`, which this package cannot see;
+  //   - `objectSchema.titleFormat`, a render-only template the header ranks
+  //     ABOVE the declared pointer (pinned in `@object-ui/components`'
+  //     `__tests__/page-header-title.test.tsx`, "titleFormat still outranks
+  //     nameField"), interpolating any number of fields.
   //
   // ⛔ `objSchema?.primaryField` used to top this list, and it is gone
   // (objectui#7586). It is a `DetailViewSchema` key (`@object-ui/types`
@@ -180,13 +301,44 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // above rather than a one-line deletion. Pinned in
   // `__tests__/record-details.primaryFieldRetired-7586.test.tsx`, which
   // asserts the DEDUPE outcome (which row the grid hides), not the title.
-  const objSchema: any = (ctx as any).objectSchema;
   const data: any = ctx.data ?? {};
-  // No `.filter(…): n is string` guard any more: it existed solely to drop the
-  // `objSchema?.primaryField` entry when the key was absent, which was always.
-  const titleCandidates = ['name', 'full_name', 'title', 'subject', 'display_name', 'label'];
+  // The `.filter(…): n is string` guard is back, for a different reason than
+  // the one objectui#7586 retired: it used to drop an `objSchema?.primaryField`
+  // entry that was absent always, and now it drops the two resolver rungs when
+  // an object declares and derives nothing — `string | undefined` is those
+  // functions' real return type, not a stand-in for a key nothing can produce.
+  const titleCandidates = [
+    resolveNameField(objSchema),
+    deriveTitleField(objSchema),
+    'name',
+    'full_name',
+    'title',
+    'subject',
+    'display_name',
+    'label',
+  ].filter((n): n is string => typeof n === 'string' && n.length > 0);
+  //
+  // ⚠️ EMPTINESS IS THE HEADER'S DEFINITION, NOT A LOCAL ONE (objectui#8350).
+  // `recordDisplayValueAt` is the very function every value-keyed rung of
+  // `getRecordDisplayName` uses to decide whether a rung resolved — imported,
+  // not re-spelled, because the two halves must agree about WHAT COUNTS AS A
+  // VALUE exactly as objectui#8175 made them agree about WHICH FIELD.
+  //
+  // This line used to be a raw `undefined` / `null` / `''` test. A
+  // whitespace-only value passes that and does NOT pass the header's, so on a
+  // record whose title field held only spaces the ladder concluded that field
+  // was what the H1 showed and hid its row, while the H1 had already walked on
+  // to the next rung and was showing something else. A field disappeared from
+  // the grid to deduplicate against a heading that never displayed it — silent,
+  // nothing errored, a row was simply absent.
+  //
+  // ⛔ Never "just add a `.trim()`" here. That is a SECOND implementation of the
+  // same test, which is the shape of the defect this line closes, one level
+  // down: it would still disagree with the header about an expanded lookup
+  // object whose display chain yields nothing (`{ id: 'u1' }` is not a title),
+  // which the raw test — and a trim of it — both read as a value.
   for (const candidate of titleCandidates) {
-    if (data[candidate] !== undefined && data[candidate] !== null && data[candidate] !== '') {
+    if (recordDisplayValueAt(data, candidate) !== undefined) {
       hideFieldNames.add(candidate);
       break;
     }
@@ -201,8 +353,66 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   };
 
   const filteredFields = dropHidden(normaliseList(filterList(schema.fields as any[])));
+
+  // ── `sections[].group` — the ADR-0085 §5 REFERENCE form ──────────────────
+  //
+  // `{ group: 'parties' }` inherits the object's `fieldGroups` entry with that
+  // key: its members (every visible field pointing at it, in declaration
+  // order) and its own presentation (label, icon, description, collapse) —
+  // `@objectstack/spec` 17.3.0 `RecordDetailsProps.sections[].group`
+  // (objectstack#13855), whose semantics are single-sourced in
+  // `deriveFieldGroupLayout`. This renderer used to read the key NOWHERE, and
+  // its own `inputs` description told authors so ("authoring it does nothing
+  // on this renderer"). Both were wrong in the worst direction: a section
+  // carrying `group` carries no `fields`, and `DetailView` mapped every
+  // section through `s.fields` unguarded, so an on-spec document did not
+  // no-op — it threw out of a `useMemo` ABOVE the section loop and the
+  // `SchemaErrorBoundary` replaced the WHOLE component with "Component
+  // `record:details` failed to render", taking every well-formed sibling
+  // section with it (objectui#8497). The declaration was right and the
+  // runtime had never honoured it.
+  //
+  // Resolved through `deriveFieldGroupDetailSections` — the SAME adapter the
+  // synthesized default page uses — deliberately, not a second derivation:
+  // that is what makes the two bodies agree. Authoring an object's fields as a
+  // group reference and enumerating the same fields by hand must render the
+  // same labels, and they now do because one of them IS the other's code path.
+  const authoredSections: any[] = Array.isArray(schema.sections) ? (schema.sections as any[]) : [];
+  const groupSectionByKey = new Map<string, Record<string, any>>();
+  if (authoredSections.some((s) => s && typeof s === 'object' && typeof s.group === 'string')) {
+    for (const derived of deriveFieldGroupDetailSections(objSchema) ?? []) {
+      // The trailing ungrouped bucket carries no `name`, so no reference can
+      // ever resolve to it — which is correct: it is not a declared group.
+      if (typeof derived.name === 'string') groupSectionByKey.set(derived.name, derived);
+    }
+  }
+
+  /**
+   * Resolve one authored entry to the section the body renders, or `null` when
+   * a `group` reference names no declared group.
+   *
+   * The spread order IS the spec's precedence. `sectionGroupReferenceRefinement`
+   * refuses, on a section carrying `group`, every key the group itself declares
+   * (`name`, `label`, `icon`, `description`, `collapsible`, `defaultCollapsed`)
+   * and `fields`; it permits exactly the keys that describe how THIS page lays
+   * the section out (`columns`, `showBorder`, `headerColor`). So the authored
+   * half can only ever carry layout, and letting it win over the derived half
+   * gives the group its presentation and the page its layout, with no key able
+   * to have two sources.
+   */
+  const resolveSectionGroup = (s: any): any | null => {
+    if (!s || typeof s !== 'object' || typeof s.group !== 'string') return s;
+    const derived = groupSectionByKey.get(s.group);
+    if (!derived) {
+      reportUnresolvedSectionGroup(objectName, s.group);
+      return null;
+    }
+    const { group: _group, ...authored } = s;
+    return { ...derived, ...authored };
+  };
+
   const filteredSections = Array.isArray(schema.sections)
-    ? (schema.sections as any[]).map((s) => {
+    ? (schema.sections as any[]).map(resolveSectionGroup).filter((s) => s != null).map((s) => {
         // Authored labels may carry inline translations (`{ en, 'zh-CN' }`) —
         // resolve via pickLocalized before any convention-based lookup.
         //

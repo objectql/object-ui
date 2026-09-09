@@ -200,9 +200,51 @@ ComponentRegistry.register('sidebar-inset',
 );
 
 ComponentRegistry.register('sidebar-trigger',
-  ({ className, ...props }: { className?: string; [key: string]: any }) => (
-    <SidebarTrigger className={className} {...props} />
-  ),
+  ({ className, ...props }: { className?: string; [key: string]: any }) => {
+    // TWO defects met on this one registration, and only the first is the
+    // family's ordinary bare spread (objectui#5632, the `ui:sidebar-trigger`
+    // slice of objectui#5574).
+    //
+    //  1. the spread itself — `{...props}` reached `SidebarTrigger`, which
+    //     spreads its own rest onto the `Button` it renders, so every canary
+    //     family became an attribute on a real `<button>`.
+    //  2. `schema` was never taken off the bag. Every other registration in
+    //     this family destructures it (`({ schema, ...props })`) because it
+    //     renders a child list; this one renders none and named only
+    //     `className`, so the node `SchemaRenderer` injects on EVERY render
+    //     rode the spread and landed as `schema="[object Object]"`. That is
+    //     why this target was its own ledger group: fourteen attributes where
+    //     the rest of the shape leaks thirteen.
+    //
+    //     ⚠️ It still takes no `schema` parameter, and must not start:
+    //     `scripts/__tests__/body-dialect-census.test.ts` pins this
+    //     registration as the one `sidebar-*` entry that reads no child list.
+    //     The filter is what drops the key — a whitelist never has to name
+    //     what it refuses.
+    //
+    // One filter closes both — `schema` is not on the pass-through list, so
+    // nothing here has to enumerate it. The declaration is the FORM-CONTROL
+    // one, not the bare `toDomProps`: the host is a `<button>`, where HTML
+    // defines `name` and `disabled`. The sweep gate measures `name` arriving
+    // here and counts it LEGITIMATE, so a bare `toDomProps` would have
+    // un-named this control without moving a single number the gate watches.
+    //
+    // `className` is destructured so the filtered bag can never carry a second
+    // writer for it (`className` IS on the pass-through list): one writer here,
+    // and `SidebarTrigger` merges it into its own `cn("h-7 w-7", …)` rather
+    // than being overwritten by it. `style` is forwarded BY NAME, the
+    // objectui#4435 route every converged sibling in this package takes — it
+    // reaches the DOM today and the whitelist does not carry it.
+    const { style, ...triggerProps } = props;
+
+    return (
+      <SidebarTrigger
+        className={className}
+        {...toFormControlDomProps(triggerProps)}
+        style={style}
+      />
+    );
+  },
   {
     namespace: 'ui',
     label: 'Sidebar Trigger',

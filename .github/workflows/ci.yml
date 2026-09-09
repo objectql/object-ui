@@ -208,9 +208,9 @@ jobs:
             echo 'Only ignored paths changed. Skipping the steps below; this check still reports.'
           fi
 
-      - name: Enable Corepack
+      - name: Enable Corepack and download the pinned pnpm
         if: steps.relevant.outputs.should_run == 'true'
-        run: corepack enable
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Verify pnpm version
         if: steps.relevant.outputs.should_run == 'true'
@@ -747,9 +747,9 @@ jobs:
             echo 'Only ignored paths changed. Skipping the steps below; this check still reports.'
           fi
 
-      - name: Enable Corepack
+      - name: Enable Corepack and download the pinned pnpm
         if: steps.relevant.outputs.should_run == 'true'
-        run: corepack enable
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Verify pnpm version
         if: steps.relevant.outputs.should_run == 'true'
@@ -877,8 +877,8 @@ jobs:
         with:
           submodules: true
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Enable Corepack and download the pinned pnpm
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Verify pnpm version
         run: pnpm --version
@@ -995,9 +995,9 @@ jobs:
         with:
           submodules: true
 
-      - name: Enable Corepack
+      - name: Enable Corepack and download the pinned pnpm
         if: needs.test-coverage.result == 'success'
-        run: corepack enable
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Verify pnpm version
         if: needs.test-coverage.result == 'success'
@@ -1218,9 +1218,9 @@ jobs:
             echo 'Only ignored paths changed. Skipping the steps below; this check still reports.'
           fi
 
-      - name: Enable Corepack
+      - name: Enable Corepack and download the pinned pnpm
         if: steps.relevant.outputs.should_run == 'true'
-        run: corepack enable
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Verify pnpm version
         if: steps.relevant.outputs.should_run == 'true'
@@ -1493,9 +1493,9 @@ jobs:
             echo 'No docs-related files changed. Skipping the steps below; this check still reports.'
           fi
 
-      - name: Enable Corepack
+      - name: Enable Corepack and download the pinned pnpm
         if: steps.docs-changes.outputs.should_run == 'true'
-        run: corepack enable
+        run: bash scripts/ci-setup-pnpm.sh
 
       - name: Verify pnpm version
         if: steps.docs-changes.outputs.should_run == 'true'

@@ -122,19 +122,72 @@ AST format**. This is what keeps it compatible with the ObjectStack Protocol
 
 #### Supported Filter Operators
 
+Every row below is decided by `@object-ui/core`'s `convertFiltersToAST`, and
+this package's `src/readme-filter-operator-table.test.ts` runs each worked
+example through it on every test run, so a row cannot drift from the code
+unnoticed again (objectui#8558). Where a row lists two spellings, the camelCase
+one is the spec's (`FILTER_OPERATORS` in `@objectstack/spec`'s
+`data/filter.zod.ts`) and the lowercase one is an alias the converter also
+accepts; both lower to the same node.
+
 | MongoDB Operator | ObjectStack Operator | Example |
 |------------------|---------------------|---------|
-| `$eq` or simple value | `=` | `{ status: 'active' }` → `['status', '=', 'active']` |
+| plain value (no operator) | `=` | `{ status: 'active' }` → `['status', '=', 'active']` |
+| `$eq` | `=` | `{ status: { $eq: 'active' } }` → `['status', '=', 'active']` |
 | `$ne` | `!=` | `{ status: { $ne: 'archived' } }` → `['status', '!=', 'archived']` |
 | `$gt` | `>` | `{ age: { $gt: 18 } }` → `['age', '>', 18]` |
 | `$gte` | `>=` | `{ age: { $gte: 18 } }` → `['age', '>=', 18]` |
 | `$lt` | `<` | `{ age: { $lt: 65 } }` → `['age', '<', 65]` |
 | `$lte` | `<=` | `{ age: { $lte: 65 } }` → `['age', '<=', 65]` |
 | `$in` | `in` | `{ status: { $in: ['active', 'pending'] } }` → `['status', 'in', ['active', 'pending']]` |
-| `$nin` / `$notin` | `notin` | `{ status: { $nin: ['archived'] } }` → `['status', 'notin', ['archived']]` |
-| `$contains` / `$regex` | `contains` | `{ name: { $contains: 'John' } }` → `['name', 'contains', 'John']` |
-| `$startswith` | `startswith` | `{ email: { $startswith: 'admin' } }` → `['email', 'startswith', 'admin']` |
+| `$nin` / `$notin` | `nin` | `{ status: { $nin: ['archived'] } }` → `['status', 'nin', ['archived']]` |
 | `$between` | `between` | `{ age: { $between: [18, 65] } }` → `['age', 'between', [18, 65]]` |
+| `$contains` | `contains` | `{ name: { $contains: 'John' } }` → `['name', 'contains', 'John']` |
+| `$notContains` / `$notcontains` | `notcontains` | `{ name: { $notContains: 'test' } }` → `['name', 'notcontains', 'test']` |
+| `$startsWith` / `$startswith` | `startswith` | `{ email: { $startsWith: 'admin' } }` → `['email', 'startswith', 'admin']` |
+| `$endsWith` / `$endswith` | `endswith` | `{ email: { $endsWith: '@example.com' } }` → `['email', 'endswith', '@example.com']` |
+| `$null` | `is_null` / `is_not_null` | `{ email: { $null: true } }` → `['email', 'is_null', true]` |
+| `$exists` | `is_not_null` / `is_null` | `{ email: { $exists: true } }` → `['email', 'is_not_null', true]` |
+
+`$null` and `$exists` read their boolean: `$null: false` lowers to
+`is_not_null` and `$exists: false` to `is_null`. The lowered node's value slot
+is always `true` — the direction comes from the operator name, which is how the
+spec's `data/filter.zod.ts` reads it.
+
+#### Logical combinators
+
+`$and` and `$or` take an array of filter conditions and lower to an AST group
+node whose members are lowered with the table above. Sibling keys of one
+object are still combined with `and` (see "Complex Filter Examples" below). An
+empty `$and` is TRUE and is dropped rather than emitted as an empty group —
+`['and']` is not a filter, so emitting it would widen the result set — and an
+empty `$or` is FALSE and matches no row.
+
+| MongoDB Key | AST Keyword | Example |
+|-------------|-------------|---------|
+| `$and` | `and` | `{ $and: [{ status: 'open' }, { priority: { $gte: 2 } }] }` → `['and', ['status', '=', 'open'], ['priority', '>=', 2]]` |
+| `$or` | `or` | `{ $or: [{ status: 'open' }, { status: 'blocked' }] }` → `['or', ['status', '=', 'open'], ['status', '=', 'blocked']]` |
+
+#### Refused at lowering time
+
+These shapes throw a `FilterOperatorError` (`code: 'INVALID_FILTER'`,
+`httpStatus: 400`) from `convertFiltersToAST` instead of reaching the wire. The
+refusal names the field and the value, so a filter that carries one fails at
+the call site rather than as a `400` from the server or as an empty list.
+
+| Shape | Why | Example |
+|-------|-----|---------|
+| `$regex` | The spec has no `$regex`, and it is not downgraded to `contains`: a pattern match and a substring match are different questions, not stronger and weaker forms of one. Use `$contains`, `$startsWith` or `$endsWith`. | `{ name: { $regex: '^J' } }` → throws `INVALID_FILTER` |
+| `$not` | The AST has no negation keyword, and rewriting the negation inward would be silently partial. Use a negated operator instead: `$ne`, `$nin`, `$notContains`. | `{ $not: { status: 'open' } }` → throws `INVALID_FILTER` |
+| a bare array as a field's value | The AST has no array-equality node, and the array is deliberately not read as `$in` (see below). | `{ tags: ['a', 'b'] }` → throws `INVALID_FILTER` |
+| any other `$` key in operator position | Unknown operator; the error message lists the supported ones. | `{ age: { $foo: 1 } }` → throws `INVALID_FILTER` |
+
+A bare array as a field's value — `{ tags: ['a', 'b'] }` — is **refused** at
+lowering time with a `FilterOperatorError` (`INVALID_FILTER` / 400) naming the
+field and the comparand, not read as `$in` (objectui#8530): the ObjectQL AST
+has no array-equality node, so `['tags', '=', ['a', 'b']]` was answered by a
+`400` from the wire or an empty list from every in-memory matcher. Spell
+membership as `{ tags: { $in: ['a', 'b'] } }` (or `$nin` for its negation).
 
 #### Complex Filter Examples
 
@@ -224,6 +277,45 @@ built the params, or use the analytics branch (`filter` + the legacy `field` /
 Two shapes are deliberately NOT refused, because the receiving door accepts
 them: a `FilterCondition` object (`{ stage: 'won' }` — what `QuerySchema.where`
 declares), and an empty array (`[]` means "no filter").
+
+#### The two shapes are alternatives, not a mixture
+
+The spec-shape branch reads exactly four keys — `groupBy`, `aggregations`,
+`where`, `limit` — and `filter` / `field` / `function` are the **analytics**
+branch's own parameters. Until objectui#6864 they were neither read nor
+reported on the spec-shape branch: they simply were not in the body that went
+out. Since #6864 they are refused, by name:
+
+```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
+// ⛔ throws AnalyticsKeysOnSpecShapeError — an ARRAY `groupBy` selects the
+// spec-shape branch, and these three keys would have vanished from the query:
+// no filter, and no measure at all.
+await dataSource.aggregate('opportunity', {
+  field: 'amount',
+  function: 'sum',
+  groupBy: ['stage'],
+  filter: [{ field: 'stage', operator: 'equals', value: 'won' }],
+});
+
+// ✅ the analytics shape, unchanged — a STRING `groupBy` keeps this call on the
+// analytics branch, where all three keys are read and `filter` is lowered for you
+await dataSource.aggregate('opportunity', {
+  field: 'amount',
+  function: 'sum',
+  groupBy: 'stage',
+  filter: [{ field: 'stage', operator: 'equals', value: 'won' }],
+});
+```
+
+Pick one shape per call. A key that is present but nullish (`filter: undefined`)
+carries nothing to drop and is not refused, so params built by spreading
+possibly-absent authored values keep working. Keys outside those three are not
+refused either — the gate names `filter`, `field` and `function`, and only
+those.
 
 ### Sorting
 
@@ -381,7 +473,12 @@ import {
                            // the spec's filter-AST gate rejects (400
                            // INVALID_FILTER). See "aggregate({ where }) does
                            // NOT lower" above.
-  isMalformedFilterError,  // Recognises BOTH of the two above, and the server's
+  AnalyticsKeysOnSpecShapeError, // aggregate()'s spec-shape branch was handed the
+                           // ANALYTICS branch's keys (`filter` / `field` /
+                           // `function`), which it does not read (400
+                           // INVALID_FILTER). See "the two shapes are
+                           // alternatives, not a mixture" above.
+  isMalformedFilterError,  // Recognises ALL THREE of the above, and the server's
                            // own version of the same refusal.
 } from '@object-ui/data-objectstack';
 ```
@@ -458,8 +555,9 @@ All errors include unique error codes for programmatic handling:
 - `CONNECTION_ERROR` - Connection/network error
 - `AUTHENTICATION_ERROR` - Authentication failure
 - `VALIDATION_ERROR` - Data validation error
-- `INVALID_FILTER` - A filter the adapter refuses to send (`MalformedFilterError`,
-  `UnloweredAggregateWhereError`); matches the data API's own code for the same refusal
+- `INVALID_FILTER` - A request the adapter refuses to send (`MalformedFilterError`,
+  `UnloweredAggregateWhereError`, `AnalyticsKeysOnSpecShapeError`); matches the data
+  API's own code for the same refusal
 - `UNSUPPORTED_OPERATION` - Unsupported operation
 - `NOT_FOUND` - Resource not found
 - `UNKNOWN_ERROR` - Unknown error

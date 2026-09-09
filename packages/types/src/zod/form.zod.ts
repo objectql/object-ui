@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import { handlerKeyRefusal } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { SelectOptionSchema as SpecSelectOptionSchema } from '@objectstack/spec/data';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 // The predicate wire shape (`string | { dialect?, source }`, #2212) was a
@@ -26,6 +26,38 @@ import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 // and the form predicate keys below read ONE definition. Its docblock and
 // rationale moved with it.
 import { ExpressionWireSchema } from './expression.zod.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
+ */
+
 
 /**
  * Select Option Schema — derived from `@objectstack/spec/data`
@@ -39,7 +71,7 @@ import { ExpressionWireSchema } from './expression.zod.js';
  * is why the gap survived.
  */
 export const SelectOptionSchema = z.object({
-  ...SpecSelectOptionSchema.shape,
+  ...stripImportedDefaults(SpecSelectOptionSchema).shape,
   // Deliberate divergence: the spec requires a lowercase machine identifier;
   // standalone UI forms legitimately bind numeric/boolean values. The parity
   // test pins both directions so a future spec widening gets noticed.
@@ -162,19 +194,16 @@ export const ButtonSchema = BaseSchema.extend({
   label: z.string().optional().describe('Button text label'),
   variant: z.enum(['default', 'secondary', 'destructive', 'outline', 'ghost', 'link'])
     .optional()
-    .default('default')
     .describe('Button variant/style'),
   size: z.enum(['default', 'sm', 'lg', 'icon'])
     .optional()
-    .default('default')
     .describe('Button size'),
   loading: z.boolean().optional().describe('Whether button is in loading state'),
   icon: z.string().optional().describe('Icon to display (lucide-react icon name)'),
-  iconPosition: z.enum(['left', 'right']).optional().default('left').describe('Icon position'),
+  iconPosition: z.enum(['left', 'right']).optional().describe('Icon position'),
   onClick: handlerKeyRefusal('onClick', 'runtime-slot', 'Click handler'),
   buttonType: z.enum(['button', 'submit', 'reset'])
     .optional()
-    .default('button')
     .describe('Button type'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
@@ -192,7 +221,6 @@ export const InputSchema = BaseSchema.extend({
     'date', 'time', 'datetime-local',
   ])
     .optional()
-    .default('text')
     .describe('Input type'),
   defaultValue: z.union([z.string(), z.number()]).optional().describe('Default value'),
   value: z.union([z.string(), z.number()]).optional().describe('Controlled value'),
@@ -405,9 +433,23 @@ export const ComboboxSchema = BaseSchema.extend({
   label: z.string().optional().describe('Combobox label'),
   placeholder: z.string().optional().describe('Placeholder text'),
   options: z.array(ComboboxOptionSchema).describe('Combobox options'),
-  defaultValue: z.string().optional().describe('Default value'),
+  defaultValue: retirementTombstone(
+    'Default value — RETIRED (objectui#8140, ADR-0049). Write `value` instead. `combobox` is a ' +
+      'standalone node type only: it is not a built-in form field type and no `field:combobox` ' +
+      'widget exists, so a form field authored `type: "combobox"` never reaches this renderer, ' +
+      'and on the node path the selection is frozen — the renderer passes no change handler and ' +
+      'the DOM pass-through forwards none, so an option cannot be selected. On a control whose ' +
+      'selection cannot change, a default value and a value are the same thing, and this key ' +
+      'could only ever have been a second spelling of `value`.',
+  ),
   value: z.string().optional().describe('Controlled value'),
-  description: z.string().optional().describe('Help text'),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Help text — rendered as a paragraph below the control and tied to the trigger with ' +
+        '`aria-describedby`, so assistive tech announces it with the field (objectui#8140).',
+    ),
   error: z.string().optional().describe('Error message'),
   onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });

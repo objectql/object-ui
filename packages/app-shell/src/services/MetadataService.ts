@@ -304,34 +304,57 @@ function describeUnusableTarget(reference: unknown): string {
  * input types on different paths and neither owns the other's. Both are pinned,
  * and each pin asserts the same four states so the copies cannot drift.
  *
- * ## The `.trim()` is a DECLARED DIVERGENCE, not an accident
+ * ## The `.trim()` MIRRORS the contract — it is no longer a local opinion
  *
- * The predicate is `typeof reference === 'string' && reference.trim() !== ''`,
- * which is STRICTER than the contract. Measured on 17.3.0, at field level and
- * again through the whole document:
+ * The predicate is `typeof reference === 'string' && reference.trim() !== ''`.
+ * It WAS a declared divergence when written: 17.3.0's #13632 refinement spelled
+ * its emptiness test as an equality against `''`, so the spec accepted a
+ * whitespace-only target while this writer refused it. objectstack#16920
+ * (merged 2026-09-08, closing objectstack#16126) applies that test to the
+ * TRIMMED value — `packages/spec/src/data/field.zod.ts`, the `FieldSchema`
+ * `superRefine`:
+ *
+ *   if (
+ *     (field.type === 'lookup' || field.type === 'master_detail') &&
+ *     (field.reference === undefined || field.reference.trim() === '')
+ *   ) { ctx.addIssue({ code: 'custom', path: ['reference'], … }); }
+ *
+ * Same `custom` issue, same `reference` path, same message as absent and `''`
+ * already got. The notion of blank is `.trim()` at both ends, so this guard and
+ * the contract refuse the identical set: nothing here is stricter any more.
+ *
+ * ⚠️ That is the spec FROM THE RELEASE CARRYING objectstack#16920, not the
+ * INSTALLED spec. This repo's pin is `@objectstack/spec` 17.3.0
+ * (`pnpm-lock.yaml`), which predates the fix; the fix is an unreleased `minor`
+ * upstream at the time of writing. Measured on the installed 17.3.0 artifact,
+ * whose shipped test still reads `field.reference === ''`:
  *
  *   FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' })
  *     => success = true
  *   ObjectSchema.safeParse({ …, fields: { rel: { …, reference: '   ' } } })
  *     => success = true
  *
- * — the spec ACCEPTS a whitespace-only target and this writer refuses it.
- * objectui being stricter than the platform is a divergence, not a neutral
- * choice, so it is STATED here rather than left to be inferred from a
- * predicate: undeclared, it is indistinguishable from a bug and the next reader
- * "fixes" it.
+ * (controls at that same pin: absent and `''` are refused as `custom` at
+ * `reference`; `'account'` is accepted — so the schema is consulted and this is
+ * a real reading.) Until the pin reaches the fix, this guard is still the only
+ * thing refusing `'   '` in this repo. ⛔ Bumping the pin is not this note's
+ * business, and this note is not an argument for bumping it.
  *
- * ⭐ Kept, deliberately. A whitespace-only `reference` names no object — the
- * spec's own `ObjectSchema.fields` key grammar (`/^[a-z_][a-z0-9_]*$/`) admits
- * no whitespace-bearing name for it to resolve to — so admitting it buys the
- * author nothing and only moves the identical failure past the guard, past the
- * PUT and into a STORED document, where it surfaces with no field named and no
- * save to attach the message to.
+ * ⭐ Kept — and now kept for its OWN reason rather than the divergence's. It
+ * refuses at EDITOR time, before the PUT, naming the field while it is still on
+ * screen; the contract refuses at the publish gate, where the same shape
+ * arrives as a 422 on the whole object document with the half-filled draft
+ * riding along inside it. A whitespace-only `reference` names no object at
+ * either end — the spec's own `ObjectSchema.fields` key grammar
+ * (`/^[a-z_][a-z0-9_]*$/`) admits no whitespace-bearing name for it to resolve
+ * to — so admitting it buys the author nothing and only moves the identical
+ * failure past the guard, past the PUT and into a STORED document, where it
+ * surfaces with no field named and no save to attach the message to.
  *
- * ⚠️ Filed upstream as objectstack#16126 (open, `domain:spec`). If the spec
- * trims, this writer's behaviour is unchanged and only the declaration retires
- * — which is why the pins assert the writer's refusal separately from the
- * spec's verdict.
+ * ⚠️ The refusal MESSAGE below still says the spec ACCEPTS this value and still
+ * names objectstack#16126. That is deliberate, not an oversight: the message is
+ * version-qualified to 17.3.0, which IS the installed pin, and the pins assert
+ * it verbatim. It retires with the pin bump, not with this note.
  */
 function assertRelationshipTargetPresent(
   field: { type?: string; reference?: unknown },

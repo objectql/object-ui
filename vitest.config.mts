@@ -7,6 +7,54 @@ import { assertCanonicalVitestInvocation, cliHasTestFilters } from './scripts/vi
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ── The suite runs in UTC, always (objectui#8366) ───────────────────────────
+//
+// A family of pins asserts LITERAL local-date faces — `Jul 4, 2024`,
+// `Jul 4, '24`, `7/4/2024 7:00 am` — built from fixed UTC instants
+// (`2024-07-04T07:00:00.000Z` and friends) through LOCAL date parts. Nothing
+// pinned the runner's zone, so the face those pins render was a property of
+// the contributor's laptop. Measured on `76573a184` over the six files that
+// carry the family:
+//
+//   TZ=UTC              6 files passed              (184 tests, 0 failed)
+//   TZ=Europe/Paris     3 failed | 3 passed         (7 failed)
+//   TZ=Asia/Shanghai    3 failed | 3 passed         (7 failed)
+//   TZ=America/New_York 4 failed | 2 passed        (31 failed)
+//   TZ=Etc/GMT+8        4 failed | 2 passed        (33 failed)
+//
+// So the suite was green at EXACTLY ONE offset, not merely west of some
+// boundary: a `07:00 AM` face pinned off an `07:00Z` instant is true at
+// UTC+00:00 and nowhere else. CI is UTC, so the class was invisible there and
+// only ever cost a contributor — a wall of red that is not about the code.
+//
+// Why the zone and not the assertions: those literals are load-bearing ON
+// PURPOSE. `date-display.optionsStyle-7745.test.ts` says so in its own words —
+// its faces are "anchored by the two literals the card measured, so a redesign
+// that moved both sides together could not pass silently." Deriving the
+// expected face from the same formatter under test is what the two files that
+// ALREADY pass do (`dataset-format.date.test.ts`,
+// `DatasetWidget.dateMeasure.test.tsx`), and it is the right assertion where
+// the claim is "this surface shows what a list cell shows" — but on an anchor
+// it degrades to `formatDate(v) === formatDate(v)` and asserts nothing. Pinning
+// the offset the anchors were written against keeps them.
+//
+// This deletes no coverage: no test in this repo reads the ambient zone
+// (`process.env.TZ`, `getTimezoneOffset`, `resolvedOptions().timeZone` — zero
+// hits across every `*.test.ts`/`*.test.tsx`), and the one zone-aware surface
+// that exists takes its zone from METADATA, explicitly
+// (`GanttView.tsx`'s `tzOffsetMs(schema.timeZone, …)`). Non-UTC coverage, if
+// it is ever wanted, wants an explicit per-case zone — never the runner's
+// ambient one, which is the thing that made this silent.
+//
+// Unconditional on purpose: a contributor's zone usually comes from
+// `/etc/localtime` and not from `TZ`, so an `??=` would leave exactly the
+// reported population unfixed while pretending to fix it.
+//
+// Pinned by `scripts/__tests__/vitest-timezone-pin-8366.test.ts`, which spawns
+// a real vitest under a non-UTC `TZ` and asserts the run still sees UTC — so
+// deleting this line reds CI, where the ambient zone would otherwise hide it.
+process.env.TZ = 'UTC';
+
 // Refuse the two invocations that pass while running none of the tests the
 // caller asked for — a package-cwd run (objectui#3378) and a path filter that
 // never reaches Vitest (objectui#3288).
@@ -186,12 +234,24 @@ const DIST_PIN_GLOB = 'packages/*/src/**/*.dist.spec.tsx';
 const DIST_PINS_ENABLED = process.env.OBJECTUI_DIST_PINS === '1';
 
 /**
- * ...which leaves exactly one way to get a FALSE GREEN out of the opt-in, and
- * it is closed here rather than documented. `vitest run --project dist` without
- * the env var would match no project at all; that is a run with nothing in it,
- * and `passWithNoTests` is true for a run that names no files — a green that
- * measured nothing, which is the exact outcome this card exists to prevent.
- * Refuse it instead, and say how.
+ * ...which leaves one rough edge on the opt-in, and it is closed here rather
+ * than documented. `vitest run --project dist` without the env var names a
+ * project that is not declared, and vitest is LOUD about that: its project
+ * resolution throws `No projects matched the filter "dist"` and the run exits
+ * 1. There is no silent green here to prevent.
+ *
+ * What that refusal does NOT do is tell the reader how to proceed. It reports
+ * only that the filter matched nothing — never that the project is env-gated,
+ * never the name OBJECTUI_DIST_PINS, never the task that sets it. So the reader
+ * is stopped with no remedy, and has to come read this file to learn there is
+ * one. Refuse the run earlier, and say how.
+ *
+ * This guard used to justify itself by asserting the un-opted run would
+ * "collect ZERO files and exit GREEN". It does not, and never did on vitest 4;
+ * that sentence sent a reader off to measure vitest before they could trust it
+ * (objectui#8274). The claim is now pinned by an actual vitest spawn in
+ * `scripts/__tests__/dist-pins-guard-message-8274.test.ts`, so a change in
+ * vitest reds a test rather than rotting a comment.
  */
 const DIST_PROJECT_NAMED = process.argv.some(
   (arg, i) => arg === '--project=dist' || (arg === '--project' && process.argv[i + 1] === 'dist'),
@@ -200,7 +260,10 @@ if (DIST_PROJECT_NAMED && !DIST_PINS_ENABLED) {
   throw new Error(
     [
       'vitest --project dist was requested, but OBJECTUI_DIST_PINS is not "1", so the',
-      '`dist` project is NOT declared and this run would collect ZERO files and exit GREEN.',
+      '`dist` project is NOT declared. Left to vitest, this run ends in its generic',
+      'refusal - `No projects matched the filter "dist"`, exit 1 - which tells you the',
+      'filter matched nothing but not that the project is env-gated, and names neither',
+      'OBJECTUI_DIST_PINS nor the task that sets it. Hence this message.',
       '',
       'The `dist` project holds built-artifact pins, which need their package BUILT first.',
       'Reach it through the task that guarantees that:',
@@ -287,11 +350,38 @@ export default defineConfig({
           // walks a map), so `field:multiselect` exists at runtime and appears
           // in no `register('field:multiselect')` call site anywhere.
           //
+          // The `ComponentRegistry` is not the only shared state a single global
+          // object exposes. `globalThis` is the second, in the same class and
+          // with the same order-dependent failure shape, and it went unchecked
+          // until objectui#8500: four files replaced `globalThis.fetch` with a
+          // bare `vi.fn()` by assignment and never handed it back, so the
+          // network-escape guard's wrapper was gone for every later file in the
+          // worker and `scripts/__tests__/network-escape-ledger.test.ts` read
+          // `Mock` where `guardedFetch` belonged. So the same treatment: the
+          // invariant
+          //
+          //     a global the setup files install must be the same value at the
+          //     END of a file as it was at the START of it
+          //
+          // is ENFORCED, by `vitest.setup.shared-global-leak-guard.ts` below,
+          // which reds the file that leaked and puts the global back so no
+          // innocent file inherits it.
+          //
           // The `dom`/`dom-heavy` projects keep `isolate: true` — they DO leak
           // in ways nothing checks (registry overrides, happy-dom nodes);
-          // relaxing them needs the hermeticity fixes tracked separately.
+          // relaxing them needs the hermeticity fixes tracked separately. That
+          // is also why the leak guard is wired HERE and not into
+          // `vitest.setup.base.ts`: under `isolate: true` a double left up for a
+          // whole file crosses nothing, and the network-escape guard's own
+          // `Fix:` text prescribes exactly that shape.
           isolate: false,
-          setupFiles: [path.resolve(__dirname, 'vitest.setup.base.ts')],
+          setupFiles: [
+            path.resolve(__dirname, 'vitest.setup.base.ts'),
+            // LAST, and that is load-bearing: it snapshots what the setup files
+            // before it installed. Pinned by
+            // `scripts/__tests__/shared-global-leak-guard.test.ts`.
+            path.resolve(__dirname, 'vitest.setup.shared-global-leak-guard.ts'),
+          ],
           // `eslint-rules/**` holds the local ESLint plugin's RuleTester specs.
           // They were previously matched by no project glob, so the ratchet
           // rules shipped with tests that never ran (objectui#2879).

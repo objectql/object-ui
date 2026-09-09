@@ -30,7 +30,30 @@
  *   console.error('Validation errors:', result.error);
  * }
  * ```
- * 
+ *
+ * ## ⭐ This mirror authors no default, imported subschemas included
+ *
+ * `result.data` is the document you handed in. This face VALIDATES; it does not
+ * write values into an author's document — not on the keys this package
+ * declares (objectui#7735, decision batch #69) and not on the keys it imports
+ * by reference from `@objectstack/spec` (objectui#8317, decision batch #90).
+ * An author who writes `navigation: {}` gets `navigation: {}` back, not
+ * `navigation: { mode: 'page', preventNavigation: false, openNewTab: false,
+ * size: 'auto' }`.
+ *
+ * ⇒ There is no key on this face whose presence in `result.data` means anything
+ * other than "the author wrote it", and no import graph to read to find out
+ * which keys those are. The authoritative default for a key is the RENDERER's
+ * own fallback, which is what actually runs; a `@default` JSDoc tag DESCRIBES
+ * that fallback and never installs one.
+ *
+ * ⛔ So: no `.default()` in `zod/*.zod.ts`, and every `@objectstack/spec` schema
+ * crossing into a mirror shape wrapped in `stripImportedDefaults`
+ * (`zod/imported-defaults.ts`). Both halves are ratcheted at zero by
+ * `__tests__/zod-mirror-authors-no-defaults-7735.test.ts` and
+ * `__tests__/imported-defaults-8317.test.ts`. The accept set is unchanged by
+ * either: a key that was omissible stays omissible.
+ *
  * @packageDocumentation
  */
 
@@ -350,6 +373,7 @@ export {
 // ============================================================================
 
 import { z } from 'zod';
+import { defineNodeComponentUnion } from './base.zod.js';
 import { AppComponentSchema } from './app.zod.js';
 import { LayoutSchema } from './layout.zod.js';
 import { FormComponentSchema } from './form.zod.js';
@@ -367,8 +391,49 @@ import { ViewComponentSchema } from './views.zod.js';
 /**
  * Union of all component schemas.
  * Use this for generic component rendering where the type is determined at runtime.
+ *
+ * ⭐ It is ALSO the node recursion point (objectui#8344): every child slot is
+ * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`, and `SchemaNodeSchema`
+ * resolves its component arm to THIS union, so a nested node is judged by its own
+ * component schema at every depth instead of by the ~21 base keys. The wiring is a
+ * late-binding holder rather than an import because 14 modules import `base.zod.js`
+ * and this module is built from all 13 category modules — the full reasoning, and
+ * what the UNFILLED holder answers, live on `SchemaNodeSchema` in `base.zod.ts`.
+ *
+ * ⚠️ The fill is written as this const's own initializer, not as a statement beside
+ * it, so no bundler can keep the union and drop the wiring, and no future edit can
+ * reorder the two. ⛔ Do not "simplify" it back into a bare
+ * `defineNodeComponentUnion(AnyComponentSchema)` call underneath.
+ *
+ * ## Why this is discriminated (objectui#8498)
+ *
+ * A flat `z.union` reports EVERY arm's issues under one `invalid_union`, and
+ * Zod's `$ZodError` initializer `JSON.stringify`s that whole tree into
+ * `.message` EAGERLY — `zod/v4/core/errors.js:13`, in the constructor, not
+ * behind a getter. The cost is paid whether or not anyone reads the message,
+ * and it compounds once a refused node can appear at a child slot: a root-level
+ * refusal cost 14,624 chars, growing ~25x per level of nesting until
+ * `RangeError: Invalid string length` — a THROW out of the function this file
+ * documents below as validating "without throwing". Discriminating selects ONE
+ * arm from the authored literal: same document, same zod 4.4.3, 164 chars.
+ *
+ * ⛔ Not an accept-set change, and the property it rests on is measured rather
+ * than assumed: the 13 arms declare 107 `type` literals with ZERO collisions,
+ * so the arm a literal selects is the only arm that could ever have accepted
+ * it. ⚠️ Every arm must declare its literals to Zod — a plain `z.union` member
+ * computes no `propValues` and is REFUSED here (`Invalid discriminated union
+ * option at index "9"`), which is why `objectql.zod.ts` and `crud.zod.ts` are
+ * discriminated too. `__tests__/any-component-union-fanout.test.ts` pins all of
+ * it.
+ *
+ * ⚠️ BOTH of the above are live here, and the composition is the whole resolution:
+ * objectui#8498 changed WHICH arm reports, objectui#8344 changed WHERE this union is
+ * consulted. The discriminated union is what gets written into the node option slot,
+ * so `defineNodeComponentUnion` wraps it rather than replacing it. The slot itself is
+ * still a plain `z.union` in `base.zod.ts` — that is what keeps its option array by
+ * reference, and it is untouched by the discrimination.
  */
-export const AnyComponentSchema = z.union([
+export const AnyComponentSchema = defineNodeComponentUnion(z.discriminatedUnion('type', [
   AppComponentSchema,
   LayoutSchema,
   FormComponentSchema,
@@ -382,7 +447,19 @@ export const AnyComponentSchema = z.union([
   CRUDComponentSchema,
   ReportUnionSchema,
   ViewComponentSchema,
-]);
+], {
+  // Zod's default message for a missed discriminator spells out EVERY accepted
+  // literal — measured, 1,462 chars naming all 107. That is the "print every
+  // arm" output the 2026-09-02 maintainer ruling rejected as noise, arriving by
+  // the back door on a card about message size. `Invalid input` is what the flat
+  // union reported here before, so the published root diagnostic is unchanged;
+  // the ruling's capped list stays the one place arm names are printed, built by
+  // `@object-ui/cli` from `issue.options`, which this does not touch.
+  // ⚠️ Narrowed to `invalid_union`: an unconditional map is scoped to the WHOLE
+  // schema, so it also rewrote this union's `invalid_type` and a non-object root
+  // lost "expected object, received number". `undefined` declines to the locale.
+  error: (issue) => (issue.code === 'invalid_union' ? 'Invalid input' : undefined),
+}));
 
 /**
  * Validate a schema against the AnyComponentSchema
@@ -440,3 +517,36 @@ export function safeValidateSchema(schema: unknown) {
  * Version information
  */
 export const SCHEMA_VERSION = '1.0.0';
+
+// ============================================================================
+// Strict authoring face — the derived, unknown-key-closing twin (objectui#8345)
+// ============================================================================
+
+/**
+ * The strict twin of the node face, derived from the mirrors above rather than
+ * hand-written, under the objectui#5250 ruling (option 2: "each node schema
+ * gets a derived strict variant; `objectui validate` and the doc-snippet gates
+ * run strict; renderer props keep the tolerant face unchanged").
+ *
+ * ⛔ Nothing here changes the accept set of anything exported above. The
+ * rendering face keeps its `.passthrough()`; this is a SECOND face, and no
+ * consumer in this repository is wired to it yet.
+ *
+ * ⚠️ The module is `../strict-authoring-face.ts`, OUTSIDE this directory, and
+ * the placement is deliberate. `__tests__/zod-mirror-parity.test.ts` runs a
+ * census closed over the `export const`s of `src/zod/*.zod.ts`: every one is
+ * either a registered hand-written mirror or a declared exclusion. A DERIVED
+ * twin restates no declaration and has nothing to drift from, so it is not a
+ * member of that population — and it lives outside the directory the census is
+ * closed over, which keeps that closure statement exactly as true as it is
+ * today rather than needing a new row to say "not really one of these".
+ */
+export {
+  deriveStrictAuthoringSchema,
+  StrictAnyComponentSchema,
+  StrictSchemaNodeSchema,
+} from '../strict-authoring-face.js';
+export type {
+  DeriveStrictAuthoringOptions,
+  StrictAuthoringLimit,
+} from '../strict-authoring-face.js';

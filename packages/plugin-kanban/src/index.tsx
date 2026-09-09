@@ -15,7 +15,7 @@ import {
 } from '@object-ui/react';
 import { Skeleton } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
-import type { KanbanConditionalFormattingRule } from '@object-ui/types';
+import type { ComponentInput, KanbanConditionalFormattingRule } from '@object-ui/types';
 import { ObjectKanban } from './ObjectKanban';
 
 /**
@@ -411,6 +411,127 @@ export const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }>
   );
 });
 
+/**
+ * The authoring surface both `ObjectKanbanRenderer` tags publish, spelled ONCE
+ * and spread into both registrations (objectui#8201).
+ *
+ * ## Why it is shared rather than hand-copied
+ *
+ * `object-kanban` and `view:kanban` are the SAME renderer, so the only way the
+ * two lists could ever disagree is a hand-copy that missed one — which is
+ * precisely what this card found: `filter` reached both because objectui#8186
+ * edited both, but nothing structural said it had to.
+ *
+ * ## Why these keys were added
+ *
+ * `@objectstack/spec`'s `ComponentPropsMap['object-kanban']` declares thirteen
+ * top-level keys; this list published three until objectui#8186 added `filter`.
+ * The gap was STRUCTURAL rather than considered — the console registers this
+ * block with `ComponentRegistry.registerLazy` and `getConfig` is loaded-only by
+ * design, so the block sat outside the console's reverse-parity population
+ * entirely until objectui#8176 loaded it. objectui#8201 asked the per-key
+ * question that census never got to ask.
+ *
+ * Each key below was measured against a read site that CHANGES BEHAVIOUR on the
+ * `ObjectKanban` path — not a mention, and not a read site belonging to the
+ * sibling `kanban-ui` block, which is a different renderer with a different
+ * declared surface:
+ *
+ *   - `groupBy` — `ObjectKanban.tsx` materializes the lanes from this field's
+ *     picklist options, `bucketCardsIntoColumns` buckets records by its value,
+ *     and a drag between lanes writes the new value back to the record.
+ *   - `cardTitle` / `titleField` — one choice with two spellings, `cardTitle`
+ *     first; it selects the record field rendered as the card title.
+ *   - `swimlaneField` — becomes `effectiveSchema.swimlaneField`, which
+ *     `KanbanImpl` splits the board into horizontal swimlanes on (and keys its
+ *     per-lane collapsed-state storage by).
+ *   - `coverImageField` — `bucketCardsIntoColumns` maps it onto each card's
+ *     `coverImage`, which `KanbanImpl` renders as the card's `<img>`.
+ *
+ * objectui#8313 added the four ARRAY/OBJECT-armed keys the same census left
+ * behind. Each was measured at ITS OWN SINK rather than assumed to share one,
+ * because the four sinks answer four different questions and only one of them
+ * is a pass-through:
+ *
+ *   - `data` — read TWICE, and the two reads differ. As a GATE it SUPPRESSES
+ *     the board's own query; as a VALUE, `rawData = external || boundData ||
+ *     schema.data || fetchedData` selects it and `effectiveData` REBUILDS every
+ *     member into a card, so it is not a pass-through and no identity claim is
+ *     true of it. ⚠️ The gate is DOUBLY guarded on the authored-node path, and
+ *     naming only one guard would be wrong: `SchemaRenderer` spreads
+ *     non-metadata schema properties as React props, so an authored `data`
+ *     arrives as `schema.data` AND as this component's `data` prop — which
+ *     makes `hasExternalData` true and returns from the fetch effect at its
+ *     first line, BEFORE `if (schema.objectName && !boundData && !schema.data)`
+ *     is reached. Measured, not reasoned: removing either guard alone leaves
+ *     the query suppressed and the member pin green; removing both makes the
+ *     board query and reddens both of its gate rows by name.
+ *   - `cardFields` — `resolveKanbanCardFields(schema.cardFields, objectDef)`,
+ *     exported and pure. It answers WHICH FIELD NAMES the author chose, which
+ *     is a different question from which cells a card ends up carrying: the
+ *     card loop further drops a name that duplicates the title and one whose
+ *     value is empty. Both are measured; the pin says which row is which.
+ *   - `grouping` — one nested position and no more:
+ *     `schema.grouping?.fields?.[0]?.field` is the FALLBACK for
+ *     `swimlaneField`. Everything else inside `grouping`, later `fields`
+ *     entries included, is inert on this board — which is why the declared
+ *     description says so rather than implying a shape the board does not read.
+ *   - `conditionalFormatting` — the only one this file reads NOWHERE.
+ *     `ObjectKanban.tsx` never names it (measured: zero occurrences, against
+ *     nine for `cardFields` in the same file); it travels on the
+ *     `{ ...schema }` spread into `effectiveSchema` and then into
+ *     `KanbanRenderer`, which forwards it to `KanbanImpl`'s `getCardStyles`.
+ *     An edit replacing that spread with an explicit key list would drop the
+ *     key silently, and the member pin is the only thing that would notice.
+ *
+ * ## What declaring them widens, and on what grounds (clause ②)
+ *
+ * Declaring an input WIDENS the authoring surface, so the grounds are stated
+ * rather than assumed. They are the same grounds objectui#8186 (`filter`) and
+ * objectui#8223 (`sort`) cleared on: the SPEC already declares all five and the
+ * RENDERER already honours all five, so this restores `declared = enforced`
+ * instead of publishing anything new. Measured with a control on the same
+ * `safeParse` call — because "the spec declares it" is exactly the assumption
+ * objectui#8172 falsified for `limit`, which four faces teach and the strict
+ * `ComponentPropsMap` refuses BY NAME. An unrecognised probe key draws
+ * `unrecognized_keys` on these calls while none of these five does.
+ *
+ * ## What is deliberately NOT here yet
+ *
+ * ONE of the thirteen keys stays undeclared, keeping its live entry in
+ * `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`:
+ *
+ *   - `quickAdd` is ESCALATED, not deferred: this renderer does not honour it
+ *     at all. `KanbanImpl` gates the control on `quickAdd && onQuickAdd`, and
+ *     `onQuickAdd` is an objectui#6124 RUNTIME SLOT the zod twin refuses by
+ *     name; nothing on the `ObjectKanban` path supplies one. Whether that is a
+ *     permanent carve-out or a feature gap is a product ruling, not a
+ *     measurement, so objectui#8201 hands it to the maintainer rather than
+ *     writing a carve-out reason it has no standing to write.
+ *
+ * The declarations are pinned per tag and per key, so removing one from this
+ * list reddens a NAMED row rather than a file:
+ * `__tests__/scalarKeysAreDeclaredAndHonoured-8201.test.ts` for the five scalar
+ * keys, `__tests__/structuredKeysAreDeclaredAndHonoured-8313.test.ts` for the
+ * four array/object-armed ones. The MEMBER shape of those four — the second
+ * obligation objectui#8212 created, which a declaration pin cannot carry — is
+ * `__tests__/ObjectKanban.structuredMembersReachTheirSinks-8313.test.tsx`.
+ */
+const OBJECT_KANBAN_INPUTS: ComponentInput[] = [
+  { name: 'objectName', type: 'string', required: true },
+  { name: 'columns', type: 'array' },
+  { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the board fetches. Lowered to `$filter` on the query.' },
+  { name: 'groupBy', type: 'string', description: 'Record field whose value buckets cards into lanes. Its picklist options become the lanes when `columns` is absent, and a drag between lanes writes the target lane’s value back to the record. A value matching no lane lands in the trailing “Uncategorized” lane rather than disappearing.' },
+  { name: 'cardTitle', type: 'string', description: 'Record field rendered as the card title. Read AHEAD of `titleField`, which is the legacy spelling of the same choice; when neither yields a value the shared record-display resolver names the card.' },
+  { name: 'titleField', type: 'string', description: 'Legacy spelling of `cardTitle` — the record field rendered as the card title. `cardTitle` wins when both are authored.' },
+  { name: 'swimlaneField', type: 'string', description: 'Record field that splits the board into horizontal swimlanes. When absent the board falls back to `grouping.fields[0].field`.' },
+  { name: 'coverImageField', type: 'string', description: 'Record field holding a card cover image — a URL string, or a file object carrying a `url`. Any other value leaves the card without a cover.' },
+  { name: 'data', type: 'array', description: 'Inline records to render instead of fetching. Authoring it SUPPRESSES the board’s own query entirely. Members are records: the board reads `id` (or `_id`) as the card identity, the `groupBy` field’s value as the lane, the card-title field, `coverImageField`, and every `cardFields` entry. Records handed down by a parent view and a `bind` expression both take priority over it.' },
+  { name: 'cardFields', type: 'array', description: 'Record field NAMES rendered as cells on each card, in the order written. Members are bare names, not entry objects. An explicit list wins over the object’s `highlightFields` role; unlike that fallback it is NOT filtered against the object definition, so a name the object no longer declares simply renders no cell. An empty array reads as omitted.' },
+  { name: 'grouping', type: 'object', description: 'Only `grouping.fields[0].field` is read, and only as the FALLBACK for `swimlaneField`: it names the record field that splits the board into horizontal swimlanes when no `swimlaneField` is authored. An explicit `swimlaneField` wins. Every other position inside `grouping`, later `fields` entries included, is inert on this board.' },
+  { name: 'conditionalFormatting', type: 'array', description: 'Per-card style rules, each evaluated against that card’s own record. Two member dialects are accepted: the native `{ field, operator, value, backgroundColor?, borderColor? }` and the spec CEL `{ condition, backgroundColor?, borderColor? }`. A matching rule colours that card alone. A rule comparing a relation field sees the stored foreign key rather than the expanded record.' },
+];
+
 ComponentRegistry.register(
   'object-kanban',
   ObjectKanbanRenderer,
@@ -418,11 +539,7 @@ ComponentRegistry.register(
     namespace: 'plugin-kanban',
     label: 'Object Kanban',
     category: 'view',
-    inputs: [
-      { name: 'objectName', type: 'string', required: true },
-      { name: 'columns', type: 'array' },
-      { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the board fetches. Lowered to `$filter` on the query.' }
-    ]
+    inputs: [...OBJECT_KANBAN_INPUTS],
   }
 );
 ComponentRegistry.register(
@@ -432,11 +549,8 @@ ComponentRegistry.register(
     namespace: 'view',
     label: 'Kanban Board',
     category: 'view',
-    // Same renderer as `object-kanban`, therefore the same declared surface.
-    inputs: [
-      { name: 'objectName', type: 'string', required: true },
-      { name: 'columns', type: 'array' },
-      { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the board fetches. Lowered to `$filter` on the query.' }
-    ]
+    // Same renderer as `object-kanban`, therefore the same declared surface —
+    // now SHARED rather than hand-copied (objectui#8201).
+    inputs: [...OBJECT_KANBAN_INPUTS],
   }
 );

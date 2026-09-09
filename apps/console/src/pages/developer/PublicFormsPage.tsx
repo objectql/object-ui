@@ -55,6 +55,7 @@ import {
   DialogTitle,
   Input,
   Label,
+  EmptyValue,
 } from '@object-ui/components';
 import { Copy, ExternalLink, FormInput, RefreshCw, Code2, Link2, Settings2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -127,13 +128,14 @@ export function PublicFormsPage() {
     setError(null);
     try {
       const result: any = await client.meta.getItems('view');
+      // `meta.getItems` answers `{ type, items: [...] }`, or a bare array on
+      // the ADR-0037 preview path. The trailing `value` arm is gone on a
+      // measured zero at this seam (objectui#6917).
       const items: any[] = Array.isArray(result)
         ? result
         : Array.isArray(result?.items)
           ? result.items
-          : Array.isArray(result?.value)
-            ? result.value
-            : [];
+          : [];
       const forms: PublicFormRow[] = [];
       const candidates: PublishableFormRow[] = [];
       for (const it of items) {
@@ -382,7 +384,7 @@ export function PublicFormsPage() {
                         {row.object ? (
                           <Badge variant="secondary">{row.object}</Badge>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <EmptyValue />
                         )}
                       </TableCell>
                       <TableCell>

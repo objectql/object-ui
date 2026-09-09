@@ -8,14 +8,14 @@
 
 import React from 'react';
 import type { DateTimeFieldMetadata, FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, formatDate, formatDateTime, formatDateTimeCompactParts, formatRelativeDate, type ComponentMeta, type DateDisplayOptions } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, formatDate, formatDateTime, formatDateTimeCompactParts, formatRelativeDate, extractRecords, type ComponentMeta, type DateDisplayOptions } from '@object-ui/core';
 // The platform's own value-shape contract, asked rather than restated
 // (objectui#6744). See `locationStoredValueSchemaFor` below for why this is a
 // runtime import in the barrel and not a hand-written coordinate range.
 import { valueSchemaFor } from '@objectstack/spec/data';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
-import { Check, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
+import { Check, Copy, Phone as PhoneIcon, MapPin, CircleQuestionMark } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
 import { useRelatedRecordActions } from '@object-ui/react';
@@ -245,9 +245,15 @@ function useLookupName(
             $filter: { id: value },
             $top: 1,
           });
-          const records: any[] = Array.isArray(result)
-            ? result
-            : (result?.value || result?.data || []);
+          // Read the rows through `@object-ui/core`'s `extractRecords` rather
+          // than a fourth hand-rolled ladder. This site used to spell it
+          // `result?.value || result?.data || []` — `value` AHEAD of `data`,
+          // the ONE rows member `QueryResult` (`@object-ui/types`) declares.
+          // A producer emitting both was resolved to the undeclared key
+          // (objectui#6917 arm A). `extractRecords` accepts the same shapes
+          // (bare array, `data`, `value`) in the order the contract implies,
+          // and is the single measured answer for this seam (objectui#6839).
+          const records: any[] = extractRecords(result);
           record = records[0];
         }
         // Resolve through the referenced object's schema (nameField /
@@ -319,57 +325,73 @@ export interface CellRendererProps {
   onChange?: (value: any) => void;
 }
 
+// `coerceToSafeValue` lives in `./coerceToSafeValue.ts` (objectui#8580) so
+// that `./widgets/richTextDisplay.js` — a module this barrel imports — can
+// reach it without importing the barrel back (the objectui#5498 cycle). It is
+// re-exported here unchanged: it is part of this package's published surface.
+import { coerceToSafeValue } from './coerceToSafeValue.js';
+export { coerceToSafeValue };
+
 /**
- * Coerce a value to a safe primitive for rendering.
- * Handles MongoDB wrapper types ($numberDecimal, $oid, $date), expanded
- * reference objects, and arrays so that no raw object is ever passed as
- * a React child — preventing React error #310.
+ * A coerced cell text with nothing in it is NOT a cell value (objectui#8490).
  *
- * A STRING is returned verbatim, whatever its shape. This helper is reached by
- * every text-like cell (`text`, `textarea`, `code`, `time`, `auto_number`,
- * `qrcode` all register to `TextCellRenderer`), so it may not classify a value
- * by looking at its characters. It used to: any string starting `{`/`[` and
- * ending `}`/`]` was `JSON.parse`d and the result run through the
- * reference-label extraction below, which answers `[Object]` for an object
- * carrying no name/label/externalId/id. That turned the showcase Field Zoo's
- * `code` value `{"ok": true}` into the literal `[Object]`, and `[1, 2, 3]` in a
- * text field into `1, 2, 3` (objectui#7246).
+ * `coerceToSafeValue([])` joins zero entries into `''`, and every renderer
+ * below that fed that string on to a coercion drew something the record never
+ * held: `Number('')` is `0`, so the number / currency / percent family printed
+ * a digit (and a 0% progress bar); the email / url / phone family wrapped it
+ * in a live anchor whose `href` was `mailto:` / `tel:` / nothing; and
+ * `DateCellRenderer` handed it to `formatDate`, whose own hand-rolled em-dash
+ * is a bare punctuation mark to a screen reader. A stored `''` reaches the
+ * same `Number('')` fabrication one input-shape over, so the test is on the
+ * coerced TEXT, not on the array: there is no number, address or date in a
+ * blank string, whatever produced it. Whitespace counts as blank for the same
+ * reason — `Number('  ')` is `0` too.
  *
- * Shape is not a type. The reference case the parse was written for
- * (objectui#1426 — an unresolved external-id ref arriving as
- * '{"externalId":"Website Relaunch"}') belongs to reference-TYPED columns and
- * is handled there: `LookupCellRenderer` carries its own JSON-string branch,
- * which resolves the label through the referenced object's schema and links to
- * the record — neither of which this type-blind helper could ever do. Scoped,
- * not dropped; both halves are pinned in
- * `__tests__/textCellJsonText-7246.test.tsx`.
+ * ⛔ Not the package's general emptiness predicate — see `isEmptyMultiValue`
+ * below for why there is none. This answers ONE question for the renderers
+ * that coerce to text before they draw: "did the coercion leave anything to
+ * draw?". `BooleanCellRenderer` does not coerce to text and does not ask it.
  */
-export function coerceToSafeValue(value: unknown): string | number | boolean | null | undefined {
-  if (value == null) return value as null | undefined;
-  if (typeof value === 'number' || typeof value === 'boolean') return value;
-  if (typeof value === 'string') return value;
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) {
-    return value.map((v) => {
-      if (v != null && typeof v === 'object') {
-        const obj = v as Record<string, unknown>;
-        return String(obj.name || obj.label || obj.externalId || obj.id || obj._id || '[Object]');
-      }
-      return String(v);
-    }).join(', ');
-  }
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    // MongoDB numeric wrapper: { $numberDecimal: "250000" }
-    if ('$numberDecimal' in obj) return Number(obj.$numberDecimal);
-    // MongoDB ObjectId wrapper: { $oid: "abc123" }
-    if ('$oid' in obj) return String(obj.$oid);
-    // MongoDB date wrapper: { $date: "2024-01-01T00:00:00Z" }
-    if ('$date' in obj) return String(obj.$date);
-    // Expanded reference / general object: extract name/label/externalId/id
-    return String(obj.name || obj.label || obj.externalId || obj.id || obj._id || '[Object]');
-  }
-  return String(value);
+function isBlankCellText(safe: ReturnType<typeof coerceToSafeValue>): boolean {
+  return safe == null || (typeof safe === 'string' && safe.trim() === '');
+}
+
+/**
+ * An OBJECT LITERAL is not a value of a string-, code- or reference-typed cell
+ * (objectui#8596).
+ *
+ * The other half of the census objectui#8481 / objectui#8490 / objectui#8580
+ * ran on `[]`. Where `[]` made a renderer draw nothing or fabricate a zero,
+ * `{}` made it fabricate an IDENTITY: a live `href="mailto:[Object]"` anchor
+ * with a copy button, a swatch whose CSS background was the string
+ * `[object Object]`, an avatar captioned "U" labelled "User", the literal
+ * `[Object Object]` in a status badge.
+ *
+ * `@objectstack/spec` types every one of those families as a string or a code:
+ * `email` / `url` / `phone` / `color` are `STRING_VALUE_TYPES` ("Value is a
+ * plain string"; the write seam is `z.string()`), the option families resolve
+ * to `z.enum(codes)` or `z.string()`, and `user` shares the reference arm with
+ * `lookup`. A plain object is a value of none of them — so the cell prints the
+ * one answer this package has for "text for a value that is not a string"
+ * (`coerceToSafeValue`, exactly as `text` prints it) and draws no affordance
+ * that asserts something the record never stored. That is objectui#8580's
+ * ruling for `markdown` / `html` / `richtext`, applied to the families that
+ * still invented instead.
+ *
+ * ⛔ NOT arrays. `coerceToSafeValue` joins an array's entries, and a one-entry
+ * array of a real address still formats and still links — the objectui#8490
+ * email ruling, re-pinned by objectui#8580. `[]` itself never reaches here:
+ * it coerces to `''` and every caller below already answers it with the shared
+ * affordance. A `Date` is not a plain object either; `coerceToSafeValue`
+ * carries its own ISO branch for it.
+ */
+function isPlainObjectValue(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    !(value instanceof Date)
+  );
 }
 
 /**
@@ -638,9 +660,12 @@ export function NumberCellRenderer({ value, field }: CellRendererProps): React.R
   // and set must not change the hook count between renders (same rule as
   // CurrencyCellRenderer below).
   const locale = useDisplayLocale();
-  if (value == null) return <EmptyValue />;
-
   const safe = coerceToSafeValue(value);
+  // Tested on the coerced text, not on `value == null` (objectui#8490): `[]`
+  // and `''` both coerce to `''`, and `Number('')` is `0` — a digit the record
+  // never held, indistinguishable from a real stored zero.
+  if (isBlankCellText(safe)) return <EmptyValue />;
+
   const numField = field as any;
   // Decimal places come from `scale` (the `s` in a `decimal(p, s)` column),
   // NOT `precision` — `precision` is the TOTAL digit count (`p`), and reading
@@ -679,9 +704,11 @@ export function CurrencyCellRenderer({ value, field }: CellRendererProps): React
   // null and set must not change the hook count between renders.
   const { currency: tenantCurrency } = useLocalization();
   const locale = useDisplayLocale();
-  if (value == null) return <EmptyValue />;
-
   const safe = coerceToSafeValue(value);
+  // Same fabrication as `NumberCellRenderer` (objectui#8490), one step worse:
+  // a currency column sums and aligns a fabricated `0` like money.
+  if (isBlankCellText(safe)) return <EmptyValue />;
+
   // Resolve the display currency via the shared precedence: field `currency` →
   // `currencyConfig.defaultCurrency` → the tenant default (ADR-0053). When none
   // is known, render a plain number — never a guessed symbol (silently assuming
@@ -706,9 +733,11 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
   // and set must not change the hook count between renders (same rule as
   // NumberCellRenderer / CurrencyCellRenderer above).
   const locale = useDisplayLocale();
-  if (value == null) return <EmptyValue />;
-
   const safe = coerceToSafeValue(value);
+  // Same fabrication as `NumberCellRenderer` (objectui#8490): `[]` drew a 0%
+  // progress bar with a `progressbar` role and `aria-valuenow` of 0.
+  if (isBlankCellText(safe)) return <EmptyValue />;
+
   const percentField = field as any;
   const precision = percentField.precision ?? 0;
   const numValue = Number(safe);
@@ -776,7 +805,31 @@ const STATUS_FIELD_NAMES = new Set([
  * and warning badge for active/enabled fields when false.
  */
 export function BooleanCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
-  if (value == null) {
+  // Only a real boolean is a value of a boolean column (objectui#8582).
+  //
+  // `@objectstack/spec`'s runtime value contract for `boolean` / `toggle` is a
+  // bare `z.boolean()` (`data/field-value.zod.ts`, `valueSchemaFor`): the class
+  // is declared "a JS boolean on the wire (driver read-coercion repairs SQL
+  // 0/1)" and listed under `NON_TEXT_STORED_VALUE_TYPES` — stored "never text
+  // on any backend". The truth table that turns `'true'` / `1` / `'0'` into a
+  // boolean lives at the PRODUCER boundaries (objectql's `coerceBooleanFields`
+  // on the read path and its `invalid_boolean` write-path refusal; `rest`'s
+  // `parseBooleanCell` on CSV import), so a non-boolean reaching this renderer
+  // is a producer that skipped its repair, and a second copy of that table
+  // here would be the renderer-side dialect AGENTS.md #0.1 forbids.
+  //
+  // Before this guard every branch below read the value by TRUTHINESS. The
+  // string `'false'`, the string `'0'` and `{}` drew a CHECKED box — a
+  // completion field its green "Completed" indicator, an `active`-style field
+  // skipped its "Off" badge — an affirmative answer the record never gave;
+  // `0` and `''` drew an UNCHECKED box (an `active` field its "Off" badge), a
+  // `false` the record never stored either. Both directions are the same
+  // fabrication and both now land on the shared affordance, whose accessible
+  // name ("No value") is a statement about the field's TYPE: the record holds
+  // no boolean here. `null` / `undefined` and `[]` (objectui#8490: an empty
+  // array holds no boolean) are the same answer for the same reason. A real
+  // `false` is a value and stays an unchecked box.
+  if (typeof value !== 'boolean') {
     return <span className="flex items-center justify-center"><EmptyValue /></span>;
   }
 
@@ -801,7 +854,7 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
   }
 
   // Warning badge for active/enabled fields when false
-  if (STATUS_FIELD_NAMES.has(fieldName) && !value) {
+  if (STATUS_FIELD_NAMES.has(fieldName) && value === false) {
     return (
       <Badge variant="destructive" className="text-xs" data-testid="boolean-warning-badge">
         {field?.label || humanizeLabel(fieldName)} — Off
@@ -811,7 +864,7 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
 
   return (
     <div className="flex items-center justify-start">
-      <Checkbox checked={!!value} disabled className="pointer-events-none" />
+      <Checkbox checked={value} disabled className="pointer-events-none" />
     </div>
   );
 }
@@ -831,6 +884,10 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
   const t = useFieldTranslate();
   if (!value) return <EmptyValue />;
   const safe = coerceToSafeValue(value);
+  // `[]` is truthy, so it passed the guard above and reached `formatDate` as
+  // `''`, whose own em-dash is a bare punctuation mark with no accessible
+  // name (objectui#8490). The shared affordance says "No value" instead.
+  if (isBlankCellText(safe)) return <EmptyValue />;
   const dateField = field as any;
   const style = dateField.format || 'relative';
 
@@ -1424,6 +1481,46 @@ export function getSemanticHex(name?: string, fallback: string = '#3b82f6'): str
 }
 
 /**
+ * An array with zero entries is not a cell value (objectui#8481).
+ *
+ * Three renderers below open a MULTI-VALUE container and map their entries
+ * into it — `SelectCellRenderer` (a flex-wrap row of badges/dots),
+ * `LookupCellRenderer` (a flex-wrap row of record chips) and
+ * `UserCellRenderer` (an overlapping avatar stack). Each one's opening guard
+ * tested only `null`/`undefined`/`''`, so `[]` reached the array branch and
+ * mapped over zero entries: the renderer's whole output was a CHILDLESS
+ * container — no glyph, no `aria-label`, a visually blank cell.
+ *
+ * That blindness lived in the SHARED renderer, so it was the same blank cell
+ * on every surface. `@object-ui/plugin-detail` had already grown two private
+ * upstream pre-checks against it (objectui#8474's `hasCellValue`, and
+ * `RelatedList`'s `isValueEmpty` from objectui#8459); every consumer that does
+ * NOT pre-check — `ObjectGrid`, `ObjectGallery`, `ObjectKanban`,
+ * `ObjectDataTable` — reached the renderer directly and painted the blank.
+ * A renderer with nothing to draw says so itself rather than depending on
+ * every caller remembering to ask first.
+ *
+ * ⛔ Deliberately NOT the package's general emptiness predicate, and
+ * deliberately not exported. The renderers in this file do NOT agree on what
+ * "empty" means, and that disagreement is measured and in several places
+ * intentional: `JsonCellRenderer` draws the two-character literal for `[]`
+ * (objectui#8474 measured and kept that), `FileCellRenderer` states "0 files",
+ * `BooleanCellRenderer` treats `false` as a value while `DateCellRenderer`'s
+ * `!value` treats the epoch as empty. This helper answers ONE question — "is
+ * this a multi-value container with no entries to draw?" — for the renderers
+ * that ask it: the three below. `BooleanCellRenderer` asked it too between
+ * objectui#8490 and objectui#8582; its guard is now `typeof value !== 'boolean'`,
+ * which answers the same question for `[]` (an array is not a boolean) and for
+ * every non-boolean scalar besides. The renderers that coerce
+ * to text before they draw ask `isBlankCellText` instead — the same ruling,
+ * taken on the coerced string. Unifying the rest is a separate, contested
+ * change.
+ */
+function isEmptyMultiValue(value: unknown): boolean {
+  return Array.isArray(value) && value.length === 0;
+}
+
+/**
  * Select field cell renderer.
  *
  * Two visual styles, controlled by `field.appearance` (renderer-level option,
@@ -1441,7 +1538,10 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
   const options: SelectOptionMetadata[] = selectField.options || [];
   const appearance: 'badge' | 'dot' = selectField.appearance === 'dot' ? 'dot' : 'badge';
 
-  if (value == null || value === '') return <EmptyValue />;
+  // `[]` is handled HERE rather than in the array branch below, because this
+  // is the statement the renderer makes about having nothing to draw
+  // (objectui#8481).
+  if (value == null || value === '' || isEmptyMultiValue(value)) return <EmptyValue />;
 
   // Match a stored value to a configured option, falling back to a
   // case-insensitive comparison so seed data with mixed case
@@ -1456,7 +1556,16 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
 
   const renderOne = (val: any, key?: number): React.ReactElement => {
     const option = findOption(val);
-    const label = option?.label || humanizeLabel(String(val));
+    // An object matches no declared option code, and `String()` made one up:
+    // `humanizeLabel(String({}))` printed the literal `[Object Object]` in a
+    // status badge (objectui#8596). The option families' value is a string
+    // code (`valueSchemaFor` → `z.enum(codes)`, or `z.string()` where none are
+    // declared), so an object is read as the string class reads it — the
+    // package's one coercion, byte-equal to what `text` prints. `humanizeLabel`
+    // is deliberately skipped for it: it exists to turn a machine CODE into
+    // words (`in_progress` → `In Progress`) and rewrites anything else.
+    const label = option?.label
+      || (isPlainObjectValue(val) ? String(coerceToSafeValue(val)) : humanizeLabel(String(val)));
 
     if (appearance === 'dot') {
       // Resolve a real CSS color for the dot. Prefer explicit option color,
@@ -1525,7 +1634,18 @@ export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElem
   const [copied, setCopied] = React.useState(false);
   if (!value) return <EmptyValue />;
 
-  const safe = String(coerceToSafeValue(value) ?? '');
+  const coerced = coerceToSafeValue(value);
+  // `[]` is truthy and coerces to `''`, which used to become a live anchor
+  // with `href="mailto:"` and no text — an affordance with nothing to link to
+  // (objectui#8490). No address, no link.
+  if (isBlankCellText(coerced)) return <EmptyValue />;
+  const safe = String(coerced);
+  // An object is not an address (objectui#8596). `mailto:[Object]` was a live
+  // affordance that could not work, and the copy button offered to put
+  // `[Object]` on the clipboard. The spec's value class for `email` is a plain
+  // string, so the cell prints the coerced text exactly as `text` prints it
+  // and links nothing.
+  if (isPlainObjectValue(value)) return <TruncatedText text={safe} />;
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1571,8 +1691,17 @@ export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElem
  */
 export function UrlCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <EmptyValue />;
-  
-  const safe = String(coerceToSafeValue(value) ?? '');
+
+  const coerced = coerceToSafeValue(value);
+  // `[]` used to become a `target="_blank"` anchor with an EMPTY `href`
+  // (objectui#8490) — same ruling as `EmailCellRenderer`: nothing to link to,
+  // no link.
+  if (isBlankCellText(coerced)) return <EmptyValue />;
+  const safe = String(coerced);
+  // An object is not a URL (objectui#8596) — same ruling as
+  // `EmailCellRenderer`: a `target="_blank"` anchor whose `href` is `[Object]`
+  // navigates nowhere, so the coerced text prints without one.
+  if (isPlainObjectValue(value)) return <TruncatedText text={safe} />;
   return (
     <Button
       variant="link"
@@ -1600,7 +1729,14 @@ export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElem
   const [copied, setCopied] = React.useState(false);
   if (!value) return <EmptyValue />;
 
-  const safe = String(coerceToSafeValue(value) ?? '');
+  const coerced = coerceToSafeValue(value);
+  // `[]` used to become a live `href="tel:"` anchor with no number
+  // (objectui#8490) — same ruling as `EmailCellRenderer`.
+  if (isBlankCellText(coerced)) return <EmptyValue />;
+  const safe = String(coerced);
+  // An object is not a number to dial (objectui#8596) — same ruling as
+  // `EmailCellRenderer`: no `tel:[Object]` anchor, no copy button.
+  if (isPlainObjectValue(value)) return <TruncatedText text={safe} />;
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1655,6 +1791,23 @@ export function FileCellRenderer({ value, field }: CellRendererProps): React.Rea
     );
   }
   
+  // An object carrying nothing is not a file (objectui#8596). The spec's
+  // media value schema makes `url` the one required member and names "an empty
+  // object" among the values it rejects, so `{}` is a value of neither the
+  // stored (`sys_file` id) nor the expanded (`{url, name?, …}`) form: the
+  // record holds no file, and "No value" is TRUE of it. Before this it fell
+  // through to the `'File'` fallback below and drew a chip for an attachment
+  // that does not exist. `ImageCellRenderer` — the same spec family — already
+  // answers `{}` with the shared affordance; this is the same answer, and the
+  // two are pinned against each other.
+  //
+  // ⛔ Deliberately narrow: an object with any member at all still renders its
+  // name (or the `'File'` fallback), so a real `{name: 'contract.pdf'}` is
+  // never hidden. That boundary is `AddressCellRenderer`'s, stated one screen
+  // below: "an object carrying no recognized part reads as empty, while
+  // `{ foo: 1 }` keeps its JSON so real data is never hidden."
+  if (isPlainObjectValue(value) && Object.keys(value).length === 0) return <EmptyValue />;
+
   const fileName = value.name || value.original_name || 'File';
   return <TruncatedText text={String(fileName)} className="text-sm" />;
 }
@@ -1897,7 +2050,10 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   // Always call the hook (rules of hooks). It safely no-ops when inputs are missing.
   const resolvedName = useLookupName(referenceTo, primaryPrimitiveId, displayField);
 
-  if (value == null || value === '') return <EmptyValue />;
+  // Same childless-container defect as `SelectCellRenderer` above: the array
+  // branch further down opens a flex-wrap row of chips and maps zero entries
+  // into it (objectui#8481).
+  if (value == null || value === '' || isEmptyMultiValue(value)) return <EmptyValue />;
 
   // A reference can arrive as a JSON-encoded object string — e.g. an
   // unresolved external-id reference '{"externalId":"Website Relaunch"}'.
@@ -2062,23 +2218,125 @@ export function FormulaCellRenderer({ value }: CellRendererProps): React.ReactEl
 }
 
 /**
+ * A `user` reference this screen did NOT resolve to a person (objectui#8434).
+ *
+ * ## Why a primitive here is never "the ID or username"
+ *
+ * `user` is a lookup specialised to `sys_user`: `@objectstack/spec` puts it in
+ * `REFERENCE_VALUE_TYPES`, whose stored form is a record id and whose expanded
+ * form is the related record OBJECT. So the object branches below are the
+ * resolved case, and a primitive reaching this renderer means exactly one
+ * thing — nothing on this screen turned that reference into a person.
+ *
+ * The branch this replaces printed it as bare text, byte-identical to what a
+ * `text` cell prints. Measured on the merged tree: `'Ada Lovelace'` (a name
+ * written into the column), `'u_1'` and an opaque ULID all rendered as
+ * `<span class="block max-w-full truncate" title="…">…</span>` — while an
+ * expanded object rendered avatar + name. The ONLY difference between "we
+ * resolved this person" and "we resolved nothing" was the ABSENCE of the
+ * avatar, and a user who has never seen the avatar has no reason to read
+ * absence as a failure. A subtractive signal is not a signal.
+ *
+ * ## Why the sentence says "unresolved" and not "not found"
+ *
+ * Measured, not assumed: this branch has TWO populations and cannot tell them
+ * apart.
+ *
+ *   1. a `sys_user` id that arrived UNEXPANDED — the legitimate stored form.
+ *      `packages/core/src/utils/expand-fields.ts` names it in those words:
+ *      "a `user` column that is NOT requested for expansion comes back as a
+ *      raw user id" (objectui#2032). The record exists.
+ *   2. a string that is not a resolvable reference at all — a person's name
+ *      written into the column (cloud#2074), which the save path refuses with
+ *      `reference_not_found`.
+ *
+ * Both arrive as the same primitive, so a "not found" claim would be FALSE for
+ * (1) — the same class of defect this card repairs, aimed the other way. What
+ * is true of both is epistemic: this screen did not resolve it. The affordance
+ * says that and nothing more.
+ *
+ * ⛔ The raw value stays VISIBLE and un-elided. It is the only clue for
+ * diagnosing an existing dirty row, so this is deliberately NOT
+ * `LookupCellRenderer`'s muted em-dash for opaque ids — that treatment buys
+ * tidiness by destroying the evidence.
+ *
+ * ⚠️ No `pointer-events-none` here, unlike `EmptyValue`: that utility stops the
+ * span being a hit target, so a `title` on it never renders a tooltip
+ * (objectui#8506). The stated sentence has to be reachable by hovering.
+ */
+function UnresolvedUserReference({
+  value,
+  className,
+}: {
+  value: unknown;
+  className?: string;
+}): React.ReactElement {
+  const t = useFieldTranslate();
+  const raw = String(value);
+  // The key is written as a LITERAL at both sites on purpose:
+  // `check:i18n-keys` judges a literal key against the `en` pack and checks
+  // that the arguments here are exactly the holes that value has, and it
+  // downgrades a key read from a constant to report-only. A shared constant
+  // would have bought tidiness at the cost of the gate.
+  const translated = t?.('detail.unresolvedReference', { value: raw });
+  // Same provider-less rule `useFieldLabel` documents: i18next echoes the key
+  // when nothing resolves it, and the English fallback applies then. That
+  // fallback is held byte-equal to the `en` pack's value by a pin, since this
+  // shape is invisible to the inline-`defaultValue` half of `check:i18n-keys`.
+  const hint =
+    !translated || translated === 'detail.unresolvedReference'
+      ? `Unresolved reference: ${raw} was not resolved to a user`
+      : translated;
+  return (
+    <span
+      data-slot="unresolved-reference"
+      className={cn(
+        'inline-flex min-w-0 max-w-full items-center gap-1 text-muted-foreground',
+        className,
+      )}
+      title={hint}
+    >
+      <CircleQuestionMark className="size-3.5 shrink-0" aria-hidden="true" />
+      <span className="truncate">{raw}</span>
+    </span>
+  );
+}
+
+/**
  * User/Owner field cell renderer (with avatars)
  */
 export function UserCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (!value) return <EmptyValue />;
+  // `!value` never saw `[]` — a truthy empty array reached the avatar-stack
+  // branch below and rendered an empty stack (objectui#8481).
+  if (!value || isEmptyMultiValue(value)) return <EmptyValue />;
 
-  // Primitive value: just display the ID/username as text
+  // A primitive is an UNRESOLVED reference, not "the ID/username" (objectui#8434).
+  // The comment that stood here stated the branch's premise, and the premise was
+  // wrong: printing the raw string as displayable text renders "resolution
+  // failed" as "resolution succeeded". See `UnresolvedUserReference` for the two
+  // populations that reach here and why the sentence is epistemic.
   if (typeof value !== 'object') {
-    return <TruncatedText text={String(value)} />;
+    return <UnresolvedUserReference value={value} />;
   }
   
   if (Array.isArray(value)) {
     return (
       <div className="flex -space-x-2">
         {value.slice(0, 3).map((user, idx) => {
-          // Primitive user in array
+          // The same ruling as the scalar branch above, one input-shape over
+          // (objectui#8434): an entry that is not an expanded record is a
+          // reference this screen did not resolve, and it said so by drawing
+          // nothing. A multi-value `user` field must not be honest on its
+          // single-value shape and silent on this one.
           if (typeof user !== 'object' || user === null) {
-            return <TruncatedText key={idx} text={String(user)} className="text-sm" />;
+            return <UnresolvedUserReference key={idx} value={user} className="text-sm" />;
+          }
+          // An entry carrying nothing names no person (objectui#8596) — the
+          // same ruling as the scalar branch below, one input-shape over.
+          if (isPlainObjectValue(user) && Object.keys(user).length === 0) {
+            return (
+              <TruncatedText key={idx} text={String(coerceToSafeValue(user))} className="text-sm" />
+            );
           }
           const name = user.name || user.username || 'User';
           const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
@@ -2107,6 +2365,21 @@ export function UserCellRenderer({ value }: CellRendererProps): React.ReactEleme
     );
   }
   
+  // An expanded reference carrying nothing names no person (objectui#8596).
+  // `{}` drew an avatar whose initial was `U` and whose caption was the
+  // literal `'User'` — a face and a name for a record that has neither, taken
+  // from the fallback below. `user` shares `valueSchemaFor`'s reference arm
+  // with `lookup` / `master_detail` / `tree` (a record-id string when stored,
+  // the related record object when expanded), and that family already answers
+  // an object it cannot name with the coerced text — so `user` answers it the
+  // same way, and the two are pinned byte-equal.
+  //
+  // ⛔ Deliberately narrow: `{ id: 'u_1' }` still draws its avatar, so no
+  // populated reference moves. Same boundary as `AddressCellRenderer`'s.
+  if (Object.keys(value).length === 0) {
+    return <TruncatedText text={String(coerceToSafeValue(value))} />;
+  }
+
   const name = value.name || value.username || 'User';
   const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
   
@@ -2210,8 +2483,23 @@ export function JsonCellRenderer({ value }: CellRendererProps): React.ReactEleme
  * Renders a `color` value as a swatch alongside its hex/string value.
  */
 export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (value == null || value === '') return <EmptyValue />;
+  if (value == null) return <EmptyValue />;
+  // An object is not a colour (objectui#8596). `String({})` is
+  // `'[object Object]'`, which this renderer handed to `background-color` —
+  // an invalid declaration the browser drops, so the swatch drew a bordered
+  // box with no colour beside that literal. `color` is a `STRING_VALUE_TYPES`
+  // member, so a non-string prints the string class's coerced text (as `text`
+  // prints it) and gets no swatch: a swatch is a claim about a colour.
+  if (isPlainObjectValue(value)) {
+    const coerced = coerceToSafeValue(value);
+    if (isBlankCellText(coerced)) return <EmptyValue />;
+    return <TruncatedText text={String(coerced)} />;
+  }
   const color = String(value);
+  // `String([])` is `''`, which used to draw a bordered swatch box with no
+  // background colour beside an empty text span (objectui#8490): a swatch
+  // with no colour is not a colour.
+  if (isBlankCellText(color)) return <EmptyValue />;
   return (
     <span className="inline-flex items-center gap-1.5 text-sm">
       <span

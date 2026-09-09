@@ -87,7 +87,31 @@ export interface RegistryConfigLike {
     of?: string | string[];
     required?: boolean;
     enum?: Array<string | { value: unknown; label?: string }>;
-    binding?: 'object' | 'field';
+    /**
+     * The binding marker — exactly `'object'` (objectui#6950).
+     *
+     * `'field'` was declared beside it from the first draft of ADR-0080 §6.3
+     * and never written: every `binding:` literal in `packages/`, `apps/`
+     * and `examples/` is `'object'` (7 of 7, measured 2026-09-06 and
+     * re-measured at the retiring PR's merge-base), and nothing on either
+     * side of the manifest resolved a field binding. Retired under ADR-0049
+     * enforce-or-remove by the maintainer ruling of 2026-09-07 (decision
+     * batch #69): a config that spells the arm is a `tsc` error here rather
+     * than an entry the server would never resolve.
+     *
+     * The retirement then reached the two faces the ruling did not name
+     * (objectui#8315): `ManifestInput.binding` and
+     * `ManifestValidationResult.bindings[].kind` in `types.ts` read `'object'`
+     * too, so the published package no longer narrows on one face and stays
+     * wide on the other. The argument for keeping the manifest face wide —
+     * producer → reader is a subset relation — is answered at
+     * `ManifestInput.binding`, which is where a later reader lands.
+     *
+     * Only the framework writes the key: `InjectedComponentInput` in
+     * `@object-ui/types`, spliced by `Registry.register`. `ComponentInput`
+     * itself has no `binding` member, deliberately.
+     */
+    binding?: 'object';
     description?: string;
   }>;
   /**

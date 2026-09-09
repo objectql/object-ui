@@ -41,7 +41,8 @@ export function MultiSelectField({
   const selected: string[] = Array.isArray(value) ? value : value == null ? [] : [value as unknown as string];
   const fieldName = props.name || config?.name || props.id || '';
 
-  const dependsOn = config?.dependsOn ?? dependsOnProp;
+  // Read through the declared type, not the untyped carrier (objectui#6153) — see SelectField.
+  const dependsOn = field?.dependsOn ?? dependsOnProp;
   const { options, gated, dependsOnFields } = useCascadingOptions<Option>(
     rawOptions,
     dependsOn,

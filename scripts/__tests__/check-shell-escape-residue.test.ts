@@ -50,6 +50,12 @@ import { REQUIRED_CONTEXTS } from '../dependabot-merge-gate.mjs';
  *
  * ## Fixture discipline
  *
+ * `scripts/` is not in `SCAN_ROOTS`, so this file could carry the literal
+ * plainly. It builds it from code points anyway — belt and braces against a
+ * future widening of the scan surface turning this suite into the gate's own
+ * first finding — and then PINS the constructed value against the shipped
+ * `RESIDUE_PATTERNS` entry, so a typo in the source literal reddens here.
+ *
  * ## The second skills root (objectui#7403)
  *
  * `SCAN_ROOTS` carries TWO skills trees: the published `skills/` and the
@@ -59,12 +65,6 @@ import { REQUIRED_CONTEXTS } from '../dependabot-merge-gate.mjs';
  * residue planted under `.claude/skills`, and — the case the miss itself asks
  * for — a root that walks to ZERO documents while every other root is healthy,
  * which must be NAMED AND RED rather than absorbed by a healthy total.
- *
- * `scripts/` is not in `SCAN_ROOTS`, so this file could carry the literal
- * plainly. It builds it from code points anyway — belt and braces against a
- * future widening of the scan surface turning this suite into the gate's own
- * first finding — and then PINS the constructed value against the shipped
- * `RESIDUE_PATTERNS` entry, so a typo in the source literal reddens here.
  *
  * ## Coverage, which is a different question from residue (objectui#7413)
  *

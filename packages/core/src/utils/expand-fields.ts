@@ -10,14 +10,52 @@ import { columnIdentity } from './column-identity.js';
 
 /**
  * Relational ("reference-bearing") field types whose stored value is a foreign
- * key into another object — and which therefore benefit from `$expand` so a
- * list / grid / detail cell can render the related record's display name
- * instead of a bare id placeholder ("—").
+ * key into another object — and which therefore benefit from `$expand`, so a
+ * response carries the related record instead of only its foreign key.
  *
  * `user` is a lookup specialised to `sys_user`: it carries the same `reference`
  * + id storage and the server resolves it through the same expand path as
  * `lookup` / `master_detail`, so a `user` column that is NOT requested for
- * expansion comes back as a raw user id and renders as "—" (objectui#2032).
+ * expansion comes back as a raw user id (objectui#2032). What a CELL then
+ * prints for that id is deliberately not stated here — see the next section.
+ *
+ * ## No rendering claim is made here, on purpose — objectui#8693
+ *
+ * Both paragraphs above used to make one: the `user` sentence ended "…and
+ * renders as '—'", and the opening one called the unexpanded cell "a bare id
+ * placeholder ('—')". Measured on `da5e4f69e` by resolving each family through
+ * `getCellRenderer` and rendering three unexpanded primitives:
+ *
+ * | unexpanded value     | `lookup` / `master_detail` / `tree` | `user`             |
+ * |----------------------|-------------------------------------|--------------------|
+ * | `'u_1'`              | `u_1`, plain truncated span         | `u_1`, same span   |
+ * | `'01HQZX9K2M4N6P8R'` | muted `—`                           | the raw ULID       |
+ * | `'Ada Lovelace'`     | `Ada Lovelace`, plain span          | the raw string     |
+ *
+ * Wrong twice over. `user` never drew the em-dash at all — `UserCellRenderer`
+ * has no resolver, no `useLookupName`, no `isLikelyOpaqueId`. And the three
+ * families that do draw it draw it ONLY for values `isLikelyOpaqueId` accepts;
+ * that qualifier is the entire content of the behaviour and the sentence never
+ * carried it, so a reader was told a human-readable id would degrade visibly
+ * when it printed as if it were a name — the defect objectui#8434 was for.
+ *
+ * It is not replaced by a corrected sentence, because a corrected sentence
+ * could not be kept true HERE. `@object-ui/core` does not depend on
+ * `@object-ui/fields` in `dependencies`, `peerDependencies` or
+ * `devDependencies` — the arrow runs the other way — so no test that can reach
+ * this file can render the cell it would describe, and nothing in this repo
+ * compares a docblock to rendered output. A replacement would be checked by
+ * whatever checked the last one: nobody. Its shelf life was measured too —
+ * while objectui#8693 was open, PR #8698 (objectui#8434) sat in the merge
+ * queue rewriting the `user` column of that very table: on its head
+ * `3692f7218` all three primitives render an unresolved-reference affordance
+ * that KEEPS the raw value. A corrected sentence would have been stale before
+ * it landed. The other three families are byte-identical on both trees.
+ *
+ * The storage claim is the half this set actually depends on, and that half IS
+ * checkable here (`__tests__/expand-fields.test.ts`, plus the identity pins
+ * below). How an unexpanded reference prints belongs next to the renderers in
+ * `@object-ui/fields`, where a test can fail.
  *
  * Note on `tree`: a self-referencing hierarchy field is a reference too, so it
  * belongs in this set; whether the backend materialises the expanded object
@@ -33,6 +71,12 @@ import { columnIdentity } from './column-identity.js';
  * claim to have converted "the LAST private copy" was false by two MORE — see
  * the falsification note at the end. Read the list below as the lineage of the
  * conversions, not as a census; the mechanical fact is the identity pins.
+ *
+ * Re-measured for objectui#8693 on `da5e4f69e`: stale again, by FOUR. The
+ * commit that corrected the "fourth and last" claim (objectui#5874 / #6064)
+ * converged four more private copies of its own and never added them here —
+ * the last four bullets below. Re-derive before trusting it; the recipe is at
+ * the end of the list.
  *
  * This is the reference-bearing FAMILY, not the `$expand` builder's private
  * list, and these concerns read it under several different words:
@@ -55,7 +99,33 @@ import { columnIdentity } from './column-identity.js';
  *  - the dashboard table's `$expand` whitelist — `computeLookupExpand` in
  *    `packages/plugin-dashboard/src/ObjectDataTable.tsx` (objectui#5692);
  *  - the dashboard's relation/link test — `isLookupType` in
- *    `packages/plugin-dashboard/src/recordFields.tsx` (objectui#5692).
+ *    `packages/plugin-dashboard/src/recordFields.tsx` (objectui#5692);
+ *  - the action-param RESOLVER (one step before `paramToField`) —
+ *    `packages/app-shell/src/utils/resolveActionParams.ts` (objectui#5874);
+ *  - the detail header's relation test — `HeaderHighlight.tsx` in
+ *    `packages/plugin-detail` (objectui#5874);
+ *  - the detail drawer's relation test — `RecordDetailDrawer.tsx` in
+ *    `packages/plugin-detail`, reading through `isExpandableFieldType`
+ *    (objectui#5874);
+ *  - the kanban board's `$expand` — `ObjectKanban.tsx` in
+ *    `packages/plugin-kanban`, reading through `buildExpandFields`
+ *    (objectui#5874).
+ *
+ * ⚠️ Re-derive rather than trust. One command, from the repo root, over the
+ * whole tree with NO pathspec. (Narrowing it to `packages/` + a `*` segment +
+ * `/src` matches ZERO files, and would drop `apps/` besides. The two-character
+ * sequence is spelled out in words here because writing it literally would end
+ * this comment.)
+ *
+ *     git grep -lE 'EXPANDABLE_FIELD_TYPES|isExpandableFieldType|buildExpandFields'
+ *
+ * 96 files on `da5e4f69e`. Drop tests, changesets and changelogs and the
+ * production readers fall into three radii, only the first of which the list
+ * above is about: this file plus 8 more naming the set directly, plus 4 more
+ * calling `isExpandableFieldType`, plus 13 more calling `buildExpandFields`.
+ * The sweep was controlled by planting a reader under `apps/console/src/` and
+ * confirming the same command found it — `apps/` holds no reader today, and a
+ * zero-hit region is otherwise indistinguishable from a blind spot.
  *
  * The third one used to be a second hand-maintained copy, and this comment used
  * to claim the set "mirrors the form layer's `DATA_SOURCE_FIELD_TYPES`

@@ -518,6 +518,172 @@ describe('ci-cd-pipeline.md — lockfile merge driver', () => {
 });
 
 /**
+ * ── What a job RUNS, paired against the prose that documents it ──────────────
+ *
+ * objectui#3653 introduced this pairing for `ci.yml`'s job table. objectui#8015
+ * lifted it out of that table, because the rule it encodes was never about a
+ * table: *every first-party command a job runs must be named where this page
+ * documents that job, and that documentation may not credit it with one the job
+ * does not run.*
+ *
+ * Both directions are asserted, because the documentation is a claim in both: a
+ * command the job runs and the page omits is a contributor who cannot learn from
+ * this page that a gate exists; a command the page names and the job does not run
+ * is the objectui#3451 shape one level down — a page advertising a guardrail that
+ * is not there.
+ *
+ * The two sources differ only in WHERE the prose lives — one table cell per job
+ * for `ci.yml`, one whole `##` section for `lint.yml`'s single job — so that is
+ * the only thing a caller supplies. The rule itself is written once, here.
+ *
+ * What counts as a command is deliberately narrower than "every step", and the
+ * boundary is *derived* rather than hand-listed: a step counts when it names
+ * something this repository owns — a `scripts/*.mjs` file, a script in the root
+ * `package.json`, or a `turbo run` task. Environment setup drops out on its own
+ * because it names none of those (`corepack enable`, `pnpm --version`, `pnpm
+ * install --frozen-lockfile`, `pnpm exec playwright install`, `pnpm --filter …
+ * exec vite build`, `pnpm --filter '@object-ui/cli...' build`), which keeps the
+ * documentation a summary of the gates rather than a transcript of the YAML.
+ *
+ * The hole that leaves, stated so nobody mistakes it for coverage: a gate written
+ * as an inline shell block names no first-party command and is invisible here.
+ * Gates in this repository land as a root `package.json` script or a
+ * `scripts/*.mjs` file — both covered — and that is the only reason the narrower
+ * rule is enough.
+ *
+ * Steps are read from `run:` values only, never from the surrounding YAML. Both
+ * workflows carry comments that name their own gates — `ci.yml`'s `type-check`
+ * block mentions `pnpm type-check`, `turbo run type-check` and `pnpm
+ * check:i18n-drift`, and `lint.yml`'s step comments name every script it runs
+ * plus two `pnpm check:*` aliases it deliberately does NOT use — so a scan of the
+ * raw block would take all of them for steps and this pin would then be
+ * describing its own comments.
+ *
+ * A `--self-test` invocation and the real one collapse to one entry: the rule is
+ * about which gate the page must name, not how many times the YAML types it.
+ */
+const rootScripts = new Set(
+  Object.keys(
+    (
+      JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
+        scripts: Record<string, string>;
+      }
+    ).scripts,
+  ),
+);
+
+/**
+ * The job keys a workflow defines, in file order.
+ *
+ * Scoped to the `jobs:` mapping, because top-level `on:` has two-space children
+ * of its own (`push:`, `pull_request:`) that a whole-file scan would read as
+ * jobs. Inside `jobs:` the only two-space lines are the job keys themselves:
+ * job-level keys sit at four, step bodies deeper still, and every block scalar
+ * (`run: |`) is indented past its key, so nothing else can reach column 2.
+ */
+function jobKeys(yaml: string, workflowFile: string): string[] {
+  const start = yaml.search(/^jobs:[ \t]*$/m);
+  expect(start, `${workflowFile} must still have a top-level \`jobs:\` mapping`).toBeGreaterThan(-1);
+  const body = yaml.slice(start + 'jobs:'.length);
+  // `jobs:` is the last top-level key in both workflows today; stop at the next
+  // one regardless.
+  const end = body.search(/^[A-Za-z]/m);
+  const scoped = end === -1 ? body : body.slice(0, end);
+  return [...scoped.matchAll(/^ {2}([a-z0-9][a-z0-9-]*):[ \t]*$/gm)].map((m) => m[1]);
+}
+
+/** One job's YAML block, from its key line up to the next thing at that indent. */
+function jobBlock(yaml: string, key: string, workflowFile: string): string {
+  const body = yaml.slice(yaml.search(/^jobs:[ \t]*$/m));
+  const at = body.search(new RegExp(`^ {2}${key}:[ \\t]*$`, 'm'));
+  expect(at, `${workflowFile} must still define a \`${key}:\` job`).toBeGreaterThan(-1);
+  const rest = body.slice(at + 1);
+  // A job's own comments are indented four spaces or more; the two-space ones
+  // introduce the *next* job, so stopping at any two-space line is right.
+  const next = rest.search(/^ {2}\S/m);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+/** Every `run:` step body in a job block — single-line and block scalar alike. */
+function runSteps(block: string): string[] {
+  const lines = block.split('\n');
+  const steps: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const at = lines[i].indexOf('run:');
+    // `run:` must be the key of the line, not text inside another value.
+    if (at === -1 || !/^[\s-]*$/.test(lines[i].slice(0, at))) continue;
+    const value = lines[i].slice(at + 'run:'.length).trim();
+    if (!/^[|>][-+]?$/.test(value)) {
+      steps.push(value);
+      continue;
+    }
+    const body: string[] = [];
+    for (let j = i + 1; j < lines.length; j++) {
+      if (lines[j].trim() === '') continue;
+      if (lines[j].search(/\S/) <= at) break;
+      body.push(lines[j].trim());
+    }
+    steps.push(body.join('\n'));
+  }
+  return steps;
+}
+
+/**
+ * The first-party commands named in a piece of text — applied to a job's `run:`
+ * bodies on one side and to the prose documenting it on the other, so the two
+ * sides are compared by the same rule rather than by two spellings of it.
+ */
+function firstPartyCommands(text: string): Set<string> {
+  const found = new Set<string>();
+  // A gate that lives in this repo's `scripts/` tree. The `node ` prefix is not
+  // required: the workflows write `node scripts/x.mjs`, the page writes the path.
+  for (const m of text.matchAll(/scripts\/[\w./-]+\.mjs/g)) found.add(m[0]);
+  // A root `package.json` script. `install`, `--version`, `exec` and `--filter`
+  // are not scripts, so the setup steps need no exemption list.
+  for (const m of text.matchAll(/\bpnpm\s+([\w:.-]+)/g)) {
+    if (rootScripts.has(m[1])) found.add(`pnpm ${m[1]}`);
+  }
+  // The build graph, invoked through the task runner instead of a script.
+  for (const m of text.matchAll(/\bturbo\s+run\s+([\w:-]+)/g)) found.add(`turbo run ${m[1]}`);
+  return found;
+}
+
+/** One unit of the pairing: a job's steps, and the prose this page documents it in. */
+type CommandParity = {
+  /** How a failure names the unit — a `ci.yml` job key, or a workflow section. */
+  label: string;
+  /** First-party commands the job's `run:` steps actually invoke. */
+  ran: Set<string>;
+  /** First-party commands the page credits it with. */
+  named: Set<string>;
+};
+
+/** Pair one job's `run:` steps against the piece of the page that documents it. */
+function commandParity(
+  workflowFile: string,
+  jobKey: string,
+  documentation: string,
+  label: string = jobKey,
+): CommandParity {
+  const yaml = fs.readFileSync(path.join(workflowDir, workflowFile), 'utf8');
+  return {
+    label,
+    ran: firstPartyCommands(runSteps(jobBlock(yaml, jobKey, workflowFile)).join('\n')),
+    named: firstPartyCommands(documentation),
+  };
+}
+
+/** Commands a job runs that the prose documenting it does not name. */
+function undocumentedCommands(units: CommandParity[]): string[] {
+  return units.flatMap((u) => [...u.ran].filter((c) => !u.named.has(c)).map((c) => `${u.label}: ${c}`));
+}
+
+/** Commands the prose names that the job it documents does not run. */
+function phantomCommands(units: CommandParity[]): string[] {
+  return units.flatMap((u) => [...u.named].filter((c) => !u.ran.has(c)).map((c) => `${u.label}: ${c}`));
+}
+
+/**
  * objectui#3451: the same drift as #3197/#3212, one table lower down and pointing
  * the dangerous way. The `## Core CI Workflow (ci.yml)` section opened with "Seven
  * jobs, all parallel" and its table's seventh row described a `dev-server` job —
@@ -554,23 +720,9 @@ describe('ci-cd-pipeline.md — lockfile merge driver', () => {
 describe('ci-cd-pipeline.md — ci.yml job table', () => {
   const ciWorkflow = fs.readFileSync(path.join(workflowDir, 'ci.yml'), 'utf8');
 
-  /**
-   * Job keys from `ci.yml`, in file order.
-   *
-   * Scoped to the `jobs:` mapping, because top-level `on:` has two-space children
-   * of its own (`push:`, `pull_request:`) that a whole-file scan would read as
-   * jobs. Inside `jobs:` the only two-space lines are the job keys themselves:
-   * job-level keys sit at four, step bodies deeper still, and every block scalar
-   * (`run: |`) is indented past its key, so nothing else can reach column 2.
-   */
+  /** Job keys from `ci.yml`, in file order — see `jobKeys` for how the scan is scoped. */
   function ciJobKeys(): string[] {
-    const start = ciWorkflow.search(/^jobs:[ \t]*$/m);
-    expect(start, 'ci.yml must still have a top-level `jobs:` mapping').toBeGreaterThan(-1);
-    const body = ciWorkflow.slice(start + 'jobs:'.length);
-    // `jobs:` is the last top-level key today; stop at the next one regardless.
-    const end = body.search(/^[A-Za-z]/m);
-    const scoped = end === -1 ? body : body.slice(0, end);
-    return [...scoped.matchAll(/^ {2}([a-z0-9][a-z0-9-]*):[ \t]*$/gm)].map((m) => m[1]);
+    return jobKeys(ciWorkflow, 'ci.yml');
   }
 
   /** The `name:` each job reports itself under in the checks list, keyed by job key. */
@@ -714,32 +866,11 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
    * (objectui#3650, PR #3659) both ran in the `type-check` job while its row on the
    * page still listed five commands.
    *
-   * Both directions are asserted, because the column is a claim in both: a command
-   * the job runs and the row omits is a contributor who cannot learn from this page
-   * that a gate exists; a command the row names and the job does not run is the
-   * objectui#3451 shape one level down — a page advertising a guardrail that is not
-   * there.
-   *
-   * What counts as a command is deliberately narrower than "every step", and the
-   * boundary is *derived* rather than hand-listed: a step counts when it names
-   * something this repository owns — a `scripts/*.mjs` file, a script in the root
-   * `package.json`, or a `turbo run` task. Environment setup drops out on its own
-   * because it names none of those (`corepack enable`, `pnpm --version`, `pnpm
-   * install --frozen-lockfile`, `pnpm exec playwright install`, `pnpm --filter …
-   * exec vite build`), which keeps this column a summary of the gates rather than a
-   * transcript of the YAML: the `e2e` job's artifact check and Playwright cache are
-   * real steps that no reader of this page needs enumerated.
-   *
-   * The hole that leaves, stated so nobody mistakes it for coverage: a gate written
-   * as an inline shell block names no first-party command and is invisible here.
-   * Gates in this repository land as a root `package.json` script or a
-   * `scripts/*.mjs` file — both covered — and that is the only reason the narrower
-   * rule is enough.
-   *
-   * Steps are read from `run:` values only, never from the surrounding YAML. The
-   * `type-check` job's comments alone mention `pnpm type-check`, `turbo run
-   * type-check` and `pnpm check:i18n-drift`; a scan of the raw block would take all
-   * three for steps and this pin would then be describing its own comments.
+   * The rule, both of its directions, and what counts as a command all live at
+   * module scope now (objectui#8015) — `lint.yml`'s section had the identical
+   * drift and is pinned by the same code at the bottom of this file. Only the
+   * `ci.yml`-specific part is here: the documentation for each job is that job's
+   * `What it runs` table cell.
    *
    * Whether a given step still EXISTS in `ci.yml` is pinned where that step was
    * introduced — `check-i18n-call-site-keys.test.ts` and
@@ -749,79 +880,9 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
    * this page, which is the part nothing owned.
    */
   describe('what each job runs', () => {
-    const rootScripts = new Set(
-      Object.keys(
-        (
-          JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
-            scripts: Record<string, string>;
-          }
-        ).scripts,
-      ),
-    );
-
-    /** One job's YAML block, from its key line up to the next thing at that indent. */
-    function jobBlock(key: string): string {
-      const body = ciWorkflow.slice(ciWorkflow.search(/^jobs:[ \t]*$/m));
-      const at = body.search(new RegExp(`^ {2}${key}:[ \\t]*$`, 'm'));
-      expect(at, `ci.yml must still define a \`${key}:\` job`).toBeGreaterThan(-1);
-      const rest = body.slice(at + 1);
-      // A job's own comments are indented four spaces or more; the two-space ones
-      // introduce the *next* job, so stopping at any two-space line is right.
-      const next = rest.search(/^ {2}\S/m);
-      return next === -1 ? rest : rest.slice(0, next);
-    }
-
-    /** Every `run:` step body in a job block — single-line and block scalar alike. */
-    function runSteps(block: string): string[] {
-      const lines = block.split('\n');
-      const steps: string[] = [];
-      for (let i = 0; i < lines.length; i++) {
-        const at = lines[i].indexOf('run:');
-        // `run:` must be the key of the line, not text inside another value.
-        if (at === -1 || !/^[\s-]*$/.test(lines[i].slice(0, at))) continue;
-        const value = lines[i].slice(at + 'run:'.length).trim();
-        if (!/^[|>][-+]?$/.test(value)) {
-          steps.push(value);
-          continue;
-        }
-        const body: string[] = [];
-        for (let j = i + 1; j < lines.length; j++) {
-          if (lines[j].trim() === '') continue;
-          if (lines[j].search(/\S/) <= at) break;
-          body.push(lines[j].trim());
-        }
-        steps.push(body.join('\n'));
-      }
-      return steps;
-    }
-
-    /**
-     * The first-party commands named in a piece of text — applied to a job's `run:`
-     * bodies on one side and to its `What it runs` cell on the other, so the two
-     * sides are compared by the same rule rather than by two spellings of it.
-     */
-    function firstPartyCommands(text: string): Set<string> {
-      const found = new Set<string>();
-      // A gate that lives in this repo's `scripts/` tree. The `node ` prefix is not
-      // required: ci.yml writes `node scripts/x.mjs`, the page writes the path.
-      for (const m of text.matchAll(/scripts\/[\w./-]+\.mjs/g)) found.add(m[0]);
-      // A root `package.json` script. `install`, `--version`, `exec` and `--filter`
-      // are not scripts, so the setup steps need no exemption list.
-      for (const m of text.matchAll(/\bpnpm\s+([\w:.-]+)/g)) {
-        if (rootScripts.has(m[1])) found.add(`pnpm ${m[1]}`);
-      }
-      // The build graph, invoked through the task runner instead of a script.
-      for (const m of text.matchAll(/\bturbo\s+run\s+([\w:-]+)/g)) found.add(`turbo run ${m[1]}`);
-      return found;
-    }
-
     /** `job key -> commands it actually runs`, and the same from the page's table. */
-    function commandsByJob(): { key: string; ran: Set<string>; named: Set<string> }[] {
-      return docJobRows().map((row) => ({
-        key: row.key,
-        ran: firstPartyCommands(runSteps(jobBlock(row.key)).join('\n')),
-        named: firstPartyCommands(row.runs),
-      }));
+    function commandsByJob(): CommandParity[] {
+      return docJobRows().map((row) => commandParity('ci.yml', row.key, row.runs));
     }
 
     it('names every first-party command the job actually runs', () => {
@@ -832,7 +893,7 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
       const ran = jobs.reduce((n, j) => n + j.ran.size, 0);
       expect(ran, 'the ci.yml `run:` parse found implausibly few first-party commands').toBeGreaterThan(8);
 
-      const missing = jobs.flatMap((j) => [...j.ran].filter((c) => !j.named.has(c)).map((c) => `${j.key}: ${c}`));
+      const missing = undocumentedCommands(jobs);
 
       expect(
         missing,
@@ -852,7 +913,7 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
       const named = jobs.reduce((n, j) => n + j.named.size, 0);
       expect(named, 'the job table parse found implausibly few commands in "What it runs"').toBeGreaterThan(8);
 
-      const phantom = jobs.flatMap((j) => [...j.named].filter((c) => !j.ran.has(c)).map((c) => `${j.key}: ${c}`));
+      const phantom = phantomCommands(jobs);
 
       expect(
         phantom,
@@ -865,6 +926,108 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
           `guardrail — the objectui#3451 mistake, one level down.`,
       ).toEqual([]);
     });
+  });
+});
+
+/**
+ * objectui#8015: the same pairing, applied to the section this page's other pins
+ * could not reach.
+ *
+ * `lint.yml` is a REQUIRED context on `pull_request` and `merge_group` alike, and
+ * every gate in it blocks a merge. The only thing holding its section here was the
+ * workflow-inventory pin at the top of the file, which requires a `##` heading
+ * naming the file and says nothing whatsoever about the heading's contents — so the
+ * step list underneath it could drift indefinitely and every test on this page
+ * stayed green. It had: measured on `4b4d35a7d`, the section named three of the
+ * seven first-party commands the `lint` job runs, and the four it omitted —
+ * `check-entry-guard.mjs`, `check-upstream-port-parity.mjs`,
+ * `check-bash32-floor.mjs` and `check-cross-repo-closer-outcome.mjs` — are all
+ * blocking gates. Three of them had been missing since they landed; the fourth
+ * (`check-bash32-floor.mjs`, PR #8016) arrived while the card was open, which is
+ * the drift rate this pin exists to absorb.
+ *
+ * The neighbouring gap was demonstrated rather than argued: on the card before this
+ * one, a sentence in this same document was replaced with an obvious falsehood and
+ * the eleven test files that read the page were re-run — 404/404 green, plus
+ * `check-doc-links` at exit 0. Nothing looked at this page's contents beyond the
+ * `ci.yml` table.
+ *
+ * The prose SHAPE differs from `ci.yml`'s (bullets and paragraphs, not a table
+ * cell), which is exactly why the rule was hoisted to module scope instead of
+ * copied: `commandParity` takes whatever text documents a job, so the unit here is
+ * the whole `## Lint (lint.yml)` section against the single `lint` job. Reading the
+ * whole section rather than only the bullet list is deliberate — the paragraphs
+ * below the bullets discuss `pnpm lint` and `pnpm check` too, and a rule that read
+ * only the list would call those phantoms.
+ */
+describe('ci-cd-pipeline.md — lint.yml step list', () => {
+  const lintWorkflow = fs.readFileSync(path.join(workflowDir, 'lint.yml'), 'utf8');
+  const LINT_HEADING = '## Lint (`lint.yml`)';
+
+  /** The `## Lint (lint.yml)` section, up to the next `##` heading. */
+  function lintSection(): string {
+    const start = doc.indexOf(LINT_HEADING);
+    expect(start, `the page must still have a "${LINT_HEADING}" section`).toBeGreaterThan(-1);
+    const rest = doc.slice(start + 2);
+    const next = rest.search(/^## /m);
+    return next === -1 ? rest : rest.slice(0, next);
+  }
+
+  function lintUnits(): CommandParity[] {
+    return [commandParity('lint.yml', 'lint', lintSection(), 'lint.yml `lint`')];
+  }
+
+  it('describes the only job lint.yml defines', () => {
+    // The unit below covers the `lint` job and nothing else. A second job added to
+    // this workflow would run gates that no assertion here reads and no section
+    // here documents, so it has to come through this test first.
+    expect(
+      jobKeys(lintWorkflow, 'lint.yml'),
+      'lint.yml no longer defines exactly one `lint` job. The section pinned below ' +
+        'documents that job alone, so a new job needs its own documentation and its own ' +
+        'unit in `lintUnits()` — otherwise its gates are unpinned and undocumented at once.',
+    ).toEqual(['lint']);
+  });
+
+  it('names every first-party command the lint job actually runs', () => {
+    const units = lintUnits();
+
+    // A parser that matched nothing would make both directions vacuously green.
+    // The floor is a control on the matcher, not a ratchet on the gate count.
+    const ran = units.reduce((n, u) => n + u.ran.size, 0);
+    expect(ran, 'the lint.yml `run:` parse found implausibly few first-party commands').toBeGreaterThan(4);
+
+    const missing = undocumentedCommands(units);
+
+    expect(
+      missing,
+      `.github/workflows/lint.yml runs commands that the "${LINT_HEADING}" section of ` +
+        `content/docs/guide/ci-cd-pipeline.md does not name:\n` +
+        missing.map((m) => `  - ${m}`).join('\n') +
+        `\n\nAdd each one to that section, in the order lint.yml runs it. Every gate in this ` +
+        `job blocks a merge on a required check, so one nobody wrote down is a build failure ` +
+        `contributors meet with no way to learn from this page what produced it — objectui#8015.`,
+    ).toEqual([]);
+  });
+
+  it('credits the lint job with no first-party command it does not run', () => {
+    const units = lintUnits();
+
+    const named = units.reduce((n, u) => n + u.named.size, 0);
+    expect(named, 'the Lint section parse found implausibly few commands').toBeGreaterThan(4);
+
+    const phantom = phantomCommands(units);
+
+    expect(
+      phantom,
+      `the "${LINT_HEADING}" section of content/docs/guide/ci-cd-pipeline.md names commands ` +
+        `that .github/workflows/lint.yml does not run:\n` +
+        phantom.map((p) => `  - ${p}`).join('\n') +
+        `\n\nEither the step was removed and the prose is stale, or the command runs in a ` +
+        `different workflow and belongs in that section. This section reads as the \`lint\` ` +
+        `job's gate list, so naming a command inside it makes the page claim a guardrail — ` +
+        `the objectui#3451 mistake, in prose instead of a table.`,
+    ).toEqual([]);
   });
 });
 
@@ -929,9 +1092,12 @@ const readWorkflow = (file: string): string => fs.readFileSync(path.join(workflo
 
 /**
  * A workflow's YAML with whole-line comments removed. Load-bearing, not
- * cosmetic: `live-e2e.yml`'s header discusses `continue-on-error` for eight
- * lines and `changeset-guard.yml`'s explains why `.changeset/**` is filtered the
- * way it is, so a scan that counted comments would report properties from prose.
+ * cosmetic: `live-e2e.yml`'s header argues at length about `continue-on-error`
+ * — more so since objectui#8084 took the flag off its job and wrote the
+ * measurement into the header — and `changeset-guard.yml`'s explains why
+ * `.changeset/**` is filtered the way it is, so a scan that counted comments
+ * would report properties from prose. ⛔ No line count is stated here on
+ * purpose: a hand-written count of prose lines is a claim nothing asserts.
  */
 function withoutComments(yaml: string): string {
   return yaml
@@ -1000,6 +1166,20 @@ function pullRequestPaths(file: string): string[] {
   return listEntries(trigger.slice(at));
 }
 
+/**
+ * The `paths-ignore:` globs a workflow's `pull_request` trigger declares — the
+ * exclusion half of the same structural property. A context the filter keeps
+ * from being created is a context a required check waits on forever, exactly as
+ * for `paths:`; `ci.yml` keeps its own `paths-ignore` on the push trigger ONLY
+ * for that reason (objectui#3523).
+ */
+function pullRequestPathsIgnore(file: string): string[] {
+  const trigger = nestedBlock(topLevelBlock(withoutComments(readWorkflow(file)), 'on'), 'pull_request');
+  const at = trigger.search(/^ {4}paths-ignore:\s*$/m);
+  if (at === -1) return [];
+  return listEntries(trigger.slice(at));
+}
+
 interface StructuralBlock {
   /** The property, named the way a failure message should name it. */
   readonly property: string;
@@ -1060,25 +1240,28 @@ const STRUCTURAL_BLOCKS = new Map<string, StructuralBlock>([
   [
     'live-e2e.yml',
     {
-      property: '`continue-on-error: true` on the `live-e2e` job',
+      property: '`paths-ignore:` on the `pull_request` trigger',
       broken() {
-        const job = nestedBlock(topLevelBlock(withoutComments(readWorkflow('live-e2e.yml')), 'jobs'), 'live-e2e');
-        if (job === '') return 'the `live-e2e` job is gone from live-e2e.yml';
-        return /^\s*continue-on-error:\s*true\s*$/m.test(job)
+        const ignored = pullRequestPathsIgnore('live-e2e.yml');
+        return ignored.length > 0
           ? null
-          : 'the `live-e2e` job no longer carries `continue-on-error: true`, so a failing spec ' +
-              'now fails the run — the lane has been promoted';
+          : 'its `pull_request` trigger no longer declares `paths-ignore:`, so Live E2E now ' +
+              'reports on every pull request and the page is denying a guardrail that exists';
       },
-      quotes() {
-        const job = nestedBlock(topLevelBlock(withoutComments(readWorkflow('live-e2e.yml')), 'jobs'), 'live-e2e');
-        return [(job.match(/^\s*(continue-on-error:\s*true)\s*$/m)?.[1] ?? '').replace(/\s+/g, ' ')];
-      },
+      quotes: () => pullRequestPathsIgnore('live-e2e.yml'),
       whenItBreaks:
-        'THIS ONE IS SCHEDULED, and its red is the point of this pin rather than an accident: ' +
-        "live-e2e.yml's header says `continue-on-error` comes off once the lane has run clean " +
-        'long enough to trust. When it does, DELETE the `live-e2e.yml` line from the bullet and ' +
-        'this entry from STRUCTURAL_BLOCKS — the lane is requirable now and the page must stop ' +
-        'saying it can never be. Do not soften the wording and do not relax this check.',
+        'THIS LINE HAS ALREADY OUTLIVED ONE PROPERTY, which is the thing to read before editing ' +
+        'it again. It used to quote `continue-on-error: true` on the job, on the reasoning that ' +
+        'a job which cannot fail cannot gate anything. objectui#8084 measured that reasoning ' +
+        'false in both halves: the flag left the JOB and its CHECK RUN red — job 101442890465 ' +
+        'and check run `Live E2E (informational)` both reported `failure` on run 34017174769 — ' +
+        'so it never made the context unrequirable; it only inverted the aggregate, which is the ' +
+        'defect that card was filed for. Taking it off therefore did NOT promote the lane, and ' +
+        'this entry was re-pointed rather than deleted: the `paths-ignore:` filter quoted here is ' +
+        'what still keeps the context from being created on a docs-only pull request, and a ' +
+        'required check cannot survive a context that is never created. Retire this entry when ' +
+        'live-e2e.yml carries no such property at all — never because one was replaced by ' +
+        'another, and never by softening the line in place.',
     },
   ],
   [
@@ -1292,13 +1475,25 @@ describe('ci-cd-pipeline.md — contexts that can never be required (#4170)', ()
  * `@objectstack/spec` versions has no single number for the pin to match, and naming that
  * is more useful than picking one of them and comparing to it.
  *
- * NOT asserted: the file's other pin, `OBJECTSTACK_REF`, whose stated rule is that it is
- * the commit the `@objectstack/cli@${OBJECTSTACK_VERSION}` release tag points at. Reading
- * that tag needs the objectstack repository over the network, which this lane has not got,
- * so the pairing moves by hand and this file says so rather than implying coverage it has
- * not got. What IS checked is the shape a hand move can still get wrong in a way the lane
- * only discovers 300 seconds later: `start-backend.sh` fetches the ref with
- * `git fetch --depth 1 origin "$OBJECTSTACK_REF"`, which needs a full object name.
+ * ALSO ASSERTED, since objectui#7964: that the file's other pin is GONE. `OBJECTSTACK_REF`
+ * used to be a second, hand-moved sha here, carrying a MUST — "always the commit the
+ * `@objectstack/cli@${OBJECTSTACK_VERSION}` release tag points at" — that nothing could
+ * check, because reading that tag needs the objectstack repository over the network and
+ * this unit lane has not got it. That was a true statement about what a reader should do
+ * and, again, an unenforceable one: the same shape #7689 is about, one file down.
+ *
+ * The fix was not another check. It was to delete the second value: `start-backend.sh`
+ * now RESOLVES the commit at boot from the release tag named by `OBJECTSTACK_VERSION`
+ * (`git ls-remote --tags`, peeled `^{}` sha preferred) and refuses to start when the tag
+ * does not resolve to a 40-character sha. The lane that consumes the commit is the lane
+ * that can reach the repository, and it always could. So the pair the header describes
+ * cannot disagree by construction, and there is nothing left here to hand-move.
+ *
+ * What this file pins about that half is therefore the ABSENCE and the DERIVATION, by
+ * content: no `OBJECTSTACK_REF=` key in backend.env, and the resolution + refusal still in
+ * start-backend.sh. Either one alone would be vacuous — an absent key is fine only while
+ * something derives the value, and a derivation is only load-bearing while no pin
+ * overrides it.
  *
  * ## Anti-vacuity
  *
@@ -1310,8 +1505,10 @@ describe('ci-cd-pipeline.md — contexts that can never be required (#4170)', ()
  * teaching this page.
  */
 const backendEnvPath = path.join(repoRoot, 'e2e/live/ci/backend.env');
+const startBackendPath = path.join(repoRoot, 'e2e/live/ci/start-backend.sh');
 const lockfilePath = path.join(repoRoot, 'pnpm-lock.yaml');
 const backendEnv = fs.readFileSync(backendEnvPath, 'utf8');
+const startBackend = fs.readFileSync(startBackendPath, 'utf8');
 
 /** The page's statement of the rule, whitespace-normalised because the source wraps it. */
 const PIN_RULE_SENTENCE =
@@ -1404,34 +1601,85 @@ describe('ci-cd-pipeline.md — live-e2e backend pin (#7689)', () => {
         '(informational)` against this pair therefore carries no information, green or red — ' +
         'it exercises one published backend against a console built for another.\n\n' +
         'Fix it in whichever direction the change came from: a lockfile bump must move ' +
-        'OBJECTSTACK_VERSION (and, by hand, OBJECTSTACK_REF to the commit the matching ' +
-        '`@objectstack/cli` release tag points at), and a pin bump must be a lockfile bump. ' +
+        'OBJECTSTACK_VERSION, and a pin bump must be a lockfile bump. That is the only ' +
+        'value to move — the showcase-app commit follows it on its own, because ' +
+        'start-backend.sh resolves the `@objectstack/cli@$OBJECTSTACK_VERSION` release tag ' +
+        'at boot (objectui#7964). ' +
         '⛔ Do not resolve this by reverting the pin to whatever was green last: a failing ' +
         'matched pair carries strictly more information than a green mismatched one ' +
         '(objectui#7689).',
     ).toBe(versions[0]);
   });
 
-  it('keeps OBJECTSTACK_REF in the one shape start-backend.sh can fetch', () => {
-    const ref = readEnvKey('OBJECTSTACK_REF');
-    expect(
-      ref,
-      `${path.relative(repoRoot, backendEnvPath)} declares no OBJECTSTACK_REF, which ` +
-        '`start-backend.sh` needs to sparse-checkout the showcase app.',
-    ).not.toBeNull();
+  // Retired here, deliberately, with objectui#7964: `keeps OBJECTSTACK_REF in the one shape
+  // start-backend.sh can fetch`. It asserted that a hand-moved sha was 40 hex characters —
+  // the only half of that pin a lane with no network could read. There is no hand-moved sha
+  // any more, so the shape pin has nothing to hold; the three below hold what replaced it.
+  // ⛔ Do not restore it by re-adding the key: a pin that overrides the derivation brings
+  // back the exact pair that could silently disagree.
 
-    // Which COMMIT it should be is the half this file cannot read (see the header): that
-    // needs the objectstack release tag. The shape it must have is readable here, and it
-    // is the one a hand move gets wrong — `git fetch --depth 1 origin <ref>` wants a full
-    // object name, and an abbreviated one fails 300 seconds into the lane, in a log nobody
-    // reads until the job goes red.
+  it('declares no OBJECTSTACK_REF — the commit is derived, not pinned', () => {
     expect(
-      ref,
-      `OBJECTSTACK_REF is ${JSON.stringify(ref)}. start-backend.sh fetches it with ` +
-        '`git fetch --depth 1 origin "$OBJECTSTACK_REF"`, which needs a full 40-character ' +
-        'commit sha — an abbreviated one, a branch name or a tag is refused by the remote and ' +
-        'the lane only says so once the backend fails to boot.',
-    ).toMatch(/^[0-9a-f]{40}$/);
+      readEnvKey('OBJECTSTACK_REF'),
+      `${path.relative(repoRoot, backendEnvPath)} declares an OBJECTSTACK_REF again. That ` +
+        'key was retired by objectui#7964: it was a second, hand-moved sha whose stated MUST ' +
+        '— always the commit the `@objectstack/cli@$OBJECTSTACK_VERSION` release tag points ' +
+        'at — nothing could check, and a pair that CAN disagree eventually does (it is the ' +
+        'same failure #7689 found in the version half). start-backend.sh resolves the commit ' +
+        'from the tag at boot instead, so the app source and the published packages come ' +
+        'from one release by construction.\n\n' +
+        'If the derivation genuinely cannot serve some case, that is a decision to take on ' +
+        'the record — reintroducing the pin here restores the drift, and this lane is ' +
+        '`informational`, so nothing else would notice.',
+    ).toBeNull();
+  });
+
+  it('derives the commit from the @objectstack/cli release tag in start-backend.sh', () => {
+    const rel = path.relative(repoRoot, startBackendPath);
+
+    // Pinned by CONTENT, not by behaviour: this lane cannot run the script (it needs the
+    // network the whole #7964 argument turns on). What it can read is that the resolution
+    // is still there and still keyed off OBJECTSTACK_VERSION — the two things whose loss
+    // would leave the absent key above vacuous.
+    expect(
+      /git ls-remote --tags/.test(startBackend),
+      `${rel} no longer resolves the release tag with \`git ls-remote --tags\`. The test ` +
+        'above requires backend.env to carry NO OBJECTSTACK_REF, on the understanding that ' +
+        'this script derives it. Without a resolution here, that absence is not a design — ' +
+        'it is a missing value, and the lane fetches nothing.',
+    ).toBe(true);
+
+    expect(
+      /refs\/tags\/\$OBJECTSTACK_TAG/.test(startBackend) &&
+        /OBJECTSTACK_TAG="@objectstack\/cli@\$OBJECTSTACK_VERSION"/.test(startBackend),
+      `${rel} no longer builds the tag it resolves from OBJECTSTACK_VERSION as ` +
+        '`@objectstack/cli@$OBJECTSTACK_VERSION`. That coupling is the entire guarantee: it ' +
+        'is what makes the checked-out app source and the installed published packages the ' +
+        'same release. A tag derived from anything else — a branch, a literal, another ' +
+        "package's tag — reopens the gap objectui#7964 closed.",
+    ).toBe(true);
+
+    // The refusal is half the ruling: `git ls-remote` prints nothing and exits 0 for a tag
+    // that does not exist, so without a shape check the script would carry an empty ref into
+    // `git fetch --depth 1 origin ""` and fail 300 seconds later, in a log nobody reads.
+    expect(
+      /\[\[ ! "\$OBJECTSTACK_REF" =~ \^\[0-9a-f\]\{40\}\$ \]\]/.test(startBackend),
+      `${rel} no longer refuses to start when the release tag fails to resolve to a ` +
+        '40-character sha. `git ls-remote` reports a missing tag as empty output and exit 0, ' +
+        'so this check is the only thing standing between a typo in OBJECTSTACK_VERSION and ' +
+        'a 300-second timeout with no explanation. Keep a refusal that names the tag.',
+    ).toBe(true);
+  });
+
+  it('documents the derivation in backend.env, where the pin used to be', () => {
+    expect(
+      /no OBJECTSTACK_REF key here/.test(backendEnv) && /DERIVED at\s*\n#\s*boot/.test(backendEnv),
+      `${path.relative(repoRoot, backendEnvPath)} no longer explains that the showcase-app ` +
+        'commit is derived at boot rather than pinned. The key is absent from this file; a ' +
+        'reader who finds no OBJECTSTACK_REF and no note saying why will conclude the pin was ' +
+        'dropped by accident and restore it — which is exactly the regression the test above ' +
+        'forbids. The absence has to be legible as a decision.',
+    ).toBe(true);
   });
 });
 
@@ -1593,5 +1841,291 @@ describe('ci-cd-pipeline.md — Half-State Patrol sweeper wiring (#8043)', () =>
         '"the reader judges everything closed since the convention started" — so a page that ' +
         'names the variable without its value tells a reader nothing they can check.',
     ).toContain(floor!);
+  });
+});
+
+/**
+ * objectui#8238 — the lane promised an artefact its configuration cannot produce.
+ *
+ * `live-e2e.yml`'s header, its job-summary step, its upload glob and this page's Live E2E
+ * section were FOUR spellings of one claim — "failures surface as an uploaded Playwright
+ * report" — and all four were decided by a single line somewhere else entirely:
+ * `playwright.live.config.ts`'s `reporter`. That line reads `[['list']]`; the `list` reporter
+ * writes to stdout and nothing in that config writes `playwright-report/`, so the promised
+ * report was unreachable in EVERY outcome. Measured on a passing run and on a failing run:
+ * absent both times, with an `html` reporter as the control that proves the directory is
+ * observable when a reporter actually writes it.
+ *
+ * Nothing read those four sites against the config, which is exactly how they drifted, and
+ * the cost was not cosmetic: objectui#8084's acceptance criterion was written as "a
+ * `playwright-report/` appears in the uploaded artifact", so a correct fix could never have
+ * satisfied its stated test. An acceptance criterion nobody can pass is the same hazard as a
+ * check nobody can fail, pointed the other way.
+ *
+ * So this block pins the claim to the mechanism rather than to a sentence. It does not care
+ * which way the repository decides the question — it requires only that the reporter list and
+ * everything that describes it move together. Turn the HTML reporter on and this test goes red
+ * naming every site that must be updated with it; leave it off and the sites must keep quoting
+ * the reporter value that makes the absence true.
+ */
+const LIVE_CONFIG_FILE = 'playwright.live.config.ts';
+const liveConfig = fs.readFileSync(path.join(repoRoot, LIVE_CONFIG_FILE), 'utf8');
+
+/**
+ * Source with `//` and block comments removed. The YAML-oriented `withoutComments` above
+ * cannot be reused: this is TypeScript, and `playwright.live.config.ts` opens with a 20-line
+ * block comment that names the config's behaviour in prose. A whole-file regex would read that
+ * prose as configuration — the same class of mistake as counting a commented-out `env:` key.
+ */
+function withoutTsComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+/** The `reporter:` value exactly as written in a Playwright config, e.g. `[['list']]`. */
+function reporterValueOf(source: string): string | undefined {
+  return withoutTsComments(source).match(/^\s*reporter:\s*(.+?),?\s*$/m)?.[1];
+}
+
+describe('ci-cd-pipeline.md + live-e2e.yml — the Playwright report claim (#8238)', () => {
+  const section = sectionForWorkflow('live-e2e.yml');
+  const liveWorkflow = readWorkflow('live-e2e.yml');
+  const header = liveWorkflow.slice(0, liveWorkflow.indexOf('\nname:'));
+  const reporter = reporterValueOf(liveConfig);
+  const declaresHtmlReporter = /['"]html['"]/.test(reporter ?? '');
+
+  it('has all four sides to compare — none may be empty', () => {
+    // The vacuity legs. Each failure below is silent: a renamed heading empties the section, a
+    // restructured config empties the reporter read, and a header that no longer leads the file
+    // empties the header slice. Any one of them would make the assertions pass while comparing
+    // nothing — which is the failure mode this whole block exists to prevent elsewhere.
+    expect(
+      section,
+      'No heading on this page names `live-e2e.yml`, so this block has no section to read and ' +
+        'its assertions below would pass vacuously. The `workflow inventory` block requires ' +
+        'that heading to exist; if it moved, teach `sectionForWorkflow` where it went.',
+    ).not.toBe('');
+
+    expect(
+      reporter,
+      `${LIVE_CONFIG_FILE} no longer declares a \`reporter:\` on a line of its own. That line is ` +
+        'what decides whether `playwright-report/` can exist, and every sentence pinned below ' +
+        'describes it. If the reporter moved to a variable or a spread, this assertion has to ' +
+        'read it from wherever the value now lives — do not delete the comparison, or the four ' +
+        'claim sites go back to being unchecked prose (objectui#8238).',
+    ).toBeDefined();
+
+    expect(header, 'live-e2e.yml must still open with its header comment block').not.toBe('');
+  });
+
+  it('reads the config, not the file as text', () => {
+    // The control for the paragraph above. `playwright.live.config.ts`'s header describes the
+    // config in prose; a whole-file grep cannot tell that prose from a setting. This is the
+    // exact shape of that file, and it is why the parser strips comments first.
+    const specimen = [
+      '/**',
+      " * Run with reporter: [['html']] when you want a browsable report.",
+      ' */',
+      'export default defineConfig({',
+      "  // reporter: [['html']],  — history, not a setting",
+      "  reporter: [['list']],",
+      '});',
+    ].join('\n');
+
+    expect(reporterValueOf(specimen)).toBe("[['list']]");
+  });
+
+  it('uploads no path the reporter cannot produce', () => {
+    // Mechanical and exact: the glob may name `playwright-report/` only when a reporter that
+    // writes it is declared. This is the half of #8238 that is not a matter of wording — the
+    // upload step listed a directory that could not exist in any outcome, and `upload-artifact`
+    // reports that as a warning, not a failure, so nothing ever went red over it.
+    const globsReport = /^\s*playwright-report\/\s*$/m.test(withoutComments(liveWorkflow));
+
+    expect(
+      globsReport,
+      declaresHtmlReporter
+        ? `${LIVE_CONFIG_FILE} declares an HTML reporter (\`${reporter}\`) but live-e2e.yml no ` +
+          'longer uploads `playwright-report/`, so the lane now produces a report and throws it ' +
+          'away. Add the path back to the upload glob.'
+        : `live-e2e.yml's upload glob names \`playwright-report/\`, but ${LIVE_CONFIG_FILE} ` +
+          `declares \`reporter: ${reporter}\` — no reporter in it writes that directory, so the ` +
+          'path matches nothing on a pass, a fail or a crash. Either declare an HTML reporter in ' +
+          'that config, or drop the path. ⛔ Do not do neither: the glob is read by humans as a ' +
+          'promise that the artefact contains a report, and objectui#8084 wrote an acceptance ' +
+          'criterion on exactly that reading which no fix could ever have satisfied.',
+    ).toBe(declaresHtmlReporter);
+  });
+
+  it('quotes the reporter value both prose sites are describing', () => {
+    // The fence, adopted verbatim from #8238: the header, this page's section and the upload
+    // glob are spellings of ONE claim and must move together. Requiring both prose sites to
+    // quote the reporter value as written turns "they must move together" into something a test
+    // can hold: flip the config and both sentences go red until someone rewrites them.
+    for (const [name, text] of [
+      ['live-e2e.yml’s header comment', header],
+      ['the Live E2E section of content/docs/guide/ci-cd-pipeline.md', section],
+    ] as const) {
+      expect(
+        text,
+        `${name} does not quote \`${reporter}\`, the reporter list ${LIVE_CONFIG_FILE} actually ` +
+          'declares. Both sites tell the reader what a failing run leaves behind, and that ' +
+          'answer is decided entirely by this value — a site that describes the artefacts ' +
+          'without naming the line that produces them is how this lane spent its whole ' +
+          'existence promising a Playwright report it could not write (objectui#8238).',
+      ).toContain(reporter!);
+    }
+  });
+
+  it('says that a green run uploads nothing at all', () => {
+    // #8238's second and sharper edge, and the one that outlives whichever way the reporter
+    // question is decided. The upload step is gated on `failure()`, so on a green lane it never
+    // runs: there is no artifact, so there is no file count, so any acceptance criterion
+    // phrased over the artifact's contents is readable ONLY on a run that failed. That trap is
+    // what produced objectui#8084's unpassable criterion, and it is invisible from the prose
+    // unless the prose says it.
+    const uploadStep = withoutComments(liveWorkflow).slice(
+      withoutComments(liveWorkflow).indexOf('name: Upload'),
+    );
+
+    expect(
+      uploadStep,
+      'live-e2e.yml has no `Upload` step, so the sentence pinned below is describing a step ' +
+        'that is gone. Re-point this assertion or drop the sentence with it.',
+    ).not.toBe('');
+
+    expect(
+      /if:.*failure\(\)/.test(uploadStep.split('\n').slice(0, 6).join('\n')),
+      'live-e2e.yml’s upload step is no longer gated on `failure()`. If it now runs on green ' +
+        'runs too, the warning on the page — that a green lane leaves no artifact to inspect — ' +
+        'has become false and must be removed in the same PR.',
+    ).toBe(true);
+
+    expect(
+      section,
+      'The Live E2E section does not mention `failure()`. The upload step is gated on it, so a ' +
+        'green run of this lane produces NO artifact — not an empty one, none — and a reader ' +
+        'who does not know that will write a check against artefact contents that can only ever ' +
+        'be read on a red run. objectui#8084 did exactly that. Say it on the page.',
+    ).toContain('failure()');
+  });
+});
+
+/**
+ * objectui#8084 defect ② — the lane's RUN conclusion asserted the negation of its JOB's.
+ *
+ * Measured on the 2026-09-06 nightly, while `live-e2e.yml`'s job carried
+ * `continue-on-error: true`:
+ *
+ *     step 7 `Start ObjectStack backend`    failure
+ *     job 101442890465                      failure
+ *     check run `Live E2E (informational)`  failure
+ *     check suite 92170955546               success
+ *     workflow run 34017174769              success
+ *
+ * The flag moved neither the job nor its check run — the two readings a merge gate and a
+ * reviewer consult — and inverted only the aggregate. This is worse than an omission: any
+ * monitor, digest or agent reading run-level conclusions was told `success` while the live
+ * E2E had not executed at all, which is why the backend outage carded as that issue's defect
+ * ① ran a full day unseen. An outage detector that reports the negation of what it detects.
+ *
+ * ⛔ The repair is NOT to make the lane blocking, and this pin does not ask for that: what
+ * makes the lane non-blocking is that it is not in the required-check set and declares no
+ * `merge_group` trigger, neither of which `continue-on-error` had anything to do with. The
+ * two are compatible; conflating them is the trap the card names.
+ *
+ * ## Why this is scoped to the job's OWN keys, and why the control below is not optional
+ *
+ * The entry this replaces in STRUCTURAL_BLOCKS asked `/^\s*continue-on-error:\s*true\s*$/m`
+ * of the whole job block and promised, in writing, to go red the day the flag came off the
+ * job. It could not: objectui#7048 later split both caches into bounded `save` STEPS that
+ * each carry `continue-on-error: true` at step level, and `\s*` matches their indentation
+ * just as happily. Two step-level flags kept that assertion green for a property that no
+ * longer existed — an assertion that cannot fail, which is this card's own defect one level
+ * down.
+ *
+ * So the matcher here is anchored to four spaces, the indentation of a job's own keys, and
+ * the discrimination is EXERCISED rather than assumed: the control asserts that step-level
+ * flags really are present in this job and really are not matched. If those saves are ever
+ * removed, the control goes red and says so, rather than leaving a matcher that discriminates
+ * against nothing.
+ */
+describe('live-e2e.yml — the run conclusion may not contradict the job (#8084)', () => {
+  const liveJob = nestedBlock(topLevelBlock(withoutComments(readWorkflow('live-e2e.yml')), 'jobs'), 'live-e2e');
+  const jobOwnKeys = liveJob.split('\n').filter((line) => /^ {4}[a-z]/i.test(line));
+  const section = sectionForWorkflow('live-e2e.yml');
+
+  it('has a job block and a page section to read — neither may be empty', () => {
+    // The vacuity legs. A renamed job or heading would make every assertion below pass while
+    // reading an empty string, which is the failure shape this whole file exists against.
+    expect(
+      liveJob,
+      'the `live-e2e` job is gone from live-e2e.yml (or `jobs:` no longer parses), so the ' +
+        'assertions below would compare nothing. Re-point them at wherever the lane now lives.',
+    ).not.toBe('');
+
+    expect(
+      jobOwnKeys.map((line) => line.trim().split(':')[0]),
+      "the job-level key scan found no four-space keys at all, so 'no continue-on-error here' " +
+        'would be true of every possible file. Re-derive it from the current indentation.',
+    ).toContain('timeout-minutes');
+
+    expect(
+      section,
+      'No heading on this page names `live-e2e.yml`, so the page half of this claim reads an ' +
+        'empty string and passes vacuously.',
+    ).not.toBe('');
+  });
+
+  it('discriminates job level from step level — the control, exercised not assumed', () => {
+    // Without this, the assertion below is indistinguishable from one that would also pass on
+    // the broken file: the two cache saves are the exact lines that kept the old pin green.
+    const anywhereInJob = liveJob.split('\n').filter((line) => /^\s*continue-on-error:\s*true\s*$/.test(line));
+
+    expect(
+      anywhereInJob.length,
+      'live-e2e.yml no longer carries any step-level `continue-on-error: true` (the two bounded ' +
+        'cache saves objectui#7048 added). Those lines are what made a whole-job regex unable ' +
+        'to notice the job-level flag leaving. With them gone the control below no longer ' +
+        'proves the matcher discriminates — either restore a control, or state here that the ' +
+        'distinction has stopped mattering.',
+    ).toBeGreaterThan(0);
+
+    expect(
+      anywhereInJob.filter((line) => /^ {4}\S/.test(line)),
+      'a four-space `continue-on-error: true` slipped through the step-level filter, which ' +
+        'means the two matchers no longer disagree and the control is measuring nothing.',
+    ).toEqual([]);
+  });
+
+  it('declares no `continue-on-error` on the job itself', () => {
+    const jobLevel = jobOwnKeys.filter((line) => /^ {4}continue-on-error\s*:/.test(line));
+
+    expect(
+      jobLevel,
+      'The `live-e2e` job has `continue-on-error` back on it:\n' +
+        jobLevel.map((l) => `  ${l.trim()}`).join('\n') +
+        '\n\nThat flag does not make this lane advisory — it is advisory because it is not a ' +
+        'required check and declares no `merge_group` trigger. What it does is make the ' +
+        'workflow-run and check-suite conclusions report `success` while the job and its check ' +
+        'run report `failure`, so every run-level reader is told the negation of what happened ' +
+        '(objectui#8084, measured on run 34017174769). If the lane must stop failing runs, fix ' +
+        'the lane or narrow what it asserts; ⛔ do not restore the flag that made the aggregate ' +
+        'disagree with its own job. Step-level `continue-on-error:` on the cache saves is a ' +
+        'different thing and stays.',
+    ).toEqual([]);
+  });
+
+  it('says on the page that the two conclusions agree', () => {
+    // The map -> page direction, so the sentence cannot be dropped while this stays green.
+    for (const phrase of ['continue-on-error', 'run conclusion']) {
+      expect(
+        section,
+        `The Live E2E section of content/docs/guide/ci-cd-pipeline.md no longer mentions ` +
+          `"${phrase}". That section is where a reader learns this lane is advisory AND honest ` +
+          `— that its run conclusion agrees with its job — and unpinned prose about this exact ` +
+          `property is what objectui#8084 was filed about. Say it there, or retire this pin ` +
+          `with it.`,
+      ).toContain(phrase);
+    }
   });
 });

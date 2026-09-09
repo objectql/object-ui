@@ -19,6 +19,7 @@ const de = {
       manage_users: "Benutzer verwalten",
       manage_org_users: "Organisationsbenutzer verwalten",
       manage_metadata: "Metadaten verwalten",
+      manage_org_presentation: "Organisationsdarstellung verwalten",
       manage_platform_settings: "Plattformeinstellungen verwalten",
       setup_access: "Zugriff auf die Einrichtung",
       setup_write: "Einstellungen schreiben",
@@ -1082,6 +1083,7 @@ const de = {
     showEmptyFields: "{{count}} leere Felder anzeigen",
     hideEmptyFields: "Leere Felder ausblenden",
     noValue: "Kein Wert",
+    unresolvedReference: "Nicht aufgelöste Referenz: {{value}} wurde keinem Benutzer zugeordnet",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1102,6 +1104,9 @@ const de = {
     loading: "Diagramm wird geladen…",
     nullCategory: "(Ohne Angabe)",
     scatterOneMeasure: "Ein Streudiagramm zeichnet genau eine Kennzahl. Behalten Sie nur eine Datenreihe:",
+    unconfigured: {
+      noCategoryAxis: "Kategorieachse des Diagramms erforderlich — ein objektgebundenes Diagramm erfindet keine. Deklarieren Sie eine davon:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1563,7 +1568,7 @@ const de = {
       empty: {
         build: {
           title: "Mit KI erstellen",
-          description: "Beschreiben Sie eine App oder einen Workflow in einfachen Worten — ich entwerfe die Objekte, Bildschirme und Automatisierungen, dann prüfen und veröffentlichen Sie.",
+          description: "Beschreiben Sie eine App in einfachen Worten — ich entwerfe die Objekte, Bildschirme und Beispieldaten, dann prüfen und veröffentlichen Sie.",
         },
         ask: {
           title: "Ihre Daten fragen",
@@ -1572,7 +1577,7 @@ const de = {
         editApp: {
           title: "„{{app}}“ wird bearbeitet",
           titleGeneric: "Diese App bearbeiten",
-          description: "Was möchten Sie ändern? Ich passe diese App direkt an — ein Feld, Objekt, eine Ansicht oder Automatisierung hinzufügen oder Vorhandenes anpassen.",
+          description: "Was möchten Sie ändern? Ich passe diese App direkt an — ein Feld, Objekt, eine Ansicht oder ein Dashboard hinzufügen oder Vorhandenes anpassen.",
         },
       },
       clearConversation: "Leeren",
@@ -2757,6 +2762,13 @@ const de = {
     badgeTotal: "{{total}} insgesamt",
     badgeNotifications: "{{unread}} Benachrichtigungen",
     badgeApprovals: "{{approvals}} ausstehende Genehmigungen",
+    arrivalMany: "{{count}} neue Nachrichten",
+    arrivalRepeats: "{{count}} neue Nachrichten zu diesem Thema",
+    arrivalOpen: "Ansehen",
+    toastEnabled: "Hinweise in der App",
+    desktopEnabled: "Desktop-Benachrichtigungen",
+    desktopBlocked: "Blockiert. Erlauben Sie Benachrichtigungen für diese Website in den Browsereinstellungen.",
+    desktopUnsupported: "Dieser Browser unterstützt keine Desktop-Benachrichtigungen.",
     emptyUnread: "Alles gelesen",
     filterUnread: "Ungelesen",
     filterAll: "Alle",

@@ -25,6 +25,7 @@ import {
   extractRecords,
   buildExpandFields,
   getRecordDisplayName,
+  resolveNameField,
 } from '@object-ui/core';
 import { getBadgeColorClasses, getBadgeHexAppearance, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { usePermissions } from '@object-ui/permissions';
@@ -415,7 +416,39 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
     // resolver removes that footgun.
     // `nameFieldKey` is retained: it still feeds the description-field skip set
     // below so the title field's raw value isn't repeated in the card body.
-    const nameFieldKey: string | undefined = objectDef?.NAME_FIELD_KEY;
+    //
+    // ⭐ It reads the SHARED name-space resolver, not a key of its own
+    // (objectui#8400). This line used to be `objectDef?.NAME_FIELD_KEY`, and
+    // that key is produced by NOTHING: `@objectstack/spec@17`'s object schema
+    // declares `nameField` (canonical, ADR-0079) and `displayNameField` (its
+    // deprecated alias), and `NAME_FIELD_KEY` appears nowhere in the framework
+    // tree — this repo reads it only as the last rung of `declaredNameField`,
+    // for objects old enough to have been written against it. So the read was
+    // always `undefined`, the skip set collapsed to the five literals below,
+    // and every object whose name field is spelled anything else printed its
+    // title twice: once as the card heading, once as the first body row. That
+    // spelling is the NORM for AI-built apps (`visit_title`, `owner_name`,
+    // `<entity>_name`), which is why the duplicate was invisible on hand-built
+    // objects whose name field is literally `name`.
+    //
+    // `resolveNameField` is the name-space twin of the `getRecordDisplayName`
+    // call that resolves the heading a few lines below, so the two now agree
+    // about WHICH field titles this object — declared `nameField` /
+    // `displayNameField` / `NAME_FIELD_KEY`, else the type-aware derivation.
+    //
+    // ⚠️ Deliberately ONE rung, unlike the same dedupe in `record-details.tsx`
+    // (objectui#8175), which lists `resolveNameField()` AND `deriveTitleField()`
+    // so a declared-but-blank pointer still dedupes against the derivation the
+    // header fell through to. The surfaces differ in what the skip set is
+    // allowed to hide: that one filters a SYNTHESIZED field list, this one
+    // filters an AUTHOR-DECLARED `cardFields`. Carrying the derivation
+    // alongside a declared pointer would drop a field the author explicitly
+    // asked for whenever the two disagree (`nameField: 'code'` titles the card
+    // while the derivation answers `owner_name`) — on a four-field card that is
+    // a worse failure than a repeated title. Pinned by the over-skip guard in
+    // `__tests__/ObjectKanban.nameFieldSkipSet-8400.test.tsx`, which goes RED
+    // if the second rung is ever added here.
+    const nameFieldKey: string | undefined = resolveNameField(objectDef);
 
     return rawData.map(item => {
       let resolvedTitle: any = undefined;
@@ -593,6 +626,23 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             const colorClass = hexBadge
               ? hexBadge.className
               : getBadgeColorClasses(opt?.color, raw);
+            // objectui#8489 — decline to draw a badge with no label in it.
+            // The loop's own `raw == null || raw === ''` guard lets an empty
+            // array through, and this branch never reaches `getCellRenderer`,
+            // so objectui#8481's rule for the shared renderers ("an empty
+            // array is not a cell value") cannot help it: with nothing to
+            // resolve, the label came out as the empty string and the card
+            // drew a fully styled, fully coloured pill with no children in it.
+            //
+            // Deliberately NOT an emptiness judgement about the VALUE — the
+            // kanban needs none. By this point the only question left is
+            // whether there is a label to draw, and asking exactly that also
+            // covers every non-array value resolving to nothing; the empty
+            // array is simply the shape that is easy to hit.
+            //
+            // Compared against the empty string, NOT for falsiness: `'0'` is a
+            // legitimately authored option label and has to keep rendering.
+            if (translatedLabel === '') continue;
             cardBadges.push({ label: translatedLabel, colorClass, colorStyle: hexBadge?.style });
           } else {
             // Route through the same registry that Grid/Gallery use so
@@ -651,6 +701,13 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             const colorClass = hexBadge
               ? hexBadge.className
               : getBadgeColorClasses(option?.color, v);
+            // objectui#8489, on the reasoning spelled out at the explicit
+            // branch above: this heuristic resolves its label exactly the same
+            // way, so `[]` — or any value stringifying to nothing — reached the
+            // push with an empty label and drew the same empty pill. Skipping
+            // the push rather than breaking keeps the remaining badge fields
+            // eligible: an unlabelled one must not consume a badge slot.
+            if (label === '') continue;
             cardBadges.push({ label, colorClass, colorStyle: hexBadge?.style });
             if (cardBadges.length >= 2) break;
           }

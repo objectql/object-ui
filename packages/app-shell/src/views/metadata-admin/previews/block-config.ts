@@ -285,9 +285,22 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       label: 'engine.inspector.pageBlock.field.element:definition-list.items',
       kind: 'array',
       addLabel: 'engine.inspector.pageBlock.add.element:definition-list.items',
+      // `term` / `description` are what `DefinitionListRenderer` reads, and the
+      // pair the block's OWN registry declaration names ("Term/description
+      // pairs [{ term, description }]" — `components/renderers/basic/
+      // data-list.tsx`). These controls were `label` / `value` until
+      // objectui#8279: names nothing on the consuming side reads, so every
+      // designer-built list rendered a blank term and a literal em-dash on
+      // every row — `toText` returns `—` for an absent description — whatever
+      // the author typed. Nothing said so: both authored strings stayed in the
+      // document and `items.length` was non-zero, so the renderer's own
+      // "No details" empty state never fired either. The rule they broke is the
+      // one at the top of this file, and this block has no runtime-judgeable
+      // schema on either face to have caught it (objectui#8216's parity gate
+      // carries it as an explicit exemption; objectui#8281 owns that absence).
       itemFields: [
-        { name: 'label', label: 'engine.inspector.pageBlock.field.element:definition-list.items.label', kind: 'text' },
-        { name: 'value', label: 'engine.inspector.pageBlock.field.element:definition-list.items.value', kind: 'text' },
+        { name: 'term', label: 'engine.inspector.pageBlock.field.element:definition-list.items.term', kind: 'text' },
+        { name: 'description', label: 'engine.inspector.pageBlock.field.element:definition-list.items.description', kind: 'text' },
       ],
     },
     { name: 'columns', label: 'engine.inspector.pageBlock.field.element:definition-list.columns', kind: 'number', placeholder: { literal: '1' } },
@@ -397,7 +410,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       kind: 'array',
       addLabel: 'engine.inspector.pageBlock.add.page:tabs.items',
       itemFields: [
-        { name: 'key', label: 'engine.inspector.pageBlock.field.page:tabs.items.key', kind: 'text' },
+        { name: 'value', label: 'engine.inspector.pageBlock.field.page:tabs.items.value', kind: 'text' },
         { name: 'label', label: 'engine.inspector.pageBlock.field.page:tabs.items.label', kind: 'text' },
       ],
     },
@@ -414,8 +427,11 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   //     `itemsWithValue = items.map((it, idx) => ({ ...it, value:
   //     \`panel-${idx}\` }))` — so an authored value never reaches the Radix
   //     item. This is NOT the `page:tabs` case one component over: there, an
-  //     authored `items[].value` (designer field name `key`) really is read,
-  //     with a `tab-${idx}` fallback only when absent. The accordion's panel id
+  //     authored `items[].value` really is read, with a `tab-${idx}` fallback
+  //     only when absent — and the designer control is NAMED `value` since
+  //     objectui#8278, which is what makes the two cases comparable at all.
+  //     Until then it was named `key`, so the tabs panel wrote a key the spec
+  //     refuses by name and the renderer never reads. The accordion's panel id
   //     is unconditionally derived; the tabs one is genuinely live. The spec
   //     mirrors the asymmetry — `PageAccordionProps.items[]` deliberately does
   //     not declare `value` and carries a `guidance` prescription pointing an

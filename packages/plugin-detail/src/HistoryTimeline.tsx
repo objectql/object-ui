@@ -27,6 +27,7 @@ import {
   TooltipTrigger,
   cn,
 } from '@object-ui/components';
+import { hasCellValue } from './emptiness';
 
 export interface HistoryChange {
   /** Raw field name from the schema (e.g. "industry"). */
@@ -130,8 +131,18 @@ function initialsFromName(name?: string | null): string {
     .join('');
 }
 
+/**
+ * An audit value as the timeline shows it, or the `'—'` that means "nothing".
+ *
+ * Emptiness is the record page's ONE definition (`./emptiness`,
+ * objectui#8376/#8394), not a raw test: a whitespace-only stored value used to
+ * fall through to the `typeof value === 'string'` branch below and print its
+ * spaces, so the cell the timeline means to read as "nothing" rendered blank
+ * instead of the em-dash. Objects are still values here for the same reason
+ * they are in a cell — the `JSON.stringify` branch below draws them.
+ */
 function formatDiffValue(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—';
+  if (!hasCellValue(value)) return '—';
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   try {

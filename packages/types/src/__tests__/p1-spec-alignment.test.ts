@@ -296,6 +296,39 @@ describe('P1.2 FormView Spec Alignment', () => {
     });
   });
 
+  it('accepts the `sections[].group` REFERENCE form on a FORM section, and `fields` without it (objectui#7051)', () => {
+    // The view-level half of objectstack#13855, the sibling of the
+    // `record:details` pin further down this file (objectui#8497).
+    // `@objectstack/spec` 17.3.0's `FormSectionSchema` declares two ways to
+    // give a section its members — enumerate `fields`, or point `group` at one
+    // of the object's declared `fieldGroups` — and refuses a section carrying
+    // neither or both. `ObjectFormSection` required `fields` and declared no
+    // `group`, so the spec-legal shape did not COMPILE for a TypeScript author
+    // while `ObjectForm` read the key nowhere: declared on one side, absent on
+    // the other, in both directions at once.
+    //
+    // ⚠️ This is a COMPILE-time assertion first — the annotation does the work,
+    // which is why `type-check` and not `test` is the instrument that can fail
+    // it. Measured on this very literal while writing it: with `group`
+    // undeclared, `pnpm --filter @object-ui/types type-check` reported
+    // `TS2353`/`TS2739` here while `vitest` stayed GREEN, because vitest strips
+    // types. The runtime expectations below exist only so the leg also fails
+    // visibly if the shape is ever silently emptied.
+    const sections: ObjectFormSection[] = [
+      { group: 'contact_info' },
+      // `columns` and `pane` are the two keys the spec PERMITS beside `group`:
+      // they describe how this form lays the section out, not anything the
+      // group declares.
+      { group: 'billing', columns: 2, pane: 'secondary' },
+      { name: 'audit', label: 'Audit', fields: ['created_at'] },
+    ];
+    expect(sections).toHaveLength(3);
+    expect(sections[0]).toEqual({ group: 'contact_info' });
+    // The enumerated arm still carries its members — a `fields` that became
+    // optional must not have become absent.
+    expect(sections[2].fields).toEqual(['created_at']);
+  });
+
   it('should accept FormField properties: widget, dependsOn, visibleOn, colSpan', () => {
     const schema: ObjectFormSchema = {
       type: 'object-form',
@@ -498,7 +531,7 @@ describe('P1.5 Record Components', () => {
       layout: 'stacked',
       sections: [
         { label: 'Basic Info', fields: ['name', 'email', 'phone'], collapsible: true },
-        { label: 'Address', fields: ['street', 'city', 'state'], collapsed: true },
+        { label: 'Address', fields: ['street', 'city', 'state'], defaultCollapsed: true },
       ],
       fields: ['name', 'email'],
       aria: { ariaLabel: 'Account Details' },
@@ -506,6 +539,42 @@ describe('P1.5 Record Components', () => {
     expect(props.columns).toBe(2);
     expect(props.sections).toHaveLength(2);
     expect(props.layout).toBe('stacked');
+  });
+
+  it('accepts the `sections[].group` REFERENCE form, and `fields` without it (objectui#8497)', () => {
+    // `@objectstack/spec` 17.3.0 declares two ways to give a section its
+    // members: enumerate `fields`, or point `group` at one of the object's
+    // declared `fieldGroups` (objectstack#13855, ADR-0085 §5). This type
+    // required `fields` and declared no `group`, so the group-reference form
+    // — the one `RecordDetailsRenderer` now implements — did not COMPILE for a
+    // TypeScript author, which is the same declared-versus-enforced
+    // disagreement the card was filed for, pointed the other way.
+    //
+    // ⚠️ This is a COMPILE-time assertion first: the annotation below is what
+    // does the work, and it is the reason `type-check` (not just `test`) has
+    // to run for this leg to mean anything. The runtime expectations exist so
+    // the leg also fails visibly if the shape is ever silently emptied.
+    //
+    // ⚠️ Measured while writing this: `{ group: 'terms', columns: 2 }` — a
+    // shape `@objectstack/spec` accepts and `DetailSection` honours — does NOT
+    // compile, because this interface declares no `columns` (nor `icon`,
+    // `description`, `showBorder`, `headerColor`, `defaultCollapsed`). That is
+    // a PRE-EXISTING divergence between this type and the spec's section
+    // object, not something objectui#8497 introduced, so it is filed rather
+    // than widened here. Note also that `vitest` was GREEN on the offending
+    // literal — it strips types — and only `type-check` saw it.
+    const props: RecordDetailsComponentProps = {
+      sections: [
+        { group: 'parties' },
+        { group: 'terms', collapsible: true },
+        { name: 'audit', label: 'Audit', fields: ['created_at'] },
+      ],
+    };
+    expect(props.sections).toHaveLength(3);
+    expect(props.sections?.[0]).toEqual({ group: 'parties' });
+    // The enumerated arm still carries its members — a `fields` that became
+    // optional must not have become absent.
+    expect(props.sections?.[2]?.fields).toEqual(['created_at']);
   });
 
   it('should define RecordHighlightsComponentProps', () => {

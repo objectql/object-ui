@@ -19,6 +19,7 @@ const ko = {
       manage_users: "사용자 관리",
       manage_org_users: "조직 사용자 관리",
       manage_metadata: "메타데이터 관리",
+      manage_org_presentation: "조직 표시 관리",
       manage_platform_settings: "플랫폼 설정 관리",
       setup_access: "설정 접근",
       setup_write: "설정 쓰기",
@@ -1082,6 +1083,7 @@ const ko = {
     showEmptyFields: "{{count}}개의 빈 필드 표시",
     hideEmptyFields: "빈 필드 숨기기",
     noValue: "값 없음",
+    unresolvedReference: "확인되지 않은 참조: {{value}}을(를) 사용자로 확인하지 못했습니다",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1102,6 +1104,9 @@ const ko = {
     loading: "차트 로딩 중…",
     nullCategory: "(미지정)",
     scatterOneMeasure: "산점도는 측정값 하나만 그립니다. 계열을 하나만 남기세요:",
+    unconfigured: {
+      noCategoryAxis: "차트 범주 축이 필요합니다 — 객체 바인딩 차트는 축을 임의로 만들지 않습니다. 다음 중 하나를 선언하세요:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1563,7 +1568,7 @@ const ko = {
       empty: {
         build: {
           title: "AI로 빌드",
-          description: "앱이나 워크플로를 일상 언어로 설명해 주세요 — 객체, 화면, 자동화를 초안으로 만들어 드리면 검토 후 게시하시면 됩니다.",
+          description: "앱을 일상 언어로 설명해 주세요 — 객체, 화면, 샘플 데이터를 초안으로 만들어 드리면 검토 후 게시하시면 됩니다.",
         },
         ask: {
           title: "데이터에 질문하기",
@@ -1572,7 +1577,7 @@ const ko = {
         editApp: {
           title: "“{{app}}” 편집 중",
           titleGeneric: "이 앱 편집",
-          description: "무엇을 바꿀까요? 이 앱을 그 자리에서 수정합니다 — 필드, 객체, 뷰, 자동화를 추가하거나 기존 내용을 조정할 수 있습니다.",
+          description: "무엇을 바꿀까요? 이 앱을 그 자리에서 수정합니다 — 필드, 객체, 뷰, 대시보드를 추가하거나 기존 내용을 조정할 수 있습니다.",
         },
       },
       clearConversation: "지우기",
@@ -2756,6 +2761,13 @@ const ko = {
     badgeTotal: "총 {{total}}건",
     badgeNotifications: "알림 {{unread}}건",
     badgeApprovals: "승인 대기 {{approvals}}건",
+    arrivalMany: "새 메시지 {{count}}건",
+    arrivalRepeats: "이 주제의 새 메시지 {{count}}건",
+    arrivalOpen: "보기",
+    toastEnabled: "앱 내 알림",
+    desktopEnabled: "데스크톱 알림",
+    desktopBlocked: "차단됨. 브라우저 설정에서 이 사이트의 알림을 허용하세요.",
+    desktopUnsupported: "이 브라우저는 데스크톱 알림을 지원하지 않습니다.",
     emptyUnread: "모두 읽음",
     filterUnread: "읽지 않음",
     filterAll: "전체",

@@ -30,6 +30,7 @@ const en = {
       manage_users: 'Manage Users',
       manage_org_users: 'Manage Organization Users',
       manage_metadata: 'Manage Metadata',
+      manage_org_presentation: 'Manage Organization Presentation',
       manage_platform_settings: 'Manage Platform Settings',
       setup_access: 'Setup Access',
       setup_write: 'Write Settings',
@@ -1238,6 +1239,7 @@ const en = {
     showEmptyFields: 'Show {{count}} empty fields',
     hideEmptyFields: 'Hide empty fields',
     noValue: 'No value',
+    unresolvedReference: 'Unresolved reference: {{value}} was not resolved to a user',
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1263,6 +1265,17 @@ const en = {
     // eagerly loaded and the `framework` chunk's gzip ceiling has ~0.2 KB of
     // headroom; the series keys are rendered by the chart as data, after it.
     scatterOneMeasure: 'A scatter plots one measure. Keep exactly one series:',
+    // The refusal an object-bound chart renders when it declares no category
+    // axis (objectui#8168) — `aggregate.groupBy` / `xAxisKey` / `xAxis.field`
+    // all absent, so `runAggregate` would have grouped on a name nobody wrote.
+    // The twin of `timeline.unconfigured.noDateAxis`. ONE short sentence, for
+    // the same reason `scatterOneMeasure` above is one: the packs ship it ten
+    // times, and the binding names are rendered by the component after it
+    // rather than interpolated, so a rung added to or retired from the
+    // resolver cannot leave this sentence naming a stale vocabulary.
+    unconfigured: {
+      noCategoryAxis: 'Chart category axis required — an object-bound chart will not invent one. Declare one of:',
+    },
   },
   report: {
     total: 'Total',
@@ -1885,11 +1898,34 @@ const en = {
       emptyDescription: 'Ask anything — the assistant has access to your current app context.',
       switchAssistant: 'Switch assistant',
       chooseAgent: 'Choose assistant…',
+      // objectui#8329 — the maker's empty-state prose, and the FIRST sentence a
+      // new user reads on the build surface (it sits above the start chips).
+      // Same ADR-0112 v1 boundary the chips answer to (cloud#1984 /
+      // objectui#7709 for the starters, cloud#2022 for the model's own closing
+      // suggestions): these two descriptions are the product PROMISING, so they
+      // may only name what v1 BUILDS — objects, fields, views, pages,
+      // dashboards, sample data, apps and navigation. `build.description` used
+      // to offer "an app or workflow … objects, screens and automations" and
+      // `editApp.description` "… view or automation"; v1 has no flows, actions
+      // or schedules, so a user who took either at its word was refused
+      // outright — the worst possible answer to the first line on the page.
+      //
+      // NOT the same thing as the platform's manual automation surfaces, which
+      // are real and stay as they are: `home.build.subtitle` (that card opens
+      // Studio, which does author flows), `engine.studio.landing.description`,
+      // `dataImport.optRunAutomations`, `packagedAutomation.*` and the
+      // marketplace `automation` category. The boundary is v1 AI AUTHORING, not
+      // the word "automation".
+      //
+      // REVERT both sentences when ADR-0112 v2 re-adds flows and actions — same
+      // line of the version roadmap as the chips. Every pack's wording is
+      // guarded, in its own script, by
+      // `packages/i18n/src/__tests__/makerEmptyState-v1-scope-8329.test.ts`.
       empty: {
         build: {
           title: 'Build with AI',
           description:
-            'Describe an app or workflow in plain language — I draft the objects, screens and automations, then you review and publish.',
+            'Describe an app in plain language — I draft the objects, screens and sample data, then you review and publish.',
         },
         ask: {
           title: 'Ask your data',
@@ -1900,7 +1936,7 @@ const en = {
           title: 'Editing “{{app}}”',
           titleGeneric: 'Edit this app',
           description:
-            'What would you like to change? I’ll modify this app in place — add a field, object, view or automation, or adjust what’s already there.',
+            'What would you like to change? I’ll modify this app in place — add a field, object, view or dashboard, or adjust what’s already there.',
         },
       },
       clearConversation: 'Clear',
@@ -3115,6 +3151,15 @@ const en = {
     badgeTotal: '{{total}} total',
     badgeNotifications: '{{unread}} notifications',
     badgeApprovals: '{{approvals}} pending approvals',
+    // objectui#7011 — the arrival announcement (toast / desktop notification)
+    // and the two switches that govern it.
+    arrivalMany: '{{count}} new messages',
+    arrivalRepeats: '{{count}} new messages on this topic',
+    arrivalOpen: 'View',
+    toastEnabled: 'In-app alerts',
+    desktopEnabled: 'Desktop notifications',
+    desktopBlocked: 'Blocked. Allow notifications for this site in your browser settings.',
+    desktopUnsupported: 'This browser does not support desktop notifications.',
   },
   publicForm: {
     submit: 'Submit',

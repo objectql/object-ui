@@ -79,13 +79,21 @@
  *
  * ## ⛔ The extractor is bounded, and says so
  *
- * It reads member accesses off named receivers. A key that reaches a consumer
- * some other way — destructuring, a computed `meta[expr]`, a helper that takes
- * the whole bag — is outside its reach. That is the honest limit; the five
- * spellings objectui#6875 measured were all plain member reads, and so is every
- * key the three chains use today. `assertExtractorFoundKnownChains` is the
- * positive control that keeps a silently-empty extraction from reading as a
- * clean bill of health.
+ * It reads member accesses off named receivers — the receiver itself and every
+ * ANNOTATED ALIAS of it, `const NAME: TYPE = receiver;`, which is the same
+ * object read through a declared type (objectui#6153 introduced the first one:
+ * `LookupField`'s `cascadeMeta`, the `LookupFieldMetadata` view of `fieldMeta`
+ * through which `dependsOn` is read; a consumer that
+ * de-casts a read this way has not stopped reading, and a scanner that could
+ * not see it would have reported two real reads as orphans). Aliases are
+ * derived from the consumer's own source on every run, never listed here. A key
+ * that reaches a consumer some other way — destructuring, a computed
+ * `meta[expr]`, a helper that takes the whole bag — is outside its reach. That
+ * is the honest limit; the five spellings objectui#6875 measured were all plain
+ * member reads, and so is every key the three chains use today.
+ * `assertExtractorFoundKnownChains` is the positive control that keeps a
+ * silently-empty extraction from reading as a clean bill of health, and the
+ * alias CONTROL below keeps the alias rule from reaching further than it says.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -154,12 +162,31 @@ function renderCellEditorProperty(): string {
   return lines.slice(start, end).join('\n');
 }
 
-/** `recv?.key` / `recv.key` member reads off one named receiver. */
+/**
+ * The receiver plus every annotated alias of it declared in `src` —
+ * `const NAME: TYPE = receiver;` (the annotation is optional to the regex, so a
+ * bare `const NAME = receiver;` counts too). An alias is the SAME object read
+ * through a declared type (objectui#6153: `cascadeMeta` is `fieldMeta` typed as
+ * `LookupFieldMetadata`), so its member reads are the receiver's member reads.
+ * Only whole-object aliases qualify: `const x = receiver.key;` is a read of
+ * `key`, not a new receiver, and the trailing `;` anchor is what excludes it.
+ */
+function receiverAliases(src: string, receiver: string): string[] {
+  const names = [receiver];
+  const re = new RegExp(`\\bconst\\s+([A-Za-z_$][\\w$]*)\\s*(?::[^=;]+)?=\\s*${receiver}\\s*;`, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) names.push(m[1]);
+  return names;
+}
+
+/** `recv?.key` / `recv.key` member reads off one named receiver and its annotated aliases. */
 function memberReads(src: string, receiver: string): Set<string> {
   const out = new Set<string>();
-  const re = new RegExp(`\\b${receiver}\\s*\\??\\.\\s*([A-Za-z_$][\\w$]*)`, 'g');
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(src))) out.add(m[1]);
+  for (const recv of receiverAliases(src, receiver)) {
+    const re = new RegExp(`\\b${recv}\\s*\\??\\.\\s*([A-Za-z_$][\\w$]*)`, 'g');
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src))) out.add(m[1]);
+  }
   return out;
 }
 
@@ -210,12 +237,47 @@ function assertExtractorFoundKnownChains(x: Extraction): void {
   expect(x.cell).toContain('reference_to');
   expect(x['lookup-editor']).toContain('lookup_columns');
   expect(x['lookup-editor']).toContain('lookupColumns');
+  // objectui#6153: this one is read through the ANNOTATED ALIAS `cascadeMeta`
+  // (`const cascadeMeta: LookupFieldMetadata | undefined = fieldMeta;`), not off
+  // `fieldMeta` directly. An extractor that stopped following aliases would drop
+  // it, and the orphan assertion below would then call a real read stale.
+  // ⭐ objectui#7357 removed the `depends_on` line that stood beside it. That
+  // was a DELETION, not a weakening: the snake arm it controlled for is gone
+  // from `LookupField`, so keeping the line would have pinned a read that no
+  // longer happens. The two-spelling SHAPE this control needs is unaffected —
+  // it lives on the `lookup_columns` / `lookupColumns` pair above, which that
+  // card did not touch.
+  expect(x['lookup-editor']).toContain('dependsOn');
   expect(x['user-editor']).toContain('reference_field');
 }
 
 const specProps = new Set(Object.keys((FieldSchema as any).shape));
 
 describe('objectui#6875 — the copy set is derived from the consumers, not restated', () => {
+  it('the extractor follows an annotated alias of the receiver, and nothing else (CONTROL)', () => {
+    const fixture = [
+      'const view: SomeType | undefined = fieldMeta;',
+      'const bare = fieldMeta;',
+      'const notAnAlias = fieldMeta.picked;',
+      'const other: SomeType = someoneElse;',
+      'view?.viaAnnotated; bare.viaBare; other?.notOurs; someoneElse.notOurs2;',
+      'fieldMeta?.direct;',
+    ].join('\n');
+    expect(receiverAliases(fixture, 'fieldMeta')).toEqual(['fieldMeta', 'view', 'bare']);
+    const reads = memberReads(fixture, 'fieldMeta');
+    // Reached: the direct read, the reads through both alias forms, and the
+    // member the non-alias line reads off the receiver itself.
+    expect([...reads].sort()).toEqual(['direct', 'picked', 'viaAnnotated', 'viaBare']);
+    // Not reached: a different receiver, and a name that only LOOKS like an
+    // alias because it was initialised from a member read.
+    expect(reads.has('notOurs')).toBe(false);
+    expect(reads.has('notOurs2')).toBe(false);
+    // The real consumer declares exactly one alias today; a second one is a new
+    // fact about the seam, not a silent widening of this sweep.
+    expect(receiverAliases(read('widgets/LookupField.tsx'), 'fieldMeta')).toEqual(['fieldMeta', 'cascadeMeta']);
+    expect(receiverAliases(read('widgets/UserField.tsx'), 'meta')).toEqual(['meta']);
+  });
+
   it('the extractor reaches all three consumers (CONTROL)', () => {
     const x = extractReadSet();
     assertExtractorFoundKnownChains(x);

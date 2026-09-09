@@ -51,11 +51,12 @@ const { execute, ADAPTER, authFetch } = vi.hoisted(() => {
   return { execute, ADAPTER, authFetch };
 });
 
-vi.mock('@object-ui/app-shell', async () => {
+vi.mock('@object-ui/app-shell', async (importOriginal) => {
   // The runner itself is the real component — this test asserts it is mounted
   // AND that it resumes, so stubbing it would defeat the purpose.
   const { FlowRunner } = await import('../../../../../packages/app-shell/src/views/FlowRunner');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     useAdapter: () => ADAPTER,
     useMetadata: () => ({ objects: [] }),
     FlowRunner,

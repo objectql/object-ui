@@ -19,6 +19,7 @@ const pt = {
       manage_users: "Gerenciar usuários",
       manage_org_users: "Gerenciar usuários da organização",
       manage_metadata: "Gerenciar metadados",
+      manage_org_presentation: "Gerenciar a apresentação da organização",
       manage_platform_settings: "Gerenciar configurações da plataforma",
       setup_access: "Acesso à configuração",
       setup_write: "Gravação de configurações",
@@ -1081,6 +1082,7 @@ const pt = {
     showEmptyFields: "Mostrar {{count}} campos vazios",
     hideEmptyFields: "Ocultar campos vazios",
     noValue: "Sem valor",
+    unresolvedReference: "Referência não resolvida: {{value}} não foi resolvida como um usuário",
     // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
     // used no translation hook at all, so every one of these read English in
     // every session; swept in one pass rather than converting the timestamps
@@ -1101,6 +1103,9 @@ const pt = {
     loading: "Carregando gráfico…",
     nullCategory: "(Não especificado)",
     scatterOneMeasure: "Um gráfico de dispersão traça uma única medida. Mantenha apenas uma série:",
+    unconfigured: {
+      noCategoryAxis: "Eixo de categorias do gráfico obrigatório — um gráfico vinculado a um objeto não o inventa. Declare um destes:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
@@ -1562,7 +1567,7 @@ const pt = {
       empty: {
         build: {
           title: "Criar com IA",
-          description: "Descreva um aplicativo ou fluxo de trabalho em linguagem simples — eu rascunho os objetos, telas e automações, e então você revisa e publica.",
+          description: "Descreva um aplicativo em linguagem simples — eu rascunho os objetos, telas e dados de exemplo, e então você revisa e publica.",
         },
         ask: {
           title: "Pergunte aos seus dados",
@@ -1571,7 +1576,7 @@ const pt = {
         editApp: {
           title: "Editando “{{app}}”",
           titleGeneric: "Editar este aplicativo",
-          description: "O que você quer mudar? Eu altero este aplicativo no lugar — adicionar um campo, objeto, visão ou automação, ou ajustar o que já existe.",
+          description: "O que você quer mudar? Eu altero este aplicativo no lugar — adicionar um campo, objeto, visão ou painel, ou ajustar o que já existe.",
         },
       },
       clearConversation: "Limpar",
@@ -2756,6 +2761,13 @@ const pt = {
     badgeTotal: "{{total}} no total",
     badgeNotifications: "{{unread}} notificações",
     badgeApprovals: "{{approvals}} aprovações pendentes",
+    arrivalMany: "{{count}} novas mensagens",
+    arrivalRepeats: "{{count}} novas mensagens sobre este tópico",
+    arrivalOpen: "Ver",
+    toastEnabled: "Avisos no aplicativo",
+    desktopEnabled: "Notificações da área de trabalho",
+    desktopBlocked: "Bloqueado. Permita notificações deste site nas configurações do navegador.",
+    desktopUnsupported: "Este navegador não oferece suporte a notificações da área de trabalho.",
     emptyUnread: "Tudo lido",
     filterUnread: "Não lidos",
     filterAll: "Todos",

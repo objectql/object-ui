@@ -249,3 +249,166 @@ describe('Export to React — the file the command hands the user (objectui#7862
     expect(diagnostics[0]).toContain("'React'");
   });
 });
+
+/**
+ * objectui#7976 — BINDS the two hand-kept documentation mirrors of the preamble
+ * to the preamble `generateReactComponent()` actually emits.
+ *
+ * WHY. Two documents transcribe that preamble by hand, and nothing held either
+ * to the original: the template lives inside a TEMPLATE LITERAL, so this
+ * package's `tsc --noEmit` sees one string, and `DESIGN.md` is markdown in a
+ * package whose README is the only file the doc gates' surfaces name. Both
+ * copies could drift indefinitely with every gate green. Hand-correction had
+ * been spent three times before this pin existed — objectui#7837, objectui#7978
+ * and objectui#8112 — and the third re-created the defect while fixing it: it
+ * hand-copied the product byte for byte and asserted the equality in its PULL
+ * REQUEST DESCRIPTION, which ran once, in one session, and is not in the tree.
+ * objectui#7914's ruling is that the control demonstrating the catch belongs in
+ * the FILE. This is that file.
+ *
+ * ⛔ WHAT THIS PIN DOES NOT SEE — read this before trusting it.
+ *
+ * It binds the PREAMBLE ONLY: the lines above `const schema =`. Everything
+ * BELOW that line is unbound and can still drift out of both documents
+ * silently — the component name `GeneratedComponent`, the returned JSX, and the
+ * `export default` line. It also says nothing about prose OUTSIDE the fence:
+ * the sentence claiming the output went to the clipboard (objectui#7977) was
+ * false for as long as it stood, and no fence assertion would have caught it,
+ * because it was a paragraph and not code.
+ *
+ * WHY NOT THE WHOLE BLOCK, WHICH WOULD SEE ALL OF THAT. Whole-block verbatim
+ * equality is RED on BOTH copies today, and neither red is a defect:
+ * `DESIGN.md` assigns `const schema` a braces-with-a-comment placeholder naming
+ * the user's schema, where the
+ * generator interpolates the real thing, and the `.mdx` was evaluated against
+ * the example schema that page teaches rather than this file's `SAMPLE_SCHEMA`.
+ * Widening to the whole block would mean editing both documents to fit the
+ * test. ⛔ Sanding a document to fit its pin is not available: the readable
+ * placeholder is the document doing its job. So the pin is drawn at the widest
+ * line that is green on both copies UNCHANGED, and its blind half is named here
+ * rather than left for a reader to discover.
+ *
+ * NOTE the four-line `// No React import:` comment is NOT a readability
+ * addition someone made to the docs — it is inside the returned template
+ * literal, so it is emitted into every user's file. It is product, and this pin
+ * holds the documents to it rather than exempting it.
+ */
+
+/** Repo root, from `packages/vscode-extension/src/__tests__`. */
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+
+/**
+ * Every document that hand-keeps a copy of the preamble, located STRUCTURALLY —
+ * by the heading it lives under, not by the text being compared, which would
+ * make the locator agree with whatever it found.
+ */
+const DOCUMENTED_MIRRORS = [
+  {
+    file: 'packages/vscode-extension/DESIGN.md',
+    heading: '### 4. Export to React',
+  },
+  {
+    file: 'content/docs/utilities/vscode-extension.mdx',
+    heading: '### `Object UI: Export to React Component`',
+  },
+] as const;
+
+/** The part shape B binds: everything above the schema assignment. */
+function preambleOf(source: string, what: string): string {
+  const lines = source.split('\n');
+  const end = lines.findIndex((line) => line.startsWith('const schema ='));
+  if (end < 0) {
+    throw new Error(
+      `no \`const schema =\` line in ${what} — this pin needs rewriting, not deleting.`
+    );
+  }
+  return lines.slice(0, end).join('\n').trimEnd();
+}
+
+/**
+ * The preamble as one document prints it. Kept pure on TEXT so the controls
+ * below can drive the same extractor over a synthetic document — a control that
+ * skipped the extractor would not be controlling the part that can break.
+ */
+function documentedPreambleFrom(
+  text: string,
+  mirror: { file: string; heading: string }
+): string {
+  const heading = text.indexOf(mirror.heading);
+  if (heading < 0) {
+    throw new Error(
+      `${mirror.file} no longer has the heading ${mirror.heading} — this pin needs rewriting, not deleting.`
+    );
+  }
+  const fence = '```typescript\n';
+  const open = text.indexOf(fence, heading);
+  if (open < 0) {
+    throw new Error(
+      `no typescript fence under ${mirror.heading} in ${mirror.file} — this pin needs rewriting, not deleting.`
+    );
+  }
+  const start = open + fence.length;
+  const close = text.indexOf('```', start);
+  if (close < 0) {
+    throw new Error(
+      `unterminated fence under ${mirror.heading} in ${mirror.file} — this pin needs rewriting, not deleting.`
+    );
+  }
+  return preambleOf(text.slice(start, close), `${mirror.file}'s fence`);
+}
+
+function documentedPreamble(mirror: { file: string; heading: string }): string {
+  const path = join(REPO_ROOT, mirror.file);
+  if (!existsSync(path)) {
+    throw new Error(
+      `${mirror.file} is gone — this pin needs rewriting, not deleting.`
+    );
+  }
+  return documentedPreambleFrom(readFileSync(path, 'utf8'), mirror);
+}
+
+describe('Export to React — the documented mirrors of the preamble (objectui#7976)', () => {
+  // ONE assertion, both consumers. The two documents are not pinned separately:
+  // a second copy of this comparison is how the two would drift apart again.
+  it.each(DOCUMENTED_MIRRORS)(
+    '$file reproduces the emitted preamble verbatim',
+    (mirror) => {
+      expect(documentedPreamble(mirror)).toBe(
+        preambleOf(generatedFile(), 'the generated file')
+      );
+    }
+  );
+
+  it('binds every known mirror — an emptied list would assert nothing', () => {
+    // The floor. A refactor that quietly emptied the list above would satisfy
+    // `it.each` by running zero cases and report green having compared nothing.
+    expect(DOCUMENTED_MIRRORS).toHaveLength(2);
+    for (const mirror of DOCUMENTED_MIRRORS) {
+      expect(existsSync(join(REPO_ROOT, mirror.file))).toBe(true);
+    }
+  });
+
+  it('is a harness that can fail — a document that drops the side-effect import is rejected', () => {
+    // The positive control objectui#7914 requires IN THE FILE, executed on every
+    // run rather than once by hand in a PR description. It drives the real
+    // extractor over a synthetic document, so if the extractor ever stops
+    // finding the fence, THIS goes red instead of the pin above going quietly,
+    // permanently green over an empty string.
+    const product = preambleOf(generatedFile(), 'the generated file');
+    const mirror = DOCUMENTED_MIRRORS[0];
+    const asDocument = (preamble: string): string =>
+      `${mirror.heading}\n\n\`\`\`typescript\n${preamble}\n\nconst schema = {};\n\`\`\`\n`;
+
+    // Negative: a drifted document is caught.
+    const drifted = product
+      .split('\n')
+      .filter((line) => line !== "import '@object-ui/components';")
+      .join('\n');
+    expect(drifted).not.toBe(product); // the mutation really removed a line
+    expect(documentedPreambleFrom(asDocument(drifted), mirror)).not.toBe(product);
+
+    // Positive: an accurate document is accepted, so the check above is not
+    // simply rejecting everything the extractor hands it.
+    expect(documentedPreambleFrom(asDocument(product), mirror)).toBe(product);
+  });
+});

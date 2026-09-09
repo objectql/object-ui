@@ -634,6 +634,10 @@ describe('Phase 2: View Schemas Zod Validation', () => {
           content: {
             type: 'table',
             columns: [],
+            // `data` is a REQUIRED member of `TableSchema`. Until objectui#8344 this
+            // node sat in a child slot judged by the base shape, so the omission was
+            // invisible; the recursion point resolves per-type now and it is not.
+            data: [],
           },
         },
       ],

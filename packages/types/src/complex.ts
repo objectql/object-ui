@@ -587,6 +587,26 @@ export type FilterBuilderOperator =
  */
 export interface FilterBuilderCondition {
   /**
+   * Row identity.
+   *
+   * REQUIRED, and deliberately asymmetric with `FilterGroup.id` below
+   * (objectui#8415). The group's `id` has zero read sites and is optional for
+   * that reason; a CONDITION's `id` is the identity every affordance on the row
+   * matches on — `removeCondition`, `updateCondition`, `changeOperator` and
+   * `changeField` in `packages/components/src/custom/filter-builder.tsx`, plus
+   * the React `key`. The component's own `FilterBuilderCondition` declares it
+   * `string`, and `addCondition` emits `crypto.randomUUID()`.
+   *
+   * Undeclared, it was STRIPPED by the `z.object` mirror in silence, so a
+   * correctly authored row validated and rendered with no individual identity:
+   * every affordance is handed `undefined`, `c.id === conditionId` is TRUE for
+   * every id-less row, and so one click removes all of them at once — the
+   * clicked row included — while one edit fans out across all of them. A row
+   * cannot be edited or removed on its own. (Not "matches none"; the failure is
+   * en bloc.) Declaring it is what makes `declared = enforced`.
+   */
+  id: string;
+  /**
    * Field to filter
    */
   field: string;
@@ -1719,7 +1739,9 @@ export interface FloatingChatbotConfig {
  * `plugin-dashboard/src/index.tsx`). Those props are NOT widget keys and must
  * not be added to {@link DashboardWidgetSchema}; a member of this list is
  * validated as a component node against objectui's own passthrough
- * `BaseSchema`, which is what keeps them.
+ * `BaseSchema`, which is what keeps them. On the TypeScript face that node is
+ * {@link DashboardWidgetSlotComponentSchema}, the component arm — first, as
+ * in the Zod twin — of `DashboardComponentSchema.widgets` (objectui#7952).
  *
  * ⛔ CLOSED on purpose. The ruling's triage block named an open
  * "extension allowed" hatch as the thing to avoid: an open hatch re-creates
@@ -1870,6 +1892,49 @@ export interface DashboardWidgetSchema
 }
 
 /**
+ * A COMPONENT node sitting directly in a dashboard's widget slot — the
+ * `metric-card` extension the 2026-08-14 ruling (objectstack#8593) admits, on
+ * the TypeScript face. Twin of `zod/complex.zod.ts`
+ * `DashboardWidgetSlotComponentSchema`, spelled the same way that arm is:
+ * `BaseSchema` plus a `type` narrowed to the CLOSED component set
+ * ({@link DASHBOARD_COMPONENT_WIDGET_TYPES}).
+ *
+ * `BaseSchema`'s `[key: string]: any` is the passthrough. `value` / `icon` /
+ * `trend` / `trendValue` are `MetricCard`'s registry `inputs`, not widget keys:
+ * they reach the compiler through the index signature here and MUST NOT be
+ * declared on {@link DashboardWidgetSchema} — the compiler's own TS2561
+ * suggestion ("Did you mean to write 'values'?") points at exactly that
+ * forbidden repair.
+ *
+ * Until objectui#7952 this arm existed on the Zod face only:
+ * `DashboardComponentSchema.widgets` was `DashboardWidgetSchema[]`, so the
+ * `metric-card` blocks `plugin-dashboard/README.md` teaches parsed green
+ * under `safeParse` and `tsc --strict` refused every one of them (6 × TS2561
+ * on `value`, measured at `fc32921`). Ruled option (a) by the director seat
+ * (decision batch #68, 2026-09-07, maintainer 「同意」): the TypeScript face
+ * gains the component arm; the Zod face is untouched.
+ *
+ * Exported on purpose, where the Zod twin is not. The compiler does not force
+ * it — measured in this package's own build (`declaration` + `composite`,
+ * TypeScript 6.0.3): a non-exported arm referenced from the exported
+ * `DashboardComponentSchema` emits into `dist/complex.d.ts` as a local
+ * interface, exit 0, and a barrel consumer still writes the node with no
+ * name. The export is an authoring-surface decision — a name an author can
+ * annotate the node with, which `plugin-dashboard/README.md` teaches — taken
+ * deliberately in the opposite direction to the Zod arm, whose own docblock
+ * keeps that const private because its routing is an internal property of
+ * the slot. Same interface shape as {@link DashboardComponentSchema} itself
+ * (`extends BaseSchema` + a literal `type`), which is why it is an interface
+ * rather than an intersection.
+ *
+ * Pinned by `__tests__/dashboard-widget-slot-component-arm-7952.test.ts`.
+ */
+export interface DashboardWidgetSlotComponentSchema extends BaseSchema {
+  /** An objectui component type legal in a widget slot — the CLOSED set. */
+  type: DashboardComponentWidgetType;
+}
+
+/**
  * Dashboard Schema
  */
 export interface DashboardComponentSchema extends BaseSchema {
@@ -1894,7 +1959,30 @@ export interface DashboardComponentSchema extends BaseSchema {
   // `__tests__/dashboard-title-retired-declaration.test.ts`.
   columns?: number;
   gap?: number;
-  widgets: DashboardWidgetSchema[];
+  /**
+   * The widget slot — TWO arms, matching the Zod twin (`zod/complex.zod.ts`
+   * `DashboardComponentSchema.widgets`, component arm first): a component
+   * node ({@link DashboardWidgetSlotComponentSchema}, `type` in the closed
+   * {@link DASHBOARD_COMPONENT_WIDGET_TYPES}) or a spec-family / legacy
+   * `component`-envelope widget ({@link DashboardWidgetSchema}).
+   *
+   * One-armed (`DashboardWidgetSchema[]`) until objectui#7952, which refused
+   * the shape the 2026-08-14 ruling (objectstack#8593) admits and the runtime
+   * renders — see the arm's own docblock for the measurement and the ruling.
+   *
+   * ⚠️ Measured limits of a TypeScript union with a passthrough arm, recorded
+   * so nobody reads them as a hatch (pinned two-faced next to the arm):
+   *  - a literal that NAMES a `type` outside the component set is discriminated
+   *    by it — `{ type: 'bar', bogus: 1 }` is still refused, because `'bar'`
+   *    excludes the component arm and `DashboardWidgetSchema` has no `bogus`;
+   *  - a literal with NO `type` (the legacy `component` envelope) cannot be
+   *    discriminated, and the component arm's index signature then satisfies
+   *    the union's excess-property check, so `{ component, bogus: 1 }`
+   *    compiles here. The Zod face refuses it (`.strict()` widget schema) —
+   *    the runtime is the strict face on that corner, as it already was for
+   *    every `BaseSchema` slot.
+   */
+  widgets: Array<DashboardWidgetSlotComponentSchema | DashboardWidgetSchema>;
   /** Auto-refresh interval in seconds. When set, the dashboard will periodically trigger onRefresh. */
   refreshInterval?: number;
   /**

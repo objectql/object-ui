@@ -103,9 +103,9 @@ A content card with a header, description, and body:
   "icon": "dollar-sign",
   "body": {
     "type": "stack",
-    "direction": "vertical",
-    "gap": "md",
-    "items": [
+    "direction": "col",
+    "gap": 4,
+    "children": [
       {
         "type": "text",
         "content": "$48,250",
@@ -263,9 +263,10 @@ In code, this is a single call:
 
 ```tsx
 import { SchemaRenderer } from '@object-ui/react';
+import type { CardSchema } from '@object-ui/types';
 
 // The schema object (from your editor, API, or file)
-const schema = {
+const schema: CardSchema = {
   type: 'card',
   title: 'Hello',
   body: { type: 'text', content: 'World' },

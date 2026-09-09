@@ -4,7 +4,17 @@
     "outDir": "dist",
     "composite": true,
     "declaration": true,
-    "noEmit": false
+    "noEmit": false,
+    // This program type-checks the package's tests too (see
+    // `src/adapterFactoryReturn.types.test.ts`), and
+    // `src/readme-filter-operator-table.test.ts` reads the README and
+    // `@object-ui/core`'s source off disk through `node:fs` / `node:url`.
+    // Measured with TypeScript 6.0.3: without naming `node`, the root
+    // `node_modules/@types/node` is not seen from here (TS2591 on `node:fs`).
+    // Naming `types` switches off automatic `@types/*` inclusion; nothing else
+    // in this program needs an ambient type package (`tsc --types node` on the
+    // otherwise unchanged program reports nothing).
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "references": [

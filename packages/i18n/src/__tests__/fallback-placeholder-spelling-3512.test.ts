@@ -112,14 +112,50 @@
  *
  * ## Why this file lives in `@object-ui/i18n` when two of its surfaces do not
  *
- * `defaults-maps-mirror-en-pack.test.ts` had to move to `app-shell` because it
- * IMPORTS three plugin maps, and every one of those packages depends on this
- * one — importing them back inverts the dependency. This file imports nothing
- * outside its own package: it READS the source files as text and parses them,
- * which is not a module dependency in either direction (same mechanism as
- * `forwardref-props-annotation.guard.test.ts`). So the rule can live beside the
- * fallback whose grammar it is enforcing, which is where the next person to
- * touch `useSafeTranslation.ts` will look.
+ * The rule is DIRECTION, not absence. This paragraph read "this file imports
+ * nothing outside its own package" until objectui#8029 — false since
+ * objectui#7884 added the `@object-ui/test-support` import below, and false in
+ * the load-bearing way, because this paragraph is the stated REASON the file may
+ * sit here: the next person deciding "may this suite import X?" would have been
+ * applying a rule the file itself breaks.
+ *
+ * `defaults-maps-mirror-en-pack.test.tsx` had to move to `app-shell` because it
+ * imports `@object-ui/plugin-detail`, `-list` and `-designer`, and each of those
+ * three declares `@object-ui/i18n` (two in `dependencies`, one as a peer) —
+ * importing them back inverts the dependency. What THIS file may import is
+ * anything that cannot import this package back. A new import belongs here only
+ * if it passes all three checks:
+ *
+ *   1. **Direction.** The imported package must not depend on `@object-ui/i18n`,
+ *      directly or transitively. `@object-ui/test-support` declares no
+ *      `@object-ui/*` dependency in any of its four fields — and is
+ *      `private: true`, never published — so no path back exists. Which is why
+ *      the SAME import also sits in the sibling: it is not what moved that file.
+ *   2. **Reach.** It must be a declared entry point of that package:
+ *      `@object-ui/test-support/defaults-table-scan` is an `exports` subpath, not
+ *      a deep path into another package's `src/__tests__/` — the shape
+ *      objectui#4325 ruled out, and the reason the walk lives in a third package
+ *      rather than in either caller.
+ *   3. **Ship.** It must not reach a consumer: declared in this package's
+ *      `devDependencies`, and imported from a file under `__tests__/`, a
+ *      directory this package's build `tsconfig.json` excludes
+ *      (`check:published-tsconfig-exclude`). That is the tooling tier
+ *      `check-phantom-dependencies.mjs` judges against dev dependencies instead
+ *      of runtime ones, on the ground that no consumer ever resolves such a file.
+ *
+ * What has NOT changed is the property that keeps the gated SURFACES out of the
+ * graph, and it is worth keeping separate from the three checks above: the packs
+ * are a same-package import, while the defaults tables and the needle files are
+ * READ as text and parsed, never imported — so gating them adds no module
+ * dependency in either direction (same mechanism as
+ * `forwardref-props-annotation.guard.test.ts`). Only the WALK that discovers
+ * them is an import, and it is the one the three checks are about. So the rule
+ * can live beside the fallback whose grammar it is enforcing, which is where the
+ * next person to touch `useSafeTranslation.ts` will look.
+ *
+ * ⛔ Nothing mechanical holds this paragraph to the import list above — comment
+ * accuracy is not gateable here, which is how the old sentence survived #7884
+ * for as long as it did. Re-read it when you add an import.
  *
  * ## Direction of the reverse verification, predicted before running (#4118)
  *

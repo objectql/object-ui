@@ -130,7 +130,7 @@ describe('getRecordDisplayName — precedence', () => {
     // displayNameField points at a field the record lacks → floor.
     expect(getRecordDisplayName({ displayNameField: 'name' }, { id: '7' })).toBe('Record #7');
     // No fields to derive from, but the record carries a standard `name` → the
-    // record-level name probe (step 3b) resolves it (better than `Record #7`).
+    // record-level name probe (step 4b) resolves it (better than `Record #7`).
     expect(getRecordDisplayName(undefined, { id: '7', name: 'X' })).toBe('X');
     // …and with neither, it floors.
     expect(getRecordDisplayName(undefined, { id: '7' })).toBe('Record #7');

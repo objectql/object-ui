@@ -28,6 +28,14 @@
  * know about (indexes, hooks, permissions, lifecycle, …) by deep
  * cloning the loaded raw payload and only swapping in the new
  * `fields` map on save.
+ *
+ * The same principle runs one and two levels down. Per-field KEYS
+ * the designer does not render survive via `carryOver`; and a whole
+ * FIELD whose stored `type` the designer cannot author is carried
+ * through verbatim rather than rebuilt from a model that has no way
+ * to hold it (objectui#8060 — see `partitionStoredFields`). Those
+ * fields are listed on the page read-only, showing their real stored
+ * type, instead of being drawn as editable `text` fields.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -101,11 +109,51 @@ interface ServerObjectSchema {
 // Derived from the canonical vocabulary rather than restated (objectui#3017).
 const KNOWN_FIELD_TYPES: ReadonlySet<DesignerFieldType> = new Set(DESIGNER_FIELD_TYPES);
 
-function toDesignerType(raw: string | undefined): DesignerFieldType {
-  if (raw && KNOWN_FIELD_TYPES.has(raw as DesignerFieldType)) {
-    return raw as DesignerFieldType;
-  }
-  return 'text';
+/**
+ * Does the designer own this stored `type` — i.e. can it round-trip it?
+ *
+ * ## What this replaced, and why the replacement is a PARTITION and not a default
+ *
+ * This predicate is what is left of `toDesignerType`, which answered
+ * `DesignerFieldType` for every input by falling back to `'text'`
+ * (objectui#8060). That fallback was not a display default: `toDesignerField`
+ * called it on the READ path, so the collapse happened before the author saw
+ * anything, and `fromDesignerField` emits `type: designed.type`, so the
+ * collapsed value was written back. Relabelling ONE field rewrote every other
+ * field whose type this designer does not author:
+ *
+ *   stored { parent_id: { type: 'master_detail', reference: 'invoice' } }
+ *   relabel an unrelated `name` field
+ *     => WIRE { parent_id: { "type": "text", "reference": "invoice" } }
+ *
+ * `text` is a LEGAL spec type, so the PUT succeeded, the designer redrew the
+ * field as text, and nothing reported it. Restoring the relationship required
+ * knowing what the type used to be, which the stored document no longer said.
+ *
+ * ## The census — measured, not estimated (objectui#8060 step 1)
+ *
+ * `DESIGNER_FIELD_TYPES` has 27 members and every one of them is a declared
+ * `FieldType`, so the designer's vocabulary is a strict SUBSET of the spec's.
+ * `FieldType` in `@objectstack/spec` 17.3.0 declares 49. The difference is 22
+ * members, and each one was a distinct data-loss case:
+ *
+ *   secret, richtext, toggle, multiselect, radio, checkboxes, master_detail,
+ *   tree, user, avatar, video, audio, summary, composite, repeater, record,
+ *   json, signature, qrcode, progress, tags, vector
+ *
+ * The card confirmed two of them (`master_detail`, `vector`); the other 20 are
+ * enumerated here. The set is pinned by size AND by membership in
+ * `MetadataFieldsPage.storedTypePreserved.test.tsx`, which drives its class pin
+ * from the difference rather than from a hand-written list — a fix scoped to
+ * the two known members would leave 20 fields failing in the way that is
+ * hardest to notice next.
+ *
+ * ⚠️ The 22 are the census, NOT the predicate. This function deliberately does
+ * not consult `@objectstack/spec`: see {@link partitionStoredFields} for why a
+ * type in NEITHER set is preserved too.
+ */
+function isDesignerAuthorableType(raw: unknown): raw is DesignerFieldType {
+  return typeof raw === 'string' && KNOWN_FIELD_TYPES.has(raw as DesignerFieldType);
 }
 
 function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDefinition {
@@ -113,7 +161,11 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
     id: name,
     name,
     label: raw.label ?? name,
-    type: toDesignerType(raw.type),
+    // Safe by construction rather than by fallback: only fields whose stored
+    // type this designer authors reach here — `partitionStoredFields` routes
+    // the rest to the preserved half, and a field with NO stored type has
+    // nothing to destroy, so it lands here and takes the designer's `'text'`.
+    type: isDesignerAuthorableType(raw.type) ? raw.type : 'text',
     group: raw.group,
     description: raw.description,
     required: raw.required,
@@ -179,6 +231,73 @@ function carryOver(prev?: ServerFieldSchema): ServerFieldSchema {
   return next;
 }
 
+/** One stored field the designer cannot author, kept whole. */
+interface PreservedField {
+  name: string;
+  raw: ServerFieldSchema;
+  /** The verbatim stored `type`, rendered so the author sees the truth. */
+  storedType: string;
+}
+
+/**
+ * Split the stored `fields` map into the half this designer authors and the
+ * half it only carries (objectui#8060).
+ *
+ * ## The rule, in three cases — it turns on the STORED type, nothing else
+ *
+ * | stored `type`             | where it goes | why                                    |
+ * |---------------------------|---------------|----------------------------------------|
+ * | in `DESIGNER_FIELD_TYPES` | designable    | the designer authors it; unchanged     |
+ * | present, outside that set | preserved     | there is a stored type to destroy      |
+ * | absent                    | designable    | nothing stored, so nothing to destroy  |
+ *
+ * The absent case is deliberate and is NOT the old fallback returning under a
+ * new name. The defect was rewriting a type the author's document HELD; a field
+ * with no `type` holds none, so `'text'` there invents a value rather than
+ * replacing one. Routing it to the preserved half instead would emit a
+ * type-less field the spec refuses and give the author no control to repair it.
+ *
+ * ## ⭐ A type in NEITHER set is preserved as well, and that is the decision
+ *
+ * The predicate asks only "does `DESIGNER_FIELD_TYPES` contain it". It does NOT
+ * ask `@objectstack/spec` whether the value is a legal `FieldType`, and the
+ * omission is chosen rather than skipped:
+ *
+ * 1. **A stale local vocabulary must not get a vote on destruction.** The spec
+ *    is a versioned dependency and the stored document was written by a server
+ *    that may be AHEAD of the copy bundled here. Flattening everything this
+ *    build's `FieldType` does not recognise would re-create this very defect
+ *    the day the spec declares its 50th type — silently, and only for the
+ *    people running a newer backend.
+ * 2. **Re-sending a genuinely garbage type is the LOUD failure, not the silent
+ *    one.** `FieldSchema` refuses an unknown type by value, so the PUT comes
+ *    back `422 INVALID_METADATA` naming `fields.<name>.type`: the author is
+ *    told, and the stored document is untouched and still repairable. Rewriting
+ *    it to `text` is the opposite trade — the save SUCCEEDS and the evidence of
+ *    what the field was is gone. This card exists because that trade was made.
+ * 3. It keeps `@objectstack/spec` out of this plugin's runtime graph. The
+ *    census above is derived in the TEST, where being one spec version behind
+ *    makes a pin stale rather than makes a document lossy.
+ *
+ * A non-string `type` (an untrusted payload can carry `42`) is "present and
+ * outside the set", so it preserves too, on exactly reason 2.
+ */
+function partitionStoredFields(rawFields: Record<string, ServerFieldSchema> | undefined): {
+  designable: DesignerFieldDefinition[];
+  preserved: PreservedField[];
+} {
+  const designable: DesignerFieldDefinition[] = [];
+  const preserved: PreservedField[] = [];
+  for (const [name, raw] of Object.entries(rawFields ?? {})) {
+    if (raw?.type !== undefined && !isDesignerAuthorableType(raw.type)) {
+      preserved.push({ name, raw, storedType: String(raw.type) });
+    } else {
+      designable.push(toDesignerField(name, raw));
+    }
+  }
+  return { designable, preserved };
+}
+
 function fromDesignerField(
   designed: DesignerFieldDefinition,
   prev?: ServerFieldSchema,
@@ -213,16 +332,27 @@ function fromDesignerField(
  * exactly these two are refused at path `reference`, both with code `custom`,
  * and the other 47 are not refused at all on that minimal document.
  *
- * ⚠️ `master_detail` is RECORDED-DEFENSIVE on this page rather than reachable,
- * and says so instead of reading as coverage: `toDesignerType` maps every type
- * outside `DESIGNER_FIELD_TYPES` to `'text'`, and `master_detail` is not in
- * that set — so a stored master-detail field arrives here already flattened and
- * this branch never fires. Measured for objectui#7714: a stored
- * `{ type: 'master_detail', reference: 'invoice' }` reaches the wire as
- * `{ type: 'text', reference: 'invoice' }`. That flattening is its own defect,
- * filed from this card as objectui#8060; the entry stays so the two writers state ONE invariant
- * and so this page is already correct when the flattening is fixed. The sibling
- * in `MetadataService.ts` has it reachable today, through `saveObject`.
+ * ⭐ `master_detail` is now REACHABLE on this page. It was RECORDED-DEFENSIVE
+ * — the entry existed for parity with the sibling writer while nothing here
+ * could ever hand the guard one, because `toDesignerType` mapped every type
+ * outside `DESIGNER_FIELD_TYPES` to `'text'` on the READ path, so a stored
+ * master-detail arrived already flattened. objectui#8060 removed that
+ * flattening: a stored type this designer cannot author is now carried through
+ * verbatim (see {@link partitionStoredFields}) and `toFieldsMap` runs this
+ * guard over the carried-through entries as well, so the branch fires on the
+ * real type.
+ *
+ * ⚠️ That makes this a BEHAVIOUR CHANGE, not just restored coverage, and it is
+ * stated rather than left to be discovered: an object holding a target-less
+ * stored `master_detail` used to SAVE from this page — by flattening the field
+ * to `text` and losing the relationship — and is now refused by name before the
+ * PUT. The refusal is the better half of a bad pair: `@objectstack/spec` 17.3.0
+ * requires `reference` on `master_detail`, so that document's PUT would answer
+ * `422 INVALID_METADATA` anyway; refusing here names the field and says what to
+ * fix, and leaves the stored relationship intact instead of overwriting it.
+ * The sibling in `MetadataService.ts` has had it reachable all along, through
+ * `saveObject` — so the two writers now state ONE invariant and both exercise
+ * it.
  */
 const RELATIONSHIP_TYPES_REQUIRING_REFERENCE = ['lookup', 'master_detail'];
 
@@ -310,31 +440,53 @@ function describeUnusableTarget(reference: unknown): string {
  * page's existing error surface — the same banner a nameless or duplicated
  * field already produces, and no new UI affordance.
  *
- * ## The `.trim()` is a DECLARED DIVERGENCE, not an accident
+ * ## The `.trim()` MIRRORS the contract — it is no longer a local opinion
  *
- * The predicate is `typeof reference === 'string' && reference.trim() !== ''`,
- * which is STRICTER than the contract. Measured on 17.3.0, at field level and
- * again through the whole document:
+ * The predicate is `typeof reference === 'string' && reference.trim() !== ''`.
+ * It WAS a declared divergence when written: 17.3.0's #13632 refinement spelled
+ * its emptiness test as an equality against `''`, so the spec accepted a
+ * whitespace-only target while this page refused it. objectstack#16920 (merged
+ * 2026-09-08, closing objectstack#16126) applies that test to the TRIMMED value
+ * — `packages/spec/src/data/field.zod.ts`, the `FieldSchema` `superRefine`:
+ *
+ *   if (
+ *     (field.type === 'lookup' || field.type === 'master_detail') &&
+ *     (field.reference === undefined || field.reference.trim() === '')
+ *   ) { ctx.addIssue({ code: 'custom', path: ['reference'], … }); }
+ *
+ * Same `custom` issue, same `reference` path, same message absent and `''`
+ * already got, so this page and the contract now refuse the identical set.
+ *
+ * ⚠️ That is the spec FROM THE RELEASE CARRYING objectstack#16920, not the
+ * INSTALLED spec. This repo's pin is `@objectstack/spec` 17.3.0
+ * (`pnpm-lock.yaml`), which predates the fix (an unreleased `minor` upstream at
+ * the time of writing). Measured on the installed 17.3.0 artifact, whose
+ * shipped test still reads `field.reference === ''`:
  *
  *   FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' })
  *     => success = true
  *   ObjectSchema.safeParse({ …, fields: { rel: { …, reference: '   ' } } })
  *     => success = true
  *
- * — the spec ACCEPTS a whitespace-only target and this page refuses it.
- * objectui being stricter than the platform is a divergence, not a neutral
- * choice, so it is STATED rather than left to be inferred from a predicate;
- * undeclared, it is indistinguishable from a bug and the next reader "fixes" it.
+ * (controls at that pin: absent and `''` refused as `custom` at `reference`,
+ * `'account'` accepted.) Until the pin reaches the fix, this guard is still the
+ * only thing refusing `'   '` here. ⛔ Bumping the pin is not this note's
+ * business.
  *
- * ⭐ Kept, deliberately. A whitespace-only `reference` names no object — the
- * spec's own `ObjectSchema.fields` key grammar (`/^[a-z_][a-z0-9_]*$/`) admits
- * no whitespace-bearing name for it to resolve to — so admitting it buys the
+ * ⭐ Kept — now for its OWN reason rather than the divergence's. It refuses at
+ * EDITOR time, before the PUT, naming the field while it is still on screen;
+ * the contract refuses at the publish gate, where the same shape arrives as a
+ * 422 on the whole object document with the half-filled draft riding along. A
+ * whitespace-only `reference` names no object at either end — the spec's own
+ * `ObjectSchema.fields` key grammar (`/^[a-z_][a-z0-9_]*$/`) admits no
+ * whitespace-bearing name for it to resolve to — so admitting it buys the
  * author nothing and only moves the identical failure past the PUT and into a
  * stored document, where it surfaces with no field named.
  *
- * ⚠️ Filed upstream as objectstack#16126 (open). If the spec trims, this page's
- * behaviour is unchanged and only the declaration retires — which is why the
- * pins assert this writer's refusal separately from the spec's verdict.
+ * ⚠️ The refusal MESSAGE below still says the spec ACCEPTS this value and still
+ * names objectstack#16126. Deliberate: it is version-qualified to 17.3.0, which
+ * IS the installed pin, and the pins assert it verbatim. It retires with the
+ * pin bump, not with this note.
  */
 function assertRelationshipTargetPresent(
   field: { type?: string; reference?: unknown },
@@ -407,7 +559,15 @@ function toFieldsMap(
   next: DesignerFieldDefinition[],
   prevFields: Record<string, ServerFieldSchema>,
 ): Record<string, ServerFieldSchema> {
-  const entries: Array<[string, ServerFieldSchema]> = [];
+  // Derived HERE from the same `prevFields` this function writes back, rather
+  // than passed in from the component's render memo. The two would be computed
+  // from the same `state.raw` today, but a preserved list that could disagree
+  // with `prevFields` is a way to drop a field silently — and that is the
+  // failure mode this whole card is about.
+  const preservedByName = new Map(
+    partitionStoredFields(prevFields).preserved.map((f) => [f.name, f] as const),
+  );
+  const designedByName = new Map<string, DesignerFieldDefinition>();
   const seen = new Set<string>();
 
   next.forEach((designed, index) => {
@@ -427,7 +587,60 @@ function toFieldsMap(
           + 'silently replace the earlier. Rename or remove one of them.',
       );
     }
+    if (preservedByName.has(name)) {
+      // Reachable, not defensive: `FieldDesigner`'s add-field form takes a free
+      // text `name`, so an author can create `vec` while a preserved `vec` is
+      // sitting in the read-only list they cannot edit. A name-keyed map cannot
+      // carry both, and whichever we dropped would be dropped silently — which
+      // is the shape this whole card is about.
+      throw new Error(
+        `[MetadataFieldsPage] cannot build the object's \`fields\` map: the field \`${name}\` at index `
+          + `${index} collides with a stored field of type \`${preservedByName.get(name)!.storedType}\`, `
+          + 'which this designer cannot author and therefore carries through unchanged. A name-keyed map '
+          + 'cannot hold both, and the stored one is not editable here to make room. Rename the new field.',
+      );
+    }
     seen.add(name);
+    designedByName.set(name, designed);
+  });
+
+  // ## Ordering — the designer's list is primary, stored positions are honoured
+  //
+  // Field order is load-bearing: the spec has no field-level ordering key, so
+  // DECLARATION ORDER in the `fields` record IS the object's field order.
+  // `next` carries the author's order and must stay primary — it can hold a
+  // NEW field anywhere in the list, and objectui#6489's `__proto__` pin asserts
+  // exactly that. The carried-through fields are not in `next` at all (the
+  // designer never sees them), so each one is spliced back in at the position
+  // it holds in the STORED document — before the first designer field that
+  // stored after it. A carried-through field that jumped to the end would
+  // silently reorder the author's object.
+  const storedIndex = new Map(Object.keys(prevFields).map((name, i) => [name, i] as const));
+  const pending = [...preservedByName.values()].sort(
+    (a, b) => (storedIndex.get(a.name) ?? 0) - (storedIndex.get(b.name) ?? 0),
+  );
+  const entries: Array<[string, ServerFieldSchema]> = [];
+  let pendingAt = 0;
+  const emitPreservedBefore = (limit: number) => {
+    while (pendingAt < pending.length && (storedIndex.get(pending[pendingAt].name) ?? 0) < limit) {
+      const keep = pending[pendingAt];
+      pendingAt += 1;
+      // ⭐ The whole repair, and it is the mechanism this page ALREADY used one
+      // level down: `carryOver` is what makes unknown per-field KEYS survive an
+      // edit-and-save, and a stored `type` this designer cannot author is the
+      // same problem one level up. So the field is re-emitted from the stored
+      // document verbatim — `type` included — rather than being rebuilt from a
+      // designer model that has no way to hold it. The tombstone strip still
+      // applies, because those keys 422 whoever wrote them.
+      entries.push([keep.name, carryOver(keep.raw)]);
+    }
+  };
+
+  for (const [name, designed] of designedByName) {
+    // A field the designer ADDED is not in the stored document, so nothing
+    // stored can be said to sort after it: flush the rest of the carried-through
+    // fields first, keeping every stored field ahead of every new one.
+    emitPreservedBefore(storedIndex.get(name) ?? Number.POSITIVE_INFINITY);
     // The carried-over previous definition is read as an OWN property for the
     // same reason the map is BUILT as own properties: `prevFields[name]` answers
     // out of `Object.prototype` for the two spec-legal names that live there
@@ -438,15 +651,26 @@ function toFieldsMap(
     const prev = Object.prototype.hasOwnProperty.call(prevFields, name)
       ? prevFields[name]
       : undefined;
-    const emitted = fromDesignerField(designed, prev);
-    // Checked on the EMITTED entry, not on `designed`: `fromDesignerField`
-    // merges the carried-over server definition underneath the designer's
-    // values, so a field the author never touched can legitimately take its
-    // target from `prev`. Reading `designed.referenceTo` alone would refuse
-    // every one of those — a save the server accepts, blocked by the client.
-    assertRelationshipTargetPresent(emitted, name, '[MetadataFieldsPage]');
-    entries.push([name, emitted]);
-  });
+    entries.push([name, fromDesignerField(designed, prev)]);
+  }
+  emitPreservedBefore(Number.POSITIVE_INFINITY);
+
+  // Checked on the EMITTED entries rather than on the designer models:
+  // `fromDesignerField` merges the carried-over server definition underneath
+  // the designer's values, so a field the author never touched can legitimately
+  // take its target from `prev`; reading `designed.referenceTo` alone would
+  // refuse every one of those — a save the server accepts, blocked by the
+  // client. It runs over the PRESERVED entries too, and that half is
+  // objectui#7714's guard entry going LIVE: the guard listed `master_detail`
+  // for parity with the sibling writer while this page could never hand it one,
+  // because the flattening turned every stored master-detail into a `text`
+  // before the guard saw it. Now that the stored type survives, a stored
+  // `master_detail` arrives with its real type and a target-less one is refused
+  // BY NAME before the PUT — instead of being saved as a `text` field with the
+  // relationship gone.
+  for (const [name, field] of entries) {
+    assertRelationshipTargetPresent(field, name, '[MetadataFieldsPage]');
+  }
 
   return Object.fromEntries(entries);
 }
@@ -517,10 +741,10 @@ export function MetadataFieldsPage({
     void reload();
   }, [reload]);
 
-  const fields = useMemo<DesignerFieldDefinition[]>(() => {
-    if (!state.raw?.fields) return [];
-    return Object.entries(state.raw.fields).map(([name, f]) => toDesignerField(name, f));
-  }, [state.raw]);
+  const { designable: fields, preserved } = useMemo(
+    () => partitionStoredFields(state.raw?.fields),
+    [state.raw],
+  );
 
   const handleFieldsChange = useCallback(async (next: DesignerFieldDefinition[]) => {
     if (!state.raw) return;
@@ -570,6 +794,34 @@ export function MetadataFieldsPage({
         onFieldsChange={(next) => { void handleFieldsChange(next); }}
         readOnly={readOnly}
       />
+      {preserved.length > 0 && (
+        <section
+          data-testid="metadata-fields-page-preserved"
+          className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
+        >
+          <h3 className="mb-1 font-medium">
+            {`Carried through unchanged (${preserved.length})`}
+          </h3>
+          <p className="mb-2">
+            These fields are stored with a type this designer cannot author, so it shows them
+            rather than editing them. They are saved back exactly as stored — editing any other
+            field on this object leaves them untouched. Use metadata-admin to change them.
+          </p>
+          <ul className="space-y-1">
+            {preserved.map((f) => (
+              <li key={f.name} data-testid={`metadata-fields-page-preserved-${f.name}`}>
+                <code>{f.name}</code>
+                {' — '}
+                <span>{f.raw.label ?? f.name}</span>
+                {' · '}
+                <code data-testid={`metadata-fields-page-preserved-type-${f.name}`}>
+                  {f.storedType}
+                </code>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

@@ -1406,8 +1406,13 @@ export const useBTranslation = createSafeTranslation(SHARED, 'common.save');
   it('leaves a key en does not define to class 1, and class 1 cannot see it either', () => {
     // The two classes stay disjoint exactly as 1 and 3 do — but here the row is
     // reachable by NEITHER, because class 1 judges call sites and this row has
-    // none. That is why the count is printed on every run:
-    // `timeline.relative.*` is five such rows on `main` today.
+    // none. That is why the count is printed on every run, and the worked
+    // example is objectui#7874's five `timeline.relative.*` rows: nothing but
+    // `factoryRowsNoEnKey` could see them, and once it did they were retired in
+    // objectui#7887. This case pins the RULE on a synthetic repo, so it says
+    // nothing about how many such rows `main` carries — that number is on the
+    // run's `Factory defaults tables:` line, and objectui#8102 is the card that
+    // measured this comment still asserting the retired five.
     const root = repoWith({
       'packages/i18n/src/locales/en.ts': EN_7567,
       'packages/x/src/useX.ts': factoryModule(`{ 'calendar.today': 'Today', 'nowhere.key': 'Orphan' }`),
@@ -1497,6 +1502,23 @@ export const useBTranslation = createSafeTranslation({ ...ELSEWHERE }, 'common.s
     // should never grow unnoticed.
     expect(counters.factoryUnreadableTables).toBe(0);
     expect(counters.factoryUnreadableRows).toBe(0);
+    // objectui#8423 — the abstention lines the hand-rolled half already pins in
+    // 'and main is measured, not merely green', mirrored onto the half that
+    // actually moves. This half takes its population from the SOURCE, so it
+    // absorbs a new table without anybody choosing to: when objectui#7887
+    // retired the `timeline.relative.*` rows, `factoryRowsNoEnKey` went 5 to 0
+    // and nothing in this repository failed, because the only carriers of that
+    // number were comments. Zero is a READING here only because the two lower
+    // bounds above say the scan had something to judge — measured on this tree,
+    // 32 tables and 846 rows compared, 846 of them matching. ⛔ Do not read the
+    // `.toBe(1)` assertions on these two counters further up this file as this
+    // pin: those are synthetic fixtures ('leaves a key en does not define to
+    // class 1' and 'counts rather than judges a plural family'), they prove the
+    // counters CAN move, and a grep that only asks whether the symbol is ever
+    // expected somewhere confuses them with a reading taken on main.
+    expect(counters.factoryRowsNoEnKey).toBe(0);
+    expect(counters.factoryUnjudgedRows).toBe(0);
+    expect(counters.factoryMatchingRows).toBe(counters.factoryComparedRows);
   });
 
   it('the factory-name set is the one the objectui#3512 test uses, not a second opinion', () => {
@@ -1672,10 +1694,10 @@ export const useXTranslation = createSafeTranslation(LOCAL_DEFAULTS, 'calendar.t
 
   it('and main is measured, not merely green — the floor is above the LARGER table', () => {
     // The objectui#7567 ⛔ #2 property, one level down: "0 drifted" and "0 rows
-    // compared" read identically, and the factory half's 841 rows would hide a
-    // registry that resolved nothing. The CLI exits non-zero below 150; this
-    // pins the same floor where the counter is readable, and pins that 150 was
-    // chosen to fail on losing EITHER table rather than only both.
+    // compared" read identically, and the factory half's hundreds of rows would
+    // hide a registry that resolved nothing. The CLI exits non-zero below 150;
+    // this pins the same floor where the counter is readable, and pins that 150
+    // was chosen to fail on losing EITHER table rather than only both.
     const { counters } = REPO_ANALYSIS;
     expect(counters.handRolledComparedRows).toBeGreaterThanOrEqual(150);
     expect(counters.handRolledTables).toBe(2);

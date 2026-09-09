@@ -79,7 +79,10 @@ const { saveItem, ADAPTER } = vi.hoisted(() => {
   return { saveItem, ADAPTER };
 });
 
-vi.mock('@object-ui/app-shell', () => ({ useAdapter: () => ADAPTER }));
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAdapter: () => ADAPTER,
+}));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 // Imported AFTER the mocks so the page picks them up.

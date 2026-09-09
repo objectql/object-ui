@@ -1134,7 +1134,7 @@ export interface FormField {
    * The resolved object-field metadata **object** (typically a
    * {@link FieldMetadata} / server-served field definition), stashed by the
    * object-bound form paths so widgets can read `precision`, `currency`,
-   * `reference_to`, `depends_on`, … It feeds the field-widget `field` prop.
+   * `reference_to`, `dependsOn`, … It feeds the field-widget `field` prop.
    *
    * ⚠️ Same key, different layer: in the SPEC form-view vocabulary `field` is
    * a **string** (the referenced object-field name). That authored shape ends
@@ -1443,15 +1443,51 @@ export interface ComboboxSchema extends BaseSchema {
    */
   options?: ComboboxOption[];
   /**
-   * Default selected value
+   * ADR-0049 RETIREMENT TOMBSTONE (objectui#8140) — `defaultValue` on a
+   * `combobox`. Write {@link ComboboxSchema.value} instead.
+   *
+   * Retired, rather than implemented to match the sibling `select` renderer,
+   * because the two nodes differ in the one property that gives a "default
+   * value" a meaning distinct from a value. MEASURED on the retiring PR's base,
+   * not inherited from the card that named it:
+   *
+   *  - `combobox` is a STANDALONE node type only. It is absent from
+   *    `renderFieldComponent`'s `BUILTIN_FIELD_TYPES` and no `field:combobox`
+   *    widget is registered anywhere in the tree, so a form field authored
+   *    `type: 'combobox'` — or `field:combobox`, or `ui:combobox` — takes that
+   *    switch's `default:` arm and renders a plain text `<input>`. The node
+   *    renderer is never on the form-field path, and on the form-field path a
+   *    field's `defaultValue` is already honoured by the form's own value
+   *    plumbing, which reads the field metadata and never this key.
+   *  - On the node path the selection is FROZEN. The renderer passes no
+   *    `onValueChange`, and `toFormControlDomProps` forwards neither `onChange`
+   *    nor `onValueChange`, so no host can supply one: selecting a different
+   *    option leaves the trigger showing `value`. `select` is not a precedent
+   *    here — its renderer DOES pass a change handler, which is exactly why
+   *    `select.tsx`'s `defaultValue` is a real initial value there.
+   *
+   * On a control whose selection cannot change, "what it starts at" and "what
+   * it shows" are one question, so honouring this key could only have added a
+   * second spelling of `value` — the consumer-side alias AGENTS.md #0.1 forbids.
+   * Kept declared and unwritable rather than deleted, for the reason every
+   * tombstone in this package states: `BaseSchema` is a passthrough mirror, so a
+   * DELETED member parses green and is silently ignored — one silent no-op
+   * traded for another. `?: never` makes authoring it a `tsc` error here, and
+   * `retirementTombstone()` on the Zod twin (`zod/form.zod.ts`) makes it a NAMED
+   * parse refusal carrying this remedy.
+   *
+   * @deprecated Not part of this contract — write `value`.
    */
-  defaultValue?: string;
+  defaultValue?: never;
   /**
    * Controlled value
    */
   value?: string;
   /**
-   * Help text or description
+   * Help text or description — rendered as a paragraph BELOW the control and
+   * tied to the trigger with `aria-describedby`, so assistive tech announces it
+   * with the field (objectui#8140, the shape objectui#5735 established for
+   * `element:text_input`). Omitted entirely when the key is absent.
    */
   description?: string;
   /**

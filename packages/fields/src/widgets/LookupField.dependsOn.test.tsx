@@ -9,7 +9,7 @@
 /**
  * Dependent (cascading) lookups — #2215.
  *
- * A lookup with `depends_on` must:
+ * A lookup with `dependsOn` must:
  *  1. gate every candidate surface while a dependency is empty,
  *  2. unlock as soon as the dependent values arrive (the form renderer
  *     injects live form values via the `dependentValues` prop), and
@@ -63,13 +63,13 @@ beforeEach(() => {
   }
 });
 
-describe('LookupField — depends_on gating and cascade filter (#2215)', () => {
+describe('LookupField — dependsOn gating and cascade filter (#2215)', () => {
   const dependentField = {
     name: 'contact',
     label: 'Contact',
     reference_to: 'contacts',
     reference_field: 'name',
-    depends_on: ['account'],
+    dependsOn: ['account'],
   } as any;
 
   it('gates the trigger while the dependency is empty', () => {
@@ -126,7 +126,7 @@ describe('LookupField — depends_on gating and cascade filter (#2215)', () => {
     const ds = makeDataSource();
     const explicitField = {
       ...dependentField,
-      depends_on: [{ field: 'account', param: 'account_id' }],
+      dependsOn: [{ field: 'account', param: 'account_id' }],
     };
     render(
       <LookupField

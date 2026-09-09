@@ -20,7 +20,39 @@ import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema, I18nLabelSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { aliasKeyRefusal, handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
-import { TABLE_COLUMN_TYPES } from '../data-display.js';
+import { TABLE_COLUMN_TYPES, type TreeNode } from '../data-display.js';
+import { stripImportedDefaults } from './imported-defaults.js';
+
+/**
+ * ⭐ THE IMPORT BOUNDARY (objectui#8317, decision batch #90, 2026-09-08).
+ *
+ * **This mirror authors no default, imported subschemas included.** Batch #69
+ * (objectui#7735) ruled that a validator validates and does not write values
+ * into an author's document; batch #90 ruled that this holds for EVERY key
+ * `safeValidateSchema` answers, not only the sites this repository wrote. So a
+ * schema arriving from `@objectstack/spec` crosses into a mirror shape only
+ * through `stripImportedDefaults`, which removes each reachable `ZodDefault`
+ * with `.removeDefault()` and keeps the key omissible. Keys, types, checks and
+ * the accept set are untouched, and a subtree carrying no default comes back
+ * reference-equal — so this is a no-op the day the spec adopts the same
+ * principle.
+ *
+ * ⛔ Spelled at every crossing rather than once per file, deliberately: a local
+ * `const Spec… = stripImportedDefaults(…)` would put the spec's provenance one
+ * hop away from every declaration that reads it, and `check:spec-symbols`
+ * (rule 1) reads exactly one hop — a mirror export under a spec-owned name has
+ * to show the spec binding in its OWN initializer. The verbosity is the
+ * provenance.
+ *
+ * ⚠️ A read that is NOT a crossing stays unwrapped and is declared as such: a
+ * value VOCABULARY (`./views.zod.ts`'s `SpecListViewTypeEnum` and
+ * `./objectql.zod.ts`'s `ViewKindEnum`, which unwrap the spec's own
+ * `.default('grid')` to reach its enum) and a TYPE position — neither puts a
+ * default into a parsed document. `../__tests__/imported-defaults-8317.test.ts`
+ * re-derives that exception list from the source rather than trusting this
+ * paragraph, and fails if an entry stops matching a real read.
+ */
+
 
 /**
  * Alert Schema - Alert/notification component
@@ -319,8 +351,15 @@ export const MarkdownSchema = BaseSchema.extend({
 
 /**
  * Tree Node Schema
+ *
+ * INPUT FACE: both type arguments carry this mirror's existing TypeScript
+ * declaration (objectui#7760, maintainer ruling, decision batch #69) — the annotation
+ * still breaks the recursion in the initializer below, but it no longer publishes
+ * `unknown` as what an author may write here. ⛔ Runtime accept set unchanged; ⛔ the
+ * declaration unchanged. The reasoning lives once, on `SchemaNodeSchema` in
+ * `base.zod.ts` — read it there before changing this line.
  */
-export const TreeNodeSchema: z.ZodType<any> = z.lazy(() =>
+export const TreeNodeSchema: z.ZodType<TreeNode, TreeNode> = z.lazy(() =>
   z.object({
     id: z.string().describe('Node ID'),
     label: z.string().describe('Node label'),
@@ -378,7 +417,7 @@ export const TreeViewSchema = BaseSchema.extend({
  * how #2901 came to be filed against the wrong side of the contract: it read
  * this copy as the protocol and concluded the renderer had outgrown it.
  */
-export const ChartTypeSchema = SpecChartTypeSchema;
+export const ChartTypeSchema = stripImportedDefaults(SpecChartTypeSchema);
 
 /**
  * Zod twin of {@link ChartDataSeries} — the objectui chart node's inline-data
@@ -468,7 +507,7 @@ export const ChartDataSeriesSchema = z.object({
   //
   // `chartType` is NOT among the six: it is an ALIAS REFUSAL ARM, declared
   // beside `type` above (objectui#7694).
-  label: I18nLabelSchema.optional().describe(
+  label: stripImportedDefaults(I18nLabelSchema).optional().describe(
     'Legend / tooltip name for this series — a plain string or an inline locale map; defaults to the column key',
   ),
   variant: z.enum(['primary', 'comparison']).optional().describe(
@@ -694,7 +733,9 @@ const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', '
 
 /**
  * One element of `TimelineSchema.items` — a feed item, or a gantt ROW when
- * `variant` is `gantt` (objectui#7164, maintainer ruling 2026-09-02 A+).
+ * `variant` is `gantt` (objectui#7164, maintainer ruling 2026-09-02 A+;
+ * BAR level added by objectui#7365, director seat decision batch #71,
+ * 2026-09-07, option B).
  *
  * ## What this refuses, and why it is declared at all
  *
@@ -710,26 +751,53 @@ const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', '
  *     is refused (`z.object` refuses every one of those);
  *   - `items` on a row, when present, has to be an array. `.optional()` is
  *     deliberate: a row with no bars yet is the same ordinary empty state
- *     objectui#6750 ruled for `items: []`, and the renderer draws it.
+ *     objectui#6750 ruled for `items: []`, and the renderer draws it;
+ *   - every BAR in that array is an object. A `null` bar is refused by its own
+ *     name, at `items[i].items[j]`.
  *
- * Nothing else is narrowed. The two element shapes (`{ time, title, … }` for a
- * feed, `{ label, items: [{ title, startDate, endDate }] }` for a gantt row) are
- * discriminated by `variant` and read dynamically by the renderer, so the
- * element stays `.passthrough()` and the bars stay `z.any()` — a feed item
- * carries no `items` key and parses green here unchanged. Measured before the
- * narrowing: every in-repo `type: 'timeline'` fixture (the three schema-catalog
- * documents, the docs page's examples, `examples/data-display-examples.json`)
- * parses green on both sides of it.
+ * ## The bar level, and why it is no longer a declared STOP (objectui#7365)
+ *
+ * objectui#7164 narrowed the ROW and stopped there DELIBERATELY, and this
+ * docblock recorded the stop: the bars stayed `z.any()`. That stop is
+ * SUPERSEDED KNOWINGLY. An authored `null` bar was green through `validate`
+ * and then reached the render-time date diagnostic, which named
+ * `items[0].items[0].startDate is undefined` — a key the author never wrote.
+ * The ruling: a bar that is not a bar is refused at `validate`, by its own
+ * name. So `z.object({}).passthrough()` — the same shallow, keys-open shape
+ * the ROW carries, one level down.
+ *
+ * ⛔ Option A is REFUSED, not deferred: the render-time
+ * `timeline.gantt.unusableRange.malformedRow` copy is UNCHANGED, no fourth
+ * path level was added to that sentence, and the ten language packs are
+ * untouched. The date diagnostic remains the defined outcome for anything that
+ * still reaches it — the renderer is only ever more lenient than `validate`.
+ *
+ * Nothing beyond the bar's OBJECT-ness is narrowed. The two element shapes
+ * (`{ time, title, … }` for a feed, `{ label, items: [{ title, startDate,
+ * endDate }] }` for a gantt row) are discriminated by `variant` and read
+ * dynamically by the renderer, so the element and the bar both stay
+ * `.passthrough()` — a feed item carries no `items` key and parses green here
+ * unchanged, and a bar's own keys (`title` / `startDate` / `endDate` /
+ * `variant?`) are not declared. Measured before the ROW narrowing: every
+ * in-repo `type: 'timeline'` fixture (the three schema-catalog documents, the
+ * docs page's examples, `examples/data-display-examples.json`) parses green on
+ * both sides of it. Measured again before the BAR narrowing (objectui#7365, on
+ * `289d146`, re-measured unchanged on `c4b3750`): FIVE authored bars across
+ * `apps/` · `examples/` · `content/` · `packages/types/examples/`, ALL
+ * well-formed objects, ZERO `null` and ZERO
+ * non-object — a positive-controlled reading, not an empty search.
  *
  * Deliberately NOT exported, for the reason `TimelineScaleSchema` above gives:
  * every exported const here has to be registered in `zod-mirror-parity.test.ts`,
  * and the TS twin declares no separate row interface to pair it with — its
- * `items?: any[]` docblock carries both shapes in prose. Pinned by
- * `../__tests__/timeline-items-row-shape-7164.test.ts`.
+ * `items` docblock carries both shapes in prose and its own type states the
+ * two levels this schema states. Pinned by
+ * `../__tests__/timeline-items-row-shape-7164.test.ts` (row level) and
+ * `../__tests__/timeline-items-bar-shape-7365.test.ts` (bar level).
  */
 const TimelineRowSchema = z
   .object({
-    items: z.array(z.any()).optional().describe('A gantt row\'s bars — an array when present'),
+    items: z.array(z.object({}).passthrough()).optional().describe('A gantt row\'s bars — an array of objects when present'),
   })
   .passthrough();
 

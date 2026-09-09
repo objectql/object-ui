@@ -72,6 +72,15 @@ export * from './utils/dashboard-filters.js';
 export * from './utils/merge-filters.js';
 export * from './utils/compare-to.js';
 export * from './utils/chart-series.js';
+// "Which result column carries the measure?" — one answer for the row
+// projection and the series binding alike, delegated to the spec's own
+// derivation so the two cannot drift (objectui#8266).
+export * from './utils/chart-measure-key.js';
+// "Which result column carries the CATEGORY?" — the same move on the other
+// axis, delegated to the contract's own published derivation so a relay cannot
+// floor the x-axis binding on a literal the aggregate contradicts
+// (objectui#8269).
+export * from './utils/chart-category-key.js';
 // The AUTHORED half of a dataset-bound chart (objectui#4229's data/presentation
 // split), shared by the dashboard widget and the report's embedded chart so the
 // same spec keys are lowered identically on both (objectui#4877).

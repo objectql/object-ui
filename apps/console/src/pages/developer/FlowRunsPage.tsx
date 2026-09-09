@@ -148,13 +148,14 @@ export function FlowRunsPage() {
     setFlowsError(null);
     try {
       const result: any = await client.meta.getItems('flow');
+      // `meta.getItems` answers `{ type, items: [...] }`, or a bare array on
+      // the ADR-0037 preview path. The trailing `value` arm is gone on a
+      // measured zero at this seam (objectui#6917).
       const items: any[] = Array.isArray(result)
         ? result
         : Array.isArray(result?.items)
           ? result.items
-          : Array.isArray(result?.value)
-            ? result.value
-            : [];
+          : [];
       const normalized: FlowItem[] = items.map(it => ({
         name: it?.spec?.name ?? it?.name,
         label: it?.spec?.label,

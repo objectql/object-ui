@@ -129,7 +129,23 @@ ComponentRegistry.register('flex',
     defaultProps: {
       direction: 'row',
       justify: 'start',
-      align: 'center',
+      // `'start'`, not `'center'`. This entry is the DESIGNER face — what a new
+      // `flex` node is seeded with — and it used to seed a value the renderer
+      // eight lines from the top of this file never applies (`schema.align ||
+      // 'start'`). A designer-made node therefore laid out differently from a
+      // hand-authored one that simply omitted the key: one component, two
+      // answers (objectui#8229, folded into objectui#7735's ruling).
+      //
+      // The renderer fallback is the single authoritative default under that
+      // ruling — the zod mirror stopped authoring `align` in the same change,
+      // and `FlexLayoutProps.align` publishes no single `@default` tag because
+      // `flex` and `stack` diverge (objectui#7361). So `'start'` here is not a
+      // fourth opinion; it is this face agreeing with the one authority.
+      //
+      // Derived pin: `__tests__/registration-defaults-match-renderer-8229.test.ts`
+      // re-derives every `defaultProps`/fallback pair in this file and
+      // `stack.tsx` off disk and fails if any of them diverges again.
+      align: 'start',
       gap: 2,
       wrap: false,
       children: [

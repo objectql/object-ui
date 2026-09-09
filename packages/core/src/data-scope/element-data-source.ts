@@ -54,6 +54,7 @@
  * view and rendering a grid would be a silently wrong answer.
  */
 
+import type { InjectedComponentInput } from '@object-ui/types';
 import { mergeFilterNodes } from '../utils/filter-converter.js';
 import { resolveViewId } from '../utils/resolve-view-id.js';
 
@@ -323,13 +324,21 @@ export const ELEMENT_DATA_SOURCE_KEY = 'dataSource';
  * an object picker rather than a free-text blob. The `type` stays the coarse
  * `'object'` kind because the value is a record; the two words are unrelated and
  * both are correct here.
+ *
+ * ## Typed as the framework's injected input (objectui#6950)
+ *
+ * `binding` is not a `ComponentInput` member. The maintainer ruling of
+ * 2026-09-07 answered the card's product question — may an ordinary
+ * registration declare a binding input? — with no, so the ONE writer of the
+ * key is this constant, typed by `InjectedComponentInput` from
+ * `@object-ui/types`: a `ComponentInput` plus the marker. The hand-written
+ * inline type literal that used to sit here was the tell that the key had no
+ * authored home, and the splice in `Registry.register` reached the `inputs`
+ * array through an `as ComponentMeta` cast. Both are gone: the shape is now
+ * checked here and at the splice, and a registration that writes `binding`
+ * itself is an excess-property `tsc` error.
  */
-export const ELEMENT_DATA_SOURCE_INPUT: {
-  name: string;
-  type: 'object';
-  binding: 'object';
-  description: string;
-} = {
+export const ELEMENT_DATA_SOURCE_INPUT: InjectedComponentInput = {
   name: ELEMENT_DATA_SOURCE_KEY,
   type: 'object',
   binding: 'object',

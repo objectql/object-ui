@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema } from './base.js';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Loading/Spinner component
@@ -138,12 +138,29 @@ export interface ToastSchema extends BaseSchema {
    */
   position?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   /**
-   * Action button
+   * RETIRED (objectui#8338, ADR-0049 enforce-or-remove) — this declaration had
+   * NO satisfiable JSON inhabitant. `label` and `onClick` were both REQUIRED and
+   * `onClick` is a function, so a JSON document could omit the key but never
+   * author it, while the zod twin admitted `SchemaNode | SchemaNode[]`: two
+   * published faces whose accept sets were disjoint, one of them empty. An
+   * author who wrote `action` got a green `safeParse` and a `tsc` refusal, and
+   * no spelling satisfied both. The `toast` renderer read NEITHER face — it
+   * reads `variant`, `title`, `description`, `duration`, `buttonVariant`,
+   * `className` and `buttonLabel`, and nothing else — so nothing could ever have
+   * run it.
+   *
+   * ⛔ There is NO replacement spelling, and this capability was never
+   * fulfilled: objectui#6250 moved the toast demos off an in-toast action
+   * entirely, and an in-toast action button remains a capability expansion with
+   * zero runtime today. It survived objectui#6124's sweep only because that
+   * sweep was over TOP-LEVEL function-valued keys and this key's function is one
+   * level down — {@link ToastSchema.onDismiss} below is the same disposition,
+   * one member on. This is the direction objectui#6496 measured, prescribed
+   * enforce-or-remove for, and left behind when its `completed` close landed
+   * Direction 1 only.
+   * @deprecated Not part of this contract — the key never had an inhabitant.
    */
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
+  action?: never;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
    * `toast` renderer takes `({ schema })` and never reads it. The zod twin
@@ -225,6 +242,45 @@ export interface EmptySchema extends BaseSchema {
    * Icon to display
    */
   icon?: string;
+  /**
+   * Call-to-action node rendered below the description — e.g. the
+   * "Create Project" button in the `with-action-button` demo.
+   *
+   * ## Why this declaration exists (objectui#7105)
+   *
+   * The capability shipped, was documented and was demoed for a long time
+   * while FOUR surfaces disagreed about it: the renderer read it, the docs row
+   * described it, and neither this interface nor the zod mirror nor the
+   * designer's `registrationMeta.inputs` mentioned it. The read compiled only
+   * because `BaseSchema` ends in `[key: string]: any`, so
+   * `(schema as any).action` resolved to `any` instead of erroring — which is
+   * also why objectui#6150's census missed it. That census scanned for
+   * `schema.KEY`, and this renderer spelled the read with a cast.
+   *
+   * The consequence was not cosmetic: an author writing against the published
+   * type could not author the action at all. The key was accepted only
+   * vacuously, through the index signature, and no editor completed it.
+   *
+   * ## Why `SchemaNode` and not the object-only shape the renderer used to want
+   *
+   * `SchemaNode` is the spelling every sibling node slot uses — `body`,
+   * `children`, `DataTableSchema.emptyAction`, the overlay `trigger` /
+   * `content` slots. The renderer previously annotated its cast
+   * `BaseSchema | undefined` and guarded `typeof actionSchema === 'object'`,
+   * which made this slot NARROWER than a node slot: a bare string was silently
+   * dropped rather than rendered.
+   *
+   * Ruled (maintainer, decision batch #69, 2026-09-07) in favour of aligning
+   * with the siblings — the declaration says `SchemaNode` and the RENDERER
+   * moved to match it, so declared equals enforced. `SchemaRenderer` renders a
+   * bare string as its own text (pinned in
+   * `packages/react/src/__tests__/SchemaRenderer.primitiveSchema.test.tsx`),
+   * so nothing had to be invented to make the wider arm real.
+   *
+   * @example { "type": "button", "label": "Create Project", "variant": "default" }
+   * @example "Nothing here yet"
+   */
+  action?: SchemaNode;
 }
 
 /**
