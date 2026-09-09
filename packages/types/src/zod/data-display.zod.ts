@@ -127,7 +127,7 @@ export const ListSchema = BaseSchema.extend({
   dividers: z.boolean().optional().describe('Show dividers between items'),
   dense: z.boolean().optional().describe('Dense spacing'),
   wrapperClass: z.string().optional()
-    .describe('Classes on the wrapper div around the title and the list, read at renderers/data-display/list.tsx:27 — `cn("space-y-2", schema.wrapperClass)` (objectui#7722)'),
+    .describe('Classes on the wrapper div around the title and the list — merged with the base `space-y-2` (objectui#7722)'),
 });
 
 /**
@@ -394,9 +394,9 @@ export const TreeViewSchema = BaseSchema.extend({
     + 'authored `data` would render an empty tree. Rename the key; the array is unchanged.',
   ),
   nodes: z.array(TreeNodeSchema).optional()
-    .describe('Inline tree nodes — the one inline spelling, read at renderers/data-display/tree-view.tsx:105 as the second limb of `boundData || schema.nodes || []` (a `bind`-resolved value wins, so this stays optional and no presence rule exists — objectui#6951 B1). Declared by objectui#6150; a `nodes`-only document became LEGAL at objectui#6939; the `data` fallback spelling was retired by objectui#6951 (the registration\'s own `inputs` and `defaultProps` spell it `nodes`, and the four catalog entries ARE those `defaultProps`)'),
+    .describe('Inline tree nodes — the one inline spelling, read as the second limb of `boundData || schema.nodes || []` (a `bind`-resolved value wins, so this stays optional and no presence rule exists — objectui#6951 B1). Declared by objectui#6150; a `nodes`-only document became LEGAL at objectui#6939; the `data` fallback spelling was retired by objectui#6951 (the registration\'s own `inputs` and `defaultProps` spell it `nodes`, and the four catalog entries ARE those `defaultProps`)'),
   title: z.string().optional()
-    .describe('Heading above the tree, read at renderers/data-display/tree-view.tsx:115 (presence gate) and :117 (the h3 body) (objectui#6150)'),
+    .describe('Heading above the tree — renders only when set (objectui#6150)'),
   defaultExpandedIds: z.array(z.string()).optional().describe('Default expanded node IDs'),
   defaultSelectedIds: z.array(z.string()).optional().describe('Default selected node IDs'),
   expandedIds: z.array(z.string()).optional().describe('Controlled expanded node IDs'),
