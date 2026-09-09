@@ -1069,6 +1069,7 @@ const pt = {
     sortBy: "Ordenar por",
     filterPlaceholder: "Filtrar…",
     highlightFields: "Campos principais",
+    highlightsLabel: "Campos principais do registro",
     createdBy: "Criado por",
     updatedBy: "Atualizado por",
     // objectui#3863 — base key. pt's third category `many` starts at a million, where

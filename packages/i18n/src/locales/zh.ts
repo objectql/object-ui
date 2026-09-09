@@ -1001,6 +1001,7 @@ const zh = {
     sortBy: '排序',
     filterPlaceholder: '筛选…',
     highlightFields: '关键字段',
+    highlightsLabel: '记录关键字段',
     // Comments
     comments: '评论',
     searchComments: '搜索评论…',

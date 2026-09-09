@@ -1068,6 +1068,7 @@ const ko = {
     sortBy: "정렬 기준",
     filterPlaceholder: "필터…",
     highlightFields: "주요 필드",
+    highlightsLabel: "레코드 주요 필드",
     createdBy: "작성자",
     updatedBy: "업데이트한 사람",
     created: "작성됨",

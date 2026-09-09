@@ -1070,6 +1070,7 @@ const fr = {
     sortBy: "Trier par",
     filterPlaceholder: "Filtrer…",
     highlightFields: "Champs clés",
+    highlightsLabel: "Champs clés de l'enregistrement",
     createdBy: "Créé par",
     updatedBy: "Mis à jour par",
     // objectui#3863 — base key. fr has a third category, `many`, which CLDR uses from

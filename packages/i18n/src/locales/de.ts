@@ -1068,6 +1068,7 @@ const de = {
     sortBy: "Sortieren nach",
     filterPlaceholder: "Filtern…",
     highlightFields: "Schlüsselfelder",
+    highlightsLabel: "Schlüsselfelder des Datensatzes",
     createdBy: "Erstellt von",
     updatedBy: "Aktualisiert von",
     created: "Erstellt",
