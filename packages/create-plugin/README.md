@@ -30,6 +30,7 @@ packages/plugin-my-plugin/
 ├── tsconfig.json
 ├── vite.config.ts
 ├── vitest.setup.ts         # Registers the jest-dom matchers
+├── LICENSE                 # Full text of the licence you chose
 └── README.md
 ```
 
@@ -41,6 +42,8 @@ packages/plugin-my-plugin/
 - ✅ Runnable Vitest setup — jsdom environment, Testing Library and the jest-dom
   matchers are all declared, so `pnpm test` is green on the first run
 - ✅ Proper package.json with workspace dependencies
+- ✅ A LICENSE carrying the full text of the licence the manifest declares —
+  never a `license` field with nothing behind it
 - ✅ README template
 - ✅ Type definitions
 
@@ -56,6 +59,12 @@ You'll be prompted for:
 - Plugin name
 - Description
 - Author name
+- License — `MIT` (default), `Apache-2.0`, `BSD-3-Clause` or `ISC`
+
+The licence you pick is written to `package.json` and its **full text** is written
+to `LICENSE`, so a published tarball never claims a licence it does not carry. A
+non-interactive run (no TTY, or a cancelled prompt) takes MIT and still writes the
+text.
 
 ## Options
 
