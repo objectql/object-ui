@@ -152,10 +152,40 @@ export interface ObjectCalendarComponentProps {
  * tolerant fallback fossilizes the wrong convention into a second de-facto
  * contract. Pinned in `__tests__/ObjectCalendar.filterIsNotAConfigSlot-7711.test.tsx`.
  */
-function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): CalendarConfig | null {
+/**
+ * The config this component reads: the spec's `CalendarConfig` plus the ONE
+ * objectui-local key it also honours.
+ *
+ * ⭐ Measured, objectui#8026 — `allDayField` is NOT a spec key, and the card
+ * that named it "declared by the spec" was reading a different type.
+ * `@objectstack/spec`'s `CalendarConfigSchema` is a `strictObject` of exactly
+ * four keys (`startDateField`, `endDateField`, `titleField`, `colorField`) and
+ * refuses `allDayField` BY NAME with an `unrecognized_keys` diagnostic — on the
+ * pinned 17.3.0 and on objectstack `main`. The `@default 'allDay'` doc comment
+ * lives on `@object-ui/types`' `CalendarViewSchema`, which is the SIBLING
+ * `calendar-view` element's own type, not this one.
+ *
+ * The lane `allDayField` really rides is objectui's own, and it is deliberate:
+ * `@object-ui/types`' `CalendarConfig` mirror derives from the spec schema and
+ * keeps `.passthrough()` explicitly for this, naming this key — "the renderers
+ * grow config knobs ahead of the protocol (calendar's `allDayField`, for one),
+ * and stripping them here would silently disable a shipped capability"
+ * (`packages/types/src/zod/objectql.zod.ts`). That is the same class objectui's
+ * sanctioned `defaultView` occupies: the spec refuses `defaultView` on this
+ * object in exactly the same shape, and this component has honoured it for
+ * releases. So honouring `allDayField` widens no accept set — objectui's
+ * published validator already admits it, `ListView` already collects it into
+ * the fetch, and `ObjectView` already forwards it verbatim.
+ */
+type ObjectCalendarConfig = CalendarConfig & {
+  /** Record field carrying the all-day flag. objectui-local — see above. */
+  allDayField?: string;
+};
+
+function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): ObjectCalendarConfig | null {
   // The declared configuration container.
   if ((schema as any).calendar) {
-    return (schema as any).calendar as CalendarConfig;
+    return (schema as any).calendar as ObjectCalendarConfig;
   }
   
   // Check for flat properties (used by ObjectView)
@@ -166,7 +196,7 @@ function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): CalendarC
           titleField: (schema as any).titleField,
           colorField: (schema as any).colorField,
           allDayField: (schema as any).allDayField
-      } as CalendarConfig;
+      } as ObjectCalendarConfig;
   }
 
   return null;
@@ -290,6 +320,17 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   // Before this change a simultaneous `filter` change could recompute the memo
   // and pick those up by luck; that luck is now gone, so the list has to be
   // honest. Pinned in `__tests__/ObjectCalendar.filterIsNotAConfigSlot-7711.test.tsx`.
+  //
+  // ⭐ objectui#8026 — `allDayField` is now LOAD-BEARING here, not merely
+  // honest. When #7711 named it, nothing read the key, so the dependency could
+  // only ever cost a recompute; the events pass below now reads it, so a change
+  // to the authored `allDayField` genuinely changes what is drawn and this
+  // entry is what makes that reach the screen. ⚠️ Measured while doing so: the
+  // #7711 file named above pins `startDateField`'s recompute and `filter`'s
+  // NON-recompute and mentions neither `allDayField` nor `colorField` — the
+  // dependency itself has never had an assertion on it. The behaviour rows that
+  // now depend on this entry live in
+  // `__tests__/ObjectCalendar.allDayFieldIsHonoured-8026.test.tsx`.
   const calendarConfig = useMemo(() => getCalendarConfig(schema), [
     (schema as any).calendar,
     (schema as any).startDateField,
@@ -522,7 +563,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       return { events: [] as CalendarViewEvent[], unscheduledRecords: [] as UnscheduledRecord[] };
     }
 
-    const { startDateField, endDateField, titleField, colorField } = calendarConfig;
+    const { startDateField, endDateField, titleField, colorField, allDayField } = calendarConfig;
     // `colorField` NAMES A FIELD to derive a colour from (objectui#7243). The
     // shared ladder answers the two rungs that depend only on the field's own
     // metadata — the option `color` the author declared for this value, then
@@ -593,14 +634,41 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
         start,
         end: endDate ? new Date(endDate) : undefined,
         color,
-        // Only a record that HAS a start reaches this line. That is the point
-        // of the early return above, not an accident of ordering: `!endDate`
-        // used to fire for a record with no dates AT ALL, so one absent field
-        // silently set two rendered properties and a dateless record rendered
-        // as an all-day event on today. A record without a start is
-        // unscheduled, not all-day. For a record WITH a start the inference is
-        // unchanged.
-        allDay: !endDate, // If no end date, treat as all-day event
+        // ⭐ objectui#8026 — the DECLARED key is the answer when there is one.
+        // `allDayField` was resolved into the config above and named in the
+        // memo dependency list, and then read by nothing: a record with a real
+        // end date that IS flagged all-day drew as an ordinary timed event,
+        // with no diagnostic. The value was arriving, too — `ListView`'s
+        // `collectViewFields` already puts this field into the fetch and
+        // `ObjectView`'s `calendarViewOptions` forwards the authored `calendar`
+        // block verbatim — so the flag was fetched and dropped right here.
+        //
+        // ⛔ NO `|| 'allDay'` DEFAULT. That is the one deliberate divergence
+        // from the `calendar-view` sibling, which spells `schema.allDayField ||
+        // 'allDay'`, and it is measured rather than stylistic: this component
+        // honours NONE of that sibling's five field-name defaults. `titleField`
+        // / `endDateField` / `colorField` all read the authored name or nothing,
+        // and an absent `startDateField` reaches the refusal screen rather than
+        // a guess — objectui#7029, ruled objectstack#13748 batch #19 option A,
+        // whose whole content was deleting fabricated field bindings upstream.
+        // The sibling's defaults describe the canonical AUTHORED EVENT shape
+        // `{ title, start, end, allDay, color }`, which is what a `calendar-view`
+        // node literally carries in its `data`; this component's records are
+        // ObjectQL records of a business object, where nothing makes `allDay` a
+        // field name. Importing one of five defaults would put the last guess
+        // back into the one file whose refusal screen exists to refuse guessing.
+        //
+        // ⇒ DECLARED means that field is the answer, absolutely: a record whose
+        // flag is absent or false is NOT all-day. Letting the inference run
+        // behind a declared key would silently overrule the author, which is
+        // this card's own defect inverted. UNDECLARED means nothing changes —
+        // every calendar that never authored the key renders as it did before.
+        //
+        // The `!endDate` arm keeps its objectui#7071 reading unchanged: only a
+        // record that HAS a start reaches this line, so one absent field can no
+        // longer set two rendered properties. A record without a start is
+        // unscheduled, not all-day.
+        allDay: allDayField ? Boolean(record[allDayField]) : !endDate,
         data: record,
       });
     });

@@ -189,7 +189,7 @@ describe('record:line_items — parent scope AND the authored criteria (objectst
         parentId: 'inv-1',
         columns: COLUMNS,
         filter: [['billable', '=', true]],
-        sort: 'qty desc',
+        sort: [{ field: 'qty', order: 'desc' }],
         limit: 25,
       },
       adapter,

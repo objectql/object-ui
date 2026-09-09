@@ -96,7 +96,7 @@ describe('ObjectMapSchema declares what the renderer reads (type pins)', () => {
       staticData: [{ id: '1' }],
       data: { provider: 'value', items: [{ id: '1' }] },
       filter: [['status', '=', 'open']],
-      sort: 'name desc',
+      sort: [{ field: 'name', order: 'desc' }],
       map: {
         latitudeField: 'lat',
         longitudeField: 'lng',

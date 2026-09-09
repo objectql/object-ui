@@ -109,7 +109,7 @@ const schema: ObjectMapSchema = {
   data?: ViewData,                  // Advanced data configuration (read first)
                                     // At least one of data / staticData / objectName is required
   filter?: Array<any>,              // Query filter, sent as $filter
-  sort?: string | SortConfig[],     // Sort, sent as $orderby
+  sort?: SortConfig[],              // Sort, sent as $orderby
   map?: ObjectMapConfig,            // Map-specific configuration
   enableClustering?: boolean,       // Cluster nearby markers (auto past 100)
   navigation?: NavigationConfig,    // Record navigation (drawer/dialog/page)

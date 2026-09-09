@@ -646,8 +646,20 @@ export interface DetailViewSchema extends BaseSchema {
    */
   deleteConfirmation?: string;
   /**
-   * Whether to show loading state
-   * @default true
+   * Force the loading skeleton.
+   *
+   * The same single reader as `DetailSchema.loading`, reached by a different
+   * registration: `register('detail-view', DetailViewRenderer)`
+   * (`plugin-detail/src/index.tsx:284`) is a data-source gate whose child is
+   * `<DetailView schema={bound as DetailViewSchema} ...>`, so both node types
+   * land on `DetailView.tsx:995` -- `if (loading || schema.loading)`, a bare
+   * disjunct beside the component's own fetch state (`:269`). An omitted key is
+   * `undefined` and contributes nothing to that gate, so the value applied on
+   * absence is `false`. The tag published `true` from the 2026-07-13 bulk JSDoc
+   * pass that copied the zod mirror's old `.default(true)` until objectui#8318
+   * corrected it; the two declarations must keep agreeing, because one
+   * component consumes both.
+   * @default false
    */
   loading?: boolean;
   /**

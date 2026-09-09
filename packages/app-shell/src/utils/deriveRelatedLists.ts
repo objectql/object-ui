@@ -140,7 +140,7 @@ interface ObjectLike {
    * fresh array once the views merge, so the memo over this derivation
    * recomputes and the sort appears.
    */
-  list?: { sort?: string | Array<{ field?: string; order?: 'asc' | 'desc' }> };
+  list?: { sort?: Array<{ field?: string; order?: 'asc' | 'desc' }> };
 }
 
 /**

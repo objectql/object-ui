@@ -447,26 +447,21 @@ describe('layout.ts `@default` docs agree with the renderer, re-measured (object
  * the same derivation. If the two node types ever diverge, this pin is what
  * says so.
  *
- * ## What is deliberately NOT pinned here, and why
+ * ## What this section deliberately did NOT pin — and what the ruling then did
  *
- * `DetailSchema.loading` and `DetailViewSchema.loading` are ALSO live —
- * `DetailView` reads `schema.loading` at the skeleton gate — but their tag says
- * `true` while the read is a bare `||` disjunct, so an omitted key renders NO
- * skeleton and the effective default is `false`. That is a genuine objectui#7735
- * instance hiding inside the population objectui#8318 called referent-less, and
- * it is the sharpest thing the re-test found. It is not pinned because BOTH
- * possible fixes are somebody's ruling — correct the tag to `false`, or give the
- * reader the `?? true` the tag promises (a behaviour change) — and a pin on
- * either side of an open question pre-empts it. Pinning the tag as it stands
- * would pin the defect; pinning the reader as it stands would redden the fix.
+ * Nine of the sixteen were left unpinned HERE, on purpose: `DetailSchema.loading`
+ * / `DetailViewSchema.loading`, whose tag said `true` against a bare `||`
+ * disjunct, and the seven keys the re-test could find no reader for. Both
+ * groups fed objectui#8318's question 1 — is the tag wrong, or is the key dead?
+ * — and a pin on either side of an open question pre-empts it: pinning those
+ * tags as they stood would have pinned the defect, pinning the readers as they
+ * stood would have reddened the fix.
  *
- * The other nine keys stay unpinned for the opposite reason: the re-test could
- * not find a reader for them, and "no reader" is the input to objectui#8318's
- * own question 1 (is the tag wrong, or is the key dead?), which is order-locked
- * behind this measurement and reserved to the maintainer. The absence of a
- * `crud-dialog` renderer is already recorded on the tree — see the header of
- * `handler-keys-string-any-mirrors-7344.test.ts` and `crud.zod.ts` — and is not
- * duplicated here.
+ * The maintainer answered on 2026-09-09: a docs-vs-implementation mismatch is a
+ * docs fix, so the tags moved and NO key was retired and NO renderer changed.
+ * Those nine rows now live in the LAST section of this file. This section is
+ * unchanged: its seven rows are the correct-tag AGREEMENT rows, and they do not
+ * overlap the nine.
  *
  * ## Derivation
  *
@@ -675,6 +670,316 @@ describe('objectui#8318 — the `@default`s the "no renderer reads it" list got 
      */
     it('the reader is typed by AppComponentSchema, not a look-alike', () => {
       expect(read(LAYOUT_RENDERER)).toMatch(/app:\s*AppComponentSchema/);
+    });
+  });
+});
+
+/**
+ * objectui#8318 ruling rows — the nine tags the re-test left for the maintainer.
+ *
+ * ## The ruling, and why these nine are one section and not one row
+ *
+ * The re-test at objectui#8318 comment 5594082411 split the sixteen keys three
+ * ways: seven live with a correct tag (pinned above), two live with a WRONG tag,
+ * and seven with no reader it could find. The maintainer ruled on 2026-09-09
+ * (decision batch #104 item 4) that a documentation-vs-implementation mismatch
+ * is a documentation fix — the tags change, ⛔ no key is retired and ⛔ no
+ * renderer's behaviour moves. Whether these keys should exist at all stays with
+ * the ADR-0049 liveness worklist (objectui#4631, objectui#7963).
+ *
+ * ⛔ The nine are NOT one fact, and this file refuses to let them be pinned as
+ * one. Writing a single sentence and applying it to nine keys is precisely the
+ * defect the whole card is about, one level up: the `@default true` on the two
+ * `loading` keys got there in `6f132f29` (2026-07-13), a BULK JSDoc pass that
+ * copied the zod mirror's `.default(true)` onto every key at once. So each row
+ * below asserts against the evidence for ITS key:
+ *
+ *   | member                              | why the old tag described nothing        |
+ *   |-------------------------------------|------------------------------------------|
+ *   | `DetailSchema.loading`              | read as a BARE `||` disjunct ⇒ `false`   |
+ *   | `DetailViewSchema.loading`          | the same reader, a second registration   |
+ *   | `CardSchema.variant`                | registered twice, read by neither        |
+ *   | `PageNodeSchema.isDefault`          | registered; not read, not on the         |
+ *   |                                     | `toDomProps` allow-list either           |
+ *   | `ActionSchema.level`                | no `action` node type, and the runner    |
+ *   |                                     | that reads its siblings does not read it |
+ *   | `CRUDDialogSchema.size`             | no `crud-dialog` registration at all;    |
+ *   | `.closeOnOutsideClick`              | plus, per key, its own name census:      |
+ *   | `.closeOnEscape`                    | zero occurrences for the middle two, and |
+ *   | `.showClose`                        | for `showClose` one occurrence that      |
+ *   |                                     | belongs to `DrawerSchema`                |
+ *
+ * ## Derivation — the two `loading` rows
+ *
+ * `DetailView` reads the key as `if (loading || schema.loading)`, with no
+ * literal anywhere near it. That is not "no default": `undefined || x` is `x`,
+ * so an omitted key contributes `||`'s IDENTITY element, and the value the
+ * reader applies on absence is `false`. The derivation is therefore two-sided
+ * like every row above, but its renderer half is a proved NEGATIVE — the gate
+ * matches, and no a `schema.loading` read with a literal fallback exists in the
+ * file — rather than a captured literal. `bareDisjunctDefault` below does that
+ * proof; it refuses to answer if a literal fallback ever appears, which is
+ * exactly the edit (giving the reader the `?? true` the old tag promised) the
+ * ruling declined to make. If someone makes it later, these rows go red and ask
+ * for the tag back — which is the correct direction.
+ *
+ * The capture is the CO-DISJUNCT's identifier, not a value: it is what proves
+ * the key is read beside the component's own fetch state rather than alone, and
+ * it is checked to be a `React.useState` local in the same file. A gate that
+ * became `if (schema.loading)` would still be a bare read, but it would no
+ * longer be the thing these docblocks describe.
+ *
+ * ## Derivation — the seven absence rows
+ *
+ * "Nothing applies a default" cannot be captured off a renderer, so each of
+ * these rows asserts the ABSENCE of a `@default` block tag plus the presence of
+ * the specific evidence its docblock owes — a hollow rewrite that dropped the
+ * tag and said nothing would pass an absence-only assertion. Every negative read
+ * carries a FIRING CONTROL from the same file, because a `grep` that stopped
+ * matching would report the same absence.
+ *
+ * ⚠️ Bounded on purpose: the repo-wide facts — `register('action'` and
+ * `register('crud-dialog'` match nothing — are NOT re-derived here, because this
+ * file reads named files and a repo-wide enumeration is a different instrument
+ * with its own failure modes (AGENTS.md's "枚举和读取必须来自不同来源"). They are
+ * recorded in the declarations' own docblocks, in `crud.zod.ts`, and in the
+ * header of `handler-keys-string-any-mirrors-7344.test.ts`. What IS derived here
+ * is everything reachable from a named file: that the `card` primitive does not
+ * consume `variant`, that `page`'s allow-list does not carry `isDefault`, that
+ * `ActionRunner` reads `method` but not `level`, and that the one `showClose`
+ * read in the tree belongs to `DrawerSchema`.
+ */
+const UI_CARD = 'packages/components/src/ui/card.tsx';
+const UI_ALERT = 'packages/components/src/ui/alert.tsx';
+const CARD_RENDERER = 'packages/components/src/renderers/layout/card.tsx';
+const CONTAINERS = 'packages/components/src/renderers/layout/containers.tsx';
+const DOM_PROPS = 'packages/core/src/utils/dom-props.ts';
+const DRAWER = 'packages/components/src/renderers/overlay/drawer.tsx';
+
+/** `if (loading || schema.loading)` — the skeleton gate; the capture is the co-disjunct. */
+const DETAIL_LOADING_GATE = /if \((\w+) \|\| schema\.loading\) \{/g;
+
+/**
+ * The value a key read as a BARE disjunct applies when it is absent.
+ *
+ * Returns `||`'s identity element, but only after proving on disk that the read
+ * really is bare: a literal fallback beside the key would make the identity
+ * argument false, and this refuses to answer rather than returning a stale
+ * `false`.
+ */
+function bareDisjunctDefault(src: string, key: string, where: string): string {
+  const withLiteral = new RegExp(`schema\\.${key}\\s*(?:\\|\\||\\?\\?)\\s*(?:true|false|['"\`]|\\d)`);
+  expect(
+    withLiteral.exec(src),
+    `${where} now gives schema.${key} a literal fallback — the bare-disjunct derivation no longer holds, ` +
+      'and the `@default` tag has to be re-read against it',
+  ).toBeNull();
+  return 'false';
+}
+
+/** A member that publishes NO `@default`, and whose prose owes named evidence. */
+function expectAbsentTagWithEvidence(body: string, member: string, evidence: string[]): void {
+  const doc = docblockFor(body, member);
+  expect(defaultTags(doc), `${member} must publish no @default block tag`).toEqual([]);
+  for (const term of evidence) {
+    expect(doc, `${member}'s docblock must name its evidence: ${term}`).toContain(term);
+  }
+}
+
+describe('objectui#8318 ruling — nine `@default`s corrected against a measured read site', () => {
+  const crud = read(CRUD);
+  const views = read(VIEWS);
+  const types = read(TYPES);
+
+  describe('positive controls — the extractions and the firing controls all match', () => {
+    it('the skeleton gate is still the shape rows 16-17 derive from', () => {
+      expect(soleCapture(read(DETAIL_VIEW), DETAIL_LOADING_GATE, DETAIL_VIEW)).toBeTruthy();
+    });
+
+    it('the co-disjunct really is the component\'s own fetch state', () => {
+      const detailView = read(DETAIL_VIEW);
+      const local = soleCapture(detailView, DETAIL_LOADING_GATE, DETAIL_VIEW);
+      expect(detailView, `${local} is not a useState local in ${DETAIL_VIEW}`)
+        .toMatch(new RegExp(`const \\[${local}, \\w+\\] = React\\.useState\\(`));
+    });
+
+    it('every member these rows read is still declared where this file looks', () => {
+      expect(() => docblockFor(interfaceBody(crud, 'DetailSchema'), 'loading')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(views, 'DetailViewSchema'), 'loading')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(types, 'CardSchema'), 'variant')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(types, 'PageNodeSchema'), 'isDefault')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(crud, 'ActionSchema'), 'level')).not.toThrow();
+      for (const member of ['size', 'closeOnOutsideClick', 'closeOnEscape', 'showClose']) {
+        expect(() => docblockFor(interfaceBody(crud, 'CRUDDialogSchema'), member)).not.toThrow();
+      }
+    });
+
+    /**
+     * The discrimination control for every absence row below. Each of them
+     * asserts an EMPTY tag list, which is also what a broken extractor returns —
+     * and these docblocks quote their own retired tags in prose, so the file
+     * really does contain the text `@default` next to these members.
+     */
+    it('the extractor still sees a real tag, and is not fooled by a quoted one', () => {
+      expect(defaultTags(docblockFor(interfaceBody(crud, 'ActionSchema'), 'method'))).toEqual(["'POST'"]);
+      expect(docblockFor(interfaceBody(types, 'CardSchema'), 'variant')).toContain('@default');
+      expect(defaultTags(docblockFor(interfaceBody(types, 'CardSchema'), 'variant'))).toEqual([]);
+    });
+  });
+
+  describe('row 16 — DetailSchema.loading (tag corrected: `true` → what the bare disjunct applies)', () => {
+    it('row 16 — `DetailSchema.loading` publishes what the reader applies when the key is absent', () => {
+      const applied = bareDisjunctDefault(read(DETAIL_VIEW), 'loading', DETAIL_VIEW);
+      expect(soleDefaultTag(interfaceBody(crud, 'DetailSchema'), 'loading')).toBe(applied);
+    });
+
+    it('no longer publishes `true`, which is the opposite of what happens', () => {
+      expect(defaultTags(docblockFor(interfaceBody(crud, 'DetailSchema'), 'loading'))).not.toContain('true');
+    });
+
+    it('names the read site and the shape that makes the default what it is', () => {
+      const doc = docblockFor(interfaceBody(crud, 'DetailSchema'), 'loading');
+      expect(doc).toContain('DetailView.tsx');
+      expect(doc).toContain('loading || schema.loading');
+    });
+
+    /**
+     * The load-bearing half. The tag is only `false` because the read is bare;
+     * a reader that acquired `?? true` would make `true` correct again, and the
+     * ruling deliberately did NOT make that change. This is what notices.
+     */
+    it('the reader really is bare — no literal fallback on the key', () => {
+      expect(read(DETAIL_VIEW)).not.toMatch(/schema\.loading\s*(\|\||\?\?)\s*(true|false)/);
+    });
+  });
+
+  describe('row 17 — DetailViewSchema.loading (the same reader, a second registration)', () => {
+    it('row 17 — `DetailViewSchema.loading` publishes the same value as its twin', () => {
+      const applied = bareDisjunctDefault(read(DETAIL_VIEW), 'loading', DETAIL_VIEW);
+      expect(soleDefaultTag(interfaceBody(views, 'DetailViewSchema'), 'loading')).toBe(applied);
+    });
+
+    it('the two declarations agree with each other — one component consumes both', () => {
+      expect(soleDefaultTag(interfaceBody(crud, 'DetailSchema'), 'loading'))
+        .toBe(soleDefaultTag(interfaceBody(views, 'DetailViewSchema'), 'loading'));
+    });
+
+    it('names the registration that makes it the same reader', () => {
+      const doc = docblockFor(interfaceBody(views, 'DetailViewSchema'), 'loading');
+      expect(doc).toContain("register('detail-view'");
+      expect(doc).toContain('DetailView.tsx');
+    });
+  });
+
+  describe('row 18 — CardSchema.variant (registered twice, read by neither)', () => {
+    it('row 18 — `CardSchema.variant` publishes NO `@default` block tag, and says why', () => {
+      expectAbsentTagWithEvidence(interfaceBody(types, 'CardSchema'), 'variant', [
+        'ui/card.tsx',
+        'ui/alert.tsx',
+        'containers.tsx',
+      ]);
+    });
+
+    it('the primitive the `ui` registration forwards to does not consume it', () => {
+      expect(read(UI_CARD), `${UI_CARD} now mentions variant — re-read this row`).not.toMatch(/variant/);
+      // Firing control: the same read on a primitive that DOES consume it.
+      expect(read(UI_ALERT), `${UI_ALERT} control failed — the matcher is broken, not the claim`).toMatch(/variant/);
+    });
+
+    it('the renderer does not read it either, while its siblings are read', () => {
+      const cardRenderer = read(CARD_RENDERER);
+      expect(cardRenderer).not.toMatch(/schema\.variant/);
+      // Firing controls, from the same file: two sibling members that ARE read.
+      expect(cardRenderer).toMatch(/schema\.clickable/);
+      expect(cardRenderer).toMatch(/schema\.hoverable/);
+    });
+
+    it('the second registration forwards only the designer props', () => {
+      expect(read(CONTAINERS)).toContain("ComponentRegistry.register('card', PageCardRenderer");
+      expect(read(CONTAINERS)).toMatch(/\{\.\.\.designer\}/);
+    });
+  });
+
+  describe('row 19 — PageNodeSchema.isDefault (registered, not read, not on the allow-list)', () => {
+    it('row 19 — `PageNodeSchema.isDefault` publishes NO `@default` block tag, and says why', () => {
+      expectAbsentTagWithEvidence(interfaceBody(types, 'PageNodeSchema'), 'isDefault', [
+        'toDomProps',
+        'SDUI_DOM_PASS_THROUGH_KEYS',
+      ]);
+    });
+
+    it('the page renderer does not read it, and still reads its neighbour', () => {
+      const page = read(PAGE);
+      expect(page).not.toMatch(/schema\.isDefault/);
+      // Firing control from the same file: a member this renderer really reads.
+      expect(page).toMatch(/schema\.pageType/);
+    });
+
+    it('the wrapper element is fed an allow-list, and `isDefault` is not on it', () => {
+      expect(read(PAGE)).toContain('toDomProps(props)');
+      const domProps = read(DOM_PROPS);
+      expect(domProps).not.toContain('isDefault');
+      // Firing control: a key that IS on the list.
+      expect(domProps).toContain('className');
+    });
+  });
+
+  describe('row 20 — ActionSchema.level (no `action` node type; the runner reads its siblings, not it)', () => {
+    it('row 20 — `ActionSchema.level` publishes NO `@default` block tag, and says why', () => {
+      expectAbsentTagWithEvidence(interfaceBody(crud, 'ActionSchema'), 'level', [
+        "register('action'",
+        'ActionRunner.ts',
+      ]);
+    });
+
+    it('the runner that makes the sibling keys live does not read this one', () => {
+      const runner = read(ACTION_RUNNER);
+      expect(runner).not.toMatch(/action\.level/);
+      // Firing control: the sibling read that row 8 is derived from.
+      expect(runner).toMatch(/action\.method/);
+    });
+  });
+
+  describe('rows 21-24 — the four `CRUDDialogSchema` keys (no registration for the node type)', () => {
+    it('the interface itself records the missing registration, once', () => {
+      expect(crud).toContain("NO RENDERER IS REGISTERED FOR `crud-dialog`");
+      expect(crud).toContain("register('crud-dialog'");
+    });
+
+    it('row 21 — `size` publishes no tag and defers to that fact', () => {
+      expectAbsentTagWithEvidence(interfaceBody(crud, 'CRUDDialogSchema'), 'size', [
+        'interface docblock',
+      ]);
+    });
+
+    it('row 22 — `closeOnOutsideClick` publishes no tag and names its empty census', () => {
+      expectAbsentTagWithEvidence(interfaceBody(crud, 'CRUDDialogSchema'), 'closeOnOutsideClick', [
+        'zod twin',
+      ]);
+    });
+
+    it('row 23 — `closeOnEscape` publishes no tag and names its empty census', () => {
+      expectAbsentTagWithEvidence(interfaceBody(crud, 'CRUDDialogSchema'), 'closeOnEscape', [
+        'zod twin',
+      ]);
+    });
+
+    /**
+     * The one of the four whose census is NOT empty, which is why its wording
+     * differs: crediting this declaration with `DrawerSchema`'s reader is the
+     * exact mistake a name-only census makes.
+     */
+    it('row 24 — `showClose` publishes no tag and names the look-alike reader', () => {
+      expectAbsentTagWithEvidence(interfaceBody(crud, 'CRUDDialogSchema'), 'showClose', [
+        'drawer.tsx',
+        'DrawerSchema',
+      ]);
+    });
+
+    it('the look-alike really exists, and really is another declaration', () => {
+      const drawer = read(DRAWER);
+      expect(drawer).toMatch(/schema\.showClose/);
+      expect(drawer).toContain('DrawerSchema');
     });
   });
 });

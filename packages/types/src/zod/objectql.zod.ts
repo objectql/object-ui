@@ -223,7 +223,7 @@ export const ObjectGridSchema = BaseSchema.extend({
   data: ViewDataSchema.optional().describe('Data source configuration'),
   columns: z.union([z.array(z.string()), z.array(ListColumnSchema)]).optional().describe('Columns configuration'),
   filter: z.array(z.any()).optional().describe('Filter criteria'),
-  sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration'),
+  sort: z.array(SortConfigSchema).optional().describe('Sort configuration (array only; the legacy string clause is retired — objectui#8221)'),
   searchableFields: z.array(z.string()).optional().describe('Searchable fields'),
   resizable: z.boolean().optional().describe('Enable column resizing'),
   showColumnTypeIcons: z.boolean().optional().describe('Show column type icons (T/Tag/Calendar) in headers. Off by default — type is usually obvious from cell content; the icons add visual noise.'),
@@ -855,7 +855,7 @@ export const ObjectMapSchema = BaseSchema.extend({
   data: ViewDataSchema.optional().describe('Data source configuration — read FIRST by getDataConfig'),
   staticData: z.array(z.any()).optional().describe('Inline records — read SECOND by getDataConfig, wrapped into a { provider: value } config'),
   filter: z.array(z.any()).optional().describe('Query filter, forwarded as $filter'),
-  sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
+  sort: z.array(SortConfigSchema).optional().describe('Sort configuration, forwarded as $orderby (array only; the legacy string clause is retired — objectui#8221)'),
   map: ObjectMapConfigSchema.optional().describe('Map configuration (the author face)'),
   enableClustering: z.boolean().optional().describe('Group nearby markers into clusters'),
   navigation: stripImportedDefaults(SpecNavigationConfigSchema).optional().describe('Record navigation behaviour (drawer/dialog/page)'),
@@ -1050,7 +1050,7 @@ export const ObjectGanttSchema = BaseSchema.extend({
   // objectui#5903 retyped it to `ObjectGanttSchema` — so they need declaring here.
   staticData: z.array(z.any()).optional().describe('Inline records, wrapped into a { provider: value } data config — read SECOND by getDataConfig'),
   filter: z.array(z.any()).optional().describe('Query filter, forwarded verbatim as $filter'),
-  sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
+  sort: z.array(SortConfigSchema).optional().describe('Sort configuration, forwarded as $orderby (array only; the legacy string clause is retired — objectui#8221)'),
 }).superRefine(requireRecordSource('object-gantt'));
 
 /**

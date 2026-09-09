@@ -94,23 +94,58 @@
  * block almost never imports it (measured: 8 of 124 import anything at all). The
  * gate therefore prepends ONE line:
  *
- *     import { SYMBOL } from 'PACKAGE';
+ *     import { SYMBOL } from 'SPECIFIER';
  *
  * and only when all three hold, each re-checked per run:
  *
  *   - the block's text references SYMBOL;
  *   - the block does not already import SYMBOL itself;
- *   - PACKAGE's BUILT entry really exports SYMBOL — probed in the same program,
- *     never assumed. Measured: 111 of 114 documented symbols are on their
- *     package's public entry; the 3 that are not are reported by name.
+ *   - some probed SPECIFIER really exports SYMBOL — compiled in the same
+ *     program, never assumed. TWO candidates are probed, in this order, and the
+ *     first one that imports wins:
  *
- * ⚠️ The probe asks the package's ROOT specifier and only that one, so a symbol
- * published under a SUBPATH reads as "not on a public entry" here. That is a
- * deliberately conservative answer — it withholds the injection rather than
- * guessing a subpath — but it means the printed list is "symbols this gate did
- * not inject", NOT a list of defects. On this corpus 2 of the 3 are subpath
- * exports (`@object-ui/types/zod`) and both blocks compile anyway; the third,
- * `MetadataCache`, is genuinely absent from its package's only export.
+ *       1. the package's ROOT specifier, e.g. `@object-ui/types`;
+ *       2. the BUILT declaration of the symbol's OWN source file — the `dist`
+ *          twin of `packages/NAME/src/a/b.ts`, offered only when that twin is
+ *          on disk.
+ *
+ * The count reached by each candidate is printed every run, so both stay derived.
+ *
+ * ### Why candidate 2 exists, and why it widens nothing (objectui#8743)
+ *
+ * The justification above is SCOPE, not publication. Candidate 1 alone models
+ * scope as "importable from the package's public entry", which is a publication
+ * test, and it answers NO for every symbol a package exports to its own modules
+ * and to nothing else. Such a block is then judged WITHOUT the import it needs,
+ * so any example that spells its own symbol's name is TS2304 — not because the
+ * example is wrong, but because this file could not name the symbol.
+ *
+ * `stripImportedDefaults` landed exactly there and reddened `main`. It is
+ * deliberately package-internal — objectui#8317's design is that the strip
+ * happens at the import boundary, not that consumers call it — so with candidate
+ * 1 as the only route the remaining two are: EXPORT it, widening a published
+ * surface (and moving `@object-ui/types`' public API) for a docs gate; or write
+ * a ledger row, converting a checked example into an unchecked one. Both are
+ * worse than the defect. Candidate 2 is the third route: the declaring module IS
+ * an internal symbol's scope, and its built `.d.ts` is the same artifact tier
+ * candidate 1 resolves to. Nothing is exported, nothing new is published, and
+ * the example stays COMPILED.
+ *
+ * ⛔ Candidate 2 is not a licence to reference anything: it names the symbol the
+ * block documents and nothing else, which is the same one-line bound candidate 1
+ * has always had. It is not the `declare var NAME: any` pass refused below —
+ * the types come from the real built declaration, so the call is judged against
+ * the shipped signature.
+ *
+ * ⚠️ It is still PROBED, never assumed, and a bundling build has no twin to
+ * probe: `tsup`/rolldown emit one `dist/index.d.ts` and no per-file declaration,
+ * so the candidate is absent and the conservative answer stands. That is why the
+ * printed list remains "symbols this gate did not inject", NOT a list of defects.
+ *
+ * ⚠️ Neither candidate guesses a SUBPATH. A symbol published only under one
+ * (`@object-ui/types/zod`) is not reached by candidate 1 and does not need to
+ * be — those blocks import themselves, which is what a reader copying them does,
+ * and `alreadyImported` then withholds the prelude anyway.
  *
  * Prepended, not appended, because an `import` must precede the code that uses
  * it; the printed line numbers therefore carry an offset, which `formatDiagnostic`
@@ -978,7 +1013,7 @@ export const UNGATED_EXAMPLES = {
     reason:
       'usage fragment: references `save`, `storedPage`, which the example never declares',
   },
-  'packages/types/src/objectql.ts:1604 ObjectFormSchema': {
+  'packages/types/src/objectql.ts:1607 ObjectFormSchema': {
     card: null,
     codes: [1005, 1109],
     reason:
@@ -995,55 +1030,112 @@ export const UNGATED_EXAMPLES = {
 // ── The run ──────────────────────────────────────────────────────────────────
 
 /**
- * Which documented symbols the built package entries really export.
+ * The `dist` twin of one source file, as an ABSOLUTE specifier, or `null`.
  *
- * Probed, never assumed: one throwaway module per `PACKAGE SYMBOL` pair, handed
- * to the same `compileSnippets()` the blocks go through, so the answer comes
- * from the same resolution the verdict does. A pair that cannot be imported is
- * reported by name and its block is judged WITHOUT the injected import, so the
- * gate never blames an example for this file's own transformation.
+ * `packages/NAME/src/a/b.ts` -> `ROOT/packages/NAME/dist/a/b.js`. Absolute, not
+ * relative: the virtual directory the sibling compiles blocks in is that file's
+ * private detail, and an absolute specifier is one THE BOUND never refuses
+ * (`resolvesOnlyThroughRootManifest` exempts specifiers starting with `.` or
+ * `/`), so this candidate can never be mistaken for a bare package import.
  *
- * @param {{ root: string, blocks: {package: string, symbol: string}[], paths: object, declaredSpecifiers: string[] }} options
- * @returns {Set<string>} the `PACKAGE SYMBOL` pairs that are NOT on a public entry
+ * Existence is checked on the `.d.ts` — that is what the program reads, since
+ * `moduleResolution: Bundler` maps the `.js` specifier onto it — so a package
+ * whose build BUNDLES its declarations has no twin here and is declined. This is
+ * a cheap pre-filter, not the answer: the probe below is the authority.
+ *
+ * @param {string} file repo-relative source path of the documented symbol
+ * @param {string} root
+ * @returns {string | null}
  */
-export function probeExportedSymbols({ root, blocks, paths, declaredSpecifiers }) {
-  const pairs = [...new Set(blocks.map((b) => `${b.package} ${b.symbol}`))].sort();
-  const probes = pairs.map((pair, index) => {
-    const [pkg, symbol] = pair.split(' ');
-    return {
-      doc: `probe/${pkg}`,
-      fenceLine: index,
-      language: 'ts',
-      quoteDepth: 0,
-      fragmentReason: null,
-      // `[typeof S]` rather than `typeof S`: a tuple accepts a value position for
-      // a name that is only a type, so this probe answers "is it importable"
-      // without also asking "is it a value", which is a different question.
-      body: `import { ${symbol} } from '${pkg}';\nexport type P = [typeof ${symbol}];\n`,
-      pair,
-    };
-  });
-  if (probes.length === 0) return new Set();
-  const run = compileSnippets({ root, compiled: probes, paths, declaredSpecifiers });
-  const missing = new Set();
-  for (const { block, diagnostics } of run.semanticFailures) {
-    if (diagnostics.some((d) => d.code === 2305 || d.code === 2307)) missing.add(block.pair);
+export function builtTwinSpecifier(file, root = repoRoot) {
+  const parts = file.split('/');
+  if (parts.length < 4 || parts[0] !== PACKAGES_DIR || parts[2] !== SOURCE_SUBDIR) return null;
+  const stem = parts.slice(3).join('/').replace(/\.tsx?$/, '');
+  const distDir = join(root, PACKAGES_DIR, parts[1], 'dist');
+  if (!existsSync(join(distDir, `${stem}.d.ts`))) return null;
+  return join(distDir, `${stem}.js`);
+}
+
+/**
+ * Which specifier, if any, brings each documented symbol into scope.
+ *
+ * Probed, never assumed: one throwaway module per `PAIR SPECIFIER` candidate,
+ * handed to the same `compileSnippets()` the blocks go through, so the answer
+ * comes from the same resolution the verdict does. Candidates are tried in the
+ * order `injectionCandidates` lists them and the FIRST that imports wins; a pair
+ * no candidate can import is reported by name and its block is judged WITHOUT an
+ * injected import, so the gate never blames an example for this transformation.
+ *
+ * @param {{ root: string, blocks: {package: string, symbol: string, file: string}[], paths: object, declaredSpecifiers: string[] }} options
+ * @returns {Map<string, string>} `PACKAGE SYMBOL` -> the specifier that imported it
+ */
+export function probeInjectionSpecifiers({ root, blocks, paths, declaredSpecifiers }) {
+  /** @type {Map<string, string[]>} */
+  const candidatesOf = new Map();
+  for (const block of [...blocks].sort((a, b) =>
+    `${a.package} ${a.symbol}`.localeCompare(`${b.package} ${b.symbol}`),
+  )) {
+    const pair = `${block.package} ${block.symbol}`;
+    if (!candidatesOf.has(pair)) candidatesOf.set(pair, []);
+    const list = candidatesOf.get(pair);
+    for (const candidate of [block.package, builtTwinSpecifier(block.file, root)]) {
+      if (candidate && !list.includes(candidate)) list.push(candidate);
+    }
   }
-  return missing;
+
+  const probes = [];
+  for (const [pair, candidates] of candidatesOf) {
+    const symbol = pair.split(' ')[1];
+    for (const specifier of candidates) {
+      probes.push({
+        doc: `probe/${pair}`,
+        fenceLine: probes.length,
+        language: 'ts',
+        quoteDepth: 0,
+        fragmentReason: null,
+        // `[typeof S]` rather than `typeof S`: a tuple accepts a value position for
+        // a name that is only a type, so this probe answers "is it importable"
+        // without also asking "is it a value", which is a different question.
+        body: `import { ${symbol} } from '${specifier}';\nexport type P = [typeof ${symbol}];\n`,
+        pair,
+        specifier,
+      });
+    }
+  }
+  if (probes.length === 0) return new Map();
+
+  const run = compileSnippets({ root, compiled: probes, paths, declaredSpecifiers });
+  const failed = new Set();
+  const fail = (block) => failed.add(`${block.pair}|${block.specifier}`);
+  for (const { block, diagnostics } of run.semanticFailures) {
+    if (diagnostics.some((d) => d.code === 2305 || d.code === 2307)) fail(block);
+  }
+  // A candidate this harness could not even parse or was refused by THE BOUND is
+  // not an importable specifier either; counting only the semantic arm would let
+  // one through on a technicality.
+  for (const { block } of run.parseFailures) fail(block);
+  for (const { block } of run.boundFailures) fail(block);
+
+  const resolved = new Map();
+  for (const probe of probes) {
+    if (resolved.has(probe.pair)) continue;
+    if (!failed.has(`${probe.pair}|${probe.specifier}`)) resolved.set(probe.pair, probe.specifier);
+  }
+  return resolved;
 }
 
 /**
  * The ONE transformation, applied per block. See the header.
  *
  * @param {{ symbol: string, package: string, body: string }} block
- * @param {Set<string>} missing pairs the export probe could not import
+ * @param {Map<string, string>} injectableFrom pair -> the specifier that imports it
  */
-export function preludeFor(block, missing) {
+export function preludeFor(block, injectableFrom) {
   const references = new RegExp(`\\b${block.symbol}\\b`).test(block.body);
   const alreadyImported = new RegExp(`import[^;]*\\b${block.symbol}\\b[^;]*from`).test(block.body);
-  const onPublicEntry = !missing.has(`${block.package} ${block.symbol}`);
-  return references && !alreadyImported && onPublicEntry
-    ? `import { ${block.symbol} } from '${block.package}';\n`
+  const specifier = injectableFrom.get(`${block.package} ${block.symbol}`);
+  return references && !alreadyImported && specifier
+    ? `import { ${block.symbol} } from '${specifier}';\n`
     : '';
 }
 
@@ -1213,15 +1305,20 @@ function main() {
     return EXIT_CODES.couldNotRun;
   }
 
-  const missing = probeExportedSymbols({
+  const injectableFrom = probeInjectionSpecifiers({
     root: repoRoot,
     blocks: census.blocks,
     paths: state.paths,
     declaredSpecifiers: state.declaredSpecifiers,
   });
+  const pairs = [...new Set(census.blocks.map((b) => `${b.package} ${b.symbol}`))].sort();
+  const withheld = pairs.filter((pair) => !injectableFrom.has(pair));
+  const viaTwin = pairs.filter(
+    (pair) => injectableFrom.has(pair) && injectableFrom.get(pair) !== pair.split(' ')[0],
+  );
 
   const compiled = census.blocks.map((block) => {
-    const prelude = preludeFor(block, missing);
+    const prelude = preludeFor(block, injectableFrom);
     return {
       doc: block.file,
       // `formatDiagnostic` prints `fenceLine + line`. The prelude shifts the
@@ -1306,9 +1403,16 @@ function main() {
   console.log(`  src leaks    ${run.srcLeaks.length}`);
   console.log(
     `  injection    ${compiled.filter((b) => b.injected).length} of ${compiled.length} block(s) received the documented symbol's import; ` +
-      `${missing.size} documented symbol(s) are NOT on a public entry`,
+      `${pairs.length - withheld.length} of ${pairs.length} documented symbol(s) are importable, ` +
+      `${viaTwin.length} of them only through their module's built declaration`,
   );
-  for (const pair of [...missing].sort()) console.log(`               not on a public entry: ${pair}`);
+  for (const pair of viaTwin) {
+    console.log(
+      `               via its module's built declaration: ${pair} ` +
+        `(${relative(repoRoot, injectableFrom.get(pair)).split(sep).join('/')})`,
+    );
+  }
+  for (const pair of withheld) console.log(`               NOT importable from any probed specifier: ${pair}`);
   console.log('');
 
   const clean = results.length - codesOf.size;

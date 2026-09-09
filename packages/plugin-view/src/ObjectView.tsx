@@ -1600,11 +1600,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   //           missing keys off an array and sends the literal string
   //           `"undefined undefined"` as `$orderby`.
   //
-  // So the view's sort now rides the CANONICAL slot, which is declared
-  // `string | SortConfig[]` and therefore already holds the arity a view
-  // carries. That is also the shape the shared sort sink accepts
-  // (`convertSortToQueryParams`, `string | SortConfig[]` — objectui#4869), so
-  // this converges on the normalized dialect instead of introducing another.
+  // So the view's sort now rides the CANONICAL slot, `ObjectGridSchema.sort`,
+  // which holds the multi-key arity a view carries. That is also the shape the
+  // shared sort sink accepts (`convertSortToQueryParams`, `SortConfig[]` —
+  // objectui#4869, narrowed to the array alone by objectui#8221), so this
+  // converges on the normalized dialect instead of introducing another.
   // Precedence is unchanged: ObjectGrid resolves `sort ?? defaultSort`, so a
   // view sort still outranks a `table.defaultSort`, and `table.sort` still
   // outranks it too — the same order `mergedSort` and the non-grid fetch use.
