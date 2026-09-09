@@ -97,7 +97,7 @@ describe('green on main — the negative control', () => {
 function sampleA(): string {
   let out = realLock;
   for (const pkg of ['client', 'core', 'formula', 'lint', 'sdui-parser']) {
-    out = out.replace(new RegExp(`(@objectstack/${pkg}@)17\.4\.0`, 'g'), '$117.2.0');
+    out = out.replace(new RegExp(`(@objectstack/${pkg}@)17\\.4\\.0`, 'g'), '$117.2.0');
   }
   const specKey = "  '@objectstack/spec@17.4.0(ai@7.0.65(zod@4.4.3))':";
   expect(out, 'the spec snapshot key moved — rebuild this sample before trusting it').toContain(
