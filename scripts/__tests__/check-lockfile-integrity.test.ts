@@ -89,7 +89,7 @@ describe('green on main — the negative control', () => {
  *
  * ⛔ It cannot be produced by running the resolver, and that impossibility is
  * the card's central claim: every workspace range on `@objectstack/*` is a
- * floating `^17.x` and the registry's latest is 17.3.0, so no fresh resolve can
+ * floating `^17.x` and the registry's latest is 17.4.0, so no fresh resolve can
  * pick 17.2.0. The sample is therefore a transformation of the real lockfile
  * reproducing the identity facts measured on PRs #7053 / #7058 — the family
  * down to 17.2.0, and `@objectstack/spec` resolved at BOTH versions.
@@ -97,9 +97,9 @@ describe('green on main — the negative control', () => {
 function sampleA(): string {
   let out = realLock;
   for (const pkg of ['client', 'core', 'formula', 'lint', 'sdui-parser']) {
-    out = out.replace(new RegExp(`(@objectstack/${pkg}@)17\\.3\\.0`, 'g'), '$117.2.0');
+    out = out.replace(new RegExp(`(@objectstack/${pkg}@)17\.4\.0`, 'g'), '$117.2.0');
   }
-  const specKey = "  '@objectstack/spec@17.3.0(ai@7.0.65(zod@4.4.3))':";
+  const specKey = "  '@objectstack/spec@17.4.0(ai@7.0.65(zod@4.4.3))':";
   expect(out, 'the spec snapshot key moved — rebuild this sample before trusting it').toContain(
     specKey,
   );
@@ -123,8 +123,8 @@ function sampleA(): string {
 function sampleB(): string {
   let out = realLock;
   const forked = [
-    "  '@objectstack/spec@17.3.0(ai@7.0.65(zod@4.4.3))':",
-    "  '@objectstack/formula@17.3.0(ai@7.0.65(zod@4.4.3))':",
+    "  '@objectstack/spec@17.4.0(ai@7.0.65(zod@4.4.3))':",
+    "  '@objectstack/formula@17.4.0(ai@7.0.65(zod@4.4.3))':",
     "  ai@7.0.65(zod@4.4.3):",
   ];
   for (const key of forked) {
@@ -189,7 +189,7 @@ describe('cause 2 — a declared dependency forks with no version moving (object
     expect(spec?.headCount).toBe(2);
     // This is #8326's exact bundling mechanism — two real paths, nothing
     // dedupes them — arriving with no version change anywhere.
-    expect(spec?.head.every((k) => k.includes('@17.3.0'))).toBe(true);
+    expect(spec?.head.every((k) => k.includes('@17.4.0'))).toBe(true);
   });
 });
 
